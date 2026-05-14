@@ -4,10 +4,10 @@ include(
     ":apps:wherewego-api",
     ":modules:jpa",
     ":modules:redis",
-    ":modules:kafka",
     ":supports:jackson",
     ":supports:logging",
     ":supports:monitoring",
+    ":spike:instagram-meta-scraper",
 )
 
 // configurations

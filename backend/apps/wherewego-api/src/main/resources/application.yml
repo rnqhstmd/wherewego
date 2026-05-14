@@ -14,11 +14,12 @@ spring:
   main:
     web-application-type: servlet
   application:
-    name: commerce-api
+    name: wherewego-api
   profiles:
     active: local
   config:
     import:
+      - optional:file:.env[.properties]
       - jpa.yml
       - redis.yml
       - logging.yml
@@ -28,6 +29,25 @@ springdoc:
   use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS}
+  refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS}
+
+kakao:
+  local-api-key: ${KAKAO_LOCAL_API_KEY}
+  oauth:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_CLIENT_SECRET}
+    redirect-uri: ${KAKAO_REDIRECT_URI}
+
+mapbox:
+  token: ${MAPBOX_TOKEN}
+
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY}
 
 ---
 spring:
@@ -45,13 +65,7 @@ spring:
 spring:
   config:
     activate:
-      on-profile: qa
-
----
-spring:
-  config:
-    activate:
-      on-profile: prd
+      on-profile: prod
 
 springdoc:
   api-docs:

@@ -58,8 +58,8 @@ subprojects {
         annotationProcessor("org.projectlombok:lombok")
         // Test
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-        // testcontainers:mysql 이 jdbc 사용함
-        testRuntimeOnly("com.mysql:mysql-connector-j")
+        // testcontainers:postgresql 이 jdbc 사용함
+        testRuntimeOnly("org.postgresql:postgresql")
         testImplementation("org.springframework.boot:spring-boot-starter-test")
         testImplementation("com.ninja-squad:springmockk:${project.properties["springMockkVersion"]}")
         testImplementation("org.mockito:mockito-core:${project.properties["mockitoVersion"]}")
