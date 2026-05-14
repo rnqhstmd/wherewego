@@ -126,6 +126,18 @@ public class InstagramMetaSpikeRunner {
         StringBuilder sb = new StringBuilder();
         sb.append("# 인스타 릴스 메타 스크래핑 Spike 결과\n\n");
         sb.append("설계서: `.dev/feature-phase-0-foundation/design.md` §3.4\n\n");
+
+        // 법적 리스크 섹션은 runSpike가 result.md를 덮어쓸 때마다 영구 포함되어야 한다.
+        // (Phase 0 cross-review Info 항목: 사용자 실행 시 result.md 통째 덮어쓰기로
+        //  상단 법적 리스크 섹션이 소실될 위험 → 템플릿에 영구 포함하는 방식으로 보존)
+        sb.append("## 법적 리스크\n\n");
+        sb.append("Meta Instagram ToS §II는 자동화된 데이터 수집(scraping)을 금지합니다. ");
+        sb.append("본 spike의 `CHROME_UA`/`FULL_HEADERS` 전략은 브라우저 위장으로 차단을 우회하는 ");
+        sb.append("의도가 있어 ToS 위반 + CFAA 등 법적 대응 대상이 될 수 있습니다.\n\n");
+        sb.append("- **운영 코드 적용 금지**: spike는 기술 검증 목적으로만 사용. 본 코드는 그대로 운영 코드에 통합하지 마십시오.\n");
+        sb.append("- **대안 검토**: Apify Instagram Scraper, Instagram Basic Display API(공식, OAuth 필요), 사용자 직접 입력 폴백.\n");
+        sb.append("- **Phase 8 진입 전 법무 검토 필수**.\n\n");
+
         sb.append("## 실행 요약\n\n");
 
         if (!executed) {

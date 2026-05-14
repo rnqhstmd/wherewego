@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.Set;
@@ -17,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Import(PostgresTestContainersConfig.class)
 class FlywayMigrationTest {
 
@@ -75,13 +77,15 @@ class FlywayMigrationTest {
 
     @Test
     void pinsUniqueConstraintsExist() {
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT conname, connullsnotdistinct FROM pg_constraint "
-                        + "WHERE conrelid = 'pins'::regclass AND contype = 'u' AND conname = 'uq_pins_group_instagram'"
+        // 기본 UNIQUE 제약 존재만 검증한다. NULL 중복 허용 여부(NULLS DISTINCT)는
+        // pinsNullInstagramUrlAllowsMultiple (AC-05)에서 실제 INSERT로 검증.
+        List<String> constraintNames = jdbcTemplate.queryForList(
+                "SELECT conname FROM pg_constraint "
+                        + "WHERE conrelid = 'pins'::regclass AND contype = 'u'",
+                String.class
         );
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).get("connullsnotdistinct")).isEqualTo(Boolean.TRUE);
+        assertThat(constraintNames).contains("uq_pins_group_instagram");
     }
 
     @Test
@@ -97,7 +101,7 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void pinsUniqueNullsNotDistinctRejectsDuplicate() {
+    void pinsUniqueConstraintRejectsDuplicateNonNull() {
         long userId = insertUser();
         long groupId = insertGroup();
 

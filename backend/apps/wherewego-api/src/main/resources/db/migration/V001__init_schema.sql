@@ -2,7 +2,7 @@
 -- V001__init_schema.sql
 -- Phase 0: 도메인 테이블 5종 초기 생성
 -- 대상 DB: PostgreSQL 17 (Supabase wherewego-dev/wherewego-prod, local postgres:17-alpine)
--- 최소 PostgreSQL 버전: 15 (UNIQUE NULLS NOT DISTINCT 문법 필요)
+-- 최소 PostgreSQL 버전: 12 (기본 UNIQUE 사용. NULLS DISTINCT가 표준 동작)
 --
 -- 재실행 정책: Flyway Community Edition 자동 rollback 미지원.
 --             신규 환경 가정: 빈 DB 또는 baseline-on-migrate 처리 가능 상태.
@@ -67,7 +67,10 @@ CREATE TABLE IF NOT EXISTS pins (
     deleted_at    TIMESTAMPTZ,
     CONSTRAINT chk_pins_tag CHECK (tag IN ('PLACE', 'MEMORY')),
     CONSTRAINT chk_pins_memo_source CHECK (memo_source IN ('AUTO', 'MANUAL')),
-    CONSTRAINT uq_pins_group_instagram UNIQUE NULLS NOT DISTINCT (group_id, instagram_url)
+    -- 기본 UNIQUE는 PostgreSQL의 표준 동작에 따라 NULL을 distinct로 취급한다.
+    -- 따라서 instagram_url이 NULL인 행은 동일 group_id에서 여러 건 허용되고,
+    -- (group_id, instagram_url)이 모두 비NULL이면서 동일한 경우만 중복으로 차단된다. (AC-05)
+    CONSTRAINT uq_pins_group_instagram UNIQUE (group_id, instagram_url)
 );
 
 CREATE INDEX IF NOT EXISTS idx_pins_group_id_deleted_at ON pins(group_id, deleted_at);
