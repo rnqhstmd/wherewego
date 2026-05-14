@@ -11,11 +11,11 @@ dependencies {
     annotationProcessor("com.querydsl:querydsl-apt::jakarta")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
     annotationProcessor("jakarta.annotation:jakarta.annotation-api")
-    // jdbc-mysql
-    runtimeOnly("com.mysql:mysql-connector-j")
+    // jdbc-postgresql
+    runtimeOnly("org.postgresql:postgresql")
 
-    testImplementation("org.testcontainers:mysql")
+    testImplementation("org.testcontainers:postgresql")
 
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    testFixturesImplementation("org.testcontainers:mysql")
+    testFixturesImplementation("org.testcontainers:postgresql")
 }
