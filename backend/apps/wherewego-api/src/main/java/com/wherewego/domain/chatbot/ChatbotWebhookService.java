@@ -55,8 +55,9 @@ public class ChatbotWebhookService {
             String botUserKey = request.userRequest().user().id();
             MessageType type = classifier.classify(request, botUserKey);
 
-            // 미연동 가드: LINK_CODE 외에는 매핑 필요
-            if (type != MessageType.LINK_CODE
+            // 미연동 가드: 실제로 매핑이 필요한 핸들러(INSTAGRAM_LINK, PLACE_SELECTION)에만 적용.
+            // UNKNOWN/TEXT_2SEC_CANDIDATE 는 가드 없이 라우터로 보내 불필요한 DB 조회를 피한다.
+            if ((type == MessageType.INSTAGRAM_LINK || type == MessageType.PLACE_SELECTION)
                     && botUserMappingService.resolveUserId(botUserKey).isEmpty()) {
                 return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
             }
@@ -71,7 +72,7 @@ public class ChatbotWebhookService {
             return handler.handle(request, ctx);
         } catch (CoreException e) {
             log.warn("Chatbot webhook CoreException : {}", e.getErrorType().getCode(), e);
-            return ChatbotV1Dto.SkillResponse.simple(e.getMessage());
+            return ChatbotV1Dto.SkillResponse.simple(ChatbotErrorMessages.userMessage(e));
         } catch (Exception e) {
             log.error("Chatbot webhook unexpected error", e);
             return ChatbotV1Dto.SkillResponse.simple("일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.");

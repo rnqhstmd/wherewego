@@ -2,6 +2,7 @@ package com.wherewego.domain.chatbot.handler;
 
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
+import com.wherewego.domain.chatbot.ChatbotErrorMessages;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.pin.Pin;
@@ -72,8 +73,9 @@ public class InstagramLinkHandler implements MessageHandler {
         try {
             parsedOpt = parserOpt.get().parse(url, ctx);
         } catch (CoreException e) {
-            log.warn("Instagram parse failed url={} code={}", url, e.getErrorType().getCode());
-            return ChatbotV1Dto.SkillResponse.simple(e.getMessage());
+            log.warn("Instagram parse failed code={}", e.getErrorType().getCode());
+            log.debug("Instagram parse failed detail url={} code={}", url, e.getErrorType().getCode());
+            return ChatbotV1Dto.SkillResponse.simple(ChatbotErrorMessages.userMessage(e));
         }
         if (parsedOpt.isEmpty()) {
             return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 직접 검색해 주세요.");
@@ -99,7 +101,7 @@ public class InstagramLinkHandler implements MessageHandler {
             twoSecondMemoSession.put(botUserKey, saved.getId());
             return ChatbotV1Dto.SkillResponse.simple("장소가 저장되었어요: " + saved.getPlaceName());
         } catch (DataIntegrityViolationException e) {
-            log.info("Duplicate pin groupId={} url={}", groupId, instagramUrl);
+            log.debug("Duplicate pin groupId={} url={}", groupId, instagramUrl);
             return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
         }
     }
@@ -107,19 +109,18 @@ public class InstagramLinkHandler implements MessageHandler {
     private ChatbotV1Dto.SkillResponse handleMultiple(String botUserKey,
                                                       List<PlaceSearchHit> hits,
                                                       String instagramUrl) {
-        List<Map<String, Object>> outputs = new ArrayList<>();
-        List<Map<String, Object>> buttons = new ArrayList<>();
+        List<ChatbotV1Dto.Button> buttons = new ArrayList<>();
         for (PlaceSearchHit hit : hits) {
             placeSelectionCandidateStore.put(
                     botUserKey,
                     hit.kakaoPlaceId(),
                     new PlaceSelectionCandidateStore.Entry(hit, instagramUrl)
             );
-            buttons.add(Map.of(
-                    "label", hit.placeName(),
-                    "action", "message",
-                    "messageText", hit.placeName(),
-                    "extra", Map.of("placeId", hit.kakaoPlaceId())
+            buttons.add(new ChatbotV1Dto.Button(
+                    hit.placeName(),
+                    "message",
+                    hit.placeName(),
+                    Map.of("placeId", hit.kakaoPlaceId())
             ));
         }
 
@@ -133,13 +134,13 @@ public class InstagramLinkHandler implements MessageHandler {
             description.append('\n');
         }
 
-        outputs.add(Map.of(
-                "basicCard", Map.of(
-                        "title", "장소를 선택해 주세요",
-                        "description", description.toString().trim(),
-                        "buttons", buttons
-                )
-        ));
+        ChatbotV1Dto.BasicCard card = new ChatbotV1Dto.BasicCard(
+                "장소를 선택해 주세요",
+                description.toString().trim(),
+                buttons
+        );
+        List<Map<String, Object>> outputs = new ArrayList<>();
+        outputs.add(Map.of("basicCard", card));
         return ChatbotV1Dto.SkillResponse.cards(outputs);
     }
 }

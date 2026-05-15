@@ -18,6 +18,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -85,24 +86,27 @@ public class KakaoLocalClient {
                 return Collections.emptyList();
             }
 
-            return response.documents().stream()
-                    .map(KakaoLocalClient::toHit)
-                    .toList();
+            List<PlaceSearchHit> hits = new ArrayList<>(response.documents().size());
+            for (KakaoLocalSearchResponse.Document doc : response.documents()) {
+                Double latitude = parseCoord(doc.y());
+                Double longitude = parseCoord(doc.x());
+                if (latitude == null || longitude == null) {
+                    log.warn("Skipping kakao place without coordinates id={} placeName={}",
+                            doc.id(), doc.placeName());
+                    continue;
+                }
+                String address = doc.roadAddressName() != null && !doc.roadAddressName().isBlank()
+                        ? doc.roadAddressName()
+                        : doc.addressName();
+                hits.add(new PlaceSearchHit(doc.id(), doc.placeName(), address, latitude, longitude));
+            }
+            return hits;
         } catch (CoreException e) {
             throw e;
         } catch (RestClientException e) {
             log.warn("Kakao Local search transport error keyword={} cause={}", keyword, e.getMessage());
             throw new CoreException(ErrorType.PLC_KAKAO_LOCAL_FAILED, "카카오 Local 검색 통신 오류가 발생했습니다.");
         }
-    }
-
-    private static PlaceSearchHit toHit(KakaoLocalSearchResponse.Document doc) {
-        String address = doc.roadAddressName() != null && !doc.roadAddressName().isBlank()
-                ? doc.roadAddressName()
-                : doc.addressName();
-        Double latitude = parseCoord(doc.y());
-        Double longitude = parseCoord(doc.x());
-        return new PlaceSearchHit(doc.id(), doc.placeName(), address, latitude, longitude);
     }
 
     private static Double parseCoord(String raw) {

@@ -9,6 +9,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 봇 연동 관련 REST API.
+ *
+ * <p>TODO(Phase 후속): 사용자당 분당 N회 제한 적용 (Bucket4j/resilience4j 검토).
+ * 베타 100명 규모에서는 즉시 위험 낮음.</p>
+ */
 @RestController
 @RequestMapping("/api/v1/bot")
 @RequiredArgsConstructor

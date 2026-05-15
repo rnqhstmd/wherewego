@@ -8,7 +8,7 @@
 |--------|------|------|
 | auth | 카카오 OAuth2 로그인 + JWT 세션 | [상세](auth/README.md) |
 | group | 그룹 매칭 (MVP: 2인 커플 / 스키마: N:M 확장 가능) | [상세](group/README.md) |
-| chatbot | 카카오톡 Skill Webhook (5자리 연동 코드 TTL 10분) | [상세](chatbot/README.md) |
+| chatbot | 카카오톡 Skill Webhook (6자리 연동 코드 TTL 10분) | [상세](chatbot/README.md) |
 | place | 외부 장소 API 연동 + 인스타 메타 파싱 | [상세](place/README.md) |
 | pin | 핀 CRUD + 중복 방지 (visited 제거, tag 도입) | [상세](pin/README.md) |
 | memo | 메모 (2초 룰, 수동 우선) | [상세](memo/README.md) |

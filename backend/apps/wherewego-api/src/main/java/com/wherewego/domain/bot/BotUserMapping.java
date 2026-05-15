@@ -10,9 +10,15 @@ import lombok.Getter;
 
 import java.time.Instant;
 
+/**
+ * 카카오 botUserKey ↔ 웹 user_id 영구 매핑 (BR-4).
+ *
+ * <p>TODO(Phase 후속): {@code users.deleted_at} 설정 시 bot_user_mappings 처리 정책 확정.
+ * 현재는 BR-4 "영구 매핑" 원칙으로 매핑 잔류. 재가입 케이스 미정의.</p>
+ */
 @Entity
 @Getter
-@Table(name = "bot_user_mapping")
+@Table(name = "bot_user_mappings")
 public class BotUserMapping {
 
     @Id

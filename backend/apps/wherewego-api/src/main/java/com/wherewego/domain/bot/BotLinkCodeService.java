@@ -23,7 +23,7 @@ public class BotLinkCodeService {
         Instant now = Instant.now();
         Duration ttl = Duration.ofMinutes(botProperties.linkCode().ttlMinutes());
 
-        linkCodeRepository.expireActiveByUserId(userId, now);
+        linkCodeRepository.expireActiveByUserId(userId);
 
         int maxRetries = botProperties.linkCode().maxGenerationRetries();
         String code = null;
@@ -42,17 +42,27 @@ public class BotLinkCodeService {
         return new BotLinkCodeIssueResult(entity.getCode(), entity.getExpiresAt(), entity.getUserId());
     }
 
+    @Transactional(readOnly = true)
+    public Long peekUserId(String code) {
+        return linkCodeRepository.findByCode(code)
+                .map(BotLinkCode::getUserId)
+                .orElseThrow(() -> new CoreException(ErrorType.BOT_LINK_CODE_INVALID));
+    }
+
     @Transactional
     public BotLinkCodeConsumeResult consumeCode(String code, Instant now) {
-        BotLinkCode active = linkCodeRepository.findActiveByCode(code, now)
+        BotLinkCode found = linkCodeRepository.findByCode(code)
                 .orElseThrow(() -> new CoreException(ErrorType.BOT_LINK_CODE_INVALID));
 
-        if (active.isExpired(now)) {
+        if (found.getStatus() == BotLinkCodeStatus.CONSUMED) {
+            throw new CoreException(ErrorType.BOT_LINK_CODE_ALREADY_USED);
+        }
+        if (found.getStatus() == BotLinkCodeStatus.EXPIRED || found.isExpired(now)) {
             throw new CoreException(ErrorType.BOT_LINK_CODE_EXPIRED);
         }
 
-        active.markConsumed(now);
-        linkCodeRepository.save(active);
-        return new BotLinkCodeConsumeResult(active.getUserId(), active.getCode());
+        found.markConsumed(now);
+        linkCodeRepository.save(found);
+        return new BotLinkCodeConsumeResult(found.getUserId(), found.getCode());
     }
 }

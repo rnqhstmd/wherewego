@@ -39,5 +39,17 @@ public final class ChatbotV1Dto {
 
     public record Template(List<Map<String, Object>> outputs) { }
 
+    /**
+     * 카카오 i 오픈빌더 BasicCard 컴포넌트. 직렬화 결과는 기존 Map.of 구조와 동일해야 한다.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record BasicCard(String title, String description, List<Button> buttons) { }
+
+    /**
+     * BasicCard 의 액션 버튼. {@code action="message"} 시 {@code messageText} 가 사용자 발화로 전송된다.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Button(String label, String action, String messageText, Map<String, String> extra) { }
+
     private ChatbotV1Dto() { }
 }

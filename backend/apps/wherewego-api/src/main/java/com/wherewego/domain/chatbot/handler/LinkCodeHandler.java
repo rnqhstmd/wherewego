@@ -2,6 +2,7 @@ package com.wherewego.domain.chatbot.handler;
 
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
+import com.wherewego.domain.chatbot.ChatbotErrorMessages;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import com.wherewego.support.error.CoreException;
@@ -34,7 +35,7 @@ public class LinkCodeHandler implements MessageHandler {
             botUserMappingService.link(code, botUserKey, Instant.now());
             return ChatbotV1Dto.SkillResponse.simple("연동이 완료되었어요. 인스타그램 링크를 보내 장소를 저장해 보세요.");
         } catch (CoreException e) {
-            return ChatbotV1Dto.SkillResponse.simple(e.getMessage());
+            return ChatbotV1Dto.SkillResponse.simple(ChatbotErrorMessages.userMessage(e));
         }
     }
 }

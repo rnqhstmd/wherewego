@@ -5,8 +5,9 @@ import java.util.Optional;
 
 public interface BotLinkCodeRepository {
     BotLinkCode save(BotLinkCode entity);
+    Optional<BotLinkCode> findByCode(String code);
     Optional<BotLinkCode> findActiveByCode(String code, Instant now);
     Optional<BotLinkCode> findActiveByUserId(Long userId, Instant now);
-    int expireActiveByUserId(Long userId, Instant now);
+    int expireActiveByUserId(Long userId);
     boolean existsActiveByCode(String code, Instant now);
 }

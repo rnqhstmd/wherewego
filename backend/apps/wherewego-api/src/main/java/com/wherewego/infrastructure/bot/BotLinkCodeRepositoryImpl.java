@@ -21,6 +21,11 @@ public class BotLinkCodeRepositoryImpl implements BotLinkCodeRepository {
     }
 
     @Override
+    public Optional<BotLinkCode> findByCode(String code) {
+        return jpaRepository.findFirstByCodeOrderByIssuedAtDesc(code);
+    }
+
+    @Override
     public Optional<BotLinkCode> findActiveByCode(String code, Instant now) {
         return jpaRepository.findFirstByCodeAndStatusAndExpiresAtAfter(code, BotLinkCodeStatus.ACTIVE, now);
     }
@@ -31,7 +36,7 @@ public class BotLinkCodeRepositoryImpl implements BotLinkCodeRepository {
     }
 
     @Override
-    public int expireActiveByUserId(Long userId, Instant now) {
+    public int expireActiveByUserId(Long userId) {
         return jpaRepository.expireActiveByUserId(userId);
     }
 

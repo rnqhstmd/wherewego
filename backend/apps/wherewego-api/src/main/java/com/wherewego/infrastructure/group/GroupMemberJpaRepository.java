@@ -12,6 +12,6 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Lon
 
     @Query("SELECT gm.groupId FROM GroupMember gm "
             + "WHERE gm.userId = :userId AND gm.leftAt IS NULL "
-            + "ORDER BY gm.joinedAt DESC")
+            + "ORDER BY gm.id DESC")
     List<Long> findActiveGroupIdsByUserId(@Param("userId") Long userId, Pageable pageable);
 }

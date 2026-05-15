@@ -48,7 +48,9 @@ kakao:
 
 place:
   instagram:
-    scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:true}
+    # TODO(Phase 5): @RefreshScope + Spring Cloud Config 도입 시 즉시 토글 가능.
+    # 현재는 재기동 필요. 법무 미승인 환경에서는 false로 운영 (default false).
+    scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:false}
   search:
     sync-deadline-ms: 4500
     kakao-local-size: 5

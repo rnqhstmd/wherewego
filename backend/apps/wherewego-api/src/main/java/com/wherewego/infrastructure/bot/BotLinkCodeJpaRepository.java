@@ -12,6 +12,8 @@ import java.util.Optional;
 
 public interface BotLinkCodeJpaRepository extends JpaRepository<BotLinkCode, Long> {
 
+    Optional<BotLinkCode> findFirstByCodeOrderByIssuedAtDesc(String code);
+
     Optional<BotLinkCode> findFirstByCodeAndStatusAndExpiresAtAfter(
             String code,
             BotLinkCodeStatus status,

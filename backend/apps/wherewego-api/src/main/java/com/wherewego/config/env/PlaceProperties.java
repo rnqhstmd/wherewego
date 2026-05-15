@@ -13,6 +13,11 @@ public record PlaceProperties(
         @Valid Scraper scraper
 ) {
     public record Instagram(
+            /**
+             * 인스타그램 스크래핑 활성화 여부.
+             * TODO(Phase 5): @RefreshScope + Spring Cloud Config 도입 시 즉시 토글 가능.
+             * 현재는 재기동 필요. 법무 미승인 환경에서는 false로 운영.
+             */
             boolean scrapingEnabled
     ) { }
 

@@ -15,7 +15,7 @@ import java.time.Instant;
 
 @Entity
 @Getter
-@Table(name = "bot_link_code")
+@Table(name = "bot_link_codes")
 public class BotLinkCode {
 
     @Id
@@ -60,7 +60,7 @@ public class BotLinkCode {
         this.consumedAt = now;
     }
 
-    public void markExpired(Instant now) {
+    public void markExpired() {
         this.status = BotLinkCodeStatus.EXPIRED;
     }
 
