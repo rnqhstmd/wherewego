@@ -6,13 +6,22 @@
 
 - 엔티티: `Group`, `GroupMember`, `InviteLink`
 - 스키마 관계: User 1 ─ N `GroupMember` N ─ 1 Group (**N:M, 스키마 레벨**)
-- 비즈니스 제약 (MVP): 한 사용자는 동시에 활성 GroupMember 1개만 가질 수 있음 (서비스 레이어에서 검증, DB 제약 아님)
-- 초대 링크: UUID 기반 단방향 토큰. TTL 24h. 수락 시 GroupMember 행 추가
+- 비즈니스 제약 (MVP): 한 사용자는 동시에 활성 GroupMember 1개만 가질 수 있음
+  - **DB 레벨 강제**: `CREATE UNIQUE INDEX uq_group_members_active_user ON group_members(user_id) WHERE left_at IS NULL`
+  - 서비스 레이어에서도 동시성 보호를 위한 중복 검증 수행
+- 테이블 스키마:
+  - `group_members (id, group_id FK, user_id FK, joined_at, left_at, created_at, updated_at)`
+    - `CONSTRAINT uq_group_members_pair UNIQUE (group_id, user_id)`
+    - `UNIQUE INDEX uq_group_members_active_user ON (user_id) WHERE left_at IS NULL`
+  - `invite_links (id, group_id FK, inviter_id FK, token VARCHAR(100) UNIQUE, expires_at, accepted_at, created_at, updated_at)`
+    - `accepted_at IS NULL` = 미수락, `NOT NULL` = 수락 완료
+    - 재발급 시 기존 미수락 토큰은 서비스 레이어에서 만료 처리 (accepted_at 없이 expires_at 경과로 자연 만료)
+- 초대 링크: UUID 기반 단방향 토큰. TTL 24h. 그룹이 먼저 생성된 후 초대 링크 발급 (chicken-egg 없음). 수락 시 GroupMember 행 추가 후 accepted_at 기록
 - 탈퇴(연결 해제) 정책:
   - GroupMember 행은 `left_at` 타임스탬프로 soft delete
   - 해당 사용자가 등록한 핀은 **그룹에 잔류**. `pins.created_by`는 user_id 그대로 유지 (개인정보보다 추억의 맥락 보존 우선)
   - 탈퇴한 사용자는 그룹 핀을 더 이상 조회/수정할 수 없음 (활성 GroupMember 기준 권한 검사)
-- 관련 도메인: [[pin]] (그룹 스코프), [[chatbot]] (5자리 코드 입력 시 user_id → group_id 확정)
+- 관련 도메인: [[pin]] (그룹 스코프), [[chatbot]] (연동 코드 입력 시 user_id → group_id 확정)
 
 ## 주제 문서
 
