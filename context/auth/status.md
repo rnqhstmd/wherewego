@@ -11,9 +11,9 @@
 
 | ID | 요구사항 | 상태 | PR/커밋 |
 |----|----------|------|---------|
-| FR-AUTH-1 | 카카오 OAuth2 로그인 (Spring Security OAuth2 Client) | ⬜ | |
-| FR-AUTH-2 | 카카오 사용자 정보 → users 테이블 upsert (최소 세트) | ⬜ | |
-| FR-AUTH-3 | JWT Access Token 발급 (TTL 1h) | ⬜ | |
-| FR-AUTH-4 | JWT Refresh Token 발급/저장 (TTL 14d) | ⬜ | |
-| FR-AUTH-5 | JWT 검증 필터 (Spring Security) | ⬜ | |
-| FR-AUTH-6 | 로그아웃 (Refresh Token 폐기) | ⬜ | |
+| FR-AUTH-1 | 카카오 OAuth2 로그인 (인가 코드 직접 처리 방식) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| FR-AUTH-2 | 카카오 사용자 정보 → users 테이블 upsert (최소 세트) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| FR-AUTH-3 | JWT Access Token 발급 (TTL 1h, typ=access + jti claim) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| FR-AUTH-4 | JWT Refresh Token 발급/저장 (TTL 14d, SHA-256 해시 저장) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| FR-AUTH-5 | JWT 검증 필터 (Spring Security Stateless, 쿠키 access_token 추출) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| FR-AUTH-6 | 로그아웃 (Refresh Token DB 폐기, Max-Age=0 쿠키, 멱등) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
