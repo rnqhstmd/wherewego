@@ -40,6 +40,29 @@ kakao:
     client-id: ${KAKAO_CLIENT_ID}
     client-secret: ${KAKAO_CLIENT_SECRET}
     redirect-uri: ${KAKAO_REDIRECT_URI}
+  local:
+    base-url: https://dapi.kakao.com
+    timeout-ms: 1500
+  skill:
+    secret: ${KAKAO_SKILL_SECRET}
+
+place:
+  instagram:
+    # 베타 운영 결정: 사용자 2명 규모 — true로 운영. 차단 사고 발생 시 환경변수로 false 토글 후 재기동.
+    # TODO(Phase 5): @RefreshScope + Spring Cloud Config 도입 시 즉시 토글 가능.
+    scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:true}
+  search:
+    sync-deadline-ms: 4500
+    kakao-local-size: 5
+  scraper:
+    instagram:
+      # sync-deadline-ms(4500)보다 작게 유지하여 stage별 컷오프가 데드라인 내에 동작하도록 한다.
+      timeout-ms: 4000
+
+bot:
+  link-code:
+    ttl-minutes: 10
+    max-generation-retries: 5
 
 mapbox:
   token: ${MAPBOX_TOKEN}

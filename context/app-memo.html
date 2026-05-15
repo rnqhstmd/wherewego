@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>메모 편집 · 해방촌 카페 시간 · 우리가 갈 지도</title>
+<style>
+  :root {
+    --paper:        oklch(97.4% 0.008 82);
+    --paper-deep:   oklch(94.6% 0.012 82);
+    --surface:      oklch(100% 0.002 95);
+    --ink:          oklch(22% 0.022 60);
+    --ink-soft:     oklch(38% 0.018 60);
+    --muted:        oklch(54% 0.014 65);
+    --muted-soft:   oklch(70% 0.012 70);
+    --hairline:     oklch(88% 0.010 80);
+    --rule:         oklch(76% 0.014 75);
+    --rule-strong:  oklch(40% 0.020 70);
+    --accent:       oklch(54% 0.135 28);
+    --accent-ink:   oklch(34% 0.10 28);
+    --accent-wash:  oklch(94% 0.02 30);
+    --tag-place:        oklch(72% 0.095 240);
+    --tag-place-ink:    oklch(38% 0.10 245);
+    --tag-place-wash:   oklch(95% 0.025 240);
+    --tag-memory:       oklch(78% 0.100 12);
+    --tag-memory-ink:   oklch(44% 0.12 15);
+    --tag-memory-wash:  oklch(95% 0.025 15);
+    --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
+    --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    --mono:  'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15.5px;
+    line-height: 1.55;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  textarea { font: inherit; color: inherit; }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  @media (max-width: 720px) { .page { padding: 0 18px; } }
+
+  /* Top */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .back { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 13.5px; }
+  .back:hover { color: var(--accent); }
+  .crumbs { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .crumbs a { color: var(--ink-soft); }
+  .crumbs a:hover { color: var(--accent); }
+  .crumbs .here { color: var(--ink); }
+  .save-state {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .save-state .pulse { width: 6px; height: 6px; border-radius: 999px; background: oklch(60% 0.16 145); }
+
+  /* Editorial head */
+  .head {
+    padding: 48px 0 36px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 720px) { .head { padding: 32px 0 24px; } }
+  .head .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: inline-flex; gap: 12px; align-items: center;
+  }
+  .head .eyebrow .num { color: var(--accent); }
+  .head h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(36px, 5.6vw, 72px);
+    line-height: 1.02;
+    letter-spacing: -0.012em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .head h1 em { font-style: italic; color: var(--accent); }
+
+  .pin-context {
+    margin-top: 22px;
+    display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap;
+  }
+  .pin-context .name {
+    font-family: var(--serif);
+    font-size: 19px;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .pin-context .name::before {
+    content: '●';
+    color: var(--tag-place);
+    margin-right: 8px;
+  }
+  .pin-context .addr {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .pin-context .coord {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .pin-context a.detail {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border: 1px solid var(--hairline);
+    padding: 7px 12px;
+    border-radius: 2px;
+  }
+  .pin-context a.detail:hover { border-color: var(--ink-soft); color: var(--ink); }
+
+  /* Body 2-col: editor + sidebar */
+  .body-grid {
+    padding: 48px 0 36px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 56px;
+  }
+  @media (max-width: 980px) { .body-grid { grid-template-columns: 1fr; gap: 32px; padding: 32px 0 28px; } }
+
+  /* Editor column */
+  .editor-head {
+    display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 24px;
+  }
+  .editor-head h2 {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+    padding-top: 6px;
+    border-top: 2px solid var(--ink);
+  }
+  .editor-head h2 .num { color: var(--accent); margin-right: 6px; }
+  .source-badges {
+    display: flex; gap: 10px; align-items: center;
+  }
+  .badge {
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .badge.auto {
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+  }
+  .badge.auto.active {
+    background: var(--accent);
+    color: var(--surface);
+  }
+  .badge.manual {
+    background: oklch(94% 0.03 145);
+    color: oklch(36% 0.09 145);
+  }
+  .badge.manual.active {
+    background: oklch(46% 0.10 145);
+    color: var(--surface);
+  }
+
+  .editor {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    padding: 28px 32px 24px;
+    border-radius: 2px;
+    min-height: 240px;
+  }
+  .editor textarea {
+    width: 100%;
+    border: 0; outline: 0;
+    background: transparent;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(22px, 2.6vw, 30px);
+    line-height: 1.32;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    resize: vertical;
+    min-height: 200px;
+    padding: 0;
+  }
+  .editor textarea::placeholder { color: var(--muted-soft); }
+  .editor .toolbar {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+  }
+  .editor .toolbar .tools {
+    display: flex; gap: 6px;
+  }
+  .editor .toolbar button {
+    background: transparent; border: 1px solid var(--hairline);
+    padding: 6px 10px;
+    border-radius: 2px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-soft);
+    letter-spacing: 0.06em;
+  }
+  .editor .toolbar button:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .editor .toolbar .meta {
+    display: flex; gap: 18px; align-items: center;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  }
+  .editor .toolbar .meta .count { color: var(--ink); font-family: var(--serif); font-style: italic; letter-spacing: 0; text-transform: none; font-size: 13px; }
+
+  /* Action band */
+  .action-band {
+    margin-top: 28px;
+    padding: 22px 26px;
+    background: var(--paper-deep);
+    border: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  }
+  .action-band .info {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .action-band .info strong {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--accent-ink);
+    font-size: 14px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .action-band .right { display: flex; gap: 10px; }
+  .btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    padding: 11px 18px;
+    border-radius: 2px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+  .btn.warn { color: oklch(50% 0.14 28); border-color: oklch(76% 0.06 28); }
+
+  /* History */
+  .history {
+    margin-top: 40px;
+  }
+  .history-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 18px;
+  }
+  .history-head h3 {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+    padding-top: 6px;
+    border-top: 2px solid var(--ink);
+  }
+  .history-head h3 .num { color: var(--accent); margin-right: 6px; }
+  .history-head .note {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 24px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--hairline);
+  }
+  .timeline .entry {
+    position: relative;
+    padding: 14px 0 22px;
+  }
+  .timeline .entry::before {
+    content: '';
+    position: absolute;
+    left: -23px;
+    top: 22px;
+    width: 11px; height: 11px;
+    border-radius: 999px;
+    background: var(--paper);
+    border: 1.4px solid var(--rule-strong);
+  }
+  .timeline .entry.auto::before {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+  }
+  .timeline .entry.manual::before {
+    border-color: oklch(46% 0.10 145);
+    background: oklch(94% 0.03 145);
+  }
+  .timeline .entry .when {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .timeline .entry .when .who { color: var(--ink); font-family: var(--serif); font-style: italic; font-size: 13px; letter-spacing: 0; text-transform: none; }
+  .timeline .entry .body {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16.5px;
+    color: var(--ink);
+    line-height: 1.4;
+    border-left: 2px solid var(--hairline);
+    padding-left: 14px;
+  }
+  .timeline .entry.auto .body { border-left-color: var(--accent); }
+  .timeline .entry.manual .body { border-left-color: oklch(46% 0.10 145); }
+  .timeline .entry .meta {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-left: 16px;
+  }
+
+  /* Sidebar */
+  .sidebar { }
+  .sidebar .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    padding: 22px 22px 24px;
+    border-radius: 2px;
+    margin-bottom: 22px;
+  }
+  .sidebar .card-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .sidebar .card-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    margin: 0 0 10px;
+    letter-spacing: -0.005em;
+  }
+  .sidebar .card-title em { font-style: italic; color: var(--accent); }
+  .sidebar .card p {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+  }
+
+  /* 2-second rule diagram */
+  .rule-diagram {
+    margin-top: 14px;
+    padding: 18px 16px;
+    background: var(--paper-deep);
+    border: 1px solid var(--hairline);
+    border-radius: 2px;
+  }
+  .rule-diagram .axis {
+    position: relative;
+    margin: 8px 4px 14px;
+    height: 22px;
+  }
+  .rule-diagram .axis-line {
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 1px;
+    background: var(--rule);
+  }
+  .rule-diagram .tick {
+    position: absolute;
+    width: 1px; height: 8px;
+    background: var(--rule);
+    top: 50%; transform: translate(-50%, -50%);
+  }
+  .rule-diagram .tick-label {
+    position: absolute;
+    top: calc(50% + 8px);
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .rule-diagram .marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+  }
+  .rule-diagram .marker.link {
+    width: 14px; height: 14px;
+    border-radius: 999px;
+    background: oklch(78% 0.07 280);
+    border: 1.4px solid oklch(40% 0.10 280);
+  }
+  .rule-diagram .marker.text {
+    width: 14px; height: 14px;
+    border-radius: 999px;
+    background: var(--accent);
+    border: 1.4px solid var(--accent-ink);
+  }
+  .rule-diagram .window {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    height: 14px;
+    background: var(--accent-wash);
+    border: 1px dashed var(--accent);
+  }
+  .rule-diagram .legend {
+    margin-top: 6px;
+    display: flex; flex-direction: column; gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rule-diagram .legend .row { display: flex; gap: 8px; align-items: center; }
+  .rule-diagram .legend .dot {
+    width: 8px; height: 8px; border-radius: 999px;
+  }
+  .rule-diagram .legend .dot.link { background: oklch(78% 0.07 280); border: 1px solid oklch(40% 0.10 280); }
+  .rule-diagram .legend .dot.text { background: var(--accent); border: 1px solid var(--accent-ink); }
+  .rule-diagram .legend .dot.win { background: var(--accent-wash); border: 1px dashed var(--accent); }
+
+  /* Policy mini list */
+  .policy-list {
+    list-style: none;
+    margin: 0; padding: 0;
+  }
+  .policy-list li {
+    padding: 12px 0;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .policy-list li:first-child { border-top: 0; padding-top: 4px; }
+  .policy-list .who {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .policy-list .who.manual { color: oklch(36% 0.09 145); }
+  .policy-list .what {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+  .policy-list .what strong { color: var(--ink); font-weight: 500; }
+
+  /* Foot */
+  .foot {
+    padding: 32px 0 28px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Top -->
+  <header class="topbar">
+    <a class="back" href="app-pin.html"><span>←</span> 핀으로 돌아가기</a>
+    <div class="crumbs">
+      <a href="app-map.html">지도</a> · <a href="app-pin.html">핀 #284</a> · <span class="here">메모 편집</span>
+    </div>
+    <div class="save-state">
+      <span class="pulse"></span> 자동 저장됨 · 21:43
+    </div>
+  </header>
+
+  <!-- Editorial head -->
+  <section class="head">
+    <div class="eyebrow">
+      <span class="num">§ 05</span> · Memo edit
+      <span style="color: var(--accent);">/</span>
+      한 줄을 — 다듬는 시간
+    </div>
+    <h1>여기 디저트<br /><em>진짜 맛있대.</em></h1>
+
+    <div class="pin-context">
+      <span class="name">해방촌 카페 시간</span>
+      <span class="addr">서울 용산구 신흥로 18 · 1층</span>
+      <span class="coord">37.5448, 126.9881</span>
+      <a class="detail" href="app-pin.html">핀 상세 보기 →</a>
+    </div>
+  </section>
+
+  <!-- Body -->
+  <section class="body-grid">
+
+    <!-- Editor column -->
+    <div>
+      <div class="editor-head">
+        <h2><span class="num">A</span> · 본문</h2>
+        <div class="source-badges">
+          <span class="badge auto active">memo_source = AUTO · 2초 룰</span>
+          <span class="badge manual">→ MANUAL로 전환됨</span>
+        </div>
+      </div>
+
+      <div class="editor">
+        <textarea autofocus>여기 디저트 진짜 맛있대 ㅠㅠ — 다음 토요일에 가자.
+오후 4시쯤 가서 따뜻한 아메리카노 한 잔이랑 무화과 타르트 시키기.</textarea>
+
+        <div class="toolbar">
+          <div class="tools">
+            <button title="굵게"><b>B</b></button>
+            <button title="이탤릭" style="font-style: italic;">I</button>
+            <button title="인용">"</button>
+            <button title="해시태그">#</button>
+          </div>
+          <div class="meta">
+            <span class="count">53자</span>
+            <span>3분 전 마지막 입력</span>
+            <span>마지막 저장 21:43:08</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-band">
+        <div class="info">
+          이 메모를 저장하면 — <strong>memo_source가 MANUAL로 바뀝니다.</strong> 이후 챗봇의 자동 메모는 이 핀을 건드리지 않아요.
+        </div>
+        <div class="right">
+          <button class="btn warn">메모 비우기</button>
+          <a class="btn" href="app-pin.html">취소</a>
+          <button class="btn primary">저장 → MANUAL</button>
+        </div>
+      </div>
+
+      <!-- History timeline -->
+      <div class="history">
+        <div class="history-head">
+          <h3><span class="num">B</span> · 변경 이력</h3>
+          <div class="note">메모 한 핀의 흐름 — 자동에서 손으로</div>
+        </div>
+
+        <div class="timeline">
+          <div class="entry manual">
+            <div class="when">
+              <span class="who">민지</span> · 오늘 21:48 (편집 중)
+            </div>
+            <div class="body">
+              여기 디저트 진짜 맛있대 ㅠㅠ — 다음 토요일에 가자.<br />
+              오후 4시쯤 가서 따뜻한 아메리카노 한 잔이랑 무화과 타르트 시키기.
+            </div>
+            <div class="meta">memo_source = MANUAL · 53자 · 저장 대기</div>
+          </div>
+
+          <div class="entry auto">
+            <div class="when">
+              <span class="who">MayGo 챗봇</span> · 오늘 21:42:18
+            </div>
+            <div class="body">
+              여기 디저트 진짜 맛있대 ㅠㅠ
+            </div>
+            <div class="meta">memo_source = AUTO · 14자 · 2초 룰 매칭 (1.4s)</div>
+          </div>
+
+          <div class="entry">
+            <div class="when">
+              <span class="who">시스템</span> · 오늘 21:42:16
+            </div>
+            <div class="body" style="font-style: normal; color: var(--ink-soft); font-family: var(--sans); font-size: 14px;">
+              핀 생성 — Kakao Local에서 좌표 매칭. 메모 필드는 비어있음.
+            </div>
+            <div class="meta">place 추출 · InstagramParser → Kakao Local</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <!-- 2초 룰 -->
+      <div class="card">
+        <div class="card-eyebrow">A · 2초 룰</div>
+        <h3 class="card-title">링크 직후 <em>2초</em>가<br />이 핀의 메모가 된다.</h3>
+        <p>챗봇에 인스타 URL을 보내고, 2초 안에 친 텍스트만 그 핀의 메모로 묶인다. 3초 뒤 친 메시지는 일반 대화로 처리된다.</p>
+
+        <div class="rule-diagram">
+          <div class="axis">
+            <div class="axis-line"></div>
+            <div class="window" style="left: 30%; width: 16%;"></div>
+            <span class="marker link" style="left: 30%;"></span>
+            <span class="marker text" style="left: 42%;"></span>
+            <span class="tick" style="left: 30%;"></span>
+            <span class="tick" style="left: 46%;"></span>
+            <span class="tick-label" style="left: 30%;">0s</span>
+            <span class="tick-label" style="left: 46%;">2s</span>
+          </div>
+          <div class="legend">
+            <div class="row"><span class="dot link"></span> 인스타 URL 도착</div>
+            <div class="row"><span class="dot win"></span> 매칭 윈도우 (≤ 2s)</div>
+            <div class="row"><span class="dot text"></span> 텍스트 = 메모로 저장</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Policy -->
+      <div class="card">
+        <div class="card-eyebrow">B · 우선순위 정책</div>
+        <h3 class="card-title">손이 챗봇을 — <em>항상 이긴다.</em></h3>
+        <ul class="policy-list">
+          <li>
+            <span class="who">AUTO</span>
+            <span class="what">챗봇 2초 룰로 들어온 메모. <strong>memo_source=AUTO</strong>로 저장된다.</span>
+          </li>
+          <li>
+            <span class="who manual">MANUAL</span>
+            <span class="what">웹에서 손으로 다듬은 메모. <strong>AUTO를 덮어쓴다.</strong></span>
+          </li>
+          <li>
+            <span class="who manual">RULE</span>
+            <span class="what">MANUAL이 있는 핀에는 — 이후 들어오는 AUTO 메모가 <strong>무시된다.</strong> 한 번 손이 닿으면 그게 진본.</span>
+          </li>
+          <li>
+            <span class="who">SOURCE</span>
+            <span class="what">메모 1건 · 핀 1건 · 1:1. 별도 메모 테이블 없이 <strong>pins.memo</strong> 컬럼에 직접 저장.</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Pin context -->
+      <div class="card">
+        <div class="card-eyebrow">C · 이 핀</div>
+        <h3 class="card-title">해방촌 카페 시간</h3>
+        <p style="font-size: 13px; color: var(--ink-soft);">서울 용산구 신흥로 18 · 카페 · 디저트<br />등록자 민지 · 오늘 21:42 · KAKAO LOCAL</p>
+        <a class="btn" style="margin-top: 6px;" href="app-pin.html">핀 상세 →</a>
+      </div>
+    </aside>
+  </section>
+
+  <!-- Foot -->
+  <footer class="foot">
+    <span>우리가 갈 지도 · Memo edit</span>
+    <span>2초 룰 · pins.memo / memo_source · MANUAL ≻ AUTO</span>
+    <span>그룹 #17 · 민지 ✕ 정우</span>
+  </footer>
+
+</div>
+
+</body>
+</html>

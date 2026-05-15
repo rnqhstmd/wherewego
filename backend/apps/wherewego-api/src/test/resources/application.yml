@@ -34,6 +34,26 @@ kakao:
     client-id: test-kakao-client-id
     client-secret: test-kakao-client-secret
     redirect-uri: https://example.com/oauth/kakao/callback
+  local:
+    base-url: https://dapi.kakao.com
+    timeout-ms: 1500
+  skill:
+    secret: test-kakao-skill-secret
+
+place:
+  instagram:
+    scraping-enabled: true
+  search:
+    sync-deadline-ms: 4500
+    kakao-local-size: 5
+  scraper:
+    instagram:
+      timeout-ms: 8000
+
+bot:
+  link-code:
+    ttl-minutes: 10
+    max-generation-retries: 5
 
 mapbox:
   token: test-mapbox-token

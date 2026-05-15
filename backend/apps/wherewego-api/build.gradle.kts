@@ -6,7 +6,11 @@ dependencies {
     implementation(project(":supports:monitoring"))
 
     // in-memory cache (ADR-0002: Redis -> Caffeine 전환)
+    implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+
+    // html scraping (Instagram OG meta)
+    implementation("org.jsoup:jsoup:1.17.2")
 
     // web
     implementation("org.springframework.boot:spring-boot-starter-web")

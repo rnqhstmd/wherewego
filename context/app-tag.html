@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>컬렉션 · PLACE / MEMORY · 우리가 갈 지도</title>
+<style>
+  :root {
+    --paper:        oklch(97.4% 0.008 82);
+    --paper-deep:   oklch(94.6% 0.012 82);
+    --surface:      oklch(100% 0.002 95);
+    --ink:          oklch(22% 0.022 60);
+    --ink-soft:     oklch(38% 0.018 60);
+    --muted:        oklch(54% 0.014 65);
+    --muted-soft:   oklch(70% 0.012 70);
+    --hairline:     oklch(88% 0.010 80);
+    --rule:         oklch(76% 0.014 75);
+    --rule-strong:  oklch(40% 0.020 70);
+    --accent:       oklch(54% 0.135 28);
+    --accent-ink:   oklch(34% 0.10 28);
+    --accent-wash:  oklch(94% 0.02 30);
+    --tag-place:        oklch(72% 0.095 240);
+    --tag-place-ink:    oklch(38% 0.10 245);
+    --tag-place-wash:   oklch(95% 0.025 240);
+    --tag-memory:       oklch(78% 0.100 12);
+    --tag-memory-ink:   oklch(44% 0.12 15);
+    --tag-memory-wash:  oklch(95% 0.025 15);
+    --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
+    --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    --mono:  'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15.5px;
+    line-height: 1.55;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  input { font: inherit; color: inherit; }
+
+  .page { max-width: 1280px; margin: 0 auto; padding: 0 28px; }
+  @media (max-width: 720px) { .page { padding: 0 18px; } }
+
+  /* Top */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .topbar .brand {
+    font-family: var(--serif); font-size: 17px; letter-spacing: -0.01em;
+  }
+  .topbar .brand .sub { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-left: 12px; }
+  .top-nav { display: flex; gap: 22px; font-size: 13px; }
+  .top-nav a { color: var(--ink-soft); padding-bottom: 2px; border-bottom: 1px solid transparent; }
+  .top-nav a.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .top-nav a:hover { color: var(--accent); }
+  @media (max-width: 560px) { .top-nav a:not(.active) { display: none; } }
+
+  /* Editorial head */
+  .editorial-head {
+    padding: 56px 0 36px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 720px) { .editorial-head { padding: 36px 0 28px; } }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .eyebrow .num { color: var(--accent); }
+
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(42px, 6.4vw, 88px);
+    line-height: 1.0;
+    letter-spacing: -0.012em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h1.title em { font-style: italic; color: var(--accent); }
+
+  .stats-row {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 32px;
+    border-top: 1px solid var(--hairline);
+    padding-top: 22px;
+  }
+  .stats-row dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  .stats-row dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 38px;
+    line-height: 1;
+    letter-spacing: -0.012em;
+    color: var(--ink);
+  }
+  .stats-row dd em { font-style: italic; color: var(--accent); }
+  .stats-row .detail {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* Ratio bar */
+  .ratio {
+    display: flex;
+    height: 12px;
+    border: 1px solid var(--rule);
+    margin-top: 16px;
+    background: var(--paper-deep);
+  }
+  .ratio .place { background: var(--tag-place); width: 70%; border-right: 1px solid var(--paper); }
+  .ratio .memory { background: var(--tag-memory); width: 30%; }
+  .ratio-label {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .ratio-label .place-num { color: var(--tag-place-ink); }
+  .ratio-label .memory-num { color: var(--tag-memory-ink); }
+
+  @media (max-width: 820px) {
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 24px; }
+  }
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .stats-row dd { font-size: 30px; }
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    margin-top: 0;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--rule);
+    display: flex; flex-wrap: wrap; gap: 18px 24px;
+    align-items: center; justify-content: space-between;
+  }
+  .tabs {
+    display: flex; gap: 0; align-items: center;
+  }
+  .tabs button {
+    background: transparent;
+    border: 0;
+    padding: 10px 0;
+    margin-right: 28px;
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    display: inline-flex; align-items: center; gap: 10px;
+    letter-spacing: -0.005em;
+    transform: translateY(1px);
+  }
+  .tabs button[aria-selected="true"] {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+  }
+  .tabs .swatch {
+    width: 10px; height: 10px;
+    border-radius: 999px;
+    background: var(--tag-place);
+    box-shadow: inset 0 0 0 1.2px var(--tag-place-ink);
+  }
+  .tabs .swatch.memory {
+    background: var(--tag-memory);
+    box-shadow: inset 0 0 0 1.2px var(--tag-memory-ink);
+    border-radius: 2px 999px 2px 999px;
+    transform: rotate(45deg);
+  }
+  .tabs .count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-style: normal;
+  }
+  .tabs button[aria-selected="true"] .count { color: var(--accent); }
+
+  .filter-right {
+    display: flex; gap: 12px; align-items: center;
+  }
+  .filter-right .search-mini {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: 8px 12px;
+    border-radius: 2px;
+    font-size: 13.5px;
+  }
+  .filter-right .search-mini input { border: 0; outline: 0; background: transparent; width: 180px; }
+  .filter-right .search-mini input::placeholder { color: var(--muted); font-style: italic; }
+  .filter-right .sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent;
+    border: 1px solid var(--rule);
+    padding: 8px 12px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .view-toggle button {
+    background: transparent; border: 0;
+    padding: 7px 9px;
+    color: var(--muted);
+    border-right: 1px solid var(--hairline);
+  }
+  .view-toggle button:last-child { border-right: 0; }
+  .view-toggle button[aria-pressed="true"] { background: var(--paper-deep); color: var(--ink); }
+
+  /* Grid */
+  .pin-grid {
+    padding: 36px 0 48px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+  @media (max-width: 1024px) { .pin-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; } }
+  @media (max-width: 560px) { .pin-grid { grid-template-columns: 1fr; gap: 20px; padding: 28px 0 36px; } }
+
+  .pin-card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 2px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: border-color .15s, transform .15s;
+    cursor: pointer;
+  }
+  .pin-card:hover { border-color: var(--ink-soft); }
+  .pin-card .thumb {
+    aspect-ratio: 4 / 3;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, oklch(85% 0.05 50) 0%, oklch(64% 0.10 30) 100%);
+  }
+  .pin-card .thumb.cafe { background: linear-gradient(160deg, oklch(86% 0.04 70) 0%, oklch(62% 0.10 30) 100%); }
+  .pin-card .thumb.bar  { background: linear-gradient(150deg, oklch(36% 0.06 270) 0%, oklch(48% 0.13 22) 100%); }
+  .pin-card .thumb.sea  { background: linear-gradient(180deg, oklch(82% 0.06 220) 0%, oklch(60% 0.08 220) 60%, oklch(78% 0.03 70) 100%); }
+  .pin-card .thumb.park { background: linear-gradient(180deg, oklch(70% 0.09 145) 0%, oklch(45% 0.08 145) 100%); }
+  .pin-card .thumb.dawn { background: linear-gradient(180deg, oklch(80% 0.08 50) 0%, oklch(60% 0.12 30) 60%, oklch(42% 0.05 260) 100%); }
+  .pin-card .thumb.brick { background: linear-gradient(150deg, oklch(58% 0.10 40) 0%, oklch(40% 0.06 30) 100%); }
+  .pin-card .thumb.tokyo { background: linear-gradient(180deg, oklch(40% 0.04 280) 0%, oklch(60% 0.10 20) 100%); }
+  .pin-card .thumb.barcelona { background: linear-gradient(160deg, oklch(74% 0.10 70) 0%, oklch(50% 0.12 30) 100%); }
+  .pin-card .thumb.jeju { background: linear-gradient(180deg, oklch(82% 0.06 200) 0%, oklch(76% 0.08 150) 70%, oklch(88% 0.04 80) 100%); }
+
+  .pin-card .thumb::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(at 25% 18%, rgba(255,255,255,0.32) 0%, transparent 38%),
+      radial-gradient(at 90% 90%, rgba(0,0,0,0.18) 0%, transparent 50%);
+  }
+  .pin-card .marker-overlay {
+    position: absolute;
+    top: 12px; left: 12px;
+    z-index: 1;
+    background: rgba(255,255,255,0.92);
+    padding: 4px 9px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tag-place-ink);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pin-card .marker-overlay .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--tag-place); box-shadow: inset 0 0 0 1px var(--tag-place-ink); }
+  .pin-card.memory .marker-overlay { color: var(--tag-memory-ink); }
+  .pin-card.memory .marker-overlay .dot {
+    background: var(--tag-memory); box-shadow: inset 0 0 0 1px var(--tag-memory-ink);
+    border-radius: 2px 999px 2px 999px; transform: rotate(45deg);
+  }
+
+  .pin-card .reel-mark {
+    position: absolute;
+    top: 12px; right: 12px;
+    z-index: 1;
+    width: 26px; height: 26px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 999px;
+    display: grid; place-items: center;
+    color: oklch(100% 0 0);
+  }
+
+  .pin-card .body {
+    padding: 18px 18px 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    flex: 1;
+  }
+  .pin-card .city {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pin-card .name {
+    font-family: var(--serif);
+    font-size: 22px;
+    margin: 0;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+  .pin-card .memo {
+    margin: 6px 0 0;
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.45;
+    border-left: 2px solid var(--accent);
+    padding-left: 12px;
+  }
+  .pin-card.memory .memo { border-left-color: var(--tag-memory-ink); }
+  .pin-card .meta-row {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pin-card .meta-row .by { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft); font-family: var(--serif); font-style: italic; font-size: 12.5px; letter-spacing: 0; text-transform: none; }
+  .pin-card .meta-row .by .av { width: 18px; height: 18px; background: var(--paper-deep); border: 1px solid var(--hairline); border-radius: 999px; display: grid; place-items: center; font-family: var(--serif); font-size: 9px; font-style: normal; color: var(--ink); }
+
+  /* Featured tall card (for the editorial layout) */
+  .pin-grid .featured {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+  .pin-grid .featured .thumb { aspect-ratio: 16 / 10; }
+  .pin-grid .featured .name { font-size: 32px; }
+  .pin-grid .featured .memo { font-size: 17px; }
+  @media (max-width: 1024px) {
+    .pin-grid .featured { grid-column: span 2; grid-row: span 1; }
+    .pin-grid .featured .thumb { aspect-ratio: 21 / 9; }
+  }
+  @media (max-width: 560px) {
+    .pin-grid .featured { grid-column: span 1; }
+  }
+
+  /* Sub-collection — places vs memories */
+  .section-band {
+    padding: 36px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .section-band-head {
+    display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 14px;
+    margin-bottom: 18px;
+  }
+  .section-band-head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: -0.005em;
+    margin: 0;
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .section-band-head h2 em { font-style: italic; color: var(--accent); }
+  .section-band-head .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-band-head .sub strong { color: var(--ink); font-family: var(--serif); font-style: italic; font-size: 14px; letter-spacing: 0; text-transform: none; margin-right: 4px; }
+
+  /* Compact list (memory section) */
+  .compact-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .compact-list .row {
+    padding: 16px 18px;
+    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    display: grid; grid-template-columns: 20px 1fr; gap: 14px;
+  }
+  .compact-list .row:nth-child(3n) { border-right: 0; }
+  .compact-list .marker {
+    margin-top: 4px;
+  }
+  .compact-list .name {
+    font-family: var(--serif);
+    font-size: 17px;
+    letter-spacing: -0.005em;
+  }
+  .compact-list .meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .compact-list .memo {
+    margin-top: 6px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+  .compact-list .right-meta {
+    margin-top: 10px;
+    display: flex; gap: 12px; flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  @media (max-width: 820px) {
+    .compact-list { grid-template-columns: 1fr 1fr; }
+    .compact-list .row:nth-child(3n) { border-right: 1px solid var(--hairline); }
+    .compact-list .row:nth-child(2n) { border-right: 0; }
+  }
+  @media (max-width: 540px) {
+    .compact-list { grid-template-columns: 1fr; }
+    .compact-list .row { border-right: 0; }
+  }
+
+  /* Bottom pagination */
+  .pag {
+    display: flex; justify-content: center; gap: 12px;
+    padding: 36px 0 56px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pag a, .pag button {
+    background: transparent; border: 1px solid var(--hairline);
+    padding: 8px 14px;
+    border-radius: 2px;
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+  }
+  .pag .active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+  /* Foot */
+  .foot {
+    padding: 32px 0 28px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Top -->
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html">우리가 갈 지도</a>
+      <span class="sub">민지 ✕ 정우 · 컬렉션</span>
+    </div>
+    <nav class="top-nav">
+      <a href="app-map.html">지도</a>
+      <a href="app-tag.html" class="active">컬렉션</a>
+      <a href="app-group.html">그룹</a>
+      <a href="app-chatbot.html">챗봇</a>
+      <a href="app-place-add.html">+ 새 핀</a>
+    </nav>
+  </header>
+
+  <!-- Editorial head -->
+  <section class="editorial-head">
+    <div class="eyebrow"><span class="num">§ 04</span> Collection · 우리만의 핀 색인</div>
+    <h1 class="title">우리가 모은 <em>마흔여섯</em> 곳.</h1>
+
+    <dl class="stats-row">
+      <div>
+        <dt>전체 비율</dt>
+        <div class="ratio">
+          <div class="place"></div>
+          <div class="memory"></div>
+        </div>
+        <div class="ratio-label">
+          <span class="place-num">● PLACE 70%</span>
+          <span class="memory-num">♡ MEMORY 30%</span>
+        </div>
+      </div>
+      <div>
+        <dt>가고 싶은 곳 · PLACE</dt>
+        <dd><em>32</em></dd>
+        <div class="detail">파란 동그라미 · 최근 +5</div>
+      </div>
+      <div>
+        <dt>다녀온 추억 · MEMORY</dt>
+        <dd>14</dd>
+        <div class="detail">핑크 하트 · 최근 +1</div>
+      </div>
+      <div>
+        <dt>도시 · 8곳</dt>
+        <dd>서울 28<br />
+          <span style="font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 0.1em;">도쿄 5 · 제주 4 · 외</span>
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="tabs">
+      <button aria-selected="true">전체 <span class="count">· 46</span></button>
+      <button aria-selected="false"><span class="swatch"></span> PLACE <span class="count">· 32</span></button>
+      <button aria-selected="false"><span class="swatch memory"></span> MEMORY <span class="count">· 14</span></button>
+    </div>
+
+    <div class="filter-right">
+      <div class="search-mini">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M9.5 9.5L12 12" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        <input type="text" placeholder="장소 또는 메모 검색" />
+      </div>
+      <button class="sort">
+        Sort · 최근 추가
+        <svg width="9" height="9" viewBox="0 0 9 9"><path d="M2 3l2.5 3L7 3" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>
+      </button>
+      <div class="view-toggle">
+        <button aria-pressed="true" title="카드 보기">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="5" height="5" stroke="currentColor" stroke-width="1"/><rect x="7" y="1" width="5" height="5" stroke="currentColor" stroke-width="1"/><rect x="1" y="7" width="5" height="5" stroke="currentColor" stroke-width="1"/><rect x="7" y="7" width="5" height="5" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button aria-pressed="false" title="리스트 보기">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 3h9M2 6.5h9M2 10h9" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button aria-pressed="false" title="지도 보기">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 3l4-2 3 2 4-2v9l-4 2-3-2-4 2V3z" stroke="currentColor" stroke-width="1" fill="none"/><path d="M5 1v9M8 3v9" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN GRID -->
+  <section class="pin-grid">
+
+    <!-- featured -->
+    <article class="pin-card featured">
+      <div class="thumb cafe">
+        <span class="marker-overlay"><span class="dot"></span> PLACE</span>
+        <span class="reel-mark">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor"><path d="M4 3v7l6-3.5z"/></svg>
+        </span>
+      </div>
+      <div class="body">
+        <div class="city">서울 · 용산구 해방촌</div>
+        <h3 class="name">해방촌 카페 시간</h3>
+        <p class="memo">"여기 디저트 진짜 맛있대 ㅠㅠ — 다음 토요일에 가자"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">M</span> 민지가 추가</span>
+          <span>오늘 21:42</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card">
+      <div class="thumb bar">
+        <span class="marker-overlay"><span class="dot"></span> PLACE</span>
+      </div>
+      <div class="body">
+        <div class="city">서울 · 성동구 성수동</div>
+        <h3 class="name">성수동 오버니스</h3>
+        <p class="memo">"퇴근 후 한 잔, 분위기 진짜 좋아"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">J</span> 정우</span>
+          <span>어제</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card memory">
+      <div class="thumb brick">
+        <span class="marker-overlay"><span class="dot"></span> MEMORY</span>
+      </div>
+      <div class="body">
+        <div class="city">서울 · 마포구 망원동</div>
+        <h3 class="name">망원 동네 빵집</h3>
+        <p class="memo">"우리 첫 데이트 — 비 왔던 날, 우산 하나로 둘이"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">M</span> 민지</span>
+          <span>12월 12일</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card">
+      <div class="thumb cafe" style="background: linear-gradient(160deg, oklch(76% 0.08 90) 0%, oklch(50% 0.10 50) 100%);">
+        <span class="marker-overlay"><span class="dot"></span> PLACE</span>
+        <span class="reel-mark"><svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor"><path d="M4 3v7l6-3.5z"/></svg></span>
+      </div>
+      <div class="body">
+        <div class="city">서울 · 마포구 홍대</div>
+        <h3 class="name">홍대 코너스톤</h3>
+        <p class="memo">"음악 따뜻하고 자리 작아서 좋다고"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">J</span> 정우</span>
+          <span>3일 전</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card memory">
+      <div class="thumb dawn">
+        <span class="marker-overlay"><span class="dot"></span> MEMORY</span>
+      </div>
+      <div class="body">
+        <div class="city">서울 · 서초구 반포</div>
+        <h3 class="name">한강 잠수교</h3>
+        <p class="memo">"노을 보러 — 또 가자"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">M</span> 민지</span>
+          <span>11월 28일</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card">
+      <div class="thumb tokyo">
+        <span class="marker-overlay"><span class="dot"></span> PLACE</span>
+        <span class="reel-mark"><svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor"><path d="M4 3v7l6-3.5z"/></svg></span>
+      </div>
+      <div class="body">
+        <div class="city">도쿄 · 시모키타자와</div>
+        <h3 class="name">모쿠바자 (木馬座)</h3>
+        <p class="memo">"여행 가면 꼭 — 책 많은 카페래"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">M</span> 민지</span>
+          <span>11월 4일 · 1,156 km</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card">
+      <div class="thumb barcelona">
+        <span class="marker-overlay"><span class="dot"></span> PLACE</span>
+      </div>
+      <div class="body">
+        <div class="city">바르셀로나 · 시우타트 베야</div>
+        <h3 class="name">El Born 골목 와인바</h3>
+        <p class="memo">"내년 봄 신혼여행 후보 1순위"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">J</span> 정우</span>
+          <span>10월 21일 · 9,827 km</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="pin-card memory">
+      <div class="thumb jeju">
+        <span class="marker-overlay"><span class="dot"></span> MEMORY</span>
+      </div>
+      <div class="body">
+        <div class="city">제주 · 한림읍</div>
+        <h3 class="name">협재 해변</h3>
+        <p class="memo">"작년 여름 — 모래 따뜻했지"</p>
+        <div class="meta-row">
+          <span class="by"><span class="av">M</span> 민지 ✕ 정우</span>
+          <span>작년 8월 · 453 km</span>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- Memory sub-band — 다녀온 추억 -->
+  <section class="section-band">
+    <div class="section-band-head">
+      <h2>
+        <span style="display:inline-block;width:12px;height:12px;border-radius:2px 999px 2px 999px;transform:rotate(45deg);background:var(--tag-memory);box-shadow:inset 0 0 0 1.4px var(--tag-memory-ink);"></span>
+        다녀온 추억 — <em>편집</em>
+      </h2>
+      <div class="sub"><strong>14</strong>개 · 평균 메모 길이 28자 · 최근 1년</div>
+    </div>
+
+    <div class="compact-list">
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">합정 ALL DAY</div>
+          <div class="meta">서울 마포구 · 브런치</div>
+          <p class="memo">"어머니 생신 같이 — 평일 오전 한가했음"</p>
+          <div class="right-meta"><span>민지 ✕ 정우</span><span>10월 27일</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">덕수궁 돌담길</div>
+          <div class="meta">서울 중구 · 산책</div>
+          <p class="memo">"가을 끝물 — 정우가 사진 30장 찍음"</p>
+          <div class="right-meta"><span>민지</span><span>11월 5일</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">서순라길 다래소</div>
+          <div class="meta">서울 종로 · 한식</div>
+          <p class="memo">"기념일 — 비싸지만 한 번은 갈 만"</p>
+          <div class="right-meta"><span>정우</span><span>1월 14일</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">을지로 노가리 골목</div>
+          <div class="meta">서울 중구 · 호프집</div>
+          <p class="memo">"여름 첫 맥주 — 가장 더웠던 그날"</p>
+          <div class="right-meta"><span>민지 ✕ 정우</span><span>작년 7월 24일</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">강릉 안목해변 커피거리</div>
+          <div class="meta">강원 강릉시 · 카페</div>
+          <p class="memo">"새벽 출발 → 아침 바다 → 라떼 한 잔"</p>
+          <div class="right-meta"><span>민지</span><span>작년 9월</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <svg class="marker" width="14" height="14" viewBox="0 0 14 14"><path d="M7 12 C 2 9, 1 6.4, 1 4.6 C 1 2.6, 2.2 1.3, 3.6 1.3 C 4.8 1.3, 6 2.1, 7 3.3 C 8 2.1, 9.2 1.3, 10.4 1.3 C 11.8 1.3, 13 2.6, 13 4.6 C 13 6.4, 12 9, 7 12 Z" fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/></svg>
+        <div>
+          <div class="name">남해 다랭이마을</div>
+          <div class="meta">경남 남해군 · 풍경</div>
+          <p class="memo">"두번째 여행 — 다음엔 가을에"</p>
+          <div class="right-meta"><span>정우</span><span>작년 5월</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pagination -->
+  <nav class="pag">
+    <button>← 이전</button>
+    <a class="active" href="#">01</a>
+    <a href="#">02</a>
+    <a href="#">03</a>
+    <button>다음 →</button>
+  </nav>
+
+  <!-- Foot -->
+  <footer class="foot">
+    <span>우리가 갈 지도 · Collection</span>
+    <span>tag · PLACE 32 ● + MEMORY 14 ♡</span>
+    <span>그룹 #17 · 민지 ✕ 정우</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
