@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>챗봇 연동 · 우리가 갈 지도</title>
+<style>
+  :root {
+    --paper:        oklch(97.4% 0.008 82);
+    --paper-deep:   oklch(94.6% 0.012 82);
+    --surface:      oklch(100% 0.002 95);
+    --ink:          oklch(22% 0.022 60);
+    --ink-soft:     oklch(38% 0.018 60);
+    --muted:        oklch(54% 0.014 65);
+    --muted-soft:   oklch(70% 0.012 70);
+    --hairline:     oklch(88% 0.010 80);
+    --rule:         oklch(76% 0.014 75);
+    --rule-strong:  oklch(40% 0.020 70);
+    --accent:       oklch(54% 0.135 28);
+    --accent-ink:   oklch(34% 0.10 28);
+    --accent-wash:  oklch(94% 0.02 30);
+    --tag-place:        oklch(72% 0.095 240);
+    --tag-place-ink:    oklch(38% 0.10 245);
+    --tag-place-wash:   oklch(95% 0.025 240);
+    --tag-memory:       oklch(78% 0.100 12);
+    --tag-memory-ink:   oklch(44% 0.12 15);
+    --tag-memory-wash:  oklch(95% 0.025 15);
+    --kakao-yellow:     oklch(92% 0.16 95);
+    --kakao-yellow-ink: oklch(36% 0.10 80);
+    --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
+    --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    --mono:  'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15.5px;
+    line-height: 1.55;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  @media (max-width: 720px) { .page { padding: 0 18px; } }
+
+  /* Top */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .topbar .brand {
+    font-family: var(--serif); font-size: 17px; letter-spacing: -0.01em;
+  }
+  .topbar .brand .sub { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-left: 12px; }
+  .top-nav { display: flex; gap: 22px; font-size: 13px; }
+  .top-nav a { color: var(--ink-soft); padding-bottom: 2px; border-bottom: 1px solid transparent; }
+  .top-nav a.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .top-nav a:hover { color: var(--accent); }
+  @media (max-width: 560px) { .top-nav a:not(.active) { display: none; } }
+
+  /* Editorial head */
+  .head {
+    padding: 56px 0 36px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 720px) { .head { padding: 32px 0 24px; } }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .eyebrow .num { color: var(--accent); }
+
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(42px, 6.4vw, 88px);
+    line-height: 1.0;
+    letter-spacing: -0.012em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h1.title em { font-style: italic; color: var(--accent); }
+
+  .deck {
+    margin-top: 22px;
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 19px;
+    line-height: 1.45;
+    max-width: 34ch;
+  }
+
+  /* Status strip */
+  .status-strip {
+    margin-top: 32px;
+    padding-top: 22px;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 28px;
+  }
+  .status-strip dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+  .status-strip dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+  }
+  .status-strip dd em { font-style: italic; color: var(--accent); }
+  .status-strip dd .small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 4px; }
+  @media (max-width: 720px) { .status-strip { grid-template-columns: 1fr; gap: 16px; } }
+
+  /* CODE BAND — the hero */
+  .code-band {
+    padding: 56px 0 64px;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+  @media (max-width: 980px) { .code-band { grid-template-columns: 1fr; gap: 36px; padding: 44px 0; } }
+
+  .code-display {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    padding: 32px 32px 28px;
+    border-radius: 2px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .code-display::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(at 12% 18%, var(--accent-wash) 0%, transparent 32%),
+      radial-gradient(at 88% 88%, oklch(92% 0.04 70) 0%, transparent 40%);
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .code-display > * { position: relative; }
+
+  .code-eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .code-eyebrow .live {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent);
+  }
+  .code-eyebrow .pulse {
+    width: 7px; height: 7px;
+    background: var(--accent);
+    border-radius: 999px;
+    box-shadow: 0 0 0 4px var(--accent-wash);
+  }
+
+  .code-digits {
+    display: flex;
+    justify-content: center;
+    gap: clamp(6px, 1.8vw, 14px);
+    margin: 12px 0 6px;
+  }
+  .digit {
+    width: clamp(48px, 9vw, 84px);
+    height: clamp(64px, 12vw, 110px);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    display: grid; place-items: center;
+    font-family: var(--mono);
+    font-size: clamp(36px, 6.6vw, 64px);
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: 0;
+    box-shadow: inset 0 -3px 0 var(--paper-deep), 0 1px 0 var(--surface);
+  }
+
+  .code-sep {
+    align-self: center;
+    font-family: var(--serif);
+    color: var(--muted);
+    font-size: 24px;
+  }
+
+  .code-ttl {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    margin: 22px 0 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .code-ttl strong {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--accent);
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  .ttl-bar {
+    height: 4px;
+    background: var(--paper-deep);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 14px 12px 6px;
+  }
+  .ttl-bar .fill {
+    height: 100%;
+    width: 67%;
+    background: linear-gradient(90deg, var(--accent) 0%, oklch(60% 0.10 30) 100%);
+  }
+
+  .code-actions {
+    margin-top: 20px;
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    padding: 10px 16px;
+    border-radius: 2px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+  .btn.kakao {
+    background: var(--kakao-yellow);
+    color: var(--kakao-yellow-ink);
+    border-color: oklch(80% 0.16 95);
+    font-weight: 500;
+  }
+  .btn.kakao:hover { background: oklch(86% 0.18 95); }
+
+  /* Right column — pre-connect explanation */
+  .pre-connect h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(32px, 4vw, 48px);
+    line-height: 1.05;
+    margin: 0 0 14px;
+    letter-spacing: -0.012em;
+  }
+  .pre-connect h2 em { font-style: italic; color: var(--accent); }
+  .pre-connect p {
+    color: var(--ink-soft);
+    font-size: 16px;
+    max-width: 38ch;
+    margin: 0 0 18px;
+  }
+  .pre-connect .meta-list {
+    margin-top: 22px;
+    list-style: none;
+    padding: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .pre-connect .meta-list li {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+  }
+  .pre-connect .meta-list .lbl {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pre-connect .meta-list .val {
+    font-family: var(--serif);
+    font-size: 15px;
+    text-align: right;
+  }
+  .pre-connect .meta-list .val em { font-style: italic; color: var(--accent); }
+
+  /* 3-step flow */
+  .flow-band {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .section-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 36px;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .section-head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(28px, 3.4vw, 44px);
+    margin: 0;
+    letter-spacing: -0.012em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .section-head h2 em { font-style: italic; color: var(--accent); }
+  .section-head .right {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .flow-step {
+    padding: 30px 28px 32px;
+    border-right: 1px dashed var(--rule);
+    position: relative;
+  }
+  .flow-step:last-child { border-right: 0; }
+  .flow-step .num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 64px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 18px;
+  }
+  .flow-step h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 22px;
+    margin: 0 0 12px;
+    letter-spacing: -0.005em;
+  }
+  .flow-step p {
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    margin: 0;
+  }
+  .flow-step .meta {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .flow-step .meta .accent { color: var(--accent-ink); }
+
+  .flow-step.complete .num { color: oklch(56% 0.14 145); }
+  .flow-step.complete::after {
+    content: '✓';
+    position: absolute;
+    top: 30px; right: 28px;
+    width: 24px; height: 24px;
+    border-radius: 999px;
+    background: oklch(56% 0.14 145);
+    color: var(--surface);
+    display: grid; place-items: center;
+    font-size: 12px;
+    font-family: var(--sans);
+  }
+  .flow-step.active .num {
+    position: relative;
+  }
+  .flow-step.active::after {
+    content: '';
+    position: absolute;
+    top: 30px; right: 28px;
+    width: 12px; height: 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-wash);
+  }
+  @media (max-width: 820px) {
+    .flow-grid { grid-template-columns: 1fr; }
+    .flow-step { border-right: 0; border-bottom: 1px dashed var(--rule); }
+    .flow-step:last-child { border-bottom: 0; }
+  }
+
+  /* KakaoTalk demo conversation */
+  .demo-band {
+    padding: 56px 0;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 48px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 980px) {
+    .demo-band { grid-template-columns: 1fr; gap: 32px; padding: 36px 0; }
+  }
+  .demo-band h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(28px, 3.4vw, 44px);
+    line-height: 1.05;
+    margin: 0 0 14px;
+    letter-spacing: -0.012em;
+  }
+  .demo-band h2 em { font-style: italic; color: var(--accent); }
+  .demo-band > div > p { color: var(--ink-soft); font-size: 15.5px; max-width: 56ch; margin: 0 0 22px; }
+  .demo-band .legend {
+    margin-top: 22px;
+    border-top: 1px solid var(--hairline);
+    padding-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .demo-band .legend dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+  .demo-band .legend dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 15px;
+  }
+
+  /* Phone-shaped chat */
+  .phone {
+    background: var(--kakao-yellow);
+    padding: 16px 18px 22px;
+    border: 1px solid oklch(80% 0.16 95);
+    border-radius: 18px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 18px 40px -18px rgba(80, 60, 0, 0.30);
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .phone-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid oklch(80% 0.16 95);
+    margin-bottom: 12px;
+  }
+  .phone-head .channel {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: oklch(20% 0.04 80);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .phone-head .channel .av {
+    width: 24px; height: 24px;
+    background: oklch(98% 0.014 80);
+    border-radius: 999px;
+    border: 1px solid oklch(80% 0.04 80);
+    display: grid; place-items: center;
+    font-family: var(--serif);
+    font-size: 11px;
+    color: var(--ink);
+  }
+  .phone-head .meta {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    color: oklch(36% 0.06 80);
+    text-transform: uppercase;
+  }
+
+  .chat {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .msg-row {
+    display: flex;
+    gap: 6px;
+  }
+  .msg-row.me { justify-content: flex-end; }
+  .msg-row.bot { align-items: flex-start; }
+  .msg-row .av-bot {
+    width: 28px; height: 28px;
+    border-radius: 999px;
+    background: oklch(20% 0.04 80);
+    color: var(--kakao-yellow);
+    display: grid; place-items: center;
+    font-family: var(--serif);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .bubble {
+    padding: 8px 11px;
+    background: oklch(99% 0.005 80);
+    border-radius: 12px;
+    font-size: 13.5px;
+    color: oklch(18% 0.02 60);
+    max-width: 230px;
+    line-height: 1.4;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  }
+  .msg-row.me .bubble {
+    background: oklch(20% 0.04 80);
+    color: oklch(99% 0.005 80);
+  }
+  .bubble code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: oklch(96% 0.04 80);
+    padding: 1px 5px;
+    border-radius: 2px;
+    color: oklch(28% 0.08 80);
+    letter-spacing: 0.04em;
+  }
+  .bubble .pin-card {
+    margin-top: 8px;
+    background: var(--surface);
+    border: 1px solid oklch(86% 0.014 80);
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--ink);
+  }
+  .bubble .pin-card .name { font-family: var(--serif); font-size: 14px; }
+  .bubble .pin-card .addr { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .bubble .pin-card .row {
+    margin-top: 6px;
+    display: flex; gap: 6px; align-items: center;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .bubble .pin-card .tag-pill {
+    background: var(--tag-place-wash);
+    color: var(--tag-place-ink);
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  .msg-meta {
+    font-size: 9.5px;
+    color: oklch(40% 0.04 80);
+    align-self: flex-end;
+    margin: 0 4px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+  }
+
+  /* Status indicator at top */
+  .conn-status {
+    margin-top: 14px;
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--accent-wash);
+    padding: 6px 12px;
+    border-radius: 2px;
+    border: 1px solid oklch(86% 0.06 30);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .conn-status .pulse {
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-wash);
+  }
+
+  /* FAQ band */
+  .faq-band {
+    padding: 48px 0;
+  }
+  .faq-band h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 36px);
+    margin: 0 0 26px;
+    letter-spacing: -0.005em;
+  }
+  .faq-band h2 em { font-style: italic; color: var(--accent); }
+  .faq-list {
+    border-top: 1px solid var(--rule);
+  }
+  .faq {
+    padding: 22px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  .faq dt {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .faq dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.45;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .faq dd .a {
+    display: block;
+    font-family: var(--sans);
+    font-style: normal;
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    margin-top: 8px;
+    letter-spacing: 0;
+  }
+  .faq dd .a code { font-family: var(--mono); font-size: 13px; background: var(--paper-deep); padding: 1px 5px; }
+  @media (max-width: 720px) { .faq { grid-template-columns: 1fr; gap: 8px; } }
+
+  /* Foot */
+  .foot {
+    padding: 32px 0 28px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Top -->
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html">우리가 갈 지도</a>
+      <span class="sub">민지 ✕ 정우 · 챗봇 연동</span>
+    </div>
+    <nav class="top-nav">
+      <a href="app-map.html">지도</a>
+      <a href="app-tag.html">컬렉션</a>
+      <a href="app-group.html">그룹</a>
+      <a href="app-chatbot.html" class="active">챗봇</a>
+    </nav>
+  </header>
+
+  <!-- Editorial head -->
+  <section class="head">
+    <div class="eyebrow"><span class="num">§ 07</span> Chatbot · 카카오톡 연동</div>
+    <h1 class="title">카카오톡 한 채널, <em>지도 한 장.</em></h1>
+    <p class="deck">아래 여섯 자리를 챗봇에 한 번. 그 뒤로는 — 인스타 릴스를 흘리기만 하면 핀이 늘어난다.</p>
+
+    <div class="conn-status">
+      <span class="pulse"></span>
+      Status · 연결 대기 중 · botUserKey 미매칭
+    </div>
+
+    <dl class="status-strip">
+      <div>
+        <dt>현재 사용자</dt>
+        <dd>민지 · @minji_<br /><span class="small">KAKAO_USER_ID 24…891</span></dd>
+      </div>
+      <div>
+        <dt>그룹</dt>
+        <dd>#17 · 민지 ✕ 정우<br /><span class="small">멤버 2 / 2 — 정원 마감</span></dd>
+      </div>
+      <div>
+        <dt>등록된 채널</dt>
+        <dd><em>아직 — 없음</em><br /><span class="small">아래 6자리를 채널에 입력해주세요</span></dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- CODE BAND -->
+  <section class="code-band">
+
+    <div class="pre-connect">
+      <span class="eyebrow" style="display: inline-block; padding-top: 6px; border-top: 2px solid var(--ink);"><span class="num">§ 07-A</span> Linking code</span>
+      <h2>여섯 자리, <em>10분.</em></h2>
+      <p>한 번 채널에 입력하면 — 카카오 계정과 그룹이 영구로 묶입니다. 코드는 만료되어도 다시 발급할 수 있어요.</p>
+
+      <ul class="meta-list">
+        <li>
+          <span class="lbl">규칙</span>
+          <span class="val">숫자 6자리 · 1인 1코드</span>
+        </li>
+        <li>
+          <span class="lbl">TTL</span>
+          <span class="val"><em>10분</em> · 만료 후 자동 폐기</span>
+        </li>
+        <li>
+          <span class="lbl">매칭</span>
+          <span class="val">botUserKey ↔ user_id 영구 저장</span>
+        </li>
+        <li>
+          <span class="lbl">SLA</span>
+          <span class="val">5초 이내 응답 (카카오 i 오픈빌더 제약)</span>
+        </li>
+        <li>
+          <span class="lbl">중복</span>
+          <span class="val">계정당 채널 1개 — UNIQUE 강제</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="code-display">
+      <div class="code-eyebrow">
+        <span class="live"><span class="pulse"></span> Active · bot_link_codes</span>
+      </div>
+
+      <div class="code-digits">
+        <div class="digit">8</div>
+        <div class="digit">4</div>
+        <div class="digit">2</div>
+        <span class="code-sep">·</span>
+        <div class="digit">9</div>
+        <div class="digit">1</div>
+        <div class="digit">7</div>
+      </div>
+
+      <div class="code-ttl">
+        <span>만료까지</span>
+        <strong>6분 42초</strong>
+        <span>· TTL 10:00</span>
+      </div>
+
+      <div class="ttl-bar">
+        <div class="fill"></div>
+      </div>
+
+      <div class="code-actions">
+        <button class="btn kakao">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M7 2C4.2 2 2 3.8 2 6c0 1.4.9 2.6 2.4 3.3l-.4 1.7c0 .1.1.2.2.1L6 9.8c.3 0 .7.1 1 .1 2.8 0 5-1.8 5-4S9.8 2 7 2z"/></svg>
+          채널 친구추가
+        </button>
+        <button class="btn primary">코드 복사 — 842 917</button>
+        <button class="btn">재발급</button>
+      </div>
+
+      <div style="margin-top: 20px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--hairline); padding-top: 14px;">
+        Last issued · 21:36:42 · <span style="color: var(--accent);">발급 1건 · 사용 0건</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3-step flow -->
+  <section class="flow-band">
+    <div class="section-head">
+      <h2>세 번이면 — <em>다 됐다.</em></h2>
+      <div class="right">flow · 친구추가 → 코드 → 릴스</div>
+    </div>
+
+    <div class="flow-grid">
+      <div class="flow-step complete">
+        <div class="num">01</div>
+        <h3>로그인 — 끝</h3>
+        <p>카카오 OAuth로 이미 들어와 있어요. 닉네임과 프로필이 자동으로 묶입니다.</p>
+        <div class="meta"><span class="accent">완료</span> · 민지 · 24…891</div>
+      </div>
+
+      <div class="flow-step active">
+        <div class="num">02</div>
+        <h3>채널 친구추가 + 6자리</h3>
+        <p>카카오톡에서 <strong>@MayGo</strong> 채널을 친구추가하고 — 위의 여섯 자리를 한 번 보내주세요. 10분 안에만.</p>
+        <div class="meta"><span class="accent">진행 중</span> · 코드 발급됨 · 대기</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="num">03</div>
+        <h3>릴스 공유 — 핀 시작</h3>
+        <p>이후로는 카카오톡에 인스타 릴스 한 번이면 지도에 핀이 하나씩. 직후 2초 안에 친 텍스트는 메모로 묶입니다.</p>
+        <div class="meta">대기 · 2초 룰 · AUTO 저장</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo band -->
+  <section class="demo-band">
+    <div>
+      <span class="eyebrow" style="display: inline-block; padding-top: 6px; border-top: 2px solid var(--ink); margin-bottom: 14px;"><span class="num">§ 07-B</span> Demo</span>
+      <h2>실제로는 — <em>이렇게 흘러간다.</em></h2>
+      <p>친구추가 직후 채널 채팅창에서 6자리를 한 번. 그 다음은 인스타 링크 한 번 + 한 줄 — 끝. 매칭이 되면 챗봇이 응답에 핀 카드를 같이 보내옵니다.</p>
+
+      <dl class="legend">
+        <div>
+          <dt>응답 SLA</dt>
+          <dd>≤ 5초 (카카오 i 오픈빌더 한계)</dd>
+        </div>
+        <div>
+          <dt>1차 — 동기</dt>
+          <dd>InstagramParser → Kakao Local</dd>
+        </div>
+        <div>
+          <dt>2차 — 비동기 폴백</dt>
+          <dd>Google Places (해외, 카카오 미매칭)</dd>
+        </div>
+        <div>
+          <dt>실패 시</dt>
+          <dd>"수동으로 추가하기" 폴백 안내</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="phone">
+      <div class="phone-head">
+        <div class="channel">
+          <span class="av">M</span>
+          MayGo · 우리가 갈 지도
+        </div>
+        <div class="meta">오후 9:36</div>
+      </div>
+
+      <div class="chat">
+        <div class="msg-row me">
+          <div class="bubble">842917</div>
+          <span class="msg-meta">9:36</span>
+        </div>
+
+        <div class="msg-row bot">
+          <div class="av-bot">M</div>
+          <div class="bubble">
+            🪴 민지님 환영해요! 그룹 <code>#17</code>에 연결됐어요. 이제 인스타 릴스를 던져만 주세요.
+          </div>
+        </div>
+        <span class="msg-meta">9:36</span>
+
+        <div class="msg-row me">
+          <div class="bubble">https://instagram.com/reel/abc123…</div>
+          <span class="msg-meta">9:42</span>
+        </div>
+
+        <div class="msg-row bot">
+          <div class="av-bot">M</div>
+          <div class="bubble">
+            장소 1건 찾았어요 — <strong>해방촌 카페 시간</strong>. PLACE 핀으로 저장할게요.
+            <div class="pin-card">
+              <div class="name">해방촌 카페 시간</div>
+              <div class="addr">서울 용산구 신흥로 18 · 1층</div>
+              <div class="row">
+                <span class="tag-pill">● PLACE</span>
+                <span>KAKAO LOCAL</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <span class="msg-meta">9:42</span>
+
+        <div class="msg-row me">
+          <div class="bubble">여기 디저트 진짜 맛있대 ㅠㅠ</div>
+          <span class="msg-meta">9:42</span>
+        </div>
+
+        <div class="msg-row bot">
+          <div class="av-bot">M</div>
+          <div class="bubble">
+            메모를 핀에 묶었어요. (<code>memo_source=AUTO</code>) 웹에서 손보면 MANUAL로 바뀝니다.
+          </div>
+        </div>
+        <span class="msg-meta">9:42</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq-band">
+    <h2>그 외 — <em>알아두면 좋은 것들.</em></h2>
+
+    <dl class="faq-list">
+      <div class="faq">
+        <dt>코드를 잃어버렸어요</dt>
+        <dd>위의 <strong>재발급</strong>을 누르면 새 6자리가 발급됩니다.
+          <span class="a">기존 코드는 자동 만료 처리(<code>used_at</code> 세팅)되고, 한 사용자에게는 항상 활성 코드 1개만 존재합니다 — DB Partial UNIQUE INDEX로 강제.</span>
+        </dd>
+      </div>
+
+      <div class="faq">
+        <dt>채널을 바꾸고 싶어요</dt>
+        <dd>현재 챗봇 연결을 끊고 새 코드로 다시 묶으면 됩니다.
+          <span class="a">기존 <code>bot_user_mappings</code> 행을 끊은 뒤, 새 6자리를 발급받아 새 카카오 계정/채널로 연결할 수 있어요.</span>
+        </dd>
+      </div>
+
+      <div class="faq">
+        <dt>해외 카페도 추가되나요</dt>
+        <dd>네 — 카카오 로컬에서 매칭이 안 되면 Google Places로 자동 전환됩니다.
+          <span class="a">단, Google 호출은 비동기로 동작하기 때문에 결과는 카카오톡 별도 메시지로 도착합니다. 5초 SLA를 어기지 않기 위한 설계입니다.</span>
+        </dd>
+      </div>
+
+      <div class="faq">
+        <dt>내 카카오 정보는 어떻게 쓰이나요</dt>
+        <dd>닉네임과 프로필 이미지만 저장합니다. 카카오 친구 목록·전화번호는 일절 받지 않아요.
+          <span class="a">JWT는 stateless로 동작하고 — Refresh Token은 SHA-256 해시 형태로 DB에 저장합니다(DB 덤프 유출 시 활성 세션 탈취 방어).</span>
+        </dd>
+      </div>
+
+      <div class="faq">
+        <dt>2초 룰이 너무 짧지 않나</dt>
+        <dd>의도된 짧음입니다 — 다른 대화와 메모를 명확히 가르기 위해.
+          <span class="a">2초 안에 못 친 한 줄은 일반 대화로 처리되고, 핀의 메모는 비어둡니다. 나중에 웹에서 손으로 덧붙이면 됩니다 — MANUAL로 저장되며 이후 AUTO 매칭을 막아 추억을 지켜줍니다.</span>
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- Foot -->
+  <footer class="foot">
+    <span>우리가 갈 지도 · Chatbot link</span>
+    <span>bot_link_codes · TTL 10m · UNIQUE active per user</span>
+    <span>카카오 i 오픈빌더 · Skill Webhook</span>
+  </footer>
+
+</div>
+
+</body>
+</html>

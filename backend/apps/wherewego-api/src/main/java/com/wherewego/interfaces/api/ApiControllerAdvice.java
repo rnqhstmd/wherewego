@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -118,6 +119,20 @@ public class ApiControllerAdvice {
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handleNotFound(NoResourceFoundException e) {
         return failureResponse(ErrorType.NOT_FOUND, null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("DataIntegrityViolationException : {}", e.getMessage());
+        String message = e.getMessage() != null ? e.getMessage() : "";
+        String cause = e.getMostSpecificCause() != null && e.getMostSpecificCause().getMessage() != null
+            ? e.getMostSpecificCause().getMessage()
+            : "";
+        String combined = message + " " + cause;
+        if (combined.contains("uq_pins_group_instagram") || combined.contains("uq_pin_group_instagram")) {
+            return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
+        }
+        return failureResponse(ErrorType.INTERNAL_ERROR, null);
     }
 
     @ExceptionHandler

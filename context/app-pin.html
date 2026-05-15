@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>해방촌 카페 시간 · 핀 · 우리가 갈 지도</title>
+<style>
+  :root {
+    --paper:        oklch(97.4% 0.008 82);
+    --paper-deep:   oklch(94.6% 0.012 82);
+    --surface:      oklch(100% 0.002 95);
+    --ink:          oklch(22% 0.022 60);
+    --ink-soft:     oklch(38% 0.018 60);
+    --muted:        oklch(54% 0.014 65);
+    --muted-soft:   oklch(70% 0.012 70);
+    --hairline:     oklch(88% 0.010 80);
+    --rule:         oklch(76% 0.014 75);
+    --rule-strong:  oklch(40% 0.020 70);
+    --accent:       oklch(54% 0.135 28);
+    --accent-ink:   oklch(34% 0.10 28);
+    --accent-wash:  oklch(94% 0.02 30);
+    --tag-place:        oklch(72% 0.095 240);
+    --tag-place-ink:    oklch(38% 0.10 245);
+    --tag-place-wash:   oklch(95% 0.025 240);
+    --tag-memory:       oklch(78% 0.100 12);
+    --tag-memory-ink:   oklch(44% 0.12 15);
+    --tag-memory-wash:  oklch(95% 0.025 15);
+    --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
+    --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    --mono:  'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  @media (max-width: 720px) { .page { padding: 0 18px; } }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0 16px;
+    border-bottom: 1px solid var(--hairline);
+    gap: 24px;
+  }
+  .back {
+    display: inline-flex; align-items: center; gap: 10px;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    padding: 6px 0;
+  }
+  .back:hover { color: var(--accent); }
+  .back .arrow { font-family: var(--mono); }
+  .crumbs {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .crumbs span { color: var(--ink); }
+  .top-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    padding: 8px 10px;
+    border-radius: 2px;
+    color: var(--ink-soft);
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px;
+  }
+  .icon-btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+
+  /* Editorial header */
+  .editorial-head {
+    padding: 56px 0 36px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 720px) { .editorial-head { padding: 36px 0 28px; } }
+
+  .eyebrow-row {
+    display: flex; align-items: center; gap: 14px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .tag-pill.place {
+    background: var(--tag-place-wash);
+    color: var(--tag-place-ink);
+  }
+  .tag-pill.place::before {
+    content: ''; width: 7px; height: 7px; border-radius: 999px;
+    background: var(--tag-place); box-shadow: inset 0 0 0 1px var(--tag-place-ink);
+  }
+  .tag-pill.memory {
+    background: var(--tag-memory-wash);
+    color: var(--tag-memory-ink);
+  }
+  .tag-pill.memory::before {
+    content: ''; width: 8px; height: 7px;
+    background: var(--tag-memory);
+    clip-path: polygon(50% 100%, 0% 30%, 25% 0%, 50% 25%, 75% 0%, 100% 30%);
+  }
+  .dot { width: 4px; height: 4px; background: var(--muted-soft); border-radius: 999px; }
+
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(46px, 7.4vw, 96px);
+    line-height: 1.0;
+    letter-spacing: -0.012em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h1.title em { font-style: italic; color: var(--accent); }
+
+  .deck {
+    margin-top: 20px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(18px, 1.8vw, 22px);
+    line-height: 1.45;
+    color: var(--ink-soft);
+    max-width: 38ch;
+  }
+  .deck strong { font-style: normal; color: var(--ink); font-weight: 400; }
+
+  .meta-strip {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 24px;
+    border-top: 1px solid var(--hairline);
+    padding-top: 18px;
+  }
+  .meta-strip dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+  .meta-strip dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+  .meta-strip .coord {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    letter-spacing: 0.06em;
+  }
+  @media (max-width: 720px) {
+    .meta-strip { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* Two column body */
+  .body-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .col-left, .col-right { padding: 56px 0; }
+  .col-right {
+    padding-left: 56px;
+    border-left: 1px solid var(--hairline);
+  }
+  .col-left { padding-right: 56px; }
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: 1fr; }
+    .col-left { padding: 40px 0 16px; }
+    .col-right { padding: 16px 0 40px; padding-left: 0; border-left: none; border-top: 1px solid var(--hairline); }
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 6px;
+    border-top: 2px solid var(--ink);
+    display: inline-block;
+    margin-bottom: 22px;
+  }
+  .section-title .num { color: var(--accent); margin-right: 6px; }
+
+  /* Memo block */
+  .memo-block {
+    padding: 0;
+  }
+  .pull-memo {
+    margin: 0;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(24px, 3.2vw, 36px);
+    line-height: 1.18;
+    color: var(--ink);
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 22px;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+  }
+  .pull-memo .swash { color: var(--accent); }
+  .memo-attribution {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .memo-attribution .avatar {
+    width: 28px; height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    display: grid; place-items: center;
+    font-family: var(--serif);
+    font-size: 12px;
+    background: var(--surface);
+  }
+  .memo-meta-row {
+    margin-top: 22px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    display: flex; align-items: center; flex-wrap: wrap; gap: 14px 28px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .source-badge {
+    padding: 3px 9px;
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .source-badge.manual {
+    background: oklch(94% 0.02 145);
+    color: oklch(36% 0.07 145);
+  }
+  .memo-actions {
+    margin-top: 18px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    padding: 10px 14px;
+    border-radius: 2px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+  .btn.warn { color: oklch(50% 0.14 28); border-color: oklch(76% 0.06 28); }
+
+  /* Map snippet */
+  .map-snippet {
+    aspect-ratio: 4 / 3;
+    background: var(--paper-deep);
+    border: 1px solid var(--hairline);
+    position: relative;
+    overflow: hidden;
+  }
+  .map-snippet svg { width: 100%; height: 100%; display: block; }
+  .map-snippet .annot {
+    position: absolute;
+    bottom: 14px; left: 14px;
+    background: var(--surface);
+    padding: 8px 12px;
+    border: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .map-snippet .annot strong {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .address-card {
+    margin-top: 18px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+  .address-card .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .address-card .addr {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .address-card .meta-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+  .address-card .meta-row .label { margin-bottom: 2px; }
+  .address-card .open-maps {
+    margin-top: 14px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+
+  /* Source — Instagram reel */
+  .reel-band {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 48px;
+  }
+  @media (max-width: 720px) {
+    .reel-band { grid-template-columns: 1fr; gap: 24px; padding: 40px 0; }
+  }
+  .reel-card {
+    aspect-ratio: 9 / 16;
+    max-width: 280px;
+    width: 100%;
+    background: linear-gradient(160deg, oklch(72% 0.10 18) 0%, oklch(56% 0.13 30) 60%, oklch(40% 0.08 280) 100%);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(0,0,0,0.05),
+      0 18px 40px -18px rgba(80, 30, 30, 0.5);
+  }
+  .reel-card .gloss {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(at 30% 12%, rgba(255,255,255,0.34) 0%, transparent 35%),
+      radial-gradient(at 80% 80%, rgba(0,0,0,0.18) 0%, transparent 50%);
+    mix-blend-mode: screen;
+  }
+  .reel-card .scene {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.4) 100%);
+  }
+  .reel-card .scene::before {
+    content: '';
+    position: absolute;
+    bottom: 30%; left: 50%; transform: translateX(-50%);
+    width: 64%; height: 30%;
+    background: oklch(78% 0.06 60);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .reel-card .scene::after {
+    content: '';
+    position: absolute;
+    bottom: 36%; left: 50%; transform: translateX(-50%);
+    width: 40%; height: 18%;
+    background: oklch(94% 0.04 70);
+    border-radius: 50% 50% 8px 8px;
+  }
+  .reel-card .play {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 56px; height: 56px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.92);
+    display: grid; place-items: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+  .reel-card .play svg { color: var(--accent-ink); }
+  .reel-card .badge {
+    position: absolute;
+    top: 14px; left: 14px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: oklch(100% 0 0);
+    background: rgba(0,0,0,0.5);
+    padding: 4px 8px;
+    border-radius: 2px;
+  }
+  .reel-card .caption {
+    position: absolute;
+    bottom: 16px; left: 16px; right: 16px;
+    color: oklch(100% 0 0);
+    font-family: var(--serif);
+    font-size: 13px;
+    line-height: 1.4;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  }
+  .reel-card .caption .handle {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    opacity: 0.85;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .reel-info h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 38px);
+    margin: 0 0 14px;
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+  .reel-info p { color: var(--ink-soft); max-width: 50ch; font-size: 15px; margin: 0 0 14px; }
+
+  .pipeline {
+    margin-top: 28px;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .pipeline .stage {
+    border-right: 1px dashed var(--hairline);
+    padding: 6px 14px 4px 0;
+  }
+  .pipeline .stage:last-child { border-right: 0; }
+  .pipeline .label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .pipeline .val {
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .pipeline .ok { color: oklch(40% 0.10 145); }
+  @media (max-width: 720px) {
+    .pipeline { grid-template-columns: 1fr 1fr; }
+    .pipeline .stage:nth-child(2) { border-right: 0; }
+  }
+
+  /* Tag toggle band */
+  .tag-band {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tag-band h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 36px);
+    margin: 0 0 12px;
+    letter-spacing: -0.005em;
+  }
+  .tag-band h2 em { font-style: italic; color: var(--accent); }
+  .tag-band p { color: var(--ink-soft); max-width: 56ch; margin: 0 0 28px; font-size: 15px; }
+  .tag-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .tag-switch > label {
+    padding: 22px 24px;
+    cursor: pointer;
+    border-right: 1px solid var(--hairline);
+    display: flex; flex-direction: column; gap: 10px;
+    transition: background .15s;
+  }
+  .tag-switch > label:last-child { border-right: 0; }
+  .tag-switch > label.active { background: var(--paper-deep); }
+  .tag-switch > label.active.place { background: linear-gradient(180deg, transparent 0%, var(--tag-place-wash) 100%); }
+  .tag-switch > label.active.memory { background: linear-gradient(180deg, transparent 0%, var(--tag-memory-wash) 100%); }
+  .tag-switch > label input[type=radio] {
+    position: absolute; opacity: 0; pointer-events: none;
+  }
+  .tag-switch .row1 {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tag-switch .row1 .swatch {
+    width: 11px; height: 11px;
+    border-radius: 999px;
+    background: var(--tag-place);
+    box-shadow: inset 0 0 0 1px var(--tag-place-ink);
+  }
+  .tag-switch .row1 .swatch.memory {
+    background: var(--tag-memory);
+    box-shadow: inset 0 0 0 1px var(--tag-memory-ink);
+    border-radius: 2px 999px 2px 999px;
+    transform: rotate(45deg);
+  }
+  .tag-switch .name {
+    font-family: var(--serif);
+    font-size: 22px;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+  }
+  .tag-switch .desc {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .tag-switch label.active .row1 { color: var(--ink); }
+  @media (max-width: 720px) {
+    .tag-switch { grid-template-columns: 1fr; }
+    .tag-switch > label { border-right: 0; border-bottom: 1px solid var(--hairline); }
+    .tag-switch > label:last-child { border-bottom: 0; }
+  }
+
+  /* Roulette range */
+  .roulette-band {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 48px;
+  }
+  @media (max-width: 820px) { .roulette-band { grid-template-columns: 1fr; gap: 24px; } }
+  .roulette-head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 32px;
+    margin: 0 0 12px;
+    letter-spacing: -0.005em;
+  }
+  .roulette-head p { color: var(--ink-soft); font-size: 14.5px; margin: 0; max-width: 32ch; }
+
+  .roulette-list {
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .roulette-list article {
+    display: grid;
+    grid-template-columns: 18px 1fr 100px 90px;
+    gap: 20px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--hairline);
+    align-items: center;
+  }
+  .roulette-list article:last-child { border-bottom: 0; }
+  .roulette-list .name { font-family: var(--serif); font-size: 17px; letter-spacing: -0.005em; }
+  .roulette-list .name .sub { display: block; font-size: 12px; color: var(--muted); font-family: var(--sans); margin-top: 2px; letter-spacing: 0; }
+  .roulette-list .dist { font-family: var(--serif); font-style: italic; color: var(--ink); font-size: 15px; }
+  .roulette-list .added { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .roulette-list .marker-cell { display: grid; place-items: center; }
+  @media (max-width: 600px) {
+    .roulette-list article { grid-template-columns: 18px 1fr; gap: 12px 14px; }
+    .roulette-list article .dist, .roulette-list article .added { grid-column: 2 / 3; font-size: 12px; }
+  }
+
+  /* Footer action bar (sticky) */
+  .action-bar {
+    position: sticky; bottom: 0;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+    padding: 18px 0 22px;
+    margin-top: 0;
+  }
+  .action-bar-inner {
+    display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .action-bar .left {
+    display: flex; align-items: center; gap: 14px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  }
+  .action-bar .left .pin-id { color: var(--ink); }
+  .action-bar .right { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* Footer colophon */
+  footer.foot {
+    padding: 36px 0 28px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <a class="back" href="app-map.html">
+      <span class="arrow">←</span>
+      지도로 돌아가기
+    </a>
+    <div class="crumbs">
+      <span>지도</span> · <span>둘만의 핀</span> · <span style="color: var(--accent);">#284</span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5v6m0 0 2.5-2.5M6 7.5 3.5 5M1.5 9v1.5h9V9" stroke="currentColor" stroke-width="1.2"/></svg>
+        공유
+      </button>
+      <button class="icon-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 8.5V10h1.5L9 4.5 7.5 3 2 8.5z M7.5 3 9 1.5l1.5 1.5L9 4.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>
+        편집
+      </button>
+    </div>
+  </header>
+
+  <!-- Editorial header -->
+  <section class="editorial-head">
+    <div class="eyebrow-row">
+      <span class="tag-pill place">PLACE</span>
+      <span class="dot"></span>
+      <span>가고 싶은 장소 — 카페 · 디저트</span>
+      <span class="dot"></span>
+      <span>핀 #284 · 그룹 #17</span>
+    </div>
+
+    <h1 class="title">해방촌 카페 <em>시간.</em></h1>
+
+    <p class="deck">
+      <strong>민지가</strong> 어제 저녁 인스타 릴스에서 발견한 카페.<br />
+      "여기 디저트 진짜 맛있대 ㅠㅠ" — 한 줄이 2초 룰로 메모가 됐다.
+    </p>
+
+    <dl class="meta-strip">
+      <div>
+        <dt>등록자</dt>
+        <dd>민지 · @minji_</dd>
+      </div>
+      <div>
+        <dt>등록 일시</dt>
+        <dd>2026년 5월 14일<br /><span class="coord">21:42 KST · KAKAO LOCAL</span></dd>
+      </div>
+      <div>
+        <dt>좌표 / 위경도</dt>
+        <dd class="coord">37.5448° N<br />126.9881° E</dd>
+      </div>
+      <div>
+        <dt>현재 위치에서</dt>
+        <dd>0.8 km · <span style="font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 0.06em;">11분 걷기</span></dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- Two column body — Memo + Map snippet -->
+  <section class="body-grid">
+
+    <!-- LEFT: Memo -->
+    <div class="col-left">
+      <span class="section-title"><span class="num">§ 01</span> Memo · 한 줄</span>
+
+      <blockquote class="pull-memo">
+        <span class="swash">"</span>여기 디저트<br />진짜 맛있대 ㅠㅠ<br />
+        다음 토요일에 가자<span class="swash">"</span>
+      </blockquote>
+
+      <div class="memo-attribution">
+        <div class="avatar">M</div>
+        <div>
+          민지가 챗봇에 보낸 메시지 — <em style="font-family: var(--serif);">릴스 공유 직후 1.4초 후 도착</em>
+        </div>
+      </div>
+
+      <div class="memo-meta-row">
+        <span>출처 <span class="source-badge">AUTO · 2초 룰</span></span>
+        <span>memo_source = AUTO</span>
+        <span>마지막 수정 21:42</span>
+      </div>
+
+      <p style="margin-top: 18px; font-size: 13.5px; color: var(--muted); max-width: 50ch; line-height: 1.5;">
+        ※ 자동으로 매칭된 메모이지만 — 누구든 손으로 다듬으면 <strong style="color: var(--ink); font-weight: 500;">MANUAL</strong>로 바뀌고,
+        이후 들어오는 자동 메모는 이 핀을 건드리지 않습니다.
+      </p>
+
+      <div class="memo-actions">
+        <button class="btn primary">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 8.5V10h1.5L9 4.5 7.5 3 2 8.5z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>
+          메모 손보기
+        </button>
+        <a class="btn" href="app-memo.html">2초 룰 정책 보기</a>
+        <button class="btn">전체 메모 이력</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: Map snippet + address -->
+    <div class="col-right">
+      <span class="section-title"><span class="num">§ 02</span> 어디 있나</span>
+
+      <div class="map-snippet">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+          <rect width="400" height="300" fill="oklch(94.6% 0.012 82)"/>
+          <!-- streets -->
+          <g stroke="oklch(78% 0.022 80)" stroke-width="1.6" fill="none" stroke-linecap="round">
+            <path d="M0 140 C 100 132 200 144 300 140 C 340 138 380 142 400 140"/>
+            <path d="M0 200 C 80 196 180 198 280 202 C 340 206 380 200 400 198"/>
+            <path d="M120 0 C 116 80 124 160 122 240 C 121 280 118 300 122 300"/>
+            <path d="M260 0 C 256 80 264 160 262 240 C 261 280 258 300 262 300"/>
+          </g>
+          <!-- hills/park -->
+          <path d="M30 60 C 70 40 110 56 130 80 C 150 100 130 120 100 116 C 60 110 24 90 30 60 Z"
+                fill="oklch(91% 0.038 130)" stroke="oklch(45% 0.05 130)" stroke-width="0.6"/>
+          <text x="80" y="92" font-family="Iowan Old Style, serif" font-style="italic" font-size="11" fill="oklch(40% 0.05 130)" text-anchor="middle">남산</text>
+
+          <!-- pin -->
+          <circle cx="200" cy="160" r="28" fill="oklch(72% 0.095 240 / 0.18)"/>
+          <circle cx="200" cy="160" r="14" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="2"/>
+          <circle cx="200" cy="160" r="4" fill="oklch(100% 0 0)"/>
+
+          <!-- nearby ghost pins -->
+          <circle cx="118" cy="106" r="6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.2" opacity="0.55"/>
+          <circle cx="320" cy="208" r="6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.2" opacity="0.55"/>
+          <g transform="translate(330,120)" opacity="0.55">
+            <path d="M0 8 C -5 5, -8 1, -8 -2 C -8 -5, -5 -7, -3 -7 C -1 -7, 0 -5, 0 -4 C 0 -5, 1 -7, 3 -7 C 5 -7, 8 -5, 8 -2 C 8 1, 5 5, 0 8 Z"
+                  fill="oklch(78% 0.10 12)" stroke="oklch(44% 0.12 15)" stroke-width="1"/>
+          </g>
+
+          <!-- street label -->
+          <text x="200" y="266" font-family="Iowan Old Style, serif" font-style="italic" font-size="12" fill="oklch(42% 0.020 70)" text-anchor="middle">신흥로</text>
+          <text x="120" y="50" font-family="Iowan Old Style, serif" font-style="italic" font-size="11" fill="oklch(50% 0.020 70)">해방촌</text>
+        </svg>
+
+        <div class="annot">
+          <strong>해방촌 · 신흥로</strong>
+          줌 17 · 1:2,500
+        </div>
+      </div>
+
+      <div class="address-card">
+        <span class="label">주소</span>
+        <div class="addr">서울 용산구 신흥로 18 · 1층</div>
+
+        <div class="meta-row">
+          <div>
+            <span class="label">소스</span>
+            Kakao Local
+          </div>
+          <div>
+            <span class="label">매칭</span>
+            정확도 높음
+          </div>
+        </div>
+
+        <div class="open-maps">
+          <button class="btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5C3.5 1.5 2 3.4 2 5.5C2 8.5 6 10.5 6 10.5S10 8.5 10 5.5C10 3.4 8.5 1.5 6 1.5z M6 4.5 a1 1 0 1 1 0 2 a1 1 0 1 1 0 -2" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+            카카오맵 열기
+          </button>
+          <button class="btn">길찾기</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reel source band -->
+  <section class="reel-band">
+    <div class="reel-card">
+      <div class="gloss"></div>
+      <div class="scene"></div>
+      <span class="badge">Reel · 32s</span>
+      <button class="play" aria-label="릴스 재생">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4 L 16 10 L 6 16 Z"/></svg>
+      </button>
+      <div class="caption">
+        <span class="handle">@haebangchon_cafe_sigan</span>
+        해방촌 골목 한가운데, 작은 디저트 카페 · 시그니처 무화과 타르트와 드립
+      </div>
+    </div>
+
+    <div class="reel-info">
+      <span class="section-title"><span class="num">§ 03</span> Source · 원본 릴스</span>
+      <h3>인스타 릴스에서 — 캡션이 핀이 된 과정.</h3>
+      <p>릴스 캡션의 <code style="font-family: var(--mono); background: var(--paper-deep); padding: 1px 5px; font-size: 13px;">📍 해방촌 카페 시간</code> 마커를 InstagramParser가 감지했다. 카카오 로컬에서 좌표 1건이 정확히 매칭됐고, Google Places 폴백은 건너뛰었다.</p>
+
+      <div class="pipeline">
+        <div class="stage">
+          <span class="label">01 · Parser</span>
+          <div class="val">InstagramParser<br /><span class="ok">og: 메타 OK</span></div>
+        </div>
+        <div class="stage">
+          <span class="label">02 · Extract</span>
+          <div class="val">"해방촌 카페 시간"<br /><span class="ok">📍 키워드</span></div>
+        </div>
+        <div class="stage">
+          <span class="label">03 · Geocode</span>
+          <div class="val">Kakao Local · 1건<br /><span class="ok">정확도 높음</span></div>
+        </div>
+        <div class="stage">
+          <span class="label">04 · Pin</span>
+          <div class="val">tag = PLACE<br /><span class="ok">중복 없음</span></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <a class="btn primary" href="#">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <rect x="2" y="2" width="10" height="10" rx="3" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="7" cy="7" r="2.4" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="10" cy="4" r="0.7" fill="currentColor"/>
+          </svg>
+          인스타에서 원본 보기
+        </a>
+        <button class="btn">URL 복사</button>
+        <a class="btn" href="app-place-add.html">같은 방식으로 추가</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tag switch -->
+  <section class="tag-band">
+    <span class="section-title"><span class="num">§ 04</span> Tag · 의미를 바꾸려면</span>
+    <h2>다녀온 뒤엔 — <em>MEMORY로 옮길 수 있어.</em></h2>
+    <p>핀 등록 경로에 따라 기본값이 정해지지만, 이 핀이 추억이 된 뒤엔 손으로 옮기면 된다. 한 번에 한 카테고리만.</p>
+
+    <div class="tag-switch">
+      <label class="place active">
+        <input type="radio" name="tag" checked />
+        <div class="row1">
+          <span class="swatch"></span>
+          tag = PLACE — 현재 선택
+        </div>
+        <div class="name">가고 싶은 장소</div>
+        <div class="desc">파란 파스텔 동그라미로 지도에 그려진다. 룰렛 후보에 포함된다.</div>
+      </label>
+      <label class="memory">
+        <input type="radio" name="tag" />
+        <div class="row1">
+          <span class="swatch memory"></span>
+          tag = MEMORY — 옮기기
+        </div>
+        <div class="name">함께 다녀온 추억</div>
+        <div class="desc">핑크 파스텔 하트로 바뀐다. 룰렛에서는 "전체" 선택 시에만 후보가 된다.</div>
+      </label>
+    </div>
+  </section>
+
+  <!-- Roulette range -->
+  <section class="roulette-band">
+    <div class="roulette-head">
+      <span class="section-title"><span class="num">§ 05</span> Nearby</span>
+      <h2>이 핀 주변, <em>걷기 1km</em> 안에는</h2>
+      <p>해방촌 카페 시간을 중심으로 한 룰렛 후보. PLACE만 — MEMORY는 제외.</p>
+      <div style="margin-top: 20px; display: flex; gap: 8px;">
+        <button class="btn primary">1 km</button>
+        <button class="btn">5 km</button>
+        <button class="btn">10 km</button>
+      </div>
+    </div>
+
+    <div class="roulette-list">
+      <article>
+        <div class="marker-cell">
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.1"/></svg>
+        </div>
+        <div class="name">
+          남산 후암동 베이커리
+          <span class="sub">서울 용산구 후암로 · 빵집</span>
+        </div>
+        <div class="dist">0.4 km</div>
+        <div class="added">민지 · 4일 전</div>
+      </article>
+      <article>
+        <div class="marker-cell">
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.1"/></svg>
+        </div>
+        <div class="name">
+          이태원 모놀로그
+          <span class="sub">서울 용산구 이태원로 · 칵테일</span>
+        </div>
+        <div class="dist">0.6 km</div>
+        <div class="added">정우 · 12일 전</div>
+      </article>
+      <article>
+        <div class="marker-cell">
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.1"/></svg>
+        </div>
+        <div class="name">
+          후암동 와인 한 잔
+          <span class="sub">서울 용산구 후암로 · 와인바</span>
+        </div>
+        <div class="dist">0.7 km</div>
+        <div class="added">민지 · 3주 전</div>
+      </article>
+      <article>
+        <div class="marker-cell">
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="oklch(72% 0.095 240)" stroke="oklch(38% 0.10 245)" stroke-width="1.1"/></svg>
+        </div>
+        <div class="name">
+          용산공원 산책로 시작점
+          <span class="sub">서울 용산구 · 야외 산책</span>
+        </div>
+        <div class="dist">0.9 km</div>
+        <div class="added">정우 · 2달 전</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Action bar (sticky) -->
+  <div class="action-bar">
+    <div class="action-bar-inner">
+      <div class="left">
+        <span>핀 ID</span>
+        <span class="pin-id">#284</span>
+        <span>·</span>
+        <span>그룹 #17 (민지 ✕ 정우)</span>
+      </div>
+      <div class="right">
+        <button class="btn warn">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4h6m-5 0v6h4V4M5 2h2v2H5z" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+          핀 삭제
+        </button>
+        <a class="btn" href="app-tag.html">컬렉션으로</a>
+        <button class="btn primary">
+          저장
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Colophon -->
+  <footer class="foot">
+    <span>우리가 갈 지도 · Pin 상세</span>
+    <span>AMOU style info card · §01~§05</span>
+    <span>업데이트 21:42 KST</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
