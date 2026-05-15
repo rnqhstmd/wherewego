@@ -62,6 +62,10 @@ spring:
 datasource:
   postgres-jpa:
     main:
+      # 테스트 기본값. Testcontainers 사용 시 PostgresTestContainersConfig가 System property로 override.
+      jdbc-url: jdbc:postgresql://localhost:5432/wherewego_test
+      username: test
+      password: test
       maximum-pool-size: 10
       minimum-idle: 5
 

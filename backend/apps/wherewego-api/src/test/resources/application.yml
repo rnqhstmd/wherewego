@@ -43,6 +43,15 @@ google:
   places:
     api-key: test-google-places-api-key
 
+web-security:
+  cookie:
+    secure: false
+    domain: ""
+    same-site: Lax
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+
 ---
 spring:
   config:
