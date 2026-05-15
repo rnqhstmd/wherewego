@@ -11,14 +11,14 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 class DataSourceConfig {
     @Bean
-    @ConfigurationProperties(prefix = "datasource.mysql-jpa.main")
-    HikariConfig mySqlMainHikariConfig() {
+    @ConfigurationProperties(prefix = "datasource.postgres-jpa.main")
+    HikariConfig postgresMainHikariConfig() {
         return new HikariConfig();
     }
 
     @Primary
     @Bean
-    HikariDataSource mySqlMainDataSource(@Qualifier("mySqlMainHikariConfig") HikariConfig hikariConfig) {
+    HikariDataSource postgresMainDataSource(@Qualifier("postgresMainHikariConfig") HikariConfig hikariConfig) {
         return new HikariDataSource(hikariConfig);
     }
 }

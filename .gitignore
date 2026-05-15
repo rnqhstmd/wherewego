@@ -38,3 +38,9 @@ Thumbs.db
 # Tools
 # ========================
 .omc/
+.dev/
+
+# ========================
+# Build artifacts (additional)
+# ========================
+dist/

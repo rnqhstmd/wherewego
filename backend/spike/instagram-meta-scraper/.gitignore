@@ -1,0 +1,6 @@
+# HTML 응답 보관 디렉토리 (전수 조사용, Git 추적 안 함)
+samples/*
+!samples/.gitkeep
+
+# 사용자 수동 입력 URL (개인 데이터 노출 회피)
+src/main/resources/sample-urls.txt
