@@ -24,7 +24,11 @@
    ```
 
 3. **Supabase 값 입력** (`.env` 편집)
-   - `POSTGRES_*`: Supabase 대시보드의 Project Settings > Database 에서 `Connection string` 확인. **port는 5432(direct)** 사용. 6543(PgBouncer transaction) 금지.
+   - `POSTGRES_*`: Supabase 대시보드 → Connect → **Session Pooler** 선택 후 connection string 확인. **port는 5432**, **Transaction Pooler(6543) 사용 금지**.
+     - 정책 변경(2024+): Direct connection(`db.<ref>.supabase.co`)은 **IPv6 only**라 IPv4 환경(한국 일반 ISP)에서 connection refused. **Session Pooler(IPv4 호환)** 사용 권장.
+     - `POSTGRES_HOST`: `aws-<n>-<region>.pooler.supabase.com` (예: `aws-1-ap-northeast-2.pooler.supabase.com`)
+     - `POSTGRES_USER`: `postgres.<project-ref>` (pooler 전용 사용자명, project-ref가 포함됨)
+     - 대안: 유료 IPv4 add-on 구매 시 Direct connection 그대로 사용 가능.
    - `KAKAO_*`, `MAPBOX_TOKEN`, `GOOGLE_PLACES_API_KEY`: 각 서비스 콘솔 발급.
    - `JWT_SECRET`: 32자 이상 랜덤 문자열.
    - **로컬 전용**: `POSTGRES_HOST=localhost`, `POSTGRES_PORT=5432`, `POSTGRES_DB=wherewego`, `POSTGRES_USER=wherewego`, `POSTGRES_PASSWORD=wherewego` (infra-compose 기본값)
@@ -134,7 +138,10 @@ docker compose -f docker/infra-compose.yml up -d
 - **복구 전 현재 접속 중인 Supabase 인스턴스 URL을 반드시 확인.**
 - V002+ 파괴적 변경 시에는 해당 마이그레이션 파일 상단 주석에 백업 절차를 명시한다.
 
-**PgBouncer 주의:** dev/prod jdbc-url은 **port 5432 강제**이다. Supabase Connection Pooler(6543, transaction mode)는 Flyway가 사용하는 `pg_advisory_lock`과 호환되지 않아 마이그레이션이 실패한다.
+**Pooler 사용 정책:** dev/prod jdbc-url은 **port 5432 강제**이다.
+- **Session Pooler (port 5432, host: `aws-<n>-<region>.pooler.supabase.com`)** 사용 — IPv4 호환 + Flyway `pg_advisory_lock` 호환.
+- **Transaction Pooler (port 6543)** 사용 금지 — Flyway `pg_advisory_lock` 비호환으로 마이그레이션 실패.
+- **Direct connection (`db.<ref>.supabase.co:5432`)**: 2024+ 정책 변경으로 IPv6 only가 되어 IPv4 환경에서 연결 불가. 유료 IPv4 add-on 구매 시 사용 가능.
 
 ---
 
