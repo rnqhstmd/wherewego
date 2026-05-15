@@ -3,7 +3,6 @@ rootProject.name = "wherewego"
 include(
     ":apps:wherewego-api",
     ":modules:jpa",
-    ":modules:redis",
     ":supports:jackson",
     ":supports:logging",
     ":supports:monitoring",

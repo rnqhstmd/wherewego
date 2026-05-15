@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users
     kakao_user_id     BIGINT       NOT NULL,
     nickname          VARCHAR(100) NOT NULL,
     profile_image_url TEXT,
-    refresh_token     TEXT,                              -- JWT Refresh Token (14일 TTL)
+    refresh_token     TEXT,                              -- JWT Refresh Token의 SHA-256 해시 hex (14일 TTL)
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
     deleted_at        TIMESTAMPTZ,
