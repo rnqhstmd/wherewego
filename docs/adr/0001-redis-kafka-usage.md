@@ -2,7 +2,8 @@
 
 ## 상태
 
-Accepted (2026-05-14, Phase 0)
+Accepted (2026-05-14, Phase 0).
+**§결정 1, 2 (Redis 사용 결정)는 [ADR-0002](0002-redis-removal-caffeine.md)에 의해 Phase 1 시점에 폐기되어 Caffeine 인메모리 캐시로 전환됨**. §결정 3 (Google Places `@Async`), §결정 4 (Kafka 미도입)는 유효.
 
 ## 맥락
 

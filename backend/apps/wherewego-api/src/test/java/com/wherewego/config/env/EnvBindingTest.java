@@ -2,13 +2,23 @@ package com.wherewego.config.env;
 
 import com.wherewego.WherewegoApiApplication;
 import com.wherewego.testcontainers.PostgresTestContainersConfig;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 class EnvBindingTest {
+
+    @BeforeAll
+    static void ensureContainerStartedBeforeAnyContextLoad() {
+        // Class.class literal은 클래스 초기화를 트리거하지 않으므로, 첫 ApplicationContext 시작 전에
+        // testcontainer를 시작하여 DataSource 빈 생성 시점에 jdbc-url 시스템 프로퍼티가 적용되도록 한다.
+        PostgresTestContainersConfig.ensureStarted();
+    }
 
     private static final String[] BASE_VALID_ARGS = new String[] {
             "--spring.profiles.active=test",
@@ -21,7 +31,11 @@ class EnvBindingTest {
             "--kakao.oauth.client-secret=secret",
             "--kakao.oauth.redirect-uri=https://example.com/callback",
             "--mapbox.token=test-mapbox-token",
-            "--google.places.api-key=test-google-key"
+            "--google.places.api-key=test-google-key",
+            "--web-security.cookie.secure=false",
+            "--web-security.cookie.domain=",
+            "--web-security.cookie.same-site=Lax",
+            "--web-security.cors.allowed-origins=http://localhost:3000"
     };
 
     @Test
@@ -54,7 +68,29 @@ class EnvBindingTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void emptyCookieDomainBindsAsEmptyStringNotNull() {
+        ConfigurableApplicationContext context = null;
+        try {
+            context = new SpringApplicationBuilder(WherewegoApiApplication.class)
+                    .sources(PostgresTestContainersConfig.class)
+                    .run(BASE_VALID_ARGS);
+            WebSecurityProperties props = context.getBean(WebSecurityProperties.class);
+            assertThat(props.cookie().domain()).isNotNull().isEmpty();
+            assertThat(props.cookie().secure()).isFalse();
+            assertThat(props.cookie().sameSite()).isEqualTo("Lax");
+            assertThat(props.cors().allowedOrigins()).containsExactly("http://localhost:3000");
+        } finally {
+            if (context != null) {
+                context.close();
+            }
+        }
+    }
+
     private static void runApplication(String[] args) {
+        // Class<T>.class literal은 클래스 초기화를 트리거하지 않으므로 static block의 testcontainer 시작이
+        // DataSource 빈 생성보다 늦어질 수 있다. 명시 호출로 컨테이너 시작과 System property 주입을 보장한다.
+        PostgresTestContainersConfig.ensureStarted();
         new SpringApplicationBuilder(WherewegoApiApplication.class)
                 .sources(PostgresTestContainersConfig.class)
                 .run(args)
@@ -62,9 +98,17 @@ class EnvBindingTest {
     }
 
     private static String[] withOverride(String override) {
-        String[] result = new String[BASE_VALID_ARGS.length + 1];
-        System.arraycopy(BASE_VALID_ARGS, 0, result, 0, BASE_VALID_ARGS.length);
-        result[BASE_VALID_ARGS.length] = override;
-        return result;
+        // Spring의 SimpleCommandLinePropertySource는 동일 key의 다중 값을 쉼표로 결합하여
+        // 단일 문자열로 노출한다. BASE의 정상값과 override의 빈/잘못된 값이 합쳐지면 validation을
+        // 우회하므로, 기존 동일 key 인자를 제거하고 override만 적용해야 한다.
+        String overrideKey = override.contains("=") ? override.substring(0, override.indexOf('=') + 1) : override;
+        java.util.List<String> filtered = new java.util.ArrayList<>();
+        for (String arg : BASE_VALID_ARGS) {
+            if (!arg.startsWith(overrideKey)) {
+                filtered.add(arg);
+            }
+        }
+        filtered.add(override);
+        return filtered.toArray(new String[0]);
     }
 }

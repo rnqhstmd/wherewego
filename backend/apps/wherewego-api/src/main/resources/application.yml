@@ -21,7 +21,6 @@ spring:
     import:
       - optional:file:.env[.properties]
       - jpa.yml
-      - redis.yml
       - logging.yml
       - monitoring.yml
 
@@ -49,11 +48,34 @@ google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY}
 
+web-security:
+  cookie:
+    secure: ${WEB_SECURITY_COOKIE_SECURE:true}
+    domain: ${WEB_SECURITY_COOKIE_DOMAIN:}
+    same-site: ${WEB_SECURITY_COOKIE_SAME_SITE:None}
+  cors:
+    allowed-origins:
+      - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+slack:
+  username: ${SLACK_USERNAME:wherewego-dev}
+  channel: ${SLACK_CHANNEL:#wherewego-alerts}
+  webhook-uri: ${SLACK_WEBHOOK_URI:}
+
 ---
 spring:
   config:
     activate:
       on-profile: local, test
+
+web-security:
+  cookie:
+    secure: false
+    same-site: Lax
+    domain: ""
+  cors:
+    allowed-origins:
+      - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 ---
 spring:
