@@ -51,11 +51,27 @@ public class MessageClassifier {
     }
 
     private static boolean hasPlaceId(ChatbotV1Dto.SkillRequest req) {
-        if (req == null || req.action() == null || req.action().params() == null) {
-            return false;
-        }
-        String placeId = req.action().params().get("placeId");
+        String placeId = extractPlaceId(req);
         return placeId != null && !placeId.isBlank();
+    }
+
+    /**
+     * 카카오 i 오픈빌더 버튼 {@code action="message"} 전송 시 {@code extra}는
+     * 요청의 {@code action.clientExtra}로 들어온다. clientExtra 우선, params 폴백.
+     */
+    static String extractPlaceId(ChatbotV1Dto.SkillRequest req) {
+        if (req == null || req.action() == null) {
+            return null;
+        }
+        ChatbotV1Dto.Action action = req.action();
+        String placeId = null;
+        if (action.clientExtra() != null) {
+            placeId = action.clientExtra().get("placeId");
+        }
+        if ((placeId == null || placeId.isBlank()) && action.params() != null) {
+            placeId = action.params().get("placeId");
+        }
+        return placeId;
     }
 
     private static String utterance(ChatbotV1Dto.SkillRequest req) {

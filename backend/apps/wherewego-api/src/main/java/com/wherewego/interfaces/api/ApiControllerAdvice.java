@@ -124,7 +124,15 @@ public class ApiControllerAdvice {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
         log.warn("DataIntegrityViolationException : {}", e.getMessage());
-        return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
+        String message = e.getMessage() != null ? e.getMessage() : "";
+        String cause = e.getMostSpecificCause() != null && e.getMostSpecificCause().getMessage() != null
+            ? e.getMostSpecificCause().getMessage()
+            : "";
+        String combined = message + " " + cause;
+        if (combined.contains("uq_pins_group_instagram") || combined.contains("uq_pin_group_instagram")) {
+            return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
+        }
+        return failureResponse(ErrorType.INTERNAL_ERROR, null);
     }
 
     @ExceptionHandler

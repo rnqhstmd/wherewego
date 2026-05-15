@@ -29,10 +29,16 @@ class MessageClassifierTest {
     private MessageClassifier messageClassifier;
 
     private static ChatbotV1Dto.SkillRequest request(String utterance, Map<String, String> params) {
+        return request(utterance, params, null);
+    }
+
+    private static ChatbotV1Dto.SkillRequest request(String utterance,
+                                                     Map<String, String> params,
+                                                     Map<String, String> clientExtra) {
         ChatbotV1Dto.UserRequest userRequest = new ChatbotV1Dto.UserRequest(
                 utterance, new ChatbotV1Dto.User("kakao-user-1", "botUserKey")
         );
-        ChatbotV1Dto.Action action = new ChatbotV1Dto.Action(params);
+        ChatbotV1Dto.Action action = new ChatbotV1Dto.Action(params, clientExtra);
         return new ChatbotV1Dto.SkillRequest(userRequest, action);
     }
 
@@ -45,6 +51,19 @@ class MessageClassifierTest {
         void classify_actionParamsHavePlaceId_returnsPlaceSelection() {
             // arrange
             ChatbotV1Dto.SkillRequest req = request("ignored", Map.of("placeId", "abc-123"));
+
+            // act
+            MessageType type = messageClassifier.classify(req, "kakao-user-1");
+
+            // assert
+            assertThat(type).isEqualTo(MessageType.PLACE_SELECTION);
+        }
+
+        @DisplayName("action.clientExtra 에 placeId 가 있으면, PLACE_SELECTION 으로 분류된다 (카카오 i 오픈빌더 버튼 action=message extra 전달 경로).")
+        @Test
+        void classify_actionClientExtraHavePlaceId_returnsPlaceSelection() {
+            // arrange
+            ChatbotV1Dto.SkillRequest req = request("ignored", Map.of(), Map.of("placeId", "abc-123"));
 
             // act
             MessageType type = messageClassifier.classify(req, "kakao-user-1");

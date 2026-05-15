@@ -52,11 +52,16 @@ public class InstagramLinkHandler implements MessageHandler {
         String botUserKey = request.userRequest().user().id();
         String url = request.userRequest().utterance().trim();
 
-        Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
-        if (userIdOpt.isEmpty()) {
-            return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+        // userId 는 WebhookService 미연동 가드에서 이미 1회 조회 후 ctx 에 캐싱.
+        // 비정상 경로 방어 차원에서 null 인 경우 한 번 더 조회한다.
+        Long userId = ctx.userId();
+        if (userId == null) {
+            Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
+            if (userIdOpt.isEmpty()) {
+                return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+            }
+            userId = userIdOpt.get();
         }
-        Long userId = userIdOpt.get();
 
         Optional<Long> groupIdOpt = groupMemberService.findLatestActiveGroupIdByUserId(userId);
         if (groupIdOpt.isEmpty()) {

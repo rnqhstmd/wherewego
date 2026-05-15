@@ -16,7 +16,7 @@ public final class ChatbotV1Dto {
 
     public record User(String id, String type) { }
 
-    public record Action(Map<String, String> params) { }
+    public record Action(Map<String, String> params, Map<String, String> clientExtra) { }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SkillResponse(String version, Template template) {

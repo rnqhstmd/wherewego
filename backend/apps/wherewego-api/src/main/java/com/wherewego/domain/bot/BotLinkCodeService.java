@@ -44,9 +44,15 @@ public class BotLinkCodeService {
 
     @Transactional(readOnly = true)
     public Long peekUserId(String code) {
-        return linkCodeRepository.findByCode(code)
-                .map(BotLinkCode::getUserId)
+        BotLinkCode found = linkCodeRepository.findByCode(code)
                 .orElseThrow(() -> new CoreException(ErrorType.BOT_LINK_CODE_INVALID));
+        if (found.getStatus() == BotLinkCodeStatus.CONSUMED) {
+            throw new CoreException(ErrorType.BOT_LINK_CODE_ALREADY_USED);
+        }
+        if (found.getStatus() == BotLinkCodeStatus.EXPIRED || found.isExpired(Instant.now())) {
+            throw new CoreException(ErrorType.BOT_LINK_CODE_EXPIRED);
+        }
+        return found.getUserId();
     }
 
     @Transactional

@@ -1,5 +1,7 @@
 package com.wherewego.infrastructure.scraper.instagram;
 
+import org.springframework.stereotype.Component;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -9,7 +11,10 @@ import java.time.Duration;
 /**
  * 인스타그램 릴스 페이지 HTML을 3단계 헤더 전략으로 시도한다.
  * spike {@code com.wherewego.spike.instagram.HtmlFetcher} 이관.
+ *
+ * <p>각 stage 별 타임아웃은 호출자({@link InstagramScraperClient})가 결정한다 — 데드라인 컨텍스트와 설정값을 모두 고려.</p>
  */
+@Component
 public class HtmlFetcher {
 
     public enum Strategy {
@@ -38,21 +43,17 @@ public class HtmlFetcher {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                     + "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    private final HttpClient client;
-
-    public HtmlFetcher() {
-        this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
-    }
-
-    public FetchResult fetch(String url, Strategy strategy) {
+    public FetchResult fetch(String url, Strategy strategy, Duration timeout) {
         long start = System.currentTimeMillis();
         try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(timeout)
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(15))
+                    .timeout(timeout)
                     .GET();
 
             applyStrategy(builder, strategy);

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Skill webhook 진입 서비스. {@code t0} 캡처 → 분류 → 핸들러 위임 → 폴백 try-catch 안전망.
@@ -57,9 +58,13 @@ public class ChatbotWebhookService {
 
             // 미연동 가드: 실제로 매핑이 필요한 핸들러(INSTAGRAM_LINK, PLACE_SELECTION)에만 적용.
             // UNKNOWN/TEXT_2SEC_CANDIDATE 는 가드 없이 라우터로 보내 불필요한 DB 조회를 피한다.
-            if ((type == MessageType.INSTAGRAM_LINK || type == MessageType.PLACE_SELECTION)
-                    && botUserMappingService.resolveUserId(botUserKey).isEmpty()) {
-                return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+            // 조회한 userId 는 ctx 에 캐싱하여 핸들러에서 중복 조회를 방지한다.
+            if (type == MessageType.INSTAGRAM_LINK || type == MessageType.PLACE_SELECTION) {
+                Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
+                if (userIdOpt.isEmpty()) {
+                    return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+                }
+                ctx.setUserId(userIdOpt.get());
             }
 
             MessageHandler handler = routerMap.get(type);

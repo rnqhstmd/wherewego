@@ -37,7 +37,7 @@ public class PlaceSelectionHandler implements MessageHandler {
     @Override
     public ChatbotV1Dto.SkillResponse handle(ChatbotV1Dto.SkillRequest request, ChatbotContext ctx) {
         String botUserKey = request.userRequest().user().id();
-        String placeId = request.action().params().get("placeId");
+        String placeId = extractPlaceId(request);
 
         Optional<PlaceSelectionCandidateStore.Entry> entryOpt =
                 placeSelectionCandidateStore.takeAndInvalidate(botUserKey, placeId);
@@ -46,11 +46,16 @@ public class PlaceSelectionHandler implements MessageHandler {
         }
         PlaceSelectionCandidateStore.Entry entry = entryOpt.get();
 
-        Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
-        if (userIdOpt.isEmpty()) {
-            return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+        // userId 는 WebhookService 미연동 가드에서 이미 1회 조회 후 ctx 에 캐싱.
+        // 비정상 경로 방어 차원에서 null 인 경우 한 번 더 조회한다.
+        Long userId = ctx.userId();
+        if (userId == null) {
+            Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
+            if (userIdOpt.isEmpty()) {
+                return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+            }
+            userId = userIdOpt.get();
         }
-        Long userId = userIdOpt.get();
 
         Optional<Long> groupIdOpt = groupMemberService.findLatestActiveGroupIdByUserId(userId);
         if (groupIdOpt.isEmpty()) {
@@ -66,5 +71,24 @@ public class PlaceSelectionHandler implements MessageHandler {
             log.info("Duplicate pin groupId={} placeId={}", groupId, placeId);
             return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
         }
+    }
+
+    /**
+     * 카카오 i 오픈빌더 버튼 {@code action="message"} 전송 시 {@code extra}는
+     * 요청의 {@code action.clientExtra}로 들어온다. clientExtra 우선, params 폴백.
+     */
+    private static String extractPlaceId(ChatbotV1Dto.SkillRequest request) {
+        if (request == null || request.action() == null) {
+            return null;
+        }
+        ChatbotV1Dto.Action action = request.action();
+        String placeId = null;
+        if (action.clientExtra() != null) {
+            placeId = action.clientExtra().get("placeId");
+        }
+        if ((placeId == null || placeId.isBlank()) && action.params() != null) {
+            placeId = action.params().get("placeId");
+        }
+        return placeId;
     }
 }

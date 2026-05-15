@@ -158,4 +158,68 @@ class BotLinkCodeServiceTest {
                     .isEqualTo(ErrorType.BOT_LINK_CODE_EXPIRED);
         }
     }
+
+    @DisplayName("peekUserId 로 userId 를 조회할 때,")
+    @Nested
+    class PeekUserId {
+
+        @DisplayName("코드가 없으면, BOT_LINK_CODE_INVALID 예외가 발생한다.")
+        @Test
+        void peekUserId_notFound_throwsInvalid() {
+            // arrange
+            when(linkCodeRepository.findByCode("999999")).thenReturn(Optional.empty());
+
+            // act & assert
+            assertThatThrownBy(() -> botLinkCodeService.peekUserId("999999"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.BOT_LINK_CODE_INVALID);
+        }
+
+        @DisplayName("이미 CONSUMED 상태면, BOT_LINK_CODE_ALREADY_USED 예외가 발생한다.")
+        @Test
+        void peekUserId_consumed_throwsAlreadyUsed() {
+            // arrange
+            Instant now = Instant.now();
+            BotLinkCode consumed = BotLinkCode.issue(7L, "123456", now.minusSeconds(60), Duration.ofMinutes(5));
+            consumed.markConsumed(now.minusSeconds(30));
+            when(linkCodeRepository.findByCode("123456")).thenReturn(Optional.of(consumed));
+
+            // act & assert
+            assertThatThrownBy(() -> botLinkCodeService.peekUserId("123456"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.BOT_LINK_CODE_ALREADY_USED);
+        }
+
+        @DisplayName("expiresAt 이 지났으면, BOT_LINK_CODE_EXPIRED 예외가 발생한다.")
+        @Test
+        void peekUserId_expired_throwsExpired() {
+            // arrange
+            BotLinkCode expired = BotLinkCode.issue(7L, "123456",
+                    Instant.now().minus(Duration.ofMinutes(10)), Duration.ofMinutes(5));
+            when(linkCodeRepository.findByCode("123456")).thenReturn(Optional.of(expired));
+
+            // act & assert
+            assertThatThrownBy(() -> botLinkCodeService.peekUserId("123456"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.BOT_LINK_CODE_EXPIRED);
+        }
+
+        @DisplayName("ACTIVE 코드면, userId 를 반환한다.")
+        @Test
+        void peekUserId_active_returnsUserId() {
+            // arrange
+            BotLinkCode active = BotLinkCode.issue(7L, "123456",
+                    Instant.now().minusSeconds(60), Duration.ofMinutes(5));
+            when(linkCodeRepository.findByCode("123456")).thenReturn(Optional.of(active));
+
+            // act
+            Long userId = botLinkCodeService.peekUserId("123456");
+
+            // assert
+            assertThat(userId).isEqualTo(7L);
+        }
+    }
 }
