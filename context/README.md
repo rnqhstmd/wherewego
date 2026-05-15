@@ -30,3 +30,24 @@
 - **JWT 세션** — 1인 개발·단일 EC2 환경에 적합
 - **Group 추상화** — `Couple_ID` 대신 `group_id`, MVP는 비즈니스 레이어에서 1인 1그룹 제약
 - **Haversine 거리** — PostGIS 없이 애플리케이션 레벨 계산 (~50핀 규모에 충분)
+
+## 구현 로드맵 (Phase 진행도)
+
+| Phase | 범위 | 상태 | PR |
+|-------|------|------|-----|
+| Phase 0 | DB 스키마(V001) + 인프라 기반(Spring Boot, Gradle multi-module, Testcontainers, Flyway, observability) | ✅ 완료 | [#1](https://github.com/rnqhstmd/wherewego/pull/1) |
+| Phase 1 | 카카오 OAuth2 + JWT 세션 (auth 도메인) | ✅ 완료 | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+| **Phase 2** | **카카오톡 챗봇 Skill Webhook + 인스타 장소 파이프라인** (bot/chatbot/place/pin/group read-only/memo) | ✅ 완료 | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
+| Phase 2.5 | 장소명 추출 regex → **Gemini 2.0 Flash** 전환 ([상세](place/gemini-migration.md)) | ⬜ 계획 | — |
+| Phase 3 | 그룹 생성/초대/탈퇴 + 활성 GroupMember 권한 검사 (group 도메인 본 구현) | ⬜ 계획 | — |
+| Phase 4 | 웹 UI 핀 CRUD (목록/수정/삭제, 메모 수동 편집) | ⬜ 계획 | — |
+| Phase 5 | **Google Places API 비동기 폴백** + 카카오 콜백 푸시 (해외 장소 지원) | ⬜ 계획 | — |
+| Phase 6 | Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 (Haversine) | ⬜ 계획 | — |
+| Phase 후속 | `@RefreshScope` + Spring Cloud Config, GC 배치, 레이트 리미팅, 탈퇴 cascade 정책, 카카오 i 오픈빌더 PLACE_SELECTION 버튼 action 검증 | ⬜ 미정 | — |
+
+도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
+
+## 주요 ADR
+
+- [ADR-0001 Redis/Kafka 도입 검토](../docs/adr/0001-redis-kafka-usage.md) (폐기)
+- [ADR-0002 Redis 제거 + Caffeine 전환](../docs/adr/0002-redis-removal-caffeine.md)
