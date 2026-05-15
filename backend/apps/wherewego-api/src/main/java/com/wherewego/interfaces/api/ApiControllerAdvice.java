@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -118,6 +119,12 @@ public class ApiControllerAdvice {
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handleNotFound(NoResourceFoundException e) {
         return failureResponse(ErrorType.NOT_FOUND, null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("DataIntegrityViolationException : {}", e.getMessage());
+        return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
     }
 
     @ExceptionHandler

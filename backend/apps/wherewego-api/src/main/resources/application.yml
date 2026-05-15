@@ -40,6 +40,26 @@ kakao:
     client-id: ${KAKAO_CLIENT_ID}
     client-secret: ${KAKAO_CLIENT_SECRET}
     redirect-uri: ${KAKAO_REDIRECT_URI}
+  local:
+    base-url: https://dapi.kakao.com
+    timeout-ms: 1500
+  skill:
+    secret: ${KAKAO_SKILL_SECRET}
+
+place:
+  instagram:
+    scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:true}
+  search:
+    sync-deadline-ms: 4500
+    kakao-local-size: 5
+  scraper:
+    instagram:
+      timeout-ms: 8000
+
+bot:
+  link-code:
+    ttl-minutes: 10
+    max-generation-retries: 5
 
 mapbox:
   token: ${MAPBOX_TOKEN}
