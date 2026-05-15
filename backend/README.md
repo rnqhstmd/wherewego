@@ -2,9 +2,9 @@
 
 우리가갈지도(MayGo) 백엔드 멀티모듈 프로젝트.
 
-- **런타임:** Spring Boot 3.4.4 + Java 21 + PostgreSQL 17 + Redis 7
+- **런타임:** Spring Boot 3.4.4 + Java 21 + PostgreSQL 17 + Caffeine 3.1 (인메모리 캐시)
 - **빌드:** Gradle (Kotlin DSL)
-- **모듈 구성:** `apps/wherewego-api`, `modules/{jpa,redis}`, `supports/{jackson,logging,monitoring}`, `spike/instagram-meta-scraper`
+- **모듈 구성:** `apps/wherewego-api`, `modules/jpa`, `supports/{jackson,logging,monitoring}`, `spike/instagram-meta-scraper`
 
 ---
 
@@ -33,10 +33,11 @@
    - `JWT_SECRET`: 32자 이상 랜덤 문자열.
    - **로컬 전용**: `POSTGRES_HOST=localhost`, `POSTGRES_PORT=5432`, `POSTGRES_DB=wherewego`, `POSTGRES_USER=wherewego`, `POSTGRES_PASSWORD=wherewego` (infra-compose 기본값)
 
-4. **로컬 인프라 기동** (PostgreSQL + Redis)
+4. **로컬 인프라 기동** (PostgreSQL)
    ```bash
    docker compose -f docker/infra-compose.yml up -d
    ```
+   (캐시는 Caffeine 인메모리이므로 별도 컨테이너 불필요)
 
 5. **앱 기동**
    ```bash
@@ -170,14 +171,13 @@ backend/
 ├── apps/wherewego-api/           # 메인 애플리케이션 (Spring Boot)
 │   └── src/main/resources/db/migration/V001__init_schema.sql
 ├── modules/
-│   ├── jpa/                      # Hikari + JPA + QueryDSL + Flyway 설정
-│   └── redis/                    # Lettuce master/replica
+│   └── jpa/                      # Hikari + JPA + QueryDSL + Flyway 설정
 ├── supports/
 │   ├── jackson/                  # ObjectMapper 표준화
-│   ├── logging/                  # 로그 포맷
+│   ├── logging/                  # 로그 포맷 + Slack appender
 │   └── monitoring/               # Actuator + Prometheus
 ├── spike/instagram-meta-scraper/ # 인스타 메타 스크래핑 spike
 └── docker/
-    ├── infra-compose.yml         # PostgreSQL + Redis
+    ├── infra-compose.yml         # PostgreSQL
     └── monitoring-compose.yml    # Prometheus + Grafana
 ```

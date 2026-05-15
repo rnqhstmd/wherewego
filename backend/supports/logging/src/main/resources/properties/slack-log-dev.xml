@@ -1,6 +1,7 @@
 <included>
-    <property name="SLACK_USERNAME" value=""/>
-    <property name="SLACK_CHANNEL" value=""/>
-    <property name="SLACK_WEBHOOK_URI"
-              value=""/>
+    <!-- application.yml의 slack.* 값을 logback variable로 노출.
+         logback이 Spring 초기화 후 ASYNC-SLACK appender를 활성화한다. -->
+    <springProperty scope="context" name="SLACK_USERNAME" source="slack.username" defaultValue="wherewego-dev"/>
+    <springProperty scope="context" name="SLACK_CHANNEL" source="slack.channel" defaultValue="#wherewego-alerts"/>
+    <springProperty scope="context" name="SLACK_WEBHOOK_URI" source="slack.webhook-uri" defaultValue=""/>
 </included>
