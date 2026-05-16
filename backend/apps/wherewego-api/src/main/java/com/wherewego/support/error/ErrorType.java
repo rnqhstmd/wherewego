@@ -31,7 +31,18 @@ public enum ErrorType {
     PLC_PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "PLC_PLACE_NOT_FOUND", "장소를 찾을 수 없습니다."),
     PLC_DUPLICATE_PIN(HttpStatus.CONFLICT, "PLC_DUPLICATE_PIN", "이미 저장된 장소입니다."),
     PLC_KAKAO_LOCAL_FAILED(HttpStatus.BAD_GATEWAY, "PLC_KAKAO_LOCAL_FAILED", "장소 검색을 일시적으로 사용할 수 없습니다."),
-    PLC_INSTAGRAM_SCRAPE_FAILED(HttpStatus.BAD_GATEWAY, "PLC_INSTAGRAM_SCRAPE_FAILED", "인스타그램 데이터를 가져오지 못했습니다.");
+    PLC_INSTAGRAM_SCRAPE_FAILED(HttpStatus.BAD_GATEWAY, "PLC_INSTAGRAM_SCRAPE_FAILED", "인스타그램 데이터를 가져오지 못했습니다."),
+
+    /** 그룹 (Phase 3) */
+    GROUP_NAME_INVALID(HttpStatus.BAD_REQUEST, "GROUP_NAME_INVALID", "그룹 이름은 1~30자여야 합니다."),
+    GROUP_ALREADY_ACTIVE(HttpStatus.CONFLICT, "GROUP_ALREADY_ACTIVE", "이미 활성 그룹에 속해 있습니다."),
+    GROUP_NOT_MEMBER(HttpStatus.FORBIDDEN, "GROUP_NOT_MEMBER", "그룹의 활성 멤버가 아닙니다."),
+    GROUP_CAPACITY_EXCEEDED(HttpStatus.CONFLICT, "GROUP_CAPACITY_EXCEEDED", "그룹 정원이 가득 찼습니다."),
+    GROUP_REJOIN_FORBIDDEN(HttpStatus.CONFLICT, "GROUP_REJOIN_FORBIDDEN", "탈퇴한 그룹에는 다시 가입할 수 없습니다."),
+    INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "INVITE_LINK_NOT_FOUND", "존재하지 않는 초대 링크입니다."),
+    INVITE_LINK_EXPIRED(HttpStatus.GONE, "INVITE_LINK_EXPIRED", "초대 링크가 만료되었습니다."),
+    INVITE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "INVITE_LINK_ALREADY_USED", "이미 사용된 초대 링크입니다."),
+    INVITE_LINK_SELF_ACCEPT(HttpStatus.BAD_REQUEST, "INVITE_LINK_SELF_ACCEPT", "본인이 발급한 초대 링크는 수락할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;

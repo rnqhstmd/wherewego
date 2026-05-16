@@ -37,6 +37,27 @@ public class GroupMember extends BaseEntity {
 
     protected GroupMember() { }
 
+    /**
+     * 활성 멤버 신규 생성. joinedAt = now, leftAt = null.
+     */
+    public static GroupMember createActive(Long groupId, Long userId, Instant now) {
+        GroupMember member = new GroupMember();
+        member.groupId = groupId;
+        member.userId = userId;
+        member.joinedAt = now;
+        member.leftAt = null;
+        return member;
+    }
+
+    /**
+     * 멱등 탈퇴. 이미 leftAt이 set이면 변경하지 않는다.
+     */
+    public void markLeft(Instant now) {
+        if (this.leftAt == null) {
+            this.leftAt = now;
+        }
+    }
+
     public boolean isActive() {
         return leftAt == null;
     }
