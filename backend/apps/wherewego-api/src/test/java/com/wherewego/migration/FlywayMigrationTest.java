@@ -49,7 +49,8 @@ class FlywayMigrationTest {
 
         Set<String> groupMembersColumns = columnNames("group_members");
         assertThat(groupMembersColumns).containsExactlyInAnyOrder(
-                "id", "group_id", "user_id", "joined_at", "left_at", "created_at", "updated_at"
+                "id", "group_id", "user_id", "joined_at", "left_at",
+                "created_at", "updated_at", "deleted_at" // V004: BaseEntity 상속 일관성
         );
 
         Set<String> pinsColumns = columnNames("pins");
