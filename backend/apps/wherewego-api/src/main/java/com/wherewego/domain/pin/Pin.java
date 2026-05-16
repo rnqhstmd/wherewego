@@ -123,4 +123,33 @@ public class Pin extends BaseEntity {
     private static BigDecimal toBigDecimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
     }
+
+    /**
+     * 수동 메모 적용. memo 는 non-null, 길이 ≤ 500 자 (호출 전 서비스에서 검증).
+     * memoSource 를 MANUAL 로 마킹하여 이후 AUTO 메모 갱신을 차단한다 (BR-3, FR-4).
+     */
+    public void applyManualMemo(String memo) {
+        this.memo = memo;
+        this.memoSource = MemoSource.MANUAL;
+    }
+
+    /**
+     * 메모 제거 + 잠금 해제. memo 와 memoSource 모두 NULL 로 초기화한다 (BR-8).
+     * 이후 {@link PinRepository#updateAutoMemoIfNotManual} 의 WHERE 조건이 다시 통과한다.
+     */
+    public void clearMemo() {
+        this.memo = null;
+        this.memoSource = null;
+    }
+
+    /**
+     * 태그 변경. tag 는 non-null (호출 전 서비스에서 검증).
+     */
+    public void changeTag(PinTag tag) {
+        this.tag = tag;
+    }
+
+    public boolean isDeleted() {
+        return getDeletedAt() != null;
+    }
 }

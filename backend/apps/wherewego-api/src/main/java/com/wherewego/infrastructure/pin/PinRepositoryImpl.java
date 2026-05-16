@@ -2,9 +2,11 @@ package com.wherewego.infrastructure.pin;
 
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinRepository;
+import com.wherewego.domain.pin.PinTag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -26,5 +28,20 @@ public class PinRepositoryImpl implements PinRepository {
     @Override
     public int updateAutoMemoIfNotManual(Long pinId, Long ownerUserId, String memo) {
         return jpaRepository.updateAutoMemoIfNotManual(pinId, ownerUserId, memo);
+    }
+
+    @Override
+    public List<Pin> findActiveByGroupIdOrderByCreatedAtDesc(Long groupId) {
+        return jpaRepository.findByGroupIdAndDeletedAtIsNullOrderByCreatedAtDesc(groupId);
+    }
+
+    @Override
+    public List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag) {
+        return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(groupId, tag);
+    }
+
+    @Override
+    public Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId) {
+        return jpaRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId);
     }
 }
