@@ -137,7 +137,7 @@ public class ApiControllerAdvice {
             return failureResponse(ErrorType.GROUP_ALREADY_ACTIVE, null);
         }
         if (combined.contains("uq_group_members_pair")) {
-            return failureResponse(ErrorType.GROUP_ALREADY_ACTIVE, null);
+            return failureResponse(ErrorType.GROUP_REJOIN_FORBIDDEN, null);
         }
         if (combined.contains("uq_invite_links_token")) {
             return failureResponse(ErrorType.INTERNAL_ERROR, null);

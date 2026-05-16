@@ -38,6 +38,7 @@ public enum ErrorType {
     GROUP_ALREADY_ACTIVE(HttpStatus.CONFLICT, "GROUP_ALREADY_ACTIVE", "이미 활성 그룹에 속해 있습니다."),
     GROUP_NOT_MEMBER(HttpStatus.FORBIDDEN, "GROUP_NOT_MEMBER", "그룹의 활성 멤버가 아닙니다."),
     GROUP_CAPACITY_EXCEEDED(HttpStatus.CONFLICT, "GROUP_CAPACITY_EXCEEDED", "그룹 정원이 가득 찼습니다."),
+    GROUP_REJOIN_FORBIDDEN(HttpStatus.CONFLICT, "GROUP_REJOIN_FORBIDDEN", "탈퇴한 그룹에는 다시 가입할 수 없습니다."),
     INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "INVITE_LINK_NOT_FOUND", "존재하지 않는 초대 링크입니다."),
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "INVITE_LINK_EXPIRED", "초대 링크가 만료되었습니다."),
     INVITE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "INVITE_LINK_ALREADY_USED", "이미 사용된 초대 링크입니다."),

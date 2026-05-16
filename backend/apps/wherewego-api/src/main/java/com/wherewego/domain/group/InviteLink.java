@@ -64,7 +64,7 @@ public class InviteLink extends BaseEntity {
     }
 
     /**
-     * 만료 여부. expiresAt이 now 이전이면 만료. acceptedAt은 별도 판정.
+     * 만료 여부. expiresAt이 now 이전이거나 같으면 만료(true). acceptedAt은 별도 판정.
      */
     public boolean isExpired(Instant now) {
         return !expiresAt.isAfter(now);

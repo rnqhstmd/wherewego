@@ -4,19 +4,17 @@ import com.wherewego.domain.group.ActiveGroupInfo;
 import com.wherewego.domain.group.GroupCreatedResult;
 import com.wherewego.domain.group.InviteAcceptResult;
 import com.wherewego.domain.group.InviteLinkIssueResult;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
 
 public class GroupV1Dto {
 
-    public record CreateGroupRequest(
-            @NotBlank
-            @Size(max = 30)
-            String name
-    ) { }
+    /**
+     * 그룹 생성 요청. 이름 검증은 서비스 레이어에서 수행하여
+     * Bean Validation 대신 도메인 에러 코드(GROUP_NAME_INVALID)로 통일한다.
+     */
+    public record CreateGroupRequest(String name) { }
 
     public record GroupCreatedResponse(Long groupId, String name, ZonedDateTime createdAt) {
         public static GroupCreatedResponse from(GroupCreatedResult result) {

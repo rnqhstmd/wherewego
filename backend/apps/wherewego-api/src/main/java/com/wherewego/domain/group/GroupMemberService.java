@@ -110,6 +110,10 @@ public class GroupMemberService {
         try {
             groupMemberRepository.save(GroupMember.createActive(group.getId(), userId, now));
         } catch (DataIntegrityViolationException e) {
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            if (msg.contains("uq_group_members_pair")) {
+                throw new CoreException(ErrorType.GROUP_REJOIN_FORBIDDEN);
+            }
             throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
         }
         return new InviteAcceptResult(group.getId(), now);
@@ -158,6 +162,7 @@ public class GroupMemberService {
     public Optional<ActiveGroupInfo> findMyActiveGroup(Long userId) {
         return groupMemberRepository.findLatestActiveGroupIdByUserId(userId)
                 .flatMap(groupRepository::findById)
+                .filter(group -> group.getDeletedAt() == null)
                 .map(group -> new ActiveGroupInfo(group.getId(), group.getName(), group.getCreatedAt()));
     }
 }

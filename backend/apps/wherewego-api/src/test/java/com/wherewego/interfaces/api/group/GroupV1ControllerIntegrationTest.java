@@ -139,7 +139,7 @@ class GroupV1ControllerIntegrationTest {
 
     @DisplayName("POST /api/v1/groups - 인증된 사용자의 그룹 생성 요청에 201 과 groupId/name 을 반환한다.")
     @Test
-    void createGroup_authenticated_returns200WithGroupId() {
+    void createGroup_authenticated_returns201WithGroupId() {
         // act
         ResponseEntity<JsonNode> response = createGroup(tokenA, "여행팀");
 
@@ -166,7 +166,7 @@ class GroupV1ControllerIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
-    @DisplayName("POST /api/v1/groups - 이름이 공백이면 400 BAD_REQUEST 를 반환한다 (AC-2).")
+    @DisplayName("POST /api/v1/groups - 이름이 공백이면 400 GROUP_NAME_INVALID 를 반환한다 (AC-2).")
     @Test
     void createGroup_blankName_returns400() {
         // act
@@ -177,11 +177,11 @@ class GroupV1ControllerIntegrationTest {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.get("meta").get("result").asText()).isEqualTo("FAIL");
-        // ErrorType.BAD_REQUEST의 code는 HttpStatus.BAD_REQUEST.getReasonPhrase() = "Bad Request"
-        assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("Bad Request");
+        // 서비스 레이어에서 이름 검증 → ErrorType.GROUP_NAME_INVALID
+        assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("GROUP_NAME_INVALID");
     }
 
-    @DisplayName("POST /api/v1/groups - 이름이 31 자 이상이면 400 BAD_REQUEST 를 반환한다 (AC-3).")
+    @DisplayName("POST /api/v1/groups - 이름이 31 자 이상이면 400 GROUP_NAME_INVALID 를 반환한다 (AC-3).")
     @Test
     void createGroup_tooLongName_returns400() {
         // arrange
@@ -195,13 +195,13 @@ class GroupV1ControllerIntegrationTest {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.get("meta").get("result").asText()).isEqualTo("FAIL");
-        // ErrorType.BAD_REQUEST의 code는 HttpStatus.BAD_REQUEST.getReasonPhrase() = "Bad Request"
-        assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("Bad Request");
+        // 서비스 레이어에서 이름 검증 → ErrorType.GROUP_NAME_INVALID
+        assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("GROUP_NAME_INVALID");
     }
 
     @DisplayName("POST /api/v1/groups/{groupId}/invite-links - 활성 멤버가 발급하면 201 과 token, expiresAt 을 반환한다.")
     @Test
-    void issueInviteLink_member_returns200WithToken() {
+    void issueInviteLink_member_returns201WithToken() {
         // arrange
         Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
 

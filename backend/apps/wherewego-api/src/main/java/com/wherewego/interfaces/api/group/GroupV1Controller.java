@@ -3,7 +3,6 @@ package com.wherewego.interfaces.api.group;
 import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.interfaces.api.ApiResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,7 +26,7 @@ public class GroupV1Controller implements GroupV1ApiSpec {
     @Override
     public ApiResponse<GroupV1Dto.GroupCreatedResponse> createGroup(
             @AuthUser Long userId,
-            @Valid @RequestBody GroupV1Dto.CreateGroupRequest request
+            @RequestBody GroupV1Dto.CreateGroupRequest request
     ) {
         return ApiResponse.success(
                 GroupV1Dto.GroupCreatedResponse.from(

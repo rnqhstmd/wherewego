@@ -108,7 +108,7 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.GROUP_NAME_INVALID);
         }
 
-        @DisplayName("이름이 31자 초과면 GROUP_NAME_INVALID 가 발생한다 (AC-3).")
+        @DisplayName("이름이 30자 초과(31자 입력)면 GROUP_NAME_INVALID 가 발생한다 (AC-3).")
         @Test
         void createGroup_tooLongName_throws() {
             // arrange

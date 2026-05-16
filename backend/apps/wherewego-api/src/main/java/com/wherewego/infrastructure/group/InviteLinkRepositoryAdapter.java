@@ -16,7 +16,9 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
 
     @Override
     public InviteLink save(InviteLink link) {
-        return inviteLinkJpaRepository.save(link);
+        // saveAndFlush로 통일하여 acceptInviteLink markAccepted → groupMember INSERT 순서에서
+        // dirty UPDATE flush 시점을 동일 트랜잭션 내에서 명확히 한다 (PR #7 리뷰 반영).
+        return inviteLinkJpaRepository.saveAndFlush(link);
     }
 
     @Override
