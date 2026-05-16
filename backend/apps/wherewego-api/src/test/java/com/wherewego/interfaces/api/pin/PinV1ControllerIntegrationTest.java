@@ -197,6 +197,20 @@ class PinV1ControllerIntegrationTest {
         assertThat(items.get(0).get("tag").asText()).isEqualTo("PLACE");
     }
 
+    @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=INVALID - 400 PIN_TAG_INVALID 를 반환한다 (AC-2 일관성).")
+    @Test
+    void listPins_invalidTag_returnsPinTagInvalid() {
+        // arrange : 그룹은 이미 setup 됨
+
+        // act
+        ResponseEntity<JsonNode> response = listPins(tokenA, groupId, "INVALID");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_TAG_INVALID");
+    }
+
     @DisplayName("GET /api/v1/groups/{groupId}/pins - 비멤버는 403 GROUP_NOT_MEMBER 를 반환한다 (AC-3).")
     @Test
     void listPins_nonMember_returns403() {

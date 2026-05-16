@@ -56,7 +56,7 @@ export async function apiFetchServer<T>(
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
     .getAll()
-    .map((c) => `${c.name}=${c.value}`)
+    .map((c) => `${c.name}=${encodeURIComponent(c.value)}`)
     .join("; ");
   const res = await fetch(`${BACKEND_BASE_URL}${API_PREFIX}${path}`, {
     ...init,

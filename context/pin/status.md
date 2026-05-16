@@ -13,11 +13,15 @@
 |----|----------|------|---------|
 | FR-PIN-1 | 핀 등록 (그룹 스코프, tag 필수) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — 챗봇 자동 등록 경로 (`PinService.registerFromInstagram/registerFromSelection`, tag=PLACE 고정) |
 | FR-PIN-2 | 동일 group_id + instagram_url 중복 방지 (UNIQUE) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — DB `uq_pin_group_instagram` + `DataIntegrityViolationException` catch + `PLC_DUPLICATE_PIN` 응답 |
-| FR-PIN-3 | 핀 목록 조회 (그룹별, tag 필터 옵션) | ⬜ | 후속 (웹 API) |
-| FR-PIN-4 | 핀 수정 (memo, tag 변경 가능) | ⬜ | 후속 (웹 API) |
-| FR-PIN-5 | 핀 삭제 (활성 GroupMember만) | ⬜ | 후속 (웹 API) |
+| FR-PIN-3 | 핀 목록 조회 (그룹별, tag 필터 옵션) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.listGroupPins` + `GET /api/v1/groups/{groupId}/pins?tag=` + Next.js `/pins` UI |
+| FR-PIN-4 | 핀 수정 (memo, tag 변경 가능) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.updatePin` + `PATCH .../pins/{pinId}` (JsonNode 부분 수정, 빈 메모 잠금 해제, PESSIMISTIC_WRITE) |
+| FR-PIN-5 | 핀 삭제 (활성 GroupMember만) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.softDeletePin` + `DELETE .../pins/{pinId}` (204, BaseEntity.delete 멱등, 등록자 무관) |
 | ~~FR-PIN-X~~ | ~~방문 인증 토글~~ — **제거됨** | — | |
 
 ## 후속 작업
 
-- **웹 API Phase**: FR-PIN-3/4/5 (목록/수정/삭제) + 활성 GroupMember 권한 검사
+- 핀 직접 등록(웹 폼) — Phase 5+ 예정
+- 장소 정보(`place_name`, `address`, 좌표) 수정 — 후속 미정
+- 지도 뷰 연동 — Phase 6+
+- 삭제된 핀 복원 — 후속 미정
+- 페이지네이션 — 핀 1k+ 도달 시 검토 (현재 MVP 200건 규모로 미적용)

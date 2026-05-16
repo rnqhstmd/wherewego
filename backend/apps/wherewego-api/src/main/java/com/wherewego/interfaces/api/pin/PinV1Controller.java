@@ -4,6 +4,8 @@ import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.interfaces.api.ApiResponse;
+import com.wherewego.support.error.CoreException;
+import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,11 +30,19 @@ public class PinV1Controller implements PinV1ApiSpec {
     public ApiResponse<PinV1Dto.PinListResponse> listPins(
             @AuthUser Long userId,
             @PathVariable Long groupId,
-            @RequestParam(required = false) PinTag tag
+            @RequestParam(required = false) String tag
     ) {
+        PinTag tagFilter = null;
+        if (tag != null && !tag.isBlank()) {
+            try {
+                tagFilter = PinTag.valueOf(tag);
+            } catch (IllegalArgumentException e) {
+                throw new CoreException(ErrorType.PIN_TAG_INVALID);
+            }
+        }
         return ApiResponse.success(
                 PinV1Dto.PinListResponse.from(
-                        pinService.listGroupPins(userId, groupId, tag)));
+                        pinService.listGroupPins(userId, groupId, tagFilter)));
     }
 
     @PatchMapping("/{groupId}/pins/{pinId}")

@@ -1,6 +1,5 @@
 package com.wherewego.interfaces.api.pin;
 
-import com.wherewego.domain.pin.PinTag;
 import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,12 +12,13 @@ public interface PinV1ApiSpec {
             summary = "그룹 핀 목록 조회",
             description = "활성 그룹원이 자신의 그룹에 속한 핀 목록을 created_at 내림차순으로 반환합니다 (FR-1, BR-10). " +
                     "tag 쿼리 파라미터로 PLACE/MEMORY 필터링이 가능합니다 (FR-5). " +
+                    "잘못된 tag 값은 PIN_TAG_INVALID (400) 으로 거부됩니다 (AC-2 일관성). " +
                     "deleted_at IS NULL 인 행만 반환합니다 (BR-2)."
     )
     ApiResponse<PinV1Dto.PinListResponse> listPins(
             @Parameter(hidden = true) Long userId,
             Long groupId,
-            PinTag tag
+            String tag
     );
 
     @Operation(

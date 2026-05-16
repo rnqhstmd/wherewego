@@ -91,7 +91,7 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium">태그</legend>
           <div className="flex items-center gap-2">
-            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-checked:border-blue-500 has-checked:bg-blue-50 has-checked:text-blue-700 dark:border-zinc-700 dark:has-checked:border-blue-400 dark:has-checked:bg-blue-950/40 dark:has-checked:text-blue-300">
+            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700 dark:border-zinc-700 dark:has-[:checked]:border-blue-400 dark:has-[:checked]:bg-blue-950/40 dark:has-[:checked]:text-blue-300">
               <input
                 type="radio"
                 name="tag"
@@ -102,7 +102,7 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
               />
               장소
             </label>
-            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-checked:border-pink-500 has-checked:bg-pink-50 has-checked:text-pink-700 dark:border-zinc-700 dark:has-checked:border-pink-400 dark:has-checked:bg-pink-950/40 dark:has-checked:text-pink-300">
+            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-[:checked]:border-pink-500 has-[:checked]:bg-pink-50 has-[:checked]:text-pink-700 dark:border-zinc-700 dark:has-[:checked]:border-pink-400 dark:has-[:checked]:bg-pink-950/40 dark:has-[:checked]:text-pink-300">
               <input
                 type="radio"
                 name="tag"
@@ -133,7 +133,7 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
             value={memo}
             onChange={(event) => setMemo(event.target.value)}
             rows={5}
-            maxLength={MEMO_MAX_LENGTH + 100}
+            maxLength={MEMO_MAX_LENGTH}
             placeholder="메모를 입력하거나 비워서 자동 메모 잠금을 해제하세요"
             className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-6 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
           />

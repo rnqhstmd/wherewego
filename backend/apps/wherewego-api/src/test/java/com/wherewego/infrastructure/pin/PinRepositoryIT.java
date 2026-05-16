@@ -252,4 +252,23 @@ class PinRepositoryIT {
         // assert : memoSource = NULL 이므로 WHERE 통과 → 1 행
         assertThat(updated).isEqualTo(1);
     }
+
+    @DisplayName("updateAutoMemoIfNotManual - 소프트 삭제된 핀에 호출하면 0 행을 갱신한다 (cross-review GAP 회귀).")
+    @Test
+    @Transactional
+    void updateAutoMemoIfNotManual_onDeletedPin_returnsZero() {
+        // arrange : 핀 생성 → 소프트 삭제
+        Pin pin = pinJpaRepository.saveAndFlush(
+                Pin.autoFromInstagram(groupId, userId,
+                        new PlaceSearchHit("k-del", "P-del", "A-del", 37.5, 127.0),
+                        "https://www.instagram.com/p/DEL/"));
+        pin.delete();
+        pinJpaRepository.saveAndFlush(pin);
+
+        // act
+        int updated = pinJpaRepository.updateAutoMemoIfNotManual(pin.getId(), userId, "auto-memo");
+
+        // assert : deletedAt IS NULL 조건으로 WHERE 차단 → 0 행
+        assertThat(updated).isEqualTo(0);
+    }
 }

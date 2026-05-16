@@ -19,6 +19,7 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
             + "p.memoSource = com.wherewego.domain.pin.MemoSource.AUTO "
             + "WHERE p.id = :pinId "
             + "AND p.createdBy = :ownerUserId "
+            + "AND p.deletedAt IS NULL "
             + "AND (p.memoSource IS NULL OR p.memoSource <> com.wherewego.domain.pin.MemoSource.MANUAL)")
     int updateAutoMemoIfNotManual(@Param("pinId") Long pinId,
                                   @Param("ownerUserId") Long ownerUserId,

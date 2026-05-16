@@ -62,7 +62,7 @@ public class PinService {
             pin.changeTag(cmd.tag());
         }
         if (cmd.memoProvided()) {
-            if (cmd.memo() == null || cmd.memo().isEmpty()) {
+            if (cmd.memo().isEmpty()) {
                 pin.clearMemo();
             } else {
                 pin.applyManualMemo(cmd.memo());

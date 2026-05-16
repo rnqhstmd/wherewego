@@ -44,12 +44,29 @@ function forwardResponseHeaders(source: Headers): Headers {
   return next;
 }
 
+/**
+ * URL 인코딩 변형(%2e%2e, %2E%2E 등)까지 차단하기 위해
+ * 디코드 후 경로 구분자/상대 경로 토큰을 모두 거부한다.
+ */
+function isUnsafeSegment(seg: string): boolean {
+  let decoded = seg;
+  try {
+    decoded = decodeURIComponent(seg);
+  } catch {
+    return true;
+  }
+  if (decoded === "." || decoded === "..") return true;
+  if (decoded.includes("..")) return true;
+  if (decoded.includes("/") || decoded.includes("\\")) return true;
+  return false;
+}
+
 async function proxy(
   req: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
   const { path } = await ctx.params;
-  if (path.some((seg) => seg === "." || seg === "..")) {
+  if (path.some(isUnsafeSegment)) {
     return new Response(
       JSON.stringify({
         meta: {
