@@ -17,6 +17,10 @@
   - 수동(웹 수정) → `memo_source=MANUAL`로 저장
   - **수동이 자동을 덮어쓸 수 있음** (MANUAL이 항상 우선)
   - **수동 메모 존재 시 후속 자동 메모 매칭은 무시** (수동 값 보존)
+- 잠금 해제 정책 (Phase 4 도입):
+  - 웹 PATCH로 `memo`를 **빈 문자열(`""`)** 저장 시 → `memo=NULL, memo_source=NULL`로 초기화
+  - 잠금 해제 후 이후 챗봇 2초 룰 AUTO 메모 갱신이 다시 허용됨 (`updateAutoMemoIfNotManual` WHERE 통과)
+  - 의도: "사용자가 메모를 지웠다면 챗봇이 다시 채워줄 수 있도록"
 
 ## 주제 문서
 
