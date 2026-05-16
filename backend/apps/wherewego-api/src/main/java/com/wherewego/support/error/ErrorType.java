@@ -42,7 +42,14 @@ public enum ErrorType {
     INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "INVITE_LINK_NOT_FOUND", "존재하지 않는 초대 링크입니다."),
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "INVITE_LINK_EXPIRED", "초대 링크가 만료되었습니다."),
     INVITE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "INVITE_LINK_ALREADY_USED", "이미 사용된 초대 링크입니다."),
-    INVITE_LINK_SELF_ACCEPT(HttpStatus.BAD_REQUEST, "INVITE_LINK_SELF_ACCEPT", "본인이 발급한 초대 링크는 수락할 수 없습니다.");
+    INVITE_LINK_SELF_ACCEPT(HttpStatus.BAD_REQUEST, "INVITE_LINK_SELF_ACCEPT", "본인이 발급한 초대 링크는 수락할 수 없습니다."),
+
+    /** 핀 (Phase 4) */
+    PIN_NOT_FOUND(HttpStatus.NOT_FOUND, "PIN_NOT_FOUND", "존재하지 않는 핀입니다."),
+    PIN_UPDATE_EMPTY(HttpStatus.BAD_REQUEST, "PIN_UPDATE_EMPTY", "수정할 필드(memo 또는 tag)가 없습니다."),
+    PIN_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "PIN_MEMO_TOO_LONG", "메모는 최대 500자까지 입력할 수 있습니다."),
+    PIN_MEMO_INVALID(HttpStatus.BAD_REQUEST, "PIN_MEMO_INVALID", "메모 값이 유효하지 않습니다."),
+    PIN_TAG_INVALID(HttpStatus.BAD_REQUEST, "PIN_TAG_INVALID", "태그는 PLACE 또는 MEMORY 중 하나여야 합니다.");
 
     private final HttpStatus status;
     private final String code;

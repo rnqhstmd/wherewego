@@ -80,4 +80,133 @@ class PinTest {
             assertThat(pin.getMemoSource()).isNotEqualTo(MemoSource.MANUAL);
         }
     }
+
+    @DisplayName("applyManualMemo 를 호출할 때,")
+    @Nested
+    class ApplyManualMemo {
+
+        @DisplayName("memo 와 memoSource(MANUAL) 가 설정된다 (AC-5, BR-3).")
+        @Test
+        void applyManualMemo_setsMemoAndManualSource() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+
+            // act
+            pin.applyManualMemo("좋은 카페!");
+
+            // assert
+            assertThat(pin.getMemo()).isEqualTo("좋은 카페!");
+            assertThat(pin.getMemoSource()).isEqualTo(MemoSource.MANUAL);
+        }
+
+        @DisplayName("이미 MANUAL 메모가 있어도 다시 호출하면 새 값으로 덮어쓴다 (AC-5).")
+        @Test
+        void applyManualMemo_overwritesExistingManual() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+            pin.applyManualMemo("첫 메모");
+
+            // act
+            pin.applyManualMemo("두 번째 메모");
+
+            // assert
+            assertThat(pin.getMemo()).isEqualTo("두 번째 메모");
+            assertThat(pin.getMemoSource()).isEqualTo(MemoSource.MANUAL);
+        }
+    }
+
+    @DisplayName("clearMemo 를 호출할 때,")
+    @Nested
+    class ClearMemo {
+
+        @DisplayName("memo 와 memoSource 를 모두 null 로 초기화한다 (BR-8).")
+        @Test
+        void clearMemo_resetsBothFieldsToNull() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+
+            // act
+            pin.clearMemo();
+
+            // assert
+            assertThat(pin.getMemo()).isNull();
+            assertThat(pin.getMemoSource()).isNull();
+        }
+
+        @DisplayName("기존 MANUAL 메모를 가진 핀에 호출하면 null 로 리셋된다 (BR-8).")
+        @Test
+        void clearMemo_resetsExistingManualMemo() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+            pin.applyManualMemo("수동 메모");
+
+            // act
+            pin.clearMemo();
+
+            // assert
+            assertThat(pin.getMemo()).isNull();
+            assertThat(pin.getMemoSource()).isNull();
+        }
+    }
+
+    @DisplayName("changeTag 를 호출할 때,")
+    @Nested
+    class ChangeTag {
+
+        @DisplayName("PLACE → MEMORY 로 변경된다.")
+        @Test
+        void changeTag_placeToMemory() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+
+            // act
+            pin.changeTag(PinTag.MEMORY);
+
+            // assert
+            assertThat(pin.getTag()).isEqualTo(PinTag.MEMORY);
+        }
+
+        @DisplayName("MEMORY → PLACE 로 변경된다.")
+        @Test
+        void changeTag_memoryToPlace() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+            pin.changeTag(PinTag.MEMORY);
+
+            // act
+            pin.changeTag(PinTag.PLACE);
+
+            // assert
+            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+        }
+    }
+
+    @DisplayName("isDeleted 를 확인할 때,")
+    @Nested
+    class IsDeleted {
+
+        @DisplayName("신규 핀은 isDeleted() 가 false 다.")
+        @Test
+        void newPin_isNotDeleted() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+
+            // assert
+            assertThat(pin.isDeleted()).isFalse();
+        }
+
+        @DisplayName("delete() 호출 후에는 isDeleted() 가 true 다.")
+        @Test
+        void deletedPin_isDeleted() {
+            // arrange
+            Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+
+            // act
+            pin.delete();
+
+            // assert
+            assertThat(pin.isDeleted()).isTrue();
+        }
+    }
 }
