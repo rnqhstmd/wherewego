@@ -27,7 +27,7 @@ class FlywayMigrationTest {
 
     @Test
     void allTablesCreatedWithExpectedColumns() {
-        Set<String> expectedTables = Set.of("users", "groups", "group_members", "pins", "bot_user_mappings");
+        Set<String> expectedTables = Set.of("users", "groups", "group_members", "invite_links", "pins", "bot_user_mappings");
 
         List<String> actualTables = jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
@@ -49,7 +49,14 @@ class FlywayMigrationTest {
 
         Set<String> groupMembersColumns = columnNames("group_members");
         assertThat(groupMembersColumns).containsExactlyInAnyOrder(
-                "id", "group_id", "user_id", "joined_at", "left_at", "created_at", "updated_at"
+                "id", "group_id", "user_id", "joined_at", "left_at",
+                "created_at", "updated_at", "deleted_at" // V004: BaseEntity 상속 일관성
+        );
+
+        Set<String> inviteLinksColumns = columnNames("invite_links");
+        assertThat(inviteLinksColumns).containsExactlyInAnyOrder(
+                "id", "group_id", "inviter_id", "token", "expires_at", "accepted_at",
+                "created_at", "updated_at", "deleted_at" // V003: deleted_at 추가
         );
 
         Set<String> pinsColumns = columnNames("pins");

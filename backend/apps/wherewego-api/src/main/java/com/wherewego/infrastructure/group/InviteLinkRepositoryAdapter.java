@@ -1,0 +1,33 @@
+package com.wherewego.infrastructure.group;
+
+import com.wherewego.domain.group.InviteLink;
+import com.wherewego.domain.group.InviteLinkRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+import java.util.Optional;
+
+@Repository
+@RequiredArgsConstructor
+public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
+
+    private final InviteLinkJpaRepository inviteLinkJpaRepository;
+
+    @Override
+    public InviteLink save(InviteLink link) {
+        // saveAndFlush로 통일하여 acceptInviteLink markAccepted → groupMember INSERT 순서에서
+        // dirty UPDATE flush 시점을 동일 트랜잭션 내에서 명확히 한다 (PR #7 리뷰 반영).
+        return inviteLinkJpaRepository.saveAndFlush(link);
+    }
+
+    @Override
+    public Optional<InviteLink> findByToken(String token) {
+        return inviteLinkJpaRepository.findByToken(token);
+    }
+
+    @Override
+    public int expirePendingByGroupId(Long groupId, Instant now) {
+        return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
+    }
+}

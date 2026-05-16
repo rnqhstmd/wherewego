@@ -132,6 +132,16 @@ public class ApiControllerAdvice {
         if (combined.contains("uq_pins_group_instagram") || combined.contains("uq_pin_group_instagram")) {
             return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
         }
+        // Phase 3 - Group 도메인 DB 제약 위반 매핑
+        if (combined.contains("uq_group_members_active_user")) {
+            return failureResponse(ErrorType.GROUP_ALREADY_ACTIVE, null);
+        }
+        if (combined.contains("uq_group_members_pair")) {
+            return failureResponse(ErrorType.GROUP_REJOIN_FORBIDDEN, null);
+        }
+        if (combined.contains("uq_invite_links_token")) {
+            return failureResponse(ErrorType.INTERNAL_ERROR, null);
+        }
         return failureResponse(ErrorType.INTERNAL_ERROR, null);
     }
 
