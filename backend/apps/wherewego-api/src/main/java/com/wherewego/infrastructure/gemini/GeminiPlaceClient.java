@@ -27,10 +27,19 @@ import java.util.Optional;
  *
  * <p>입력 캡션은 {@value #CAPTION_MAX_LENGTH}자로 절단 후 호출한다 (비용/인젝션 가드).</p>
  *
+ * <p>방어선 (Phase 2.5 후속):
+ * <ul>
+ *     <li>feature flag {@link PlaceProperties.Gemini#enabled()} = false → 즉시 차단</li>
+ *     <li>사용자별 일일 호출 한도({@link GeminiUserQuotaService}) 초과 시 차단</li>
+ *     <li>SHA-256(safeCaption) 기반 응답 캐시({@link GeminiResponseCacheService})로 중복 호출 절감</li>
+ *     <li>호출 outcome / 소요시간 메트릭 발급({@link GeminiUsageMetrics})</li>
+ * </ul>
+ * </p>
+ *
  * <p>BR-1 에러 처리:
  * <ul>
  *     <li>타임아웃(SocketTimeout 래핑된 {@link ResourceAccessException}) → {@link Optional#empty()} + WARN</li>
- *     <li>429 Rate Limit → {@link Optional#empty()} + WARN</li>
+ *     <li>429 Rate Limit → {@link Optional#empty()} + WARN (캐싱하지 않음)</li>
  *     <li>그 외 4xx/5xx, 파싱 실패 → {@link Optional#empty()} + WARN (예외 throw 금지)</li>
  *     <li>응답 텍스트가 비어있거나 {@code "null"} → {@link Optional#empty()}</li>
  * </ul>
@@ -56,11 +65,29 @@ public class GeminiPlaceClient {
             %s
             """;
 
+    private static final String OUTCOME_SUCCESS = "success";
+    private static final String OUTCOME_EMPTY = "empty";
+    private static final String OUTCOME_CACHED = "cached";
+    private static final String OUTCOME_DISABLED = "disabled";
+    private static final String OUTCOME_QUOTA_EXCEEDED = "quota_exceeded";
+    private static final String OUTCOME_RATE_LIMITED = "rate_limited";
+    private static final String OUTCOME_TIMEOUT = "timeout";
+    private static final String OUTCOME_ERROR = "error";
+
     private final PlaceProperties.Gemini properties;
     private final RestClient restClient;
+    private final GeminiUserQuotaService userQuotaService;
+    private final GeminiResponseCacheService responseCache;
+    private final GeminiUsageMetrics metrics;
 
-    public GeminiPlaceClient(PlaceProperties placeProperties) {
+    public GeminiPlaceClient(PlaceProperties placeProperties,
+                             GeminiUserQuotaService userQuotaService,
+                             GeminiResponseCacheService responseCache,
+                             GeminiUsageMetrics metrics) {
         this.properties = placeProperties.scraper().gemini();
+        this.userQuotaService = userQuotaService;
+        this.responseCache = responseCache;
+        this.metrics = metrics;
         this.restClient = RestClient.builder()
                 .baseUrl(BASE_URL)
                 .requestFactory(buildRequestFactory(properties.timeoutMs()))
@@ -76,16 +103,36 @@ public class GeminiPlaceClient {
 
     /**
      * 정제된 캡션을 Gemini API에 전달하여 장소명 1개를 추출한다.
-     * null/blank 입력은 즉시 {@link Optional#empty()} 반환 (Gemini 미호출).
+     * null/blank 입력은 즉시 {@link Optional#empty()} 반환 (Gemini 미호출, 메트릭 미발급).
      */
-    public Optional<String> extractPlaceName(String caption) {
+    public Optional<String> extractPlaceName(String caption, Long userId) {
         if (caption == null || caption.isBlank()) {
+            return Optional.empty();
+        }
+
+        if (!properties.enabled()) {
+            metrics.recordCall(OUTCOME_DISABLED);
             return Optional.empty();
         }
 
         String safeCaption = caption.length() > CAPTION_MAX_LENGTH
                 ? caption.substring(0, CAPTION_MAX_LENGTH)
                 : caption;
+        safeCaption = normalize(safeCaption);
+
+        String cacheKey = responseCache.hashKey(safeCaption);
+        Optional<Optional<String>> cached = responseCache.get(cacheKey);
+        if (cached.isPresent()) {
+            metrics.recordCall(OUTCOME_CACHED);
+            return cached.get();
+        }
+
+        if (!userQuotaService.tryConsume(userId)) {
+            log.warn("Gemini quota exceeded userId={}", userId);
+            metrics.recordCall(OUTCOME_QUOTA_EXCEEDED);
+            return Optional.empty();
+        }
+
         String prompt = PROMPT_TEMPLATE.formatted(safeCaption);
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of(
@@ -97,6 +144,8 @@ public class GeminiPlaceClient {
                 )
         );
 
+        long start = System.currentTimeMillis();
+        String outcome = OUTCOME_ERROR;
         try {
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
@@ -114,18 +163,31 @@ public class GeminiPlaceClient {
                     })
                     .body(GeminiGenerateContentResponse.class);
 
-            return parsePlaceName(response);
-        } catch (GeminiRateLimitException | GeminiResponseException e) {
+            Optional<String> result = parsePlaceName(response);
+            responseCache.put(cacheKey, result);
+            outcome = result.isPresent() ? OUTCOME_SUCCESS : OUTCOME_EMPTY;
+            return result;
+        } catch (GeminiRateLimitException e) {
+            outcome = OUTCOME_RATE_LIMITED;
+            return Optional.empty();
+        } catch (GeminiResponseException e) {
+            outcome = OUTCOME_ERROR;
             return Optional.empty();
         } catch (ResourceAccessException e) {
             log.warn("Gemini API transport/timeout error cause={}", e.getMessage());
+            outcome = OUTCOME_TIMEOUT;
             return Optional.empty();
         } catch (RestClientException e) {
             log.warn("Gemini API client error cause={}", e.getMessage());
+            outcome = OUTCOME_ERROR;
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("Gemini API unexpected error cause={}", e.getMessage());
+            outcome = OUTCOME_ERROR;
             return Optional.empty();
+        } finally {
+            metrics.recordDuration(System.currentTimeMillis() - start, outcome);
+            metrics.recordCall(outcome);
         }
     }
 
@@ -149,10 +211,15 @@ public class GeminiPlaceClient {
             return Optional.empty();
         }
         String cleaned = stripQuotes(text.trim());
+        cleaned = normalize(cleaned);
         if (cleaned.isEmpty() || cleaned.equalsIgnoreCase("null")) {
             return Optional.empty();
         }
         return Optional.of(cleaned);
+    }
+
+    private static String normalize(String text) {
+        return text.replaceAll("[\\r\\n\\t]+", " ").replaceAll(" {2,}", " ").trim();
     }
 
     private static String stripQuotes(String value) {

@@ -38,7 +38,9 @@ public record PlaceProperties(
     ) { }
 
     public record Gemini(
+            boolean enabled,
             @NotBlank String apiKey,
-            @Positive int timeoutMs
+            @Positive int timeoutMs,
+            @Positive int dailyQuotaPerUser
     ) { }
 }

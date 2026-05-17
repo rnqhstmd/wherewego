@@ -82,7 +82,7 @@ public class InstagramContentService {
             throw new CoreException(ErrorType.PLC_INSTAGRAM_SCRAPE_FAILED, "처리가 지연되었어요. 다시 시도해 주세요.");
         }
 
-        Optional<String> placeKeyword = geminiPlaceClient.extractPlaceName(cleanedCaption);
+        Optional<String> placeKeyword = geminiPlaceClient.extractPlaceName(cleanedCaption, ctx.userId());
         if (placeKeyword.isEmpty()) {
             log.info("Instagram place name not extracted via Gemini url={}", url);
             return Optional.empty();
