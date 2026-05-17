@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.wherewego.config.env.PlaceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -46,6 +47,7 @@ import java.util.Optional;
  * </p>
  */
 @Component
+@RefreshScope
 public class GeminiPlaceClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiPlaceClient.class);
@@ -87,8 +89,8 @@ public class GeminiPlaceClient {
         this.userQuotaService = userQuotaService;
         this.responseCache = responseCache;
         this.metrics = metrics;
-        // baseUrl과 timeoutMs는 생성자 시점 1회 캡처된다. PlaceProperties가 @RefreshScope 여도
-        // RestClient는 갱신되지 않으므로 운영 변경 시 재기동 필요. (TODO 후속: 런타임 갱신 전략)
+        // @RefreshScope를 통해 baseUrl과 timeoutMs의 런타임 갱신을 지원한다.
+        // POST /actuator/refresh 호출 시 이 빈이 재생성되며 RestClient도 새 설정으로 초기화된다.
         this.restClient = RestClient.builder()
                 .baseUrl(placeProperties.scraper().gemini().baseUrl())
                 .requestFactory(buildRequestFactory(placeProperties.scraper().gemini().timeoutMs()))

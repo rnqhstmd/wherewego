@@ -19,10 +19,16 @@ describe("SpeechBubblePopup", () => {
     expect(screen.getByText("서울 강남구")).toBeInTheDocument();
   });
 
-  it("(AC-24) place null → addr만 렌더, 장소 텍스트 미렌더", () => {
-    render(<SpeechBubblePopup {...baseProps} place={null} />);
+  it("(AC-24) place 있다가 null로 변경 → place 텍스트가 사라지고 addr만 렌더", () => {
+    const { rerender } = render(
+      <SpeechBubblePopup {...baseProps} place="스타벅스 강남점" />,
+    );
+    expect(screen.getByText("스타벅스 강남점")).toBeInTheDocument();
     expect(screen.getByText("서울 강남구")).toBeInTheDocument();
+
+    rerender(<SpeechBubblePopup {...baseProps} place={null} />);
     expect(screen.queryByText("스타벅스 강남점")).not.toBeInTheDocument();
+    expect(screen.getByText("서울 강남구")).toBeInTheDocument();
   });
 
   it("(AC-25) footerContent 전달 시 footer 영역 렌더", () => {

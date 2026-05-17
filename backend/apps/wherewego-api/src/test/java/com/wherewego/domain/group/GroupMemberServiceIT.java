@@ -355,36 +355,44 @@ class GroupMemberServiceIT {
         private ConcurrentResult runConcurrently(int threadCount, IntFunction<Runnable> actionFactory)
                 throws InterruptedException {
             ExecutorService pool = Executors.newFixedThreadPool(threadCount);
-            CountDownLatch startGate = new CountDownLatch(1);
-            CountDownLatch doneGate = new CountDownLatch(threadCount);
-            AtomicInteger successCount = new AtomicInteger();
-            ConcurrentLinkedQueue<ErrorType> errors = new ConcurrentLinkedQueue<>();
-            AtomicInteger unexpectedCount = new AtomicInteger();
+            try {
+                CountDownLatch startGate = new CountDownLatch(1);
+                CountDownLatch doneGate = new CountDownLatch(threadCount);
+                AtomicInteger successCount = new AtomicInteger();
+                ConcurrentLinkedQueue<ErrorType> errors = new ConcurrentLinkedQueue<>();
+                AtomicInteger unexpectedCount = new AtomicInteger();
 
-            for (int i = 0; i < threadCount; i++) {
-                final int idx = i;
-                pool.submit(() -> {
-                    try {
-                        startGate.await();
-                        actionFactory.apply(idx).run();
-                        successCount.incrementAndGet();
-                    } catch (CoreException e) {
-                        errors.add(e.getErrorType());
-                    } catch (Exception e) {
-                        // 동시성 race 중 발생하는 DB/래퍼 예외는 errorTypes 에 누적하지 않고
-                        // unexpectedCount 로 별도 집계하여 분류되지 않은 예외 0건을 검증한다.
-                        unexpectedCount.incrementAndGet();
-                    } finally {
-                        doneGate.countDown();
-                    }
-                });
+                for (int i = 0; i < threadCount; i++) {
+                    final int idx = i;
+                    pool.submit(() -> {
+                        try {
+                            startGate.await();
+                            actionFactory.apply(idx).run();
+                            successCount.incrementAndGet();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            unexpectedCount.incrementAndGet();
+                        } catch (CoreException e) {
+                            errors.add(e.getErrorType());
+                        } catch (Exception e) {
+                            // 동시성 race 중 발생하는 DB/래퍼 예외는 errorTypes 에 누적하지 않고
+                            // unexpectedCount 로 별도 집계하여 분류되지 않은 예외 0건을 검증한다.
+                            unexpectedCount.incrementAndGet();
+                        } finally {
+                            doneGate.countDown();
+                        }
+                    });
+                }
+                startGate.countDown();
+                boolean done = doneGate.await(15, TimeUnit.SECONDS);
+                assertThat(done).isTrue();
+                return new ConcurrentResult(successCount.get(), List.copyOf(errors), unexpectedCount.get());
+            } finally {
+                pool.shutdown();
+                if (!pool.awaitTermination(5, TimeUnit.SECONDS)) {
+                    pool.shutdownNow();
+                }
             }
-            startGate.countDown();
-            boolean done = doneGate.await(15, TimeUnit.SECONDS);
-            pool.shutdown();
-            pool.awaitTermination(5, TimeUnit.SECONDS);
-            assertThat(done).isTrue();
-            return new ConcurrentResult(successCount.get(), List.copyOf(errors), unexpectedCount.get());
         }
 
         @DisplayName("createGroup - 동일 사용자 5스레드 동시 호출 시 정확히 1건만 성공하고 나머지는 GROUP_ALREADY_ACTIVE (AC-6).")
