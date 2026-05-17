@@ -24,4 +24,4 @@
 - Mapbox 토큰 회전 SOP 운영자 가이드 (`.env.local.example`에 안내, 대시보드 URL Restriction 별도 작업)
 - 정보창 ⋮ 메뉴 확장 (삭제 등 추가 액션) — 현재는 태그 변경만
 - DOM Marker → GL symbol layer 마이그레이션 (500핀 초과 시)
-- 디자인 번들 컴포넌트 테스트 (Vitest + Testing Library)
+- **Phase 2.7 완료**: 디자인 번들 컴포넌트 테스트 — PinDot/PinTag/SpeechBubblePopup Vitest 7건(토큰 결합 검증 포함) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
