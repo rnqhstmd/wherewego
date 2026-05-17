@@ -1,12 +1,38 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Gowun_Batang, JetBrains_Mono, Noto_Serif_KR } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Phase 6 폰트 — tokens.jsx::F 매칭. Pretendard는 self-host.
+const sans = localFont({
+  src: "../../public/fonts/PretendardVariable.woff2",
+  variable: "--font-sans",
+  display: "swap",
+  weight: "45 920",
 });
 
+const serif = Noto_Serif_KR({
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  variable: "--font-serif",
+  display: "swap",
+});
+
+const emo = Gowun_Batang({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-emo",
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
+// 기존 Geist Mono는 다른 페이지 호환을 위해 유지(별도 변수).
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -25,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sans.variable} ${serif.variable} ${emo.variable} ${mono.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

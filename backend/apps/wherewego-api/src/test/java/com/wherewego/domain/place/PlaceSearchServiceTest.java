@@ -2,6 +2,7 @@ package com.wherewego.domain.place;
 
 import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.chatbot.ChatbotContext;
+import com.wherewego.infrastructure.place.google.GooglePlacesClient;
 import com.wherewego.infrastructure.place.kakao.KakaoLocalClient;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
@@ -32,6 +33,9 @@ class PlaceSearchServiceTest {
     private KakaoLocalClient kakaoLocalClient;
 
     @Mock
+    private GooglePlacesClient googlePlacesClient;
+
+    @Mock
     private PlaceProperties placeProperties;
 
     private PlaceSearchService placeSearchService;
@@ -40,7 +44,7 @@ class PlaceSearchServiceTest {
     void setUp() {
         PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5, 1_700L);
         when(placeProperties.search()).thenReturn(search);
-        placeSearchService = new PlaceSearchService(kakaoLocalClient, placeProperties);
+        placeSearchService = new PlaceSearchService(kakaoLocalClient, googlePlacesClient, placeProperties);
     }
 
     private static PlaceSearchHit hit(String id, String name) {

@@ -5,11 +5,37 @@
   --foreground: #171717;
 }
 
+/* Phase 6 디자인 토큰 — tokens.jsx::F 폰트 변수.
+   --font-sans / --font-serif / --font-emo / --font-mono 는 layout.tsx 의
+   next/font 가 className 으로 주입한다. */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+}
+
+/* Phase 6 컬러 토큰 — tokens.jsx::T 와 1:1 매칭.
+   Tailwind v4 클래스(bg-bg / text-ink / bg-pin-place 등)로 사용 가능. */
+@theme {
+  --color-bg: #faf8f5;
+  --color-panel: #ffffff;
+  --color-map-bg: #eae4d4;
+  --color-map-water: #d4e8f0;
+  --color-map-park: #d5e5cb;
+  --color-map-block: #f0ebe0;
+  --color-map-road: #ffffff;
+  --color-pin-place: #7bb3e8;
+  --color-pin-memory: #f4a8b0;
+  --color-pin-new: #e05a5a;
+  --color-cta: #c4622d;
+  --color-cta-hover: #a84e23;
+  --color-cta-sub: #8b8b9e;
+  --color-kakao: #fee500;
+  --color-kakao-ink: #191600;
+  --color-ink: #1a1a2e;
+  --color-ink-soft: #8b8b9e;
+  --color-ink-faint: #c5c5d0;
+  --color-hairline: #e8e4de;
 }
 
 @media (prefers-color-scheme: dark) {

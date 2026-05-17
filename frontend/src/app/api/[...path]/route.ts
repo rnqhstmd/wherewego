@@ -92,14 +92,34 @@ async function proxy(
     body: hasBody ? await req.arrayBuffer() : undefined,
     cache: "no-store",
     redirect: "manual",
+    signal: AbortSignal.timeout(5000),
   };
 
-  const upstream = await fetch(url, init);
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: forwardResponseHeaders(upstream.headers),
-  });
+  try {
+    const upstream = await fetch(url, init);
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: forwardResponseHeaders(upstream.headers),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return new Response(
+        JSON.stringify({
+          meta: {
+            result: "FAIL",
+            errorCode: "BFF_TIMEOUT",
+            message: "서버 응답 시간이 초과됐어요.",
+          },
+        }),
+        {
+          status: 504,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 export const GET = proxy;
