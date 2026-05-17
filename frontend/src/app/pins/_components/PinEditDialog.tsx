@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
+import { MEMO_MAX_LENGTH } from "@/lib/pin/constants";
 
 export interface PinEditPatch {
   memo?: string;
@@ -14,8 +15,6 @@ interface PinEditDialogProps {
   onClose: () => void;
   onSave: (patch: PinEditPatch) => void;
 }
-
-const MEMO_MAX_LENGTH = 500;
 
 export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);

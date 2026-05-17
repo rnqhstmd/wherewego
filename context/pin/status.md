@@ -21,7 +21,7 @@
 
 ## 후속 작업
 
+- **Phase 2.6**: 핀 추가 시 `instagramUrl` 명시 입력 UI (현재 웹 등록은 `instagramUrl=null`이라 UNIQUE 중복 차단 미발동)
+- **Phase 2.6**: 페이지네이션 (핀 1k+ 도달 시 검토. 현재 MVP 200건 규모로 미적용)
 - 장소 정보(`place_name`, `address`, 좌표) 수정 — 후속 미정
 - 삭제된 핀 복원 — 후속 미정
-- 페이지네이션 — 핀 1k+ 도달 시 검토 (현재 MVP 200건 규모로 미적용)
-- 핀 추가 시 `instagramUrl` 명시 입력 UI — 현재 웹 등록은 `instagramUrl=null`이라 UNIQUE 중복 차단 미발동. 사용자가 인스타 URL을 직접 첨부할 수 있는 UI 추가 검토

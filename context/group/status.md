@@ -29,5 +29,6 @@
 
 ## 후속 작업
 
-- **Phase 4**: Pin REST API 신설 시 `requireActiveMembership` 호출 통합 + 단대단 403 검증, 동시성 통합 테스트 3종 구현 검토
+- **Phase 4 완료**: Pin REST API([#9](https://github.com/rnqhstmd/wherewego/pull/9), [#13](https://github.com/rnqhstmd/wherewego/pull/13))에 `requireActiveMembership` 통합 완료
+- **Phase 2.6**: 동시성 통합 테스트 3종 구현 (ExecutorService 기반 그룹 정원/마지막 멤버 탈퇴 race)
 - **장기**: 재가입 허용 정책 검토 (uq_group_members_pair 변경 필요, 별도 PRD)

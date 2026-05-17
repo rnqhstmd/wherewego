@@ -43,7 +43,7 @@ import {
   reRollFromSamePool,
   type RouletteRadiusKm,
 } from "./_lib/roulette";
-import { updatePinTagAction } from "./actions";
+import { updatePinMemoAction, updatePinTagAction } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
 
 /**
@@ -78,6 +78,11 @@ type RouletteUIState =
       radiusKm: RouletteRadiusKm;
       candidates: PinSummaryResponse[];
       center: LatLng;
+      /**
+       * 추첨 당시의 MEMORY 토글 상태. 다음 "다시" 클릭 시 현재 토글과 비교하여
+       * 풀 재구성(toggle 변경) vs 동일 풀 재추첨을 분기한다 (FR-REC-6).
+       */
+      includeMemoryAtPick: boolean;
     }
   | { status: "exhausted" }
   | { status: "geo-error"; message: string };
@@ -108,14 +113,14 @@ export default function MapClient({
   mapboxStyleUrl,
 }: MapClientProps) {
   const [pins, setPins] = useState<PinSummaryResponse[]>(initialPins);
-  // MUST-5: 태그 토글의 마커 모양 즉시 갱신용. pins 가 바뀌면 자동 동기화.
+  // MUST-5: 태그/메모 등 부분 갱신을 마커/팝업에 즉시 반영하기 위한 useOptimistic.
+  // reducer 는 `Partial<PinSummaryResponse>` 머지 방식으로 일반화하여
+  // 태그 변경(`{ tag }`)과 메모 변경(`{ memo }`)을 동일 패턴으로 처리한다.
   const [optimisticPins, applyOptimistic] = useOptimistic<
     PinSummaryResponse[],
-    { pinId: number; tag: PinTag }
-  >(pins, (current, action) =>
-    current.map((p) =>
-      p.id === action.pinId ? { ...p, tag: action.tag } : p,
-    ),
+    { pinId: number; patch: Partial<PinSummaryResponse> }
+  >(pins, (current, { pinId, patch }) =>
+    current.map((p) => (p.id === pinId ? { ...p, ...patch } : p)),
   );
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
@@ -136,6 +141,8 @@ export default function MapClient({
   const [rouletteState, setRouletteState] = useState<RouletteUIState>({
     status: "idle",
   });
+  // FR-REC-6: 룰렛 풀에 MEMORY 핀 포함 여부 (세션 단위, 새로고침 시 OFF 로 복귀, BR-5).
+  const [includeMemory, setIncludeMemory] = useState(false);
   // MUST-4: 핀 목록 fetch 시각. initialPins는 page.tsx에서 방금 받은 값.
   // Date.now()는 렌더 중 호출 금지(react-hooks/purity) → mount effect에서 초기화.
   // null 상태에서는 캐시 검사 자체를 skip(=stale로 간주)하여 첫 룰렛은 항상 await 재조회.
@@ -195,7 +202,7 @@ export default function MapClient({
       // await 동안 transition이 유지되어 useOptimistic 상태도 보존됨 → 즉시 롤백 깜빡임 방지.
       return new Promise((resolve) => {
         startOptimisticTransition(async () => {
-          applyOptimistic({ pinId, tag: nextTag });
+          applyOptimistic({ pinId, patch: { tag: nextTag } });
           const result = await updatePinTagAction(groupId, pinId, nextTag);
           if (result.ok) {
             setPins((prev) =>
@@ -216,11 +223,56 @@ export default function MapClient({
   );
 
   /**
+   * FR-MMO-2: PinPopup ⋮ 펼침 "메모" 탭에서 메모 저장 콜백.
+   * useOptimistic 으로 팝업 메모 본문을 즉시 갱신 → updatePinMemoAction 호출 →
+   * 성공 시 서버 응답으로 pins state 갱신 + 캐시 fetchedAt 갱신.
+   * 실패 시 PinPopupMemoEditor 의 내부 입력 state 가 보존되고 에러 박스만 노출된다.
+   */
+  const handleMemoChange = useCallback(
+    (
+      pinId: number,
+      nextMemo: string,
+    ): Promise<{ ok: boolean; message?: string }> => {
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          applyOptimistic({ pinId, patch: { memo: nextMemo } });
+          const result = await updatePinMemoAction(groupId, pinId, nextMemo);
+          if (result.ok) {
+            setPins((prev) =>
+              prev.map((p) => (p.id === pinId ? result.data : p)),
+            );
+            if (pinsCacheRef.current) {
+              pinsCacheRef.current.fetchedAt = Date.now();
+            }
+            resolve({ ok: true });
+            return;
+          }
+          const message =
+            result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_MEMO_TOO_LONG"
+                ? "메모는 500자까지 입력할 수 있어요"
+                : result.code === "PIN_MEMO_INVALID"
+                  ? "메모 값이 유효하지 않아요"
+                  : result.code === "PIN_NOT_FOUND"
+                    ? "이 핀을 찾을 수 없어요"
+                    : result.message;
+          resolve({ ok: false, message });
+        });
+      });
+    },
+    [applyOptimistic, groupId],
+  );
+
+  /**
    * 좌표 + 핀 목록을 받아 추첨을 수행하고 결과를 상태에 반영.
    * 추첨 직전 5분 캐시 정책으로 stale이면 await 재조회 (MUST-4).
+   *
+   * `tagsAllowed`로 풀 필터를 외부에서 제어한다. MEMORY 토글 ON 이면
+   * `["PLACE", "MEMORY"]`를, OFF 이면 `["PLACE"]`를 전달한다 (FR-REC-6).
    */
   const runRoulette = useCallback(
-    async (center: LatLng) => {
+    async (center: LatLng, tagsAllowed: PinTag[]) => {
       // 최신 핀 풀: stale이면 재조회 후 결과 사용.
       let pool = pins;
       const cache = pinsCacheRef.current;
@@ -240,12 +292,14 @@ export default function MapClient({
         }
       }
 
-      const result = pickRandomWithExpansion(center, pool, ["PLACE"]);
+      const result = pickRandomWithExpansion(center, pool, tagsAllowed);
       if (result.kind === "exhausted") {
         setRouletteState({ status: "exhausted" });
         return;
       }
       // 짧은 spin 연출 후 picked 전이 (M-6 → M-6c).
+      // 추첨 당시의 토글 상태를 stash 하여 다음 "다시" 클릭 시 풀 재구성 여부를 분기한다.
+      const includeMemoryAtPick = tagsAllowed.includes("MEMORY");
       setRouletteState({
         status: "spinning",
         radiusKm: result.radiusKm,
@@ -263,6 +317,7 @@ export default function MapClient({
           radiusKm: result.radiusKm,
           candidates: result.candidates,
           center,
+          includeMemoryAtPick,
         });
       }, SPIN_DURATION_MS);
     },
@@ -290,7 +345,10 @@ export default function MapClient({
         radiusKm: 1,
         candidateCount: 0,
       });
-      void runRoulette(geoState.coords);
+      void runRoulette(
+        geoState.coords,
+        includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+      );
       return;
     }
     if (geoState.status === "unavailable") {
@@ -324,7 +382,7 @@ export default function MapClient({
     }
     // idle 또는 prompting + permission이 prompt/unknown: 사전 다이얼로그 안내.
     setShowPermDialog(true);
-  }, [geoState, permissionState, geoRequest, runRoulette]);
+  }, [geoState, permissionState, geoRequest, runRoulette, includeMemory]);
 
   // geoState 전이 감지: pendingRouletteRef가 true면 진행.
   //
@@ -339,7 +397,10 @@ export default function MapClient({
     const status = geoState.status;
     const handle = window.setTimeout(() => {
       if (status === "granted") {
-        void runRoulette(geoState.coords);
+        void runRoulette(
+          geoState.coords,
+          includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+        );
       } else if (status === "denied") {
         setShowPermDialog(true);
         setRouletteState({ status: "idle" });
@@ -360,7 +421,7 @@ export default function MapClient({
       }
     }, 0);
     return () => window.clearTimeout(handle);
-  }, [geoState, runRoulette]);
+  }, [geoState, runRoulette, includeMemory]);
 
   // 액션바/사이드바 탭 변경: 같은 탭 재클릭 시 닫기 토글.
   const handleTabChange = useCallback(
@@ -475,10 +536,29 @@ export default function MapClient({
     [map],
   );
 
-  // 룰렛: "다시" — 같은 풀에서 재추첨 (FR-REC-6).
+  // 룰렛: "다시" — 같은 풀에서 재추첨 또는 토글이 바뀌었으면 풀 재구성 (FR-REC-6).
   const handleReRoll = useCallback(() => {
     if (rouletteState.status !== "picked") return;
-    const { candidates, radiusKm, center } = rouletteState;
+    const { candidates, radiusKm, center, includeMemoryAtPick } = rouletteState;
+
+    if (includeMemory !== includeMemoryAtPick) {
+      // 토글 상태가 변했으므로 풀을 재구성하여 새로 추첨.
+      setRouletteState({
+        status: "spinning",
+        radiusKm: 1,
+        candidateCount: 0,
+      });
+      if (spinTimerRef.current !== null) {
+        window.clearTimeout(spinTimerRef.current);
+      }
+      void runRoulette(
+        center,
+        includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+      );
+      return;
+    }
+
+    // 동일 풀에서 재추첨.
     setRouletteState({
       status: "spinning",
       radiusKm,
@@ -501,9 +581,10 @@ export default function MapClient({
         radiusKm: next.radiusKm,
         candidates: next.candidates,
         center,
+        includeMemoryAtPick,
       });
     }, SPIN_DURATION_MS);
-  }, [rouletteState]);
+  }, [rouletteState, includeMemory, runRoulette]);
 
   // 태그 변경 즉시 popup 도 갱신되도록 optimisticPins 에서 찾는다 (MUST-5).
   const selectedPin =
@@ -569,6 +650,8 @@ export default function MapClient({
           distanceKm={rouletteState.distanceKm}
           onShowOnMap={() => handleShowOnMap(rouletteState.pin)}
           onReRoll={handleReRoll}
+          includeMemory={includeMemory}
+          onIncludeMemoryChange={setIncludeMemory}
         />
       );
     }
@@ -724,6 +807,7 @@ export default function MapClient({
           pin={selectedPin}
           map={map}
           onTagChange={handleTagChange}
+          onMemoChange={handleMemoChange}
         />
       )}
       {activePanel}

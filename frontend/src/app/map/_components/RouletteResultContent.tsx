@@ -12,6 +12,8 @@ interface RouletteResultContentProps {
   distanceKm: number;
   onShowOnMap: () => void;
   onReRoll: () => void;
+  includeMemory: boolean;
+  onIncludeMemoryChange: (next: boolean) => void;
 }
 
 /**
@@ -27,6 +29,8 @@ export default function RouletteResultContent({
   distanceKm,
   onShowOnMap,
   onReRoll,
+  includeMemory,
+  onIncludeMemoryChange,
 }: RouletteResultContentProps) {
   const distanceLabel =
     distanceKm < 1
@@ -137,6 +141,34 @@ export default function RouletteResultContent({
           <IconShuffle size={14} color={colors.ctaSub} />
           <span>다시</span>
         </BtnSub>
+      </div>
+
+      {/* MEMORY 풀 포함 토글 (FR-REC-6, UX-2: 토글 변경만으로는 재추첨 없음) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginTop: 10,
+        }}
+      >
+        <input
+          type="checkbox"
+          id="roulette-include-memory"
+          checked={includeMemory}
+          onChange={(event) => onIncludeMemoryChange(event.target.checked)}
+        />
+        <label
+          htmlFor="roulette-include-memory"
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            color: includeMemory ? colors.pinMemory : colors.inkSoft,
+            cursor: "pointer",
+          }}
+        >
+          추억 핀도 포함
+        </label>
       </div>
     </div>
   );
