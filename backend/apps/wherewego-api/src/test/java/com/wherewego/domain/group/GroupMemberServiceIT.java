@@ -13,6 +13,7 @@ import com.wherewego.testcontainers.PostgresTestContainersConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +26,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -335,5 +343,150 @@ class GroupMemberServiceIT {
                 "SELECT left_at FROM group_members WHERE group_id = ? AND user_id = ?",
                 group.groupId(), userA);
         assertThat(memberRow.get("left_at")).isNotNull();
+    }
+
+    @Nested
+    @DisplayName("동시성 — Race Condition 방어")
+    class Concurrency {
+
+        private record ConcurrentResult(int successCount, List<ErrorType> errorTypes, int unexpectedCount) {
+        }
+
+        private ConcurrentResult runConcurrently(int threadCount, IntFunction<Runnable> actionFactory)
+                throws InterruptedException {
+            ExecutorService pool = Executors.newFixedThreadPool(threadCount);
+            try {
+                CountDownLatch startGate = new CountDownLatch(1);
+                CountDownLatch doneGate = new CountDownLatch(threadCount);
+                AtomicInteger successCount = new AtomicInteger();
+                ConcurrentLinkedQueue<ErrorType> errors = new ConcurrentLinkedQueue<>();
+                AtomicInteger unexpectedCount = new AtomicInteger();
+
+                for (int i = 0; i < threadCount; i++) {
+                    final int idx = i;
+                    pool.submit(() -> {
+                        try {
+                            startGate.await();
+                            actionFactory.apply(idx).run();
+                            successCount.incrementAndGet();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            unexpectedCount.incrementAndGet();
+                        } catch (CoreException e) {
+                            errors.add(e.getErrorType());
+                        } catch (Exception e) {
+                            // 동시성 race 중 발생하는 DB/래퍼 예외는 errorTypes 에 누적하지 않고
+                            // unexpectedCount 로 별도 집계하여 분류되지 않은 예외 0건을 검증한다.
+                            unexpectedCount.incrementAndGet();
+                        } finally {
+                            doneGate.countDown();
+                        }
+                    });
+                }
+                startGate.countDown();
+                boolean done = doneGate.await(15, TimeUnit.SECONDS);
+                assertThat(done).isTrue();
+                return new ConcurrentResult(successCount.get(), List.copyOf(errors), unexpectedCount.get());
+            } finally {
+                pool.shutdown();
+                if (!pool.awaitTermination(5, TimeUnit.SECONDS)) {
+                    pool.shutdownNow();
+                }
+            }
+        }
+
+        @DisplayName("createGroup - 동일 사용자 5스레드 동시 호출 시 정확히 1건만 성공하고 나머지는 GROUP_ALREADY_ACTIVE (AC-6).")
+        @Test
+        void createGroup_concurrent_onlyOneSucceeds() throws InterruptedException {
+            // arrange : BeforeEach 가 userA 를 사전 시드. 활성 그룹은 없는 상태.
+
+            // act : 5스레드가 동시에 createGroup 호출
+            ConcurrentResult result = runConcurrently(5,
+                    i -> () -> groupMemberService.createGroup(userA, "g" + i));
+
+            // assert : 정확히 1건 성공
+            assertThat(result.successCount()).isEqualTo(1);
+
+            // assert : 활성 group_members 1건만 존재
+            Integer activeMemberCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM group_members WHERE user_id = ? AND left_at IS NULL",
+                    Integer.class, userA);
+            assertThat(activeMemberCount).isEqualTo(1);
+
+            // assert : 활성 groups 1건만 존재 (CONSIDER: groups 행 수 검증)
+            Integer activeGroupCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM groups WHERE deleted_at IS NULL",
+                    Integer.class);
+            assertThat(activeGroupCount).isEqualTo(1);
+
+            // assert : 나머지 4건은 GROUP_ALREADY_ACTIVE
+            assertThat(result.errorTypes()).hasSize(4);
+            assertThat(result.errorTypes())
+                    .allSatisfy(et -> assertThat(et).isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE));
+
+            // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
+            assertThat(result.unexpectedCount()).isZero();
+        }
+
+        @DisplayName("acceptInviteLink - 서로 다른 5명이 동일 토큰을 동시 수락 시 정확히 1건만 성공, 나머지는 허용 에러 집합 내 (AC-7).")
+        @Test
+        void acceptInviteLink_concurrent_onlyOneSucceeds() throws InterruptedException {
+            // arrange : userA 가 그룹 생성 + 초대 토큰 발급 (정원 2명, MVP 가정)
+            GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+            InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+            String token = invite.token();
+
+            // userC~userG 5명 사전 생성 (모두 활성 그룹 없음)
+            Long[] users = new Long[]{
+                    userJpaRepository.save(UserModel.create(10000003L, "userC", null)).getId(),
+                    userJpaRepository.save(UserModel.create(10000004L, "userD", null)).getId(),
+                    userJpaRepository.save(UserModel.create(10000005L, "userE", null)).getId(),
+                    userJpaRepository.save(UserModel.create(10000006L, "userF", null)).getId(),
+                    userJpaRepository.save(UserModel.create(10000007L, "userG", null)).getId(),
+            };
+
+            // act : 5명이 동시에 동일 토큰으로 acceptInviteLink
+            ConcurrentResult result = runConcurrently(5,
+                    i -> () -> groupMemberService.acceptInviteLink(users[i], token));
+
+            // assert : 정확히 1건 성공
+            assertThat(result.successCount()).isEqualTo(1);
+
+            // assert : 나머지 4건 모두 errorTypes 로 분류됨 (race 중 분류 누락 회귀 방지)
+            assertThat(result.errorTypes()).hasSize(4);
+
+            // assert : 나머지 에러는 허용 집합 {INVITE_LINK_ALREADY_USED, GROUP_ALREADY_ACTIVE, GROUP_CAPACITY_EXCEEDED} 부분집합 (M3)
+            assertThat(result.errorTypes()).allSatisfy(et ->
+                    assertThat(et).isIn(
+                            ErrorType.INVITE_LINK_ALREADY_USED,
+                            ErrorType.GROUP_ALREADY_ACTIVE,
+                            ErrorType.GROUP_CAPACITY_EXCEEDED));
+
+            // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
+            assertThat(result.unexpectedCount()).isZero();
+        }
+
+        @DisplayName("leaveGroup - 동일 사용자 5스레드 동시 호출 시 정확히 1건만 성공하고 나머지는 GROUP_NOT_MEMBER (AC-8).")
+        @Test
+        void leaveGroup_concurrent_onlyOneSucceeds() throws InterruptedException {
+            // arrange : userA 로 그룹 생성 (활성 멤버 1건)
+            GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+            Long groupId = group.groupId();
+
+            // act : 5스레드가 동시에 동일 사용자/그룹으로 leaveGroup
+            ConcurrentResult result = runConcurrently(5,
+                    i -> () -> groupMemberService.leaveGroup(userA, groupId));
+
+            // assert : 정확히 1건 성공
+            assertThat(result.successCount()).isEqualTo(1);
+
+            // assert : 나머지 4건은 GROUP_NOT_MEMBER
+            assertThat(result.errorTypes()).hasSize(4);
+            assertThat(result.errorTypes())
+                    .allSatisfy(et -> assertThat(et).isEqualTo(ErrorType.GROUP_NOT_MEMBER));
+
+            // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
+            assertThat(result.unexpectedCount()).isZero();
+        }
     }
 }

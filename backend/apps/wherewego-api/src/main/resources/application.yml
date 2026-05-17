@@ -73,6 +73,7 @@ place:
     gemini:
       enabled: ${GEMINI_ENABLED:true}
       api-key: ${GEMINI_API_KEY:}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
       timeout-ms: 3000
       daily-quota-per-user: ${GEMINI_DAILY_QUOTA_PER_USER:50}
 

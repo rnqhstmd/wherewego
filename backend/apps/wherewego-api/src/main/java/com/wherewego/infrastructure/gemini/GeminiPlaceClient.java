@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.wherewego.config.env.PlaceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -46,10 +47,10 @@ import java.util.Optional;
  * </p>
  */
 @Component
+@RefreshScope
 public class GeminiPlaceClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiPlaceClient.class);
-    private static final String BASE_URL = "https://generativelanguage.googleapis.com";
     private static final String GENERATE_CONTENT_PATH =
             "/v1beta/models/gemini-2.0-flash:generateContent";
     private static final int MAX_OUTPUT_TOKENS = 50;
@@ -88,9 +89,10 @@ public class GeminiPlaceClient {
         this.userQuotaService = userQuotaService;
         this.responseCache = responseCache;
         this.metrics = metrics;
-        // TODO(후속): RestClient timeoutMs는 생성자 시점 1회 캡처. 런타임 timeout 변경은 본 PR 범위 외.
+        // @RefreshScope를 통해 baseUrl과 timeoutMs의 런타임 갱신을 지원한다.
+        // POST /actuator/refresh 호출 시 이 빈이 재생성되며 RestClient도 새 설정으로 초기화된다.
         this.restClient = RestClient.builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(placeProperties.scraper().gemini().baseUrl())
                 .requestFactory(buildRequestFactory(placeProperties.scraper().gemini().timeoutMs()))
                 .build();
     }

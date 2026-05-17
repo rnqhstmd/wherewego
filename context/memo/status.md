@@ -19,3 +19,4 @@
 ## 후속 작업
 
 - (없음 — Phase 2.6 PR-A에서 FR-MMO-2/4 완결)
+- **Phase 2.7 완료**: PinPopupMemoEditor Vitest 4건(카운터/disabled/pending/error 보존) + textarea `disabled={pending}` 회귀 수정 — [#20](https://github.com/rnqhstmd/wherewego/pull/20)

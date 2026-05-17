@@ -2,6 +2,7 @@ package com.wherewego.config.env;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
@@ -133,6 +134,8 @@ public class PlaceProperties {
     public static class Gemini {
         private final boolean enabled;
         private final String apiKey;
+        @NotBlank
+        private final String baseUrl;
         @Positive
         private final int timeoutMs;
         @Positive
@@ -141,11 +144,13 @@ public class PlaceProperties {
         public Gemini(
                 boolean enabled,
                 String apiKey,
+                @NotBlank String baseUrl,
                 @Positive int timeoutMs,
                 @Positive int dailyQuotaPerUser
         ) {
             this.enabled = enabled;
             this.apiKey = apiKey;
+            this.baseUrl = baseUrl;
             this.timeoutMs = timeoutMs;
             this.dailyQuotaPerUser = dailyQuotaPerUser;
         }
@@ -156,6 +161,10 @@ public class PlaceProperties {
 
         public String apiKey() {
             return apiKey;
+        }
+
+        public String baseUrl() {
+            return baseUrl;
         }
 
         public int timeoutMs() {

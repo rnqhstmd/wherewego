@@ -81,6 +81,7 @@ export default function PinPopupMemoEditor({
         maxLength={MEMO_MAX_LENGTH}
         placeholder="비워두면 챗봇 자동 메모를 다시 받아요"
         autoFocus
+        disabled={pending}
         style={{
           width: "100%",
           boxSizing: "border-box",

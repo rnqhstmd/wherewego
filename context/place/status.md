@@ -25,4 +25,4 @@
 - **Phase 2.5 완료**: `PlaceNameExtractor` → `GeminiPlaceClient` + `CaptionCleaner` 교체 ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places API 비동기 폴백 — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
 - **Phase 2.6 PR-B 완료**: `@RefreshScope` + Actuator `/refresh` (FR-PLC-8 즉시 토글) — [#18](https://github.com/rnqhstmd/wherewego/pull/18)
-- **Phase 2.6 PR-C 이월**: `GeminiPlaceClient` WireMock HTTP 계약 테스트(BASE_URL 외부화 선행)
+- **Phase 2.7 완료**: `GeminiPlaceClient` BASE_URL 외부화(`PlaceProperties.Gemini.baseUrl` + yaml `base-url` 기본값 보존) + WireMock 경량 단위 5케이스(200/null/429/500/timeout, 캐시 미적재 verify 포함) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
