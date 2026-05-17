@@ -1,6 +1,18 @@
 # 장소명 추출: regex → Gemini 2.0 Flash 전환
 
-> Phase 2 다음 단계(Phase 2.5)에서 진행할 PlaceNameExtractor 교체 계획.
+> **상태: ✅ 구현 완료 — PR [#15](https://github.com/rnqhstmd/wherewego/pull/15) (2026-05-17)**
+>
+> 본 문서는 Phase 2.5 계획서에서 이력 문서로 전환되었다. 구현 결과는 아래 "구현 결과" 섹션 참조.
+
+## 구현 결과 (2026-05-17)
+
+- **PR**: [#15](https://github.com/rnqhstmd/wherewego/pull/15) (브랜치 `feat/phase-2-5-gemini-extractor` → `develop`)
+- **PRD/Trust Ledger 보관**: `.dev/feat-phase-2-5-gemini-extractor/`
+- **계획 대비 변경사항**:
+  - 인증 방식: 계획서 `?key=$API_KEY` query param 표기 → 구현은 `x-goog-api-key` 헤더 (Gemini 공식 권장, 로그 노출 방지)
+  - 입력 가드: 계획서 미명시 → 구현은 `CAPTION_MAX_LENGTH=500` 절단 + Gemini 호출 직전 `ctx.expired()` 가드 추가 (비용 폭발/SLA 위반 방지)
+- **테스트**: `InstagramContentServiceTest` 4 케이스 (scraping disabled, 정상 추출, ctx 만료, Gemini empty)
+- **status.md 반영**: `context/place/status.md` FR-PLC-7 ✅, `context/chatbot/status.md` FR-BOT-7 ✅
 
 ## 배경
 
