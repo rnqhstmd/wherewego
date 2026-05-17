@@ -163,10 +163,12 @@ public class GeminiPlaceClient {
                     })
                     .body(GeminiGenerateContentResponse.class);
 
-            Optional<String> result = parsePlaceName(response);
-            responseCache.put(cacheKey, result);
-            outcome = result.isPresent() ? OUTCOME_SUCCESS : OUTCOME_EMPTY;
-            return result;
+            ParseResult parsed = parsePlaceName(response);
+            if (parsed.cacheable()) {
+                responseCache.put(cacheKey, parsed.value());
+            }
+            outcome = parsed.value().isPresent() ? OUTCOME_SUCCESS : OUTCOME_EMPTY;
+            return parsed.value();
         } catch (GeminiRateLimitException e) {
             outcome = OUTCOME_RATE_LIMITED;
             return Optional.empty();
@@ -175,7 +177,7 @@ public class GeminiPlaceClient {
             return Optional.empty();
         } catch (ResourceAccessException e) {
             log.warn("Gemini API transport/timeout error cause={}", e.getMessage());
-            outcome = OUTCOME_TIMEOUT;
+            outcome = isTimeout(e) ? OUTCOME_TIMEOUT : OUTCOME_ERROR;
             return Optional.empty();
         } catch (RestClientException e) {
             log.warn("Gemini API client error cause={}", e.getMessage());
@@ -191,12 +193,25 @@ public class GeminiPlaceClient {
         }
     }
 
-    private static Optional<String> parsePlaceName(GeminiGenerateContentResponse response) {
+    /**
+     * Gemini 응답을 파싱하여 장소명과 캐싱 가능 여부를 함께 반환한다.
+     *
+     * <p>캐싱 정책:
+     * <ul>
+     *     <li>정상 추출(success) → cacheable=true (장소명 캐싱)</li>
+     *     <li>literal {@code "null"} 응답 → cacheable=true (Gemini의 명시적 "장소 없음" 판단을 24h 재사용)</li>
+     *     <li>일시 장애(candidates null, parts empty, text null 등) → cacheable=false (24h 재시도 차단 방지)</li>
+     * </ul>
+     * </p>
+     *
+     * <p>package-private: 단위 테스트에서 직접 호출 가능.</p>
+     */
+    static ParseResult parsePlaceName(GeminiGenerateContentResponse response) {
         if (response == null
                 || response.candidates() == null
                 || response.candidates().isEmpty()) {
             log.warn("Gemini API response has no candidates");
-            return Optional.empty();
+            return new ParseResult(Optional.empty(), false);
         }
         GeminiGenerateContentResponse.Candidate candidate = response.candidates().get(0);
         if (candidate == null
@@ -204,18 +219,39 @@ public class GeminiPlaceClient {
                 || candidate.content().parts() == null
                 || candidate.content().parts().isEmpty()) {
             log.warn("Gemini API response candidate has no parts");
-            return Optional.empty();
+            return new ParseResult(Optional.empty(), false);
         }
         String text = candidate.content().parts().get(0).text();
         if (text == null) {
-            return Optional.empty();
+            return new ParseResult(Optional.empty(), false);
         }
         String cleaned = stripQuotes(text.trim());
         cleaned = normalize(cleaned);
-        if (cleaned.isEmpty() || cleaned.equalsIgnoreCase("null")) {
-            return Optional.empty();
+        if (cleaned.isEmpty()) {
+            return new ParseResult(Optional.empty(), false);
         }
-        return Optional.of(cleaned);
+        if (cleaned.equalsIgnoreCase("null")) {
+            return new ParseResult(Optional.empty(), true);
+        }
+        return new ParseResult(Optional.of(cleaned), true);
+    }
+
+    /**
+     * 파싱 결과와 응답 캐시 적재 가능 여부를 함께 보관한다.
+     *
+     * <p>일시 장애(SAFETY 차단, candidates null 등)로 인한 empty는 캐싱하지 않고 재시도를 허용한다.</p>
+     */
+    record ParseResult(Optional<String> value, boolean cacheable) { }
+
+    private static boolean isTimeout(Throwable e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof java.net.SocketTimeoutException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     private static String normalize(String text) {

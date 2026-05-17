@@ -65,7 +65,10 @@ og:description
 
 ## Gemini 호출 계약
 
-**엔드포인트**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={API_KEY}`
+**엔드포인트**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
+**인증**: `x-goog-api-key: {API_KEY}` 헤더
+
+> 구현 단계에서 헤더 인증으로 변경됨 — PR #15 (계획서의 `?key={API_KEY}` query param 표기는 폐기. Gemini 공식 권장 + 로그/URL 노출 방지).
 
 **프롬프트**:
 ```

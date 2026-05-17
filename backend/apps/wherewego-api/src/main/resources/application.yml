@@ -63,7 +63,7 @@ place:
       timeout-ms: 4000
     gemini:
       enabled: ${GEMINI_ENABLED:true}
-      api-key: ${GEMINI_API_KEY}
+      api-key: ${GEMINI_API_KEY:}
       timeout-ms: 3000
       daily-quota-per-user: ${GEMINI_DAILY_QUOTA_PER_USER:50}
 

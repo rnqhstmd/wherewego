@@ -40,10 +40,9 @@ public class GeminiUserQuotaService {
         if (cache == null) {
             return true;
         }
-        AtomicInteger counter = cache.get(userId, AtomicInteger.class);
+        AtomicInteger counter = cache.get(userId, () -> new AtomicInteger(0));
         if (counter == null) {
-            counter = new AtomicInteger(0);
-            cache.put(userId, counter);
+            return true;
         }
         int next = counter.incrementAndGet();
         return next <= limit;

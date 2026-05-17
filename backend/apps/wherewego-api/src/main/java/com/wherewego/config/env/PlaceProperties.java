@@ -1,7 +1,7 @@
 package com.wherewego.config.env;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -39,8 +39,13 @@ public record PlaceProperties(
 
     public record Gemini(
             boolean enabled,
-            @NotBlank String apiKey,
+            String apiKey,
             @Positive int timeoutMs,
             @Positive int dailyQuotaPerUser
-    ) { }
+    ) {
+        @AssertTrue(message = "place.scraper.gemini.api-key는 enabled=true일 때 필수입니다")
+        public boolean isApiKeyValidWhenEnabled() {
+            return !enabled || (apiKey != null && !apiKey.isBlank());
+        }
+    }
 }

@@ -2,9 +2,12 @@ package com.wherewego.infrastructure.gemini;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Gemini API 호출 메트릭.
@@ -28,20 +31,26 @@ import java.time.Duration;
 public class GeminiUsageMetrics {
 
     private final MeterRegistry registry;
+    private final Map<String, Counter> counters = new ConcurrentHashMap<>();
+    private final Map<String, Timer> timers = new ConcurrentHashMap<>();
 
     public GeminiUsageMetrics(MeterRegistry registry) {
         this.registry = registry;
     }
 
     public void recordCall(String outcome) {
-        Counter.builder("gemini.calls.total")
-                .tag("outcome", outcome)
-                .register(registry)
-                .increment();
+        counters.computeIfAbsent(outcome, o ->
+                Counter.builder("gemini.calls.total")
+                        .tag("outcome", o)
+                        .register(registry)
+        ).increment();
     }
 
     public void recordDuration(long durationMs, String outcome) {
-        registry.timer("gemini.call.duration", "outcome", outcome)
-                .record(Duration.ofMillis(durationMs));
+        timers.computeIfAbsent(outcome, o ->
+                Timer.builder("gemini.call.duration")
+                        .tag("outcome", o)
+                        .register(registry)
+        ).record(Duration.ofMillis(durationMs));
     }
 }
