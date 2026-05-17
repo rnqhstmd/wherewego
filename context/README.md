@@ -46,8 +46,10 @@
 | **Phase 6** | **Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 (Haversine)** + 디자인 시스템 신설 + 핀 직접 등록 웹 API | ✅ 완료 | [#13](https://github.com/rnqhstmd/wherewego/pull/13) |
 | **Phase 2.6 PR-A** | **UX 완성**: 웹 메모 수동 편집(FR-MMO-2/4), 룰렛 MEMORY 토글(FR-REC-6), `tokens.ts` self-host 주석 정리 | ✅ 완료 | [#17](https://github.com/rnqhstmd/wherewego/pull/17) |
 | **Phase 2.6 PR-B** | **보안·운영 안정화**: SameSite Lax(보안 HIGH), `@RefreshScope`+Actuator `/refresh`(localhost 제한), Bucket4j 챗봇 레이트 리밋(분당 10회), 그룹 탈퇴 시 BotUserMapping cascade | ✅ 완료 | [#18](https://github.com/rnqhstmd/wherewego/pull/18) |
-| Phase 2.6 PR-C | **테스트 보강** (후속): 카카오 PLACE_SELECTION action 검증, 그룹 동시성 통합 테스트, `GeminiPlaceClient` WireMock HTTP 계약 테스트 | ⬜ 계획 | — |
-| Phase 2.6 PR-D | **성능** (후속): DOM Marker→GL symbol layer 마이그레이션(500핀+) | ⬜ 계획 | — |
+| Phase 2.7 | **신뢰 인프라**(테스트 자동화 완성): PLACE_SELECTION E2E, 그룹 동시성 통합 3종, `GeminiPlaceClient` WireMock(BASE_URL 외부화), PR-A 누락 frontend Vitest 4건, map 디자인 번들 컴포넌트 테스트 | ⬜ 계획 (다음) | — |
+| Phase 2.8 | **핀 도메인 완성**(사용자 가시 UX 잔여): 핀 등록 시 `instagramUrl` 입력 UI, 핀 장소 정보(`place_name`/좌표) 수정, 삭제 핀 복원, map ⋮ 메뉴에 삭제 액션 추가 | ⬜ 계획 | — |
+| Phase 2.9 | **규모 대응**(조건부): DOM Marker→Mapbox GL symbol layer(그룹 핀 500+), 핀 페이지네이션(1k+). main 머지는 이 phase 완료 후 일괄 | ⬜ 조건부 | — |
+| Phase 3.0 | **MVP 후 확장**(비즈니스 정책, 도메인별 별도 PRD): Group N인 확장(1인 1활성 제약 해제), 재가입 허용 정책(`uq_group_members_pair` 변경), BotUserMapping 회원 탈퇴 cascade(회원 탈퇴 PRD 선행) | ⬜ 장기 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
 
