@@ -32,6 +32,7 @@ public enum ErrorType {
     PLC_DUPLICATE_PIN(HttpStatus.CONFLICT, "PLC_DUPLICATE_PIN", "이미 저장된 장소입니다."),
     PLC_KAKAO_LOCAL_FAILED(HttpStatus.BAD_GATEWAY, "PLC_KAKAO_LOCAL_FAILED", "장소 검색을 일시적으로 사용할 수 없습니다."),
     PLC_INSTAGRAM_SCRAPE_FAILED(HttpStatus.BAD_GATEWAY, "PLC_INSTAGRAM_SCRAPE_FAILED", "인스타그램 데이터를 가져오지 못했습니다."),
+    PLC_GOOGLE_PLACES_FAILED(HttpStatus.BAD_GATEWAY, "PLC_GOOGLE_PLACES_FAILED", "장소 검색을 일시적으로 사용할 수 없습니다."),
 
     /** 그룹 (Phase 3) */
     GROUP_NAME_INVALID(HttpStatus.BAD_REQUEST, "GROUP_NAME_INVALID", "그룹 이름은 1~30자여야 합니다."),

@@ -36,7 +36,7 @@ class MessageClassifierTest {
                                                      Map<String, String> params,
                                                      Map<String, String> clientExtra) {
         ChatbotV1Dto.UserRequest userRequest = new ChatbotV1Dto.UserRequest(
-                utterance, new ChatbotV1Dto.User("kakao-user-1", "botUserKey")
+                utterance, new ChatbotV1Dto.User("kakao-user-1", "botUserKey"), null
         );
         ChatbotV1Dto.Action action = new ChatbotV1Dto.Action(params, clientExtra);
         return new ChatbotV1Dto.SkillRequest(userRequest, action);
