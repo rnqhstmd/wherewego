@@ -34,6 +34,7 @@ class ActuatorIpRestrictionFilterTest {
 
     private MockHttpServletRequest refreshRequest(String remoteAddr) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", PROTECTED_PATH);
+        request.setServletPath(PROTECTED_PATH);
         request.setRemoteAddr(remoteAddr);
         return request;
     }
@@ -122,7 +123,9 @@ class ActuatorIpRestrictionFilterTest {
         void shouldNotFilter_nonProtectedPath_returnsTrue() {
             // arrange
             MockHttpServletRequest health = new MockHttpServletRequest("GET", "/actuator/health");
+            health.setServletPath("/actuator/health");
             MockHttpServletRequest api = new MockHttpServletRequest("GET", "/api/v1/auth/me");
+            api.setServletPath("/api/v1/auth/me");
 
             // act & assert
             Boolean nonProtected = (Boolean) ReflectionTestUtils.invokeMethod(filter, "shouldNotFilter",
@@ -138,6 +141,7 @@ class ActuatorIpRestrictionFilterTest {
         void shouldNotFilter_protectedPath_returnsFalse() {
             // arrange
             MockHttpServletRequest request = new MockHttpServletRequest("POST", PROTECTED_PATH);
+            request.setServletPath(PROTECTED_PATH);
 
             // act & assert
             Boolean result = (Boolean) ReflectionTestUtils.invokeMethod(filter, "shouldNotFilter",

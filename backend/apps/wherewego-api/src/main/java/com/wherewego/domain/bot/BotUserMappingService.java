@@ -54,7 +54,7 @@ public class BotUserMappingService {
      * <p>
      * <strong>호출 계약:</strong> 반드시 호출자의 트랜잭션 안에서 실행되어야 한다
      * (예: {@link com.wherewego.domain.group.GroupMemberService#leaveGroup}).
-     * REQUIRED 전파로 부모 TX에 합류하여 AC-B8(GroupMember soft-delete와 동일 TX) 보장.
+     * MANDATORY 전파로 부모 TX에 합류한다. 부모 TX 없이 단독 호출 시 IllegalTransactionStateException 발생. AC-B8(GroupMember soft-delete와 동일 TX) 보장.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void unlink(Long userId) {

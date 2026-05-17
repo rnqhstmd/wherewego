@@ -30,17 +30,16 @@ public class BufferedRequestWrapper extends HttpServletRequestWrapper {
 
     public BufferedRequestWrapper(HttpServletRequest request) throws IOException {
         super(request);
-        try (InputStream is = request.getInputStream()) {
-            byte[] limited = is.readNBytes(MAX_BODY_BYTES + 1);
-            if (limited.length > MAX_BODY_BYTES) {
-                throw new IOException("body exceeds " + MAX_BODY_BYTES + " bytes");
-            }
-            this.cachedBody = limited;
+        InputStream is = request.getInputStream();
+        byte[] limited = is.readNBytes(MAX_BODY_BYTES + 1);
+        if (limited.length > MAX_BODY_BYTES) {
+            throw new IOException("body exceeds " + MAX_BODY_BYTES + " bytes");
         }
+        this.cachedBody = limited;
     }
 
     public byte[] getCachedBody() {
-        return cachedBody;
+        return cachedBody.clone();
     }
 
     @Override

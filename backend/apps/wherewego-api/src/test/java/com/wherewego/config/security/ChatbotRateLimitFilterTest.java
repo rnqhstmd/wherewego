@@ -57,6 +57,7 @@ class ChatbotRateLimitFilterTest {
 
     private MockHttpServletRequest webhookRequest(String body) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", WEBHOOK_PATH);
+        request.setServletPath(WEBHOOK_PATH);
         request.setContentType("application/json");
         request.setCharacterEncoding(StandardCharsets.UTF_8.name());
         if (body != null) {
@@ -79,7 +80,9 @@ class ChatbotRateLimitFilterTest {
         void shouldNotFilter_nonWebhookPath_returnsTrue() {
             // arrange
             MockHttpServletRequest get = new MockHttpServletRequest("POST", "/api/v1/auth/kakao/callback");
+            get.setServletPath("/api/v1/auth/kakao/callback");
             MockHttpServletRequest wrongMethod = new MockHttpServletRequest("GET", WEBHOOK_PATH);
+            wrongMethod.setServletPath(WEBHOOK_PATH);
 
             // act & assert (protected method 는 ReflectionTestUtils 로 호출)
             Boolean nonPath = (Boolean) ReflectionTestUtils.invokeMethod(filter, "shouldNotFilter",
@@ -95,6 +98,7 @@ class ChatbotRateLimitFilterTest {
         void shouldNotFilter_webhookPost_returnsFalse() {
             // arrange
             MockHttpServletRequest request = new MockHttpServletRequest("POST", WEBHOOK_PATH);
+            request.setServletPath(WEBHOOK_PATH);
 
             // act & assert
             Boolean result = (Boolean) ReflectionTestUtils.invokeMethod(filter, "shouldNotFilter",

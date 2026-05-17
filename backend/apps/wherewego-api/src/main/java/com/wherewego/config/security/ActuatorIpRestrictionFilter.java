@@ -31,7 +31,7 @@ public class ActuatorIpRestrictionFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
-        return !request.getRequestURI().equals(PROTECTED_PATH);
+        return !request.getServletPath().equals(PROTECTED_PATH);
     }
 
     @Override

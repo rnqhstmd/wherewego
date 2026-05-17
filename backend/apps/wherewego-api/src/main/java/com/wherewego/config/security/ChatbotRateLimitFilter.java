@@ -49,7 +49,7 @@ public class ChatbotRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         return !(HttpMethod.POST.matches(request.getMethod())
-                && WEBHOOK_PATH.equals(request.getRequestURI()));
+                && WEBHOOK_PATH.equals(request.getServletPath()));
     }
 
     @Override
