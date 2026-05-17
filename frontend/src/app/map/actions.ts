@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { ApiError } from "@/lib/api/http";
 import { createPin, updatePin } from "@/lib/api/pin";
 import type {
@@ -48,6 +50,43 @@ export async function updatePinTagAction(
 ): Promise<UpdatePinTagActionResult> {
   try {
     const data = await updatePin(groupId, pinId, { tag });
+    return { ok: true, data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+    throw error;
+  }
+}
+
+export type UpdatePinMemoActionResult = CreatePinActionResult;
+
+/**
+ * 핀 메모 변경 Server Action (FR-MMO-2).
+ *
+ * `updatePin(groupId, pinId, { memo })`로 위임한다. 빈 문자열도 그대로 전송하여
+ * 잠금 해제(BR-3) 신호로 동작하며, `lib/api/pin.ts::updatePin`이 빈 문자열을
+ * 보존하므로 추가 변환은 하지 않는다.
+ *
+ * 성공 시에만 `revalidatePath('/pins')`를 호출하여 핀 목록 페이지 캐시를 갱신한다.
+ * `/map`은 클라 state 우선 유지 정책이라 별도 revalidate는 하지 않는다.
+ */
+export async function updatePinMemoAction(
+  groupId: number,
+  pinId: number,
+  memo: string,
+): Promise<UpdatePinMemoActionResult> {
+  try {
+    const data = await updatePin(groupId, pinId, { memo });
+    // revalidatePath 실패가 저장 성공 응답을 가리지 않도록 분리
+    try {
+      revalidatePath("/pins");
+    } catch (revalidateError) {
+      console.error(
+        "revalidatePath('/pins') 실패 (저장은 성공)",
+        revalidateError,
+      );
+    }
     return { ok: true, data };
   } catch (error) {
     if (error instanceof ApiError) {

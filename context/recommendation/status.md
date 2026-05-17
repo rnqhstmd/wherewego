@@ -16,4 +16,4 @@
 | FR-REC-3 | 그룹 핀 PLACE 태그 + Bounding Box + Haversine + 랜덤 1건 | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `roulette.ts::pickRandomWithExpansion` + Vitest 단위 13건. 5분 캐시 정책으로 stale 시 BFF 재조회 |
 | FR-REC-4 | 범위 내 0건 → 다음 범위 자동 확장 (1km → 5km → 10km) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `ROULETTE_RADIUS_STEPS_KM` 순회. 10km도 0건이면 "이 지도에 아직 핀이 없어요" |
 | FR-REC-5 | 추천 결과 카드 + "지도에서 보기" + "다시" 재추첨 | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `RouletteResultContent` (Noto Serif KR 16/700 가게명 + JetBrains Mono 주소 + 거리 강조 "여기서 N.Nkm"). `handleShowOnMap` → `map.flyTo` + popup 자동. `reRollFromSamePool` 동일 풀 재추첨 |
-| FR-REC-6 | MEMORY 포함 옵션 토글 | ⬜ | Phase 6 제외 범위 (MVP 완료 후 추가 예정). `pickRandomWithExpansion`은 `tagsAllowed: PinTag[]`로 확장 가능한 시그니처 보유 |
+| FR-REC-6 | MEMORY 포함 옵션 토글 | ⬜ | Phase 2.6. `pickRandomWithExpansion`은 `tagsAllowed: PinTag[]`로 확장 가능한 시그니처 보유 |

@@ -22,6 +22,6 @@
 
 ## 후속 작업
 
-- **Phase 2.5**: `PlaceNameExtractor`를 `GeminiPlaceClient` + `CaptionCleaner`로 교체 ([gemini-migration.md](gemini-migration.md))
+- **Phase 2.5 완료**: `PlaceNameExtractor` → `GeminiPlaceClient` + `CaptionCleaner` 교체 ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places API 비동기 폴백 — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
-- **Phase 후속**: `@RefreshScope` + Spring Cloud Config (FR-PLC-8 즉시 토글)
+- **Phase 2.6**: `@RefreshScope` + Spring Cloud Config (FR-PLC-8 즉시 토글), `GeminiPlaceClient` WireMock HTTP 계약 테스트(BASE_URL 외부화 선행)

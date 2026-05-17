@@ -18,10 +18,10 @@
 | FR-MAP-5 | 검색 → 태그 선택 → 핀 추가 플로우 (3클릭) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `MemoTagPanelContent` + `createPinAction` (`revalidatePath` 생략, 응답 직접 반영) |
 | ~~FR-MAP-X~~ | ~~방문 체크 버튼~~ — **제거됨** | — | |
 
-## 후속 작업
+## 후속 작업 (Phase 2.6)
 
 - Pretendard 폰트 self-host 전환 (현재 CDN, `frontend/public/fonts/README.md`)
 - Mapbox 토큰 회전 SOP 운영자 가이드 (`.env.local.example`에 안내, 대시보드 URL Restriction 별도 작업)
 - 정보창 ⋮ 메뉴 확장 (삭제 등 추가 액션) — 현재는 태그 변경만
 - DOM Marker → GL symbol layer 마이그레이션 (500핀 초과 시)
-- 디자인 번들 컴포넌트 테스트 (Vitest + Testing Library) — Phase 후속
+- 디자인 번들 컴포넌트 테스트 (Vitest + Testing Library)

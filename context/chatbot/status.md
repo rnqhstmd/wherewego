@@ -22,6 +22,6 @@
 
 ## 후속 작업
 
-- **Phase 2.5**: 장소명 추출을 Gemini 2.0 Flash로 교체 → FR-BOT-7 추출 성공률 ↑ ([place/gemini-migration.md](../place/gemini-migration.md))
-- **Phase 5**: Google Places 비동기 폴백 (FR-BOT-5)
-- **Phase 후속**: 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증, 레이트 리미팅, 매핑 탈퇴 cascade, `@RefreshScope` 도입
+- **Phase 2.5 완료**: 장소명 추출을 Gemini 2.0 Flash로 교체 → FR-BOT-7 추출 성공률 ↑ ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
+- **Phase 5 완료**: Google Places 비동기 폴백 (FR-BOT-5) — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
+- **Phase 2.6**: 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증, 레이트 리미팅, 매핑 탈퇴 cascade, `@RefreshScope` 도입

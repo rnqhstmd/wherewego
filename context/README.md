@@ -40,11 +40,11 @@
 | Phase 1 | 카카오 OAuth2 + JWT 세션 (auth 도메인) | ✅ 완료 | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 | **Phase 2** | **카카오톡 챗봇 Skill Webhook + 인스타 장소 파이프라인** (bot/chatbot/place/pin/group read-only/memo) | ✅ 완료 | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
 | Phase 2.5 | 장소명 추출 regex → **Gemini 2.0 Flash** 전환 ([상세](place/gemini-migration.md)) | ✅ 완료 | [#15](https://github.com/rnqhstmd/wherewego/pull/15) |
-| Phase 3 | 그룹 생성/초대/탈퇴 + 활성 GroupMember 권한 검사 (group 도메인 본 구현) | ⬜ 계획 | — |
-| Phase 4 | 웹 UI 핀 CRUD (목록/수정/삭제, 메모 수동 편집) | ⬜ 계획 | — |
+| Phase 3 | 그룹 생성/초대/탈퇴 + 활성 GroupMember 권한 검사 (group 도메인 본 구현) | ✅ 완료 | [#7](https://github.com/rnqhstmd/wherewego/pull/7) |
+| Phase 4 | 웹 UI 핀 CRUD (목록/수정/삭제) + 핀 직접 등록 웹 API | ✅ 완료 | [#9](https://github.com/rnqhstmd/wherewego/pull/9), [#13](https://github.com/rnqhstmd/wherewego/pull/13) |
 | Phase 5 | **Google Places API 비동기 폴백** + 카카오 콜백 푸시 (해외 장소 지원) | ✅ 완료 | [#11](https://github.com/rnqhstmd/wherewego/pull/11) |
 | **Phase 6** | **Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 (Haversine)** + 디자인 시스템 신설 + 핀 직접 등록 웹 API | ✅ 완료 | [#13](https://github.com/rnqhstmd/wherewego/pull/13) |
-| Phase 후속 | `@RefreshScope` + Spring Cloud Config, GC 배치, 레이트 리미팅, 탈퇴 cascade 정책, 카카오 i 오픈빌더 PLACE_SELECTION 버튼 action 검증 | ⬜ 미정 | — |
+| **Phase 2.6** | **운영 안정화 + UX 잔여 통합**: 웹 메모 수동 편집(FR-MMO-2/4), 룰렛 MEMORY 토글(FR-REC-6), `@RefreshScope`+Spring Cloud Config, 레이트 리미팅, 탈퇴 cascade, 카카오 PLACE_SELECTION action 검증, 그룹 동시성 통합 테스트, Mapbox Pretendard self-host + 토큰 회전 SOP, DOM Marker→GL symbol(500핀+), `GeminiPlaceClient` WireMock HTTP 계약 테스트 | ⬜ 계획 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
 
