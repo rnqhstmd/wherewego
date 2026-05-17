@@ -27,6 +27,10 @@ export default function SearchPanelContent({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 요청 토큰 + AbortController: 네트워크 지터로 인한 stale 응답 차단.
+  // requestIdRef는 가장 최근에 시작된 요청의 id를 추적, abortRef는 in-flight 요청을 취소.
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleKeywordChange = useCallback((value: string) => {
     setKeyword(value);
@@ -39,6 +43,12 @@ export default function SearchPanelContent({
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+      // 다음 요청을 새 토큰으로 시작시키기 위해 카운터 증가.
+      requestIdRef.current++;
     }
   }, []);
 
@@ -49,18 +59,30 @@ export default function SearchPanelContent({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       // setTimeout 콜백 = 외부 시스템 이벤트 → setState 허용
+      // 이전 in-flight 요청 취소 + 새 요청 id 할당.
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const requestId = ++requestIdRef.current;
+
       setLoading(true);
-      searchPlaces(trimmed)
+      searchPlaces(trimmed, controller.signal)
         .then((res) => {
+          if (requestIdRef.current !== requestId) return; // stale
           setItems(res.items);
           setError(null);
         })
-        .catch(() => {
+        .catch((e: unknown) => {
+          if (requestIdRef.current !== requestId) return; // stale or aborted
+          // AbortError 는 사용자가 입력을 계속해서 우리가 의도적으로 취소한 것.
+          if (e instanceof DOMException && e.name === "AbortError") return;
           setError("검색을 일시적으로 사용할 수 없어요");
           setItems([]);
         })
         .finally(() => {
-          setLoading(false);
+          if (requestIdRef.current === requestId) setLoading(false);
         });
     }, 300);
 
@@ -71,6 +93,17 @@ export default function SearchPanelContent({
       }
     };
   }, [keyword]);
+
+  // 언마운트 시 in-flight 요청 cleanup.
+  useEffect(
+    () => () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    },
+    [],
+  );
 
   return (
     <div>

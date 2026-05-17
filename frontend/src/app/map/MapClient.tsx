@@ -128,8 +128,11 @@ export default function MapClient({
   const [addPinOrigin, setAddPinOrigin] = useState<NewPinOrigin | null>(null);
 
   // 룰렛 관련 상태.
-  const { state: geoState, request: geoRequest } = useGeolocation();
+  const { state: geoState, permissionState, request: geoRequest } =
+    useGeolocation();
   const [showPermDialog, setShowPermDialog] = useState(false);
+  // "나중에" 선택 시 셔플 비활성. 권한이 명시적으로 denied 인 경우에도 true.
+  const [rouletteDeferred, setRouletteDeferred] = useState(false);
   const [rouletteState, setRouletteState] = useState<RouletteUIState>({
     status: "idle",
   });
@@ -144,6 +147,20 @@ export default function MapClient({
   }, []);
   // 룰렛 트리거 후 권한이 granted로 전이되면 진행하기 위한 플래그.
   const pendingRouletteRef = useRef(false);
+  // spin → picked 전환 타이머. 시트 닫힘/언마운트 시 cleanup 하여
+  // idle 상태가 다시 picked로 덮어씌워지는 것을 방지한다.
+  const spinTimerRef = useRef<number | null>(null);
+
+  // 언마운트 시 spin 타이머 cleanup.
+  useEffect(
+    () => () => {
+      if (spinTimerRef.current !== null) {
+        window.clearTimeout(spinTimerRef.current);
+        spinTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -170,25 +187,30 @@ export default function MapClient({
    * PinPopup 내부 인라인 에러로 메시지를 노출한다.
    */
   const handleTagChange = useCallback(
-    async (
+    (
       pinId: number,
       nextTag: PinTag,
     ): Promise<{ ok: boolean; message?: string }> => {
-      startOptimisticTransition(() => {
-        applyOptimistic({ pinId, tag: nextTag });
+      // React 19: startTransition은 async callback을 정식 지원한다.
+      // await 동안 transition이 유지되어 useOptimistic 상태도 보존됨 → 즉시 롤백 깜빡임 방지.
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          applyOptimistic({ pinId, tag: nextTag });
+          const result = await updatePinTagAction(groupId, pinId, nextTag);
+          if (result.ok) {
+            setPins((prev) =>
+              prev.map((p) => (p.id === pinId ? result.data : p)),
+            );
+            resolve({ ok: true });
+            return;
+          }
+          const message =
+            result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.message;
+          resolve({ ok: false, message });
+        });
       });
-      const result = await updatePinTagAction(groupId, pinId, nextTag);
-      if (result.ok) {
-        setPins((prev) =>
-          prev.map((p) => (p.id === pinId ? result.data : p)),
-        );
-        return { ok: true };
-      }
-      const message =
-        result.code === "GROUP_NOT_MEMBER"
-          ? "권한이 없어요"
-          : result.message;
-      return { ok: false, message };
     },
     [applyOptimistic, groupId],
   );
@@ -229,7 +251,11 @@ export default function MapClient({
         radiusKm: result.radiusKm,
         candidateCount: result.candidateCount,
       });
-      window.setTimeout(() => {
+      if (spinTimerRef.current !== null) {
+        window.clearTimeout(spinTimerRef.current);
+      }
+      spinTimerRef.current = window.setTimeout(() => {
+        spinTimerRef.current = null;
         setRouletteState({
           status: "picked",
           pin: result.pin,
@@ -245,12 +271,15 @@ export default function MapClient({
 
   /**
    * 셔플 탭 진입점. 권한 상태에 따라 다이얼로그/요청/즉시추첨 분기.
+   *
+   * Permissions API 가 이미 granted 임을 알려주면 모달을 건너뛰고
+   * 좌표 fetch만 한 뒤 룰렛을 진행한다 (UX 개선: 첫 셔플에서 모달 깜빡임 방지).
    */
   const handleRouletteTap = useCallback(() => {
     setSelectedPinId(null);
     setActiveSheet("roulette");
 
-    if (geoState.status === "denied") {
+    if (geoState.status === "denied" || permissionState === "denied") {
       // 명시적 거부 상태: 다이얼로그 재안내.
       setShowPermDialog(true);
       return;
@@ -282,9 +311,20 @@ export default function MapClient({
       });
       return;
     }
-    // idle 또는 prompting: 사전 다이얼로그 안내 후 요청 (디자인의 권한 안내).
+    // permission이 이미 granted 라면 모달 우회하여 즉시 좌표 fetch.
+    if (permissionState === "granted") {
+      pendingRouletteRef.current = true;
+      geoRequest();
+      setRouletteState({
+        status: "spinning",
+        radiusKm: 1,
+        candidateCount: 0,
+      });
+      return;
+    }
+    // idle 또는 prompting + permission이 prompt/unknown: 사전 다이얼로그 안내.
     setShowPermDialog(true);
-  }, [geoState, geoRequest, runRoulette]);
+  }, [geoState, permissionState, geoRequest, runRoulette]);
 
   // geoState 전이 감지: pendingRouletteRef가 true면 진행.
   //
@@ -303,6 +343,10 @@ export default function MapClient({
       } else if (status === "denied") {
         setShowPermDialog(true);
         setRouletteState({ status: "idle" });
+        if (spinTimerRef.current !== null) {
+          window.clearTimeout(spinTimerRef.current);
+          spinTimerRef.current = null;
+        }
       } else if (status === "unavailable") {
         setRouletteState({
           status: "geo-error",
@@ -328,6 +372,10 @@ export default function MapClient({
           setActiveSheet(null);
           setRouletteState({ status: "idle" });
           pendingRouletteRef.current = false;
+          if (spinTimerRef.current !== null) {
+            window.clearTimeout(spinTimerRef.current);
+            spinTimerRef.current = null;
+          }
           return;
         }
         handleRouletteTap();
@@ -394,6 +442,10 @@ export default function MapClient({
     setAddPinOrigin(null);
     setRouletteState({ status: "idle" });
     pendingRouletteRef.current = false;
+    if (spinTimerRef.current !== null) {
+      window.clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = null;
+    }
   }, []);
 
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
@@ -408,6 +460,10 @@ export default function MapClient({
       setSelectedPinId(pin.id);
       setActiveSheet(null);
       setRouletteState({ status: "idle" });
+      if (spinTimerRef.current !== null) {
+        window.clearTimeout(spinTimerRef.current);
+        spinTimerRef.current = null;
+      }
     },
     [map],
   );
@@ -421,7 +477,11 @@ export default function MapClient({
       radiusKm,
       candidateCount: candidates.length,
     });
-    window.setTimeout(() => {
+    if (spinTimerRef.current !== null) {
+      window.clearTimeout(spinTimerRef.current);
+    }
+    spinTimerRef.current = window.setTimeout(() => {
+      spinTimerRef.current = null;
       const next = reRollFromSamePool(center, candidates, radiusKm);
       if (next.kind === "exhausted") {
         setRouletteState({ status: "exhausted" });
@@ -663,11 +723,21 @@ export default function MapClient({
         <DesktopSidebar
           active={activeSheetToTab(activeSheet)}
           onChange={handleTabChange}
+          rouletteDisabled={
+            rouletteDeferred ||
+            permissionState === "denied" ||
+            geoState.status === "denied"
+          }
         />
       ) : (
         <ActionBar
           active={activeSheetToTab(activeSheet)}
           onChange={handleTabChange}
+          rouletteDisabled={
+            rouletteDeferred ||
+            permissionState === "denied" ||
+            geoState.status === "denied"
+          }
         />
       )}
       {showPermDialog && (
@@ -680,6 +750,7 @@ export default function MapClient({
           secondaryLabel="나중에"
           onPrimary={() => {
             setShowPermDialog(false);
+            setRouletteDeferred(false);
             pendingRouletteRef.current = true;
             setRouletteState({
               status: "spinning",
@@ -690,9 +761,15 @@ export default function MapClient({
           }}
           onSecondary={() => {
             setShowPermDialog(false);
-            // 룰렛 시트도 닫음 (셔플 비활성 안내 대신 시트 닫기).
+            // 셔플 비활성화 + 룰렛 시트 닫기.
+            // 사용자가 명시적으로 "나중에" 를 선택했으므로 ActionBar/Sidebar 셔플 탭을 비활성화한다.
+            setRouletteDeferred(true);
             setActiveSheet(null);
             setRouletteState({ status: "idle" });
+            if (spinTimerRef.current !== null) {
+              window.clearTimeout(spinTimerRef.current);
+              spinTimerRef.current = null;
+            }
           }}
           layout="vertical"
           onMap

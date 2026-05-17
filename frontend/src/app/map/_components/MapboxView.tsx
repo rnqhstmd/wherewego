@@ -303,6 +303,26 @@ export default function MapboxView({
     map.on("style.load", () => {
       // 3D 지구본 fog (설계 §9)
       map.setFog({});
+      // styleUrl 미설정 fallback (light-v11) 사용 시 디자인 토큰 일부 보정.
+      // layer id가 mapbox 스타일 버전마다 다를 수 있으니 실패는 무시한다.
+      // 운영에서는 반드시 NEXT_PUBLIC_MAPBOX_STYLE_URL 로 커스텀 스타일을 사용해야 함 (설계 §9).
+      if (!styleUrl) {
+        try {
+          map.setPaintProperty("background", "background-color", colors.mapBg);
+        } catch {
+          /* layer 없음 - 무시 */
+        }
+        try {
+          map.setPaintProperty("water", "fill-color", colors.mapWater);
+        } catch {
+          /* layer 없음 - 무시 */
+        }
+        try {
+          map.setPaintProperty("landuse-park", "fill-color", colors.mapPark);
+        } catch {
+          /* layer 없음 - 무시 */
+        }
+      }
     });
 
     map.on("load", () => {

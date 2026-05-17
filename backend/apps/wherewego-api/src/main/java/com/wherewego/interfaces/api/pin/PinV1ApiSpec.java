@@ -4,7 +4,6 @@ import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 
 @Tag(name = "Pin V1 API", description = "그룹 핀 목록/수정/삭제/등록 API 입니다 (Phase 4 + Phase 6).")
 public interface PinV1ApiSpec {
@@ -33,7 +32,7 @@ public interface PinV1ApiSpec {
     ApiResponse<PinV1Dto.PinSummaryResponse> createPin(
             @Parameter(hidden = true) Long userId,
             Long groupId,
-            @Valid PinV1Dto.CreatePinRequest request
+            PinV1Dto.CreatePinRequest request
     );
 
     @Operation(

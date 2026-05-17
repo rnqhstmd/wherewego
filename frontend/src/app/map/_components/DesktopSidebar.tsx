@@ -7,6 +7,8 @@ import type { ActionBarTab } from "./types";
 interface DesktopSidebarProps {
   active: ActionBarTab;
   onChange: (tab: Exclude<ActionBarTab, null>) => void;
+  /** 셔플 탭만 비활성화 (위치 권한 거부 등). */
+  rouletteDisabled?: boolean;
 }
 
 /**
@@ -16,6 +18,7 @@ interface DesktopSidebarProps {
 export default function DesktopSidebar({
   active,
   onChange,
+  rouletteDisabled = false,
 }: DesktopSidebarProps) {
   const tabs = [
     { id: "search" as const, Icon: IconSearch },
@@ -41,44 +44,50 @@ export default function DesktopSidebar({
         zIndex: 15,
       }}
     >
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          aria-label={tab.id}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            cursor: "pointer",
-            border: "none",
-            background:
-              active === tab.id ? `${colors.cta}15` : "transparent",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          {active === tab.id && (
-            <div
-              style={{
-                position: "absolute",
-                left: -16,
-                width: 3,
-                height: 24,
-                background: colors.cta,
-                borderRadius: 2,
-              }}
+      {tabs.map((tab) => {
+        const disabled = tab.id === "roulette" && rouletteDisabled;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            disabled={disabled}
+            aria-label={tab.id}
+            aria-disabled={disabled || undefined}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              cursor: disabled ? "not-allowed" : "pointer",
+              border: "none",
+              background:
+                active === tab.id ? `${colors.cta}15` : "transparent",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              opacity: disabled ? 0.4 : 1,
+            }}
+          >
+            {active === tab.id && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: -16,
+                  width: 3,
+                  height: 24,
+                  background: colors.cta,
+                  borderRadius: 2,
+                }}
+              />
+            )}
+            <tab.Icon
+              size={22}
+              color={active === tab.id ? colors.cta : colors.inkSoft}
             />
-          )}
-          <tab.Icon
-            size={22}
-            color={active === tab.id ? colors.cta : colors.inkSoft}
-          />
-        </button>
-      ))}
+          </button>
+        );
+      })}
     </div>
   );
 }

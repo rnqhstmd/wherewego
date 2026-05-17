@@ -23,8 +23,19 @@ export type GeoState =
   | { status: "unavailable" }
   | { status: "timeout" };
 
+/**
+ * Permissions API 가 노출하는 권한 상태. 좌표 fetch와는 독립적.
+ * - unknown: Permissions API 미지원/조회 실패.
+ */
+export type PermissionState = "granted" | "denied" | "prompt" | "unknown";
+
 interface UseGeolocationResult {
   state: GeoState;
+  /**
+   * 사전 권한 조회 결과. 좌표를 제공하지는 않으나,
+   * granted/denied 가 이미 결정된 경우 셔플 UI 분기에 활용한다.
+   */
+  permissionState: PermissionState;
   /** 좌표를 새로 요청 (granted여도 fresh 좌표를 다시 받음) */
   request: () => void;
   /** idle로 초기화 (시트 닫을 때 등) */
@@ -39,26 +50,40 @@ interface UseGeolocationResult {
  */
 export function useGeolocation(): UseGeolocationResult {
   const [state, setState] = useState<GeoState>({ status: "idle" });
+  const [permissionState, setPermissionState] =
+    useState<PermissionState>("unknown");
 
-  // 사전 권한 조회: 이미 denied인 사용자는 시작부터 denied로.
-  // granted여도 좌표는 request() 호출 시점에 fetch.
+  // 사전 권한 조회: denied/granted 모두 추적해 UI 분기에 사용.
+  // granted여도 좌표는 request() 호출 시점에 fetch (Permissions API 는 좌표 제공 안 함).
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.permissions) return;
     let cancelled = false;
+    let statusRef: PermissionStatus | null = null;
+    const handleChange = () => {
+      if (cancelled || !statusRef) return;
+      setPermissionState(statusRef.state as PermissionState);
+      if (statusRef.state === "denied") {
+        setState({ status: "denied" });
+      }
+    };
     navigator.permissions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .query({ name: "geolocation" as any })
       .then((result) => {
         if (cancelled) return;
+        statusRef = result;
+        setPermissionState(result.state as PermissionState);
         if (result.state === "denied") {
           setState({ status: "denied" });
         }
+        result.addEventListener?.("change", handleChange);
       })
       .catch(() => {
-        // 미지원 브라우저는 idle 유지.
+        // 미지원 브라우저는 unknown 유지.
       });
     return () => {
       cancelled = true;
+      statusRef?.removeEventListener?.("change", handleChange);
     };
   }, []);
 
@@ -89,5 +114,5 @@ export function useGeolocation(): UseGeolocationResult {
 
   const reset = useCallback(() => setState({ status: "idle" }), []);
 
-  return { state, request, reset };
+  return { state, permissionState, request, reset };
 }

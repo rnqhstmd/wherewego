@@ -59,12 +59,13 @@ public class PinService {
         if (cmd.memo() != null && !cmd.memo().isBlank()) {
             pin.applyManualMemo(cmd.memo());
         }
+        Pin saved;
         try {
-            pinRepository.save(pin);
+            saved = pinRepository.saveAndFlush(pin);
         } catch (DataIntegrityViolationException e) {
             throw new CoreException(ErrorType.PLC_DUPLICATE_PIN);
         }
-        return PinSummary.from(pin);
+        return PinSummary.from(saved);
     }
 
     /**

@@ -8,11 +8,6 @@ import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
@@ -63,23 +58,12 @@ public final class PinV1Dto {
      * <p>{@link #toCommand()} 에서 빈 문자열 → null 정규화 + 길이/좌표 범위/필수값 검증을 수행한다.</p>
      */
     public record CreatePinRequest(
-            @NotBlank
-            @Size(max = 200)
             String placeName,
-            @Size(max = 500)
             String address,
-            @NotNull
-            @DecimalMin("-90")
-            @DecimalMax("90")
             BigDecimal latitude,
-            @NotNull
-            @DecimalMin("-180")
-            @DecimalMax("180")
             BigDecimal longitude,
             String instagramUrl,
-            @Size(max = 500)
             String memo,
-            @NotNull
             PinTag tag
     ) {
 
