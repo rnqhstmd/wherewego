@@ -5,6 +5,7 @@ import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,37 @@ public class PinService {
     public Pin registerFromSelection(Long userId, Long groupId, PlaceSearchHit hit, String instagramUrl) {
         Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
         return pinRepository.save(pin);
+    }
+
+    /**
+     * 웹/모바일 직접 등록 (Phase 6 FR-API-1).
+     * <p>활성 멤버십 검증(BR-1) → 도메인 생성 → memo 가 있으면 MANUAL 마킹 →
+     * 저장 시 {@code uq_pins_group_instagram} UNIQUE 충돌은 {@link ErrorType#PLC_DUPLICATE_PIN} 으로 변환한다.</p>
+     * <p>중복 검증은 {@code instagramUrl != null} 인 경우에만 동작 (BR-3 — 직접 등록 중복 차단 미적용).</p>
+     */
+    @Transactional
+    public PinSummary addPin(Long userId, Long groupId, PinCreateCommand cmd) {
+        groupMemberService.requireActiveMembership(userId, groupId);
+        Pin pin = Pin.createFromUser(
+                groupId,
+                userId,
+                cmd.placeName(),
+                cmd.address(),
+                cmd.latitude(),
+                cmd.longitude(),
+                cmd.instagramUrl(),
+                cmd.tag()
+        );
+        if (cmd.memo() != null && !cmd.memo().isBlank()) {
+            pin.applyManualMemo(cmd.memo());
+        }
+        Pin saved;
+        try {
+            saved = pinRepository.saveAndFlush(pin);
+        } catch (DataIntegrityViolationException e) {
+            throw new CoreException(ErrorType.PLC_DUPLICATE_PIN);
+        }
+        return PinSummary.from(saved);
     }
 
     /**

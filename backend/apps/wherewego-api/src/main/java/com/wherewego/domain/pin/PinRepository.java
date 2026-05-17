@@ -7,6 +7,13 @@ public interface PinRepository {
 
     Pin save(Pin pin);
 
+    /**
+     * 즉시 flush 하여 DB 제약 위반을 동일 트랜잭션 내에서 받아낼 수 있게 한다.
+     * <p>UNIQUE 충돌을 {@link org.springframework.dao.DataIntegrityViolationException} 으로
+     * try-catch 블록에서 잡아 도메인 ErrorType 으로 변환하는 흐름에 사용한다.</p>
+     */
+    Pin saveAndFlush(Pin pin);
+
     Optional<Pin> findById(Long id);
 
     /**

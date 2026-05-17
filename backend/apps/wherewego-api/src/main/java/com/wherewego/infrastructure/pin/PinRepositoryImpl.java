@@ -21,6 +21,11 @@ public class PinRepositoryImpl implements PinRepository {
     }
 
     @Override
+    public Pin saveAndFlush(Pin pin) {
+        return jpaRepository.saveAndFlush(pin);
+    }
+
+    @Override
     public Optional<Pin> findById(Long id) {
         return jpaRepository.findById(id);
     }

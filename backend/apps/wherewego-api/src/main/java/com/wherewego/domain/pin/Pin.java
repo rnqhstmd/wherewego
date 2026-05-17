@@ -120,6 +120,31 @@ public class Pin extends BaseEntity {
         );
     }
 
+    /**
+     * 사용자가 웹/모바일에서 직접 입력(검색 선택 또는 좌표 picker)한 결과 기반 등록 핀.
+     * <p>{@link #autoFromInstagram}/{@link #fromSelection} 과 달리 {@code tag} 를 호출자가 지정한다 (PLACE | MEMORY).
+     * memo 는 별도로 {@link #applyManualMemo(String)} 를 호출하여 MANUAL 마킹과 함께 부착한다.</p>
+     */
+    public static Pin createFromUser(Long groupId,
+                                     Long userId,
+                                     String placeName,
+                                     String address,
+                                     BigDecimal latitude,
+                                     BigDecimal longitude,
+                                     String instagramUrl,
+                                     PinTag tag) {
+        return new Pin(
+                groupId,
+                userId,
+                placeName,
+                address,
+                latitude,
+                longitude,
+                instagramUrl,
+                tag
+        );
+    }
+
     private static BigDecimal toBigDecimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
     }

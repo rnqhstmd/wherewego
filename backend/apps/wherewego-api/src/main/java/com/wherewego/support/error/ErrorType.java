@@ -33,6 +33,7 @@ public enum ErrorType {
     PLC_KAKAO_LOCAL_FAILED(HttpStatus.BAD_GATEWAY, "PLC_KAKAO_LOCAL_FAILED", "장소 검색을 일시적으로 사용할 수 없습니다."),
     PLC_INSTAGRAM_SCRAPE_FAILED(HttpStatus.BAD_GATEWAY, "PLC_INSTAGRAM_SCRAPE_FAILED", "인스타그램 데이터를 가져오지 못했습니다."),
     PLC_GOOGLE_PLACES_FAILED(HttpStatus.BAD_GATEWAY, "PLC_GOOGLE_PLACES_FAILED", "장소 검색을 일시적으로 사용할 수 없습니다."),
+    PLACE_SEARCH_KEYWORD_INVALID(HttpStatus.BAD_REQUEST, "PLACE_SEARCH_KEYWORD_INVALID", "검색어를 입력해 주세요."),
 
     /** 그룹 (Phase 3) */
     GROUP_NAME_INVALID(HttpStatus.BAD_REQUEST, "GROUP_NAME_INVALID", "그룹 이름은 1~30자여야 합니다."),
@@ -50,7 +51,10 @@ public enum ErrorType {
     PIN_UPDATE_EMPTY(HttpStatus.BAD_REQUEST, "PIN_UPDATE_EMPTY", "수정할 필드(memo 또는 tag)가 없습니다."),
     PIN_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "PIN_MEMO_TOO_LONG", "메모는 최대 500자까지 입력할 수 있습니다."),
     PIN_MEMO_INVALID(HttpStatus.BAD_REQUEST, "PIN_MEMO_INVALID", "메모 값이 유효하지 않습니다."),
-    PIN_TAG_INVALID(HttpStatus.BAD_REQUEST, "PIN_TAG_INVALID", "태그는 PLACE 또는 MEMORY 중 하나여야 합니다.");
+    PIN_TAG_INVALID(HttpStatus.BAD_REQUEST, "PIN_TAG_INVALID", "태그는 PLACE 또는 MEMORY 중 하나여야 합니다."),
+    PIN_PLACE_NAME_INVALID(HttpStatus.BAD_REQUEST, "PIN_PLACE_NAME_INVALID", "장소 이름은 1~200자여야 합니다."),
+    PIN_ADDRESS_INVALID(HttpStatus.BAD_REQUEST, "PIN_ADDRESS_INVALID", "주소는 최대 500자까지 입력할 수 있습니다."),
+    PIN_COORDINATE_INVALID(HttpStatus.BAD_REQUEST, "PIN_COORDINATE_INVALID", "좌표 범위가 유효하지 않습니다.");
 
     private final HttpStatus status;
     private final String code;

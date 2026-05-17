@@ -2,6 +2,7 @@ package com.wherewego.interfaces.api.pin;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wherewego.domain.pin.MemoSource;
+import com.wherewego.domain.pin.PinCreateCommand;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
@@ -49,6 +50,77 @@ public final class PinV1Dto {
     public record PinListResponse(List<PinSummaryResponse> items) {
         public static PinListResponse from(List<PinSummary> list) {
             return new PinListResponse(list.stream().map(PinSummaryResponse::from).toList());
+        }
+    }
+
+    /**
+     * 핀 직접 등록 요청 (Phase 6 FR-API-1).
+     * <p>{@link #toCommand()} 에서 빈 문자열 → null 정규화 + 길이/좌표 범위/필수값 검증을 수행한다.</p>
+     */
+    public record CreatePinRequest(
+            String placeName,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            String instagramUrl,
+            String memo,
+            PinTag tag
+    ) {
+
+        public PinCreateCommand toCommand() {
+            if (tag == null) {
+                throw new CoreException(ErrorType.PIN_TAG_INVALID);
+            }
+
+            String normalizedPlaceName = blankToNull(placeName);
+            if (normalizedPlaceName == null) {
+                throw new CoreException(ErrorType.PIN_PLACE_NAME_INVALID);
+            }
+            if (normalizedPlaceName.length() > 200) {
+                throw new CoreException(ErrorType.PIN_PLACE_NAME_INVALID);
+            }
+
+            String normalizedAddress = blankToNull(address);
+            if (normalizedAddress != null && normalizedAddress.length() > 500) {
+                throw new CoreException(ErrorType.PIN_ADDRESS_INVALID);
+            }
+
+            if (latitude == null || longitude == null) {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+            if (latitude.compareTo(BigDecimal.valueOf(-90)) < 0
+                    || latitude.compareTo(BigDecimal.valueOf(90)) > 0) {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+            if (longitude.compareTo(BigDecimal.valueOf(-180)) < 0
+                    || longitude.compareTo(BigDecimal.valueOf(180)) > 0) {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+
+            String normalizedInstagramUrl = blankToNull(instagramUrl);
+
+            String normalizedMemo = blankToNull(memo);
+            if (normalizedMemo != null && normalizedMemo.length() > 500) {
+                throw new CoreException(ErrorType.PIN_MEMO_TOO_LONG);
+            }
+
+            return new PinCreateCommand(
+                    normalizedPlaceName,
+                    normalizedAddress,
+                    latitude,
+                    longitude,
+                    normalizedInstagramUrl,
+                    normalizedMemo,
+                    tag
+            );
+        }
+
+        private static String blankToNull(String value) {
+            if (value == null) {
+                return null;
+            }
+            String trimmed = value.trim();
+            return trimmed.isEmpty() ? null : trimmed;
         }
     }
 

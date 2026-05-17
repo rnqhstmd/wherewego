@@ -30,6 +30,7 @@
 - **JWT 세션** — 1인 개발·단일 EC2 환경에 적합
 - **Group 추상화** — `Couple_ID` 대신 `group_id`, MVP는 비즈니스 레이어에서 1인 1그룹 제약
 - **Haversine 거리** — PostGIS 없이 애플리케이션 레벨 계산 (~50핀 규모에 충분)
+- **디자인 핸드오프 워크플로 (Phase 6+)** — 시각적 UI 변경이 큰 Phase에서는 [Claude Design](https://claude.ai/design)에서 와이어프레임/하이파이를 만들고, 핸드오프 번들(tar.gz, `tokens.jsx`/`screens-*.jsx`/`icons/` 포함)을 `.dev/{branch}/design-bundle/`에 보관 후 PRD에 첨부한다. coder는 `tokens.jsx`의 색상/폰트/공용 컴포넌트(`PinDot`/`PinTag`/`SpeechBubblePopup` 등)와 `screens-*.jsx`의 화면별 사양을 React/TypeScript로 1:1 변환한다. 디자인 토큰은 `frontend/src/lib/design/tokens.ts` + `globals.css @theme` 양쪽에 정의해 클래스명/JS 참조 모두 지원. Phase 6 적용 사례 — PR [#13](https://github.com/rnqhstmd/wherewego/pull/13).
 
 ## 구현 로드맵 (Phase 진행도)
 
@@ -41,8 +42,8 @@
 | Phase 2.5 | 장소명 추출 regex → **Gemini 2.0 Flash** 전환 ([상세](place/gemini-migration.md)) | ⬜ 계획 | — |
 | Phase 3 | 그룹 생성/초대/탈퇴 + 활성 GroupMember 권한 검사 (group 도메인 본 구현) | ⬜ 계획 | — |
 | Phase 4 | 웹 UI 핀 CRUD (목록/수정/삭제, 메모 수동 편집) | ⬜ 계획 | — |
-| Phase 5 | **Google Places API 비동기 폴백** + 카카오 콜백 푸시 (해외 장소 지원) | ⬜ 계획 | — |
-| Phase 6 | Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 (Haversine) | ⬜ 계획 | — |
+| Phase 5 | **Google Places API 비동기 폴백** + 카카오 콜백 푸시 (해외 장소 지원) | ✅ 완료 | [#11](https://github.com/rnqhstmd/wherewego/pull/11) |
+| **Phase 6** | **Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 (Haversine)** + 디자인 시스템 신설 + 핀 직접 등록 웹 API | ✅ 완료 | [#13](https://github.com/rnqhstmd/wherewego/pull/13) |
 | Phase 후속 | `@RefreshScope` + Spring Cloud Config, GC 배치, 레이트 리미팅, 탈퇴 cascade 정책, 카카오 i 오픈빌더 PLACE_SELECTION 버튼 action 검증 | ⬜ 미정 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.

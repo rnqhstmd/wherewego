@@ -1,6 +1,9 @@
 import { cookies } from "next/headers";
 
 import type { ApiResponse } from "./types";
+import { ApiError } from "./http-client";
+
+export { ApiError, apiFetch } from "./http-client";
 
 /**
  * 백엔드 직접 호출용 베이스 URL.
@@ -12,42 +15,18 @@ const BACKEND_BASE_URL =
 const API_PREFIX = "/api/v1";
 
 /**
- * 백엔드 ApiResponse FAIL 응답을 표현하는 에러.
+ * 백엔드 인증에 필요한 쿠키만 화이트리스트로 포워딩한다.
+ * 이름은 backend `AuthCookieFactory.ACCESS_TOKEN` / `REFRESH_TOKEN` 과 동일하다.
+ * 그 외 쿠키(분석, 디자인 툴, 세션 등)는 백엔드로 흘려보내지 않는다.
  */
-export class ApiError extends Error {
-  readonly code: string;
-  readonly status: number;
-
-  constructor(code: string, message: string, status: number) {
-    super(message);
-    this.name = "ApiError";
-    this.code = code;
-    this.status = status;
-  }
-}
-
-/**
- * 클라이언트 측에서 BFF 프록시(`/api/v1/...`)를 호출한다.
- * 동일 오리진이므로 쿠키는 브라우저가 자동으로 부착한다.
- */
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(`${API_PREFIX}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-  return parseResponse<T>(res);
-}
+const FORWARDED_COOKIE_NAMES: ReadonlySet<string> = new Set([
+  "access_token",
+  "refresh_token",
+]);
 
 /**
  * Server Component / Server Action에서 백엔드를 직접 호출한다.
- * Next.js 16의 비동기 `cookies()`로 요청 쿠키를 그대로 부착하여 인증을 유지한다.
+ * Next.js 16의 비동기 `cookies()`로 인증 쿠키만 화이트리스트 부착하여 인증을 유지한다.
  */
 export async function apiFetchServer<T>(
   path: string,
@@ -56,6 +35,7 @@ export async function apiFetchServer<T>(
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
     .getAll()
+    .filter((c) => FORWARDED_COOKIE_NAMES.has(c.name))
     .map((c) => `${c.name}=${encodeURIComponent(c.value)}`)
     .join("; ");
   const res = await fetch(`${BACKEND_BASE_URL}${API_PREFIX}${path}`, {
