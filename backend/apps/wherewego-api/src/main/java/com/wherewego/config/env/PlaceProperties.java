@@ -23,7 +23,8 @@ public record PlaceProperties(
 
     public record Search(
             @Positive long syncDeadlineMs,
-            @Positive int kakaoLocalSize
+            @Positive int kakaoLocalSize,
+            @Positive long googleSyncThresholdMs
     ) { }
 
     public record Scraper(

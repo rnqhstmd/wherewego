@@ -12,7 +12,8 @@ public record KakaoApiProperties(
         @NotBlank String localApiKey,
         @Valid OAuth oauth,
         @Valid Local local,
-        @Valid Skill skill
+        @Valid Skill skill,
+        @Valid Callback callback
 ) {
     public record OAuth(
             @NotBlank String clientId,
@@ -27,5 +28,9 @@ public record KakaoApiProperties(
 
     public record Skill(
             @NotBlank String secret
+    ) { }
+
+    public record Callback(
+            @Positive int timeoutMs
     ) { }
 }

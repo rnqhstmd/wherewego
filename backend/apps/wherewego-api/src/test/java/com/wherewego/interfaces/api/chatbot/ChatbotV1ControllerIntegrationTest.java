@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,7 @@ import java.util.List;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -67,8 +69,10 @@ class ChatbotV1ControllerIntegrationTest {
 
     @DynamicPropertySource
     static void overrideExternalUrls(DynamicPropertyRegistry registry) {
-        // Kakao Local 만 WireMock 으로 대체. Instagram 스크래퍼는 feature flag 로 우회 (AC-18).
+        // Kakao Local 과 Google Places 모두 WireMock 으로 대체.
+        // Instagram 스크래퍼는 feature flag 로 우회 (AC-18) — 외부 HTTPS 호출 비신뢰성 차단.
         registry.add("kakao.local.base-url", wireMock::baseUrl);
+        registry.add("google.places.base-url", wireMock::baseUrl);
         registry.add("place.instagram.scraping-enabled", () -> "false");
     }
 
@@ -356,5 +360,100 @@ class ChatbotV1ControllerIntegrationTest {
     @Test
     void webhook_instagramLink_kakaoMultiple_returnsListCard() {
         // 비활성 — 설계서 권장 옵션 (b) 에 따라 단위 테스트로 위임
+    }
+
+    // ------------------------------------------------------------------
+    // 구글 폴백 (Phase 5)
+    // ------------------------------------------------------------------
+
+    private void stubKakaoLocalEmpty() {
+        String json = """
+                { "documents": [] }
+                """;
+        wireMock.stubFor(get(urlPathEqualTo("/v2/local/search/keyword.json"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json;charset=UTF-8")
+                        .withBody(json)));
+    }
+
+    private void stubGooglePlacesSingle(String placeId, String placeName) {
+        String json = """
+                {
+                  "places": [
+                    {
+                      "id": "%s",
+                      "displayName": { "text": "%s", "languageCode": "ko" },
+                      "formattedAddress": "주소",
+                      "location": { "latitude": 37.5, "longitude": 127.0 }
+                    }
+                  ]
+                }
+                """.formatted(placeId, placeName);
+        wireMock.stubFor(post(urlPathEqualTo("/v1/places:searchText"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json;charset=UTF-8")
+                        .withBody(json)));
+    }
+
+    private void stubGooglePlacesServerError() {
+        wireMock.stubFor(post(urlPathEqualTo("/v1/places:searchText"))
+                .willReturn(aResponse().withStatus(500)));
+    }
+
+    /**
+     * Google 폴백 동기 경로 E2E.
+     *
+     * <p><b>비활성 사유 — Instagram 스크래핑 의존:</b>
+     * 본 동기 폴백 경로는 카카오 Local 검색 분기와 동일하게 Instagram 스크래퍼가 실제 키워드를 추출해야 진입한다.
+     * Instagram 게시물 페이지는 외부 HTTPS 호출이며 WireMock 으로 인터셉트할 수 없어 E2E 가 flaky 하다
+     * (기존 AC-9/AC-10 케이스도 동일 사유로 {@code @Disabled} 처리됨).
+     * 본 경로의 핵심 분기(runSync Single/Multiple/Empty + Slack 폴백)는
+     * {@code PlaceFallbackOrchestratorTest} 단위 테스트가 8 케이스로 커버한다.</p>
+     */
+    @Nested
+    @DisplayName("Google 폴백 경로 (동기) E2E")
+    class GoogleFallbackSync {
+
+        @DisplayName("POST /api/v1/chatbot/webhook - 카카오 Local Empty + Google 200 Single 시 동기 폴백으로 저장 메시지를 응답한다.")
+        @Disabled("Instagram 스크래핑(spike 실제 HTTPS) 의존으로 E2E 비신뢰성. PlaceFallbackOrchestratorTest.runSync_singleHit 로 검증.")
+        @Test
+        void googleFallback_singleHit_returnsSavedMessage() {
+            // arrange : 카카오는 0건, Google 은 1건 — 동기 폴백 Single 진입.
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+            stubKakaoLocalEmpty();
+            stubGooglePlacesSingle("g1", "구글단건장소");
+
+            // act
+            ResponseEntity<JsonNode> response = webhookCall(
+                    "https://www.instagram.com/p/GFB-1/",
+                    SKILL_SECRET
+            );
+
+            // assert : 단건 저장 안내
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("장소가 저장되었어요");
+        }
+
+        @DisplayName("POST /api/v1/chatbot/webhook - 카카오 Local Empty + Google 5xx 시 동기 폴백 실패로 Empty 메시지를 응답한다.")
+        @Disabled("Instagram 스크래핑(spike 실제 HTTPS) 의존으로 E2E 비신뢰성. PlaceFallbackOrchestratorTest.runSync_googleFailure 로 검증.")
+        @Test
+        void googleFallback_googleServerError_returnsEmptyMessage() {
+            // arrange : 카카오는 0건, Google 은 500 — 동기 폴백 Empty + Slack 알림.
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+            stubKakaoLocalEmpty();
+            stubGooglePlacesServerError();
+
+            // act
+            ResponseEntity<JsonNode> response = webhookCall(
+                    "https://www.instagram.com/p/GFB-2/",
+                    SKILL_SECRET
+            );
+
+            // assert : 폴백 SimpleText 안내
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("장소를 찾지 못했어요");
+        }
     }
 }
