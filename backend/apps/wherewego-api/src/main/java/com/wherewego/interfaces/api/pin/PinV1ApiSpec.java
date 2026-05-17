@@ -4,8 +4,9 @@ import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
-@Tag(name = "Pin V1 API", description = "그룹 핀 목록/수정/삭제 API 입니다 (Phase 4).")
+@Tag(name = "Pin V1 API", description = "그룹 핀 목록/수정/삭제/등록 API 입니다 (Phase 4 + Phase 6).")
 public interface PinV1ApiSpec {
 
     @Operation(
@@ -19,6 +20,20 @@ public interface PinV1ApiSpec {
             @Parameter(hidden = true) Long userId,
             Long groupId,
             String tag
+    );
+
+    @Operation(
+            summary = "핀 직접 등록",
+            description = "활성 그룹원이 그룹에 핀을 직접 등록합니다 (Phase 6 FR-API-1, BR-1). " +
+                    "검색 결과 선택 또는 좌표 picker 흐름 모두에서 사용됩니다. " +
+                    "memo 가 비어있지 않으면 memoSource=MANUAL 로 마킹됩니다 (BR-3). " +
+                    "instagramUrl 이 있을 때만 그룹 내 UNIQUE 제약(uq_pins_group_instagram) 에 따라 " +
+                    "중복은 PLC_DUPLICATE_PIN (409) 으로 거부됩니다."
+    )
+    ApiResponse<PinV1Dto.PinSummaryResponse> createPin(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            @Valid PinV1Dto.CreatePinRequest request
     );
 
     @Operation(

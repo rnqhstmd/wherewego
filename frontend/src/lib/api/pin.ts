@@ -1,5 +1,10 @@
 import { apiFetchServer } from "./http";
-import type { PinListResponse, PinSummaryResponse, PinTag } from "./types";
+import type {
+  CreatePinInput,
+  PinListResponse,
+  PinSummaryResponse,
+  PinTag,
+} from "./types";
 
 export interface PinPatch {
   memo?: string;
@@ -16,6 +21,22 @@ export async function listPins(
   const query = tag ? `?tag=${tag}` : "";
   return apiFetchServer<PinListResponse>(
     `/groups/${groupId}/pins${query}`,
+  );
+}
+
+/**
+ * 그룹에 새 핀을 추가한다. Server Action에서 호출되어 JWT 쿠키가 자동 부착된다.
+ */
+export async function createPin(
+  groupId: number,
+  input: CreatePinInput,
+): Promise<PinSummaryResponse> {
+  return apiFetchServer<PinSummaryResponse>(
+    `/groups/${groupId}/pins`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   );
 }
 
