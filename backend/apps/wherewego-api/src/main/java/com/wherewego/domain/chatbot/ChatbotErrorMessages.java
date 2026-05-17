@@ -25,6 +25,7 @@ public final class ChatbotErrorMessages {
             case PLC_PLACE_NOT_FOUND -> "장소를 찾지 못했어요. 직접 검색해 주세요.";
             case PLC_DUPLICATE_PIN -> "이미 저장된 장소예요.";
             case PLC_KAKAO_LOCAL_FAILED -> "장소 검색을 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.";
+            case PLC_GOOGLE_PLACES_FAILED -> "장소 검색을 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.";
             case PLC_INSTAGRAM_SCRAPE_FAILED -> "처리가 지연되었어요. 다시 시도해 주세요.";
             default -> DEFAULT_MESSAGE;
         };

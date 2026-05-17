@@ -38,7 +38,7 @@ class PlaceSearchServiceTest {
 
     @BeforeEach
     void setUp() {
-        PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5);
+        PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5, 1_700L);
         when(placeProperties.search()).thenReturn(search);
         placeSearchService = new PlaceSearchService(kakaoLocalClient, placeProperties);
     }

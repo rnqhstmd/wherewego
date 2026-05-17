@@ -1,13 +1,16 @@
 package com.wherewego.domain.chatbot.handler;
 
+import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.ChatbotErrorMessages;
+import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
+import com.wherewego.domain.place.PlaceFallbackOrchestrator;
 import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.place.PlaceSearchOutcome;
 import com.wherewego.domain.place.PlaceSearchService;
@@ -23,10 +26,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.RejectedExecutionException;
 
 @Component
 @RequiredArgsConstructor
@@ -41,6 +43,8 @@ public class InstagramLinkHandler implements MessageHandler {
     private final PinService pinService;
     private final PlaceSelectionCandidateStore placeSelectionCandidateStore;
     private final TwoSecondMemoSession twoSecondMemoSession;
+    private final PlaceFallbackOrchestrator placeFallbackOrchestrator;
+    private final PlaceProperties placeProperties;
 
     @Override
     public MessageType supports() {
@@ -86,14 +90,16 @@ public class InstagramLinkHandler implements MessageHandler {
             return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 직접 검색해 주세요.");
         }
 
-        PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(parsedOpt.get().placeKeyword(), ctx);
+        String keyword = parsedOpt.get().placeKeyword();
+        PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(keyword, ctx);
         if (outcome instanceof PlaceSearchOutcome.Single single) {
             return handleSingle(botUserKey, userId, groupId, single.hit(), url);
         }
         if (outcome instanceof PlaceSearchOutcome.Multiple multiple) {
             return handleMultiple(botUserKey, multiple.hits(), url);
         }
-        return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 직접 검색해 주세요.");
+        // outcome == Empty → Google 폴백 분기
+        return handleGoogleFallback(botUserKey, userId, groupId, url, keyword, ctx, request);
     }
 
     private ChatbotV1Dto.SkillResponse handleSingle(String botUserKey,
@@ -114,38 +120,46 @@ public class InstagramLinkHandler implements MessageHandler {
     private ChatbotV1Dto.SkillResponse handleMultiple(String botUserKey,
                                                       List<PlaceSearchHit> hits,
                                                       String instagramUrl) {
-        List<ChatbotV1Dto.Button> buttons = new ArrayList<>();
-        for (PlaceSearchHit hit : hits) {
-            placeSelectionCandidateStore.put(
-                    botUserKey,
-                    hit.kakaoPlaceId(),
-                    new PlaceSelectionCandidateStore.Entry(hit, instagramUrl)
-            );
-            buttons.add(new ChatbotV1Dto.Button(
-                    hit.placeName(),
-                    "message",
-                    hit.placeName(),
-                    Map.of("placeId", hit.kakaoPlaceId())
-            ));
-        }
+        return PlaceCardBuilder.buildMultipleCard(botUserKey, hits, instagramUrl, placeSelectionCandidateStore);
+    }
 
-        StringBuilder description = new StringBuilder();
-        for (int i = 0; i < hits.size(); i++) {
-            PlaceSearchHit hit = hits.get(i);
-            description.append(i + 1).append(". ").append(hit.placeName());
-            if (hit.address() != null && !hit.address().isBlank()) {
-                description.append(" — ").append(hit.address());
+    private ChatbotV1Dto.SkillResponse handleGoogleFallback(String botUserKey,
+                                                            Long userId,
+                                                            Long groupId,
+                                                            String instagramUrl,
+                                                            String keyword,
+                                                            ChatbotContext ctx,
+                                                            ChatbotV1Dto.SkillRequest request) {
+        long threshold = placeProperties.search().googleSyncThresholdMs();
+
+        // 동기 경로: 잔여 시간 충분
+        if (ctx.remaining() >= threshold) {
+            PlaceSearchOutcome syncOutcome = placeFallbackOrchestrator.runSync(keyword, ctx);
+            if (syncOutcome instanceof PlaceSearchOutcome.Single single) {
+                return handleSingle(botUserKey, userId, groupId, single.hit(), instagramUrl);
             }
-            description.append('\n');
+            if (syncOutcome instanceof PlaceSearchOutcome.Multiple multiple) {
+                return handleMultiple(botUserKey, multiple.hits(), instagramUrl);
+            }
+            return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
         }
 
-        ChatbotV1Dto.BasicCard card = new ChatbotV1Dto.BasicCard(
-                "장소를 선택해 주세요",
-                description.toString().trim(),
-                buttons
+        // 비동기 경로: callbackUrl 존재 시
+        String callbackUrl = request.userRequest().callbackUrl();
+        if (callbackUrl == null || callbackUrl.isBlank()) {
+            return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
+        }
+
+        FallbackJobContext jobCtx = new FallbackJobContext(
+                botUserKey, userId, groupId, callbackUrl, instagramUrl, keyword
         );
-        List<Map<String, Object>> outputs = new ArrayList<>();
-        outputs.add(Map.of("basicCard", card));
-        return ChatbotV1Dto.SkillResponse.cards(outputs);
+        try {
+            placeFallbackOrchestrator.runAsync(keyword, jobCtx);
+            return ChatbotV1Dto.SkillResponse.useCallback("장소를 찾고 있어요. 잠시만 기다려주세요.");
+        } catch (RejectedExecutionException e) {
+            // 큐 가득참 — Tomcat 워커 블로킹 회피를 위해 콜백 푸시는 생략 (TIMEOUT 3s × queue full 상황).
+            log.warn("place fallback rejected keyword={}", keyword);
+            return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
+        }
     }
 }

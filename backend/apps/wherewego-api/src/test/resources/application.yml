@@ -39,6 +39,8 @@ kakao:
     timeout-ms: 1500
   skill:
     secret: test-kakao-skill-secret
+  callback:
+    timeout-ms: 3000
 
 place:
   instagram:
@@ -46,6 +48,7 @@ place:
   search:
     sync-deadline-ms: 4500
     kakao-local-size: 5
+    google-sync-threshold-ms: 1700
   scraper:
     instagram:
       timeout-ms: 8000
@@ -61,6 +64,8 @@ mapbox:
 google:
   places:
     api-key: test-google-places-api-key
+    base-url: https://places.googleapis.com
+    timeout-ms: 1500
 
 web-security:
   cookie:

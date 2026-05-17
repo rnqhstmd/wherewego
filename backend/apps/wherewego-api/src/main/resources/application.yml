@@ -45,6 +45,8 @@ kakao:
     timeout-ms: 1500
   skill:
     secret: ${KAKAO_SKILL_SECRET}
+  callback:
+    timeout-ms: 3000
 
 place:
   instagram:
@@ -54,6 +56,7 @@ place:
   search:
     sync-deadline-ms: 4500
     kakao-local-size: 5
+    google-sync-threshold-ms: 1700
   scraper:
     instagram:
       # sync-deadline-ms(4500)보다 작게 유지하여 stage별 컷오프가 데드라인 내에 동작하도록 한다.
@@ -70,6 +73,8 @@ mapbox:
 google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY}
+    base-url: https://places.googleapis.com
+    timeout-ms: 1500
 
 web-security:
   cookie:

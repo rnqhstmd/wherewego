@@ -12,28 +12,38 @@ public final class ChatbotV1Dto {
 
     public record SkillRequest(UserRequest userRequest, Action action) { }
 
-    public record UserRequest(String utterance, User user) { }
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UserRequest(String utterance, User user, String callbackUrl) { }
 
     public record User(String id, String type) { }
 
     public record Action(Map<String, String> params, Map<String, String> clientExtra) { }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SkillResponse(String version, Template template) {
+    public record SkillResponse(String version, Template template, Boolean useCallback) {
 
         public static SkillResponse simple(String text) {
             Map<String, Object> output = Map.of(
                     "simpleText", Map.of("text", text)
             );
-            return new SkillResponse("2.0", new Template(List.of(output)));
+            return new SkillResponse("2.0", new Template(List.of(output)), null);
         }
 
         public static SkillResponse cards(List<Map<String, Object>> outputs) {
-            return new SkillResponse("2.0", new Template(outputs));
+            return new SkillResponse("2.0", new Template(outputs), null);
         }
 
         public static SkillResponse empty() {
-            return new SkillResponse("2.0", new Template(List.of()));
+            return new SkillResponse("2.0", new Template(List.of()), null);
+        }
+
+        public static SkillResponse useCallback(String waitText) {
+            // 카카오 i 오픈빌더 useCallback=true 응답: 대기 텍스트는 template.outputs[].simpleText.text 로 노출.
+            // 별도 data 필드는 도입하지 않으며, NON_NULL 직렬화로 useCallback 필드는 false 가 아닌 true 일 때만 포함된다.
+            Map<String, Object> output = Map.of(
+                    "simpleText", Map.of("text", waitText)
+            );
+            return new SkillResponse("2.0", new Template(List.of(output)), Boolean.TRUE);
         }
     }
 
