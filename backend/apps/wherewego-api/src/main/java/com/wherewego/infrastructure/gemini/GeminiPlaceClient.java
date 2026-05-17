@@ -74,7 +74,7 @@ public class GeminiPlaceClient {
     private static final String OUTCOME_TIMEOUT = "timeout";
     private static final String OUTCOME_ERROR = "error";
 
-    private final PlaceProperties.Gemini properties;
+    private final PlaceProperties placeProperties;
     private final RestClient restClient;
     private final GeminiUserQuotaService userQuotaService;
     private final GeminiResponseCacheService responseCache;
@@ -84,13 +84,14 @@ public class GeminiPlaceClient {
                              GeminiUserQuotaService userQuotaService,
                              GeminiResponseCacheService responseCache,
                              GeminiUsageMetrics metrics) {
-        this.properties = placeProperties.scraper().gemini();
+        this.placeProperties = placeProperties;
         this.userQuotaService = userQuotaService;
         this.responseCache = responseCache;
         this.metrics = metrics;
+        // TODO(후속): RestClient timeoutMs는 생성자 시점 1회 캡처. 런타임 timeout 변경은 본 PR 범위 외.
         this.restClient = RestClient.builder()
                 .baseUrl(BASE_URL)
-                .requestFactory(buildRequestFactory(properties.timeoutMs()))
+                .requestFactory(buildRequestFactory(placeProperties.scraper().gemini().timeoutMs()))
                 .build();
     }
 
@@ -110,7 +111,7 @@ public class GeminiPlaceClient {
             return Optional.empty();
         }
 
-        if (!properties.enabled()) {
+        if (!placeProperties.scraper().gemini().enabled()) {
             metrics.recordCall(OUTCOME_DISABLED);
             return Optional.empty();
         }
@@ -149,7 +150,7 @@ public class GeminiPlaceClient {
         try {
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
-                    .header("x-goog-api-key", properties.apiKey())
+                    .header("x-goog-api-key", placeProperties.scraper().gemini().apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()

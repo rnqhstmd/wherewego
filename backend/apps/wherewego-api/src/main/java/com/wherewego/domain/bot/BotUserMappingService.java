@@ -5,6 +5,7 @@ import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -46,5 +47,17 @@ public class BotUserMappingService {
     @Transactional(readOnly = true)
     public Optional<Long> resolveUserId(String botUserKey) {
         return mappingRepository.findByBotUserKey(botUserKey).map(BotUserMapping::getUserId);
+    }
+
+    /**
+     * 사용자의 봇 연동을 해제한다 (B-4). 매핑이 없으면 멱등 skip.
+     * <p>
+     * <strong>호출 계약:</strong> 반드시 호출자의 트랜잭션 안에서 실행되어야 한다
+     * (예: {@link com.wherewego.domain.group.GroupMemberService#leaveGroup}).
+     * REQUIRED 전파로 부모 TX에 합류하여 AC-B8(GroupMember soft-delete와 동일 TX) 보장.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void unlink(Long userId) {
+        mappingRepository.deleteByUserId(userId);
     }
 }

@@ -1,6 +1,8 @@
 package com.wherewego.domain.group;
 
+import com.wherewego.domain.bot.BotUserMapping;
 import com.wherewego.domain.user.UserModel;
+import com.wherewego.infrastructure.bot.BotUserMappingJpaRepository;
 import com.wherewego.infrastructure.group.GroupJpaRepository;
 import com.wherewego.infrastructure.group.GroupMemberJpaRepository;
 import com.wherewego.infrastructure.group.InviteLinkJpaRepository;
@@ -52,6 +54,9 @@ class GroupMemberServiceIT {
 
     @Autowired
     private UserJpaRepository userJpaRepository;
+
+    @Autowired
+    private BotUserMappingJpaRepository botUserMappingJpaRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -295,5 +300,40 @@ class GroupMemberServiceIT {
         assertThat(((Number) pinRow.get("group_id")).longValue()).isEqualTo(group.groupId());
         assertThat(((Number) pinRow.get("created_by")).longValue()).isEqualTo(userA);
         assertThat(pinRow.get("deleted_at")).isNull();
+    }
+
+    @DisplayName("leaveGroup - 봇 매핑이 존재하던 사용자가 탈퇴하면 bot_user_mappings 행도 함께 삭제된다 (AC-B6).")
+    @Test
+    void leaveGroup_removesBotUserMapping() {
+        // arrange : 그룹 + 봇 매핑 사전 등록
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        botUserMappingJpaRepository.save(BotUserMapping.link("kakao-bot-A", userA, Instant.now()));
+        assertThat(botUserMappingJpaRepository.findByUserId(userA)).isPresent();
+
+        // act
+        groupMemberService.leaveGroup(userA, group.groupId());
+
+        // assert : 봇 매핑 0건
+        Integer mappingCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bot_user_mappings WHERE user_id = ?",
+                Integer.class, userA);
+        assertThat(mappingCount).isZero();
+    }
+
+    @DisplayName("leaveGroup - 봇 미연동 사용자도 정상 탈퇴 처리되며 예외가 발생하지 않는다 (AC-B7).")
+    @Test
+    void leaveGroup_withoutBotMapping_succeeds() {
+        // arrange : 봇 매핑 없음
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        assertThat(botUserMappingJpaRepository.findByUserId(userA)).isEmpty();
+
+        // act
+        groupMemberService.leaveGroup(userA, group.groupId());
+
+        // assert : group_members.left_at 기록
+        Map<String, Object> memberRow = jdbcTemplate.queryForMap(
+                "SELECT left_at FROM group_members WHERE group_id = ? AND user_id = ?",
+                group.groupId(), userA);
+        assertThat(memberRow.get("left_at")).isNotNull();
     }
 }

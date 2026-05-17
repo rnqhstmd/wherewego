@@ -10,4 +10,6 @@ public interface BotUserMappingJpaRepository extends JpaRepository<BotUserMappin
     Optional<BotUserMapping> findByBotUserKey(String botUserKey);
 
     Optional<BotUserMapping> findByUserId(Long userId);
+
+    void deleteByUserId(Long userId);
 }
