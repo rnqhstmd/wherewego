@@ -6,18 +6,12 @@
 }
 
 /* Phase 6 디자인 토큰 — tokens.jsx::F 폰트 변수.
-   Pretendard는 self-host 전환 전 CDN으로 로드(layout.tsx 참조).
-   추후 next/font/local로 전환 시 --font-sans는 layout.tsx의 localFont가 주입한다. */
-:root {
-  --font-sans: "Pretendard Variable", "Pretendard", -apple-system,
-    "Apple SD Gothic Neo", system-ui, sans-serif;
-}
+   --font-sans / --font-serif / --font-emo / --font-mono 는 layout.tsx 의
+   next/font 가 className 으로 주입한다. */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 /* Phase 6 컬러 토큰 — tokens.jsx::T 와 1:1 매칭.

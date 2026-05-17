@@ -405,14 +405,21 @@ export default function MapClient({
     setActiveSheet("memo");
   }, []);
 
-  // Crosshair에서 좌표 확정 → MemoTag 단계로 전이 (placeName은 사용자 입력)
+  // Crosshair에서 좌표 확정 → MemoTag 단계로 전이.
+  // reverse geocoding 으로 채워진 placeName/address 를 초기값으로 사용하되,
+  // editable=true 로 사용자가 placeName 을 자유롭게 수정할 수 있도록 유지한다.
   const handleConfirmCrosshair = useCallback(
-    (coords: { lng: number; lat: number }) => {
+    (origin: {
+      lng: number;
+      lat: number;
+      address: string | null;
+      placeName: string | null;
+    }) => {
       setAddPinOrigin({
-        placeName: "",
-        address: null,
-        latitude: coords.lat,
-        longitude: coords.lng,
+        placeName: origin.placeName ?? "",
+        address: origin.address,
+        latitude: origin.lat,
+        longitude: origin.lng,
         editable: true,
       });
       setActiveSheet("memo");
@@ -666,6 +673,7 @@ export default function MapClient({
       "위치 선택",
       <AddPinPickerContent
         map={map}
+        mapboxToken={mapboxToken}
         onCancel={handleSheetClose}
         onConfirm={handleConfirmCrosshair}
       />,

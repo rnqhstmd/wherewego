@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Gowun_Batang, JetBrains_Mono, Noto_Serif_KR } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// Phase 6 폰트 로딩 — tokens.jsx::F 와 매칭.
-// Pretendard(--font-sans)는 self-host 전환 전 CDN으로 globals.css에서 정의한다.
-// 추후 frontend/public/fonts/PretendardVariable.woff2 self-host로 전환 필요.
+// Phase 6 폰트 — tokens.jsx::F 매칭. Pretendard는 self-host.
+const sans = localFont({
+  src: "../../public/fonts/PretendardVariable.woff2",
+  variable: "--font-sans",
+  display: "swap",
+  weight: "45 920",
+});
+
 const serif = Noto_Serif_KR({
   subsets: ["latin"],
   weight: ["400", "700", "900"],
@@ -45,15 +51,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${serif.variable} ${emo.variable} ${mono.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sans.variable} ${serif.variable} ${emo.variable} ${mono.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        {/* Pretendard Variable — CDN. 추후 self-host(next/font/local + woff2)로 전환 필요. */}
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
-        />
-      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
