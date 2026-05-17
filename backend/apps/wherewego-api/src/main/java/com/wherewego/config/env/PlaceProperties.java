@@ -1,6 +1,7 @@
 package com.wherewego.config.env;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -28,10 +29,16 @@ public record PlaceProperties(
     ) { }
 
     public record Scraper(
-            @Valid InstagramScraper instagram
+            @Valid InstagramScraper instagram,
+            @Valid Gemini gemini
     ) { }
 
     public record InstagramScraper(
+            @Positive int timeoutMs
+    ) { }
+
+    public record Gemini(
+            @NotBlank String apiKey,
             @Positive int timeoutMs
     ) { }
 }
