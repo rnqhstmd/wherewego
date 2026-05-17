@@ -52,6 +52,11 @@ place:
   scraper:
     instagram:
       timeout-ms: 8000
+    gemini:
+      enabled: false
+      api-key: ""
+      timeout-ms: 3000
+      daily-quota-per-user: 50
 
 bot:
   link-code:

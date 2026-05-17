@@ -17,7 +17,7 @@
 | FR-PLC-4 | Google Places API 폴백 (language=ko) | ✅ | [#11](https://github.com/rnqhstmd/wherewego/pull/11) — 동기/비동기 자동 분기 + 카카오 콜백 푸시 + SSRF 가드 |
 | FR-PLC-5 | 결과 1건/복수/0건 분기 처리 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — sealed `PlaceSearchOutcome` Single/Multiple/Empty |
 | FR-PLC-6 | 좌표 정규화 (lat/lng 통일) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
-| FR-PLC-7 | Gemini 2.0 Flash 장소명 추출 (regex 대체) | ⬜ | Phase 2.5 — [gemini-migration.md](gemini-migration.md) |
+| FR-PLC-7 | Gemini 2.0 Flash 장소명 추출 (regex 대체) | ✅ | [#15](https://github.com/rnqhstmd/wherewego/pull/15) — `GeminiPlaceClient` + `CaptionCleaner` 신규, `PlaceNameExtractor` 삭제. `x-goog-api-key` 헤더 인증 + 캡션 500자 가드 + Gemini 호출 직전 데드라인 가드 |
 | FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ⚠️ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — 재기동 토글, `@RefreshScope`는 Phase 후속 |
 
 ## 후속 작업
