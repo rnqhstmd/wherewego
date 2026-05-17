@@ -151,7 +151,7 @@ public class InstagramLinkHandler implements MessageHandler {
         }
 
         FallbackJobContext jobCtx = new FallbackJobContext(
-                botUserKey, userId, groupId, callbackUrl, instagramUrl, keyword, System.currentTimeMillis()
+                botUserKey, userId, groupId, callbackUrl, instagramUrl, keyword
         );
         try {
             placeFallbackOrchestrator.runAsync(keyword, jobCtx);

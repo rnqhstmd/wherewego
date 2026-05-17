@@ -14,6 +14,5 @@ public record FallbackJobContext(
         Long groupId,
         String callbackUrl,
         String instagramUrl,
-        String keyword,
-        long enqueuedAtMs
+        String keyword
 ) { }

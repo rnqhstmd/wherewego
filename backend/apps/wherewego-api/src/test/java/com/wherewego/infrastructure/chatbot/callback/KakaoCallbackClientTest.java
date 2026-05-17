@@ -146,6 +146,48 @@ class KakaoCallbackClientTest {
             // assert : wiremock 미호출
             assertThat(wireMock.getAllServeEvents()).isEmpty();
         }
+
+        @DisplayName("IPv6 loopback (`https://[::1]/callback`)이면 호출이 스킵된다.")
+        @Test
+        void ipv6Loopback_skipsCall() {
+            // arrange
+            wireMock.stubFor(post(urlPathEqualTo(CALLBACK_PATH))
+                    .willReturn(aResponse().withStatus(200)));
+
+            // act : ::1 — strictHostCheck=true 인스턴스 사용
+            strictClient.pushText("https://[::1]/callback", "text");
+
+            // assert : wiremock 미호출
+            assertThat(wireMock.getAllServeEvents()).isEmpty();
+        }
+
+        @DisplayName("IPv6 link-local (`https://[fe80::1]/callback`)이면 호출이 스킵된다.")
+        @Test
+        void ipv6LinkLocal_skipsCall() {
+            // arrange
+            wireMock.stubFor(post(urlPathEqualTo(CALLBACK_PATH))
+                    .willReturn(aResponse().withStatus(200)));
+
+            // act : fe80::1 — strictHostCheck=true 인스턴스 사용
+            strictClient.pushText("https://[fe80::1]/callback", "text");
+
+            // assert : wiremock 미호출
+            assertThat(wireMock.getAllServeEvents()).isEmpty();
+        }
+
+        @DisplayName("IPv6 ULA (`https://[fc00::1]/callback`)이면 호출이 스킵된다.")
+        @Test
+        void ipv6Ula_skipsCall() {
+            // arrange
+            wireMock.stubFor(post(urlPathEqualTo(CALLBACK_PATH))
+                    .willReturn(aResponse().withStatus(200)));
+
+            // act : fc00::1 — strictHostCheck=true 인스턴스 사용
+            strictClient.pushText("https://[fc00::1]/callback", "text");
+
+            // assert : wiremock 미호출
+            assertThat(wireMock.getAllServeEvents()).isEmpty();
+        }
     }
 
     @Nested

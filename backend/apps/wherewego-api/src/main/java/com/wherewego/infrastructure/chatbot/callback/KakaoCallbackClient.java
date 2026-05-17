@@ -76,7 +76,7 @@ public class KakaoCallbackClient {
                     .body(payload)
                     .retrieve()
                     .toBodilessEntity();
-            log.debug("kakao callback push ok url={}", callbackUrl);
+            log.debug("kakao callback push ok host={}", safeHost(callbackUrl));
         } catch (RestClientException e) {
             log.warn("kakao callback push failed cause={}", e.getMessage());
         }
@@ -87,6 +87,16 @@ public class KakaoCallbackClient {
      */
     public void pushText(String callbackUrl, String text) {
         push(callbackUrl, ChatbotV1Dto.SkillResponse.simple(text));
+    }
+
+    private static String safeHost(String url) {
+        try {
+            URI u = URI.create(url);
+            String host = u.getHost();
+            return host == null ? "unknown" : host;
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     /**
@@ -113,6 +123,19 @@ public class KakaoCallbackClient {
                         if (second >= 16 && second <= 31) return false;
                     } catch (NumberFormatException ignored) { /* not numeric — domain pass */ }
                 }
+            }
+            // IPv6 가드. URI.getHost()는 IPv6를 대괄호 없는 형태로 반환할 수도, 포함된 형태로 반환할 수도 있어 모두 처리.
+            String ipv6 = h;
+            if (ipv6.startsWith("[") && ipv6.endsWith("]")) {
+                ipv6 = ipv6.substring(1, ipv6.length() - 1);
+            }
+            if (ipv6.contains(":")) {
+                // ::1 loopback
+                if (ipv6.equals("::1") || ipv6.equals("0:0:0:0:0:0:0:1")) return false;
+                // fe80::/10 link-local
+                if (ipv6.startsWith("fe80:") || ipv6.startsWith("fe8") || ipv6.startsWith("fe9") || ipv6.startsWith("fea") || ipv6.startsWith("feb")) return false;
+                // fc00::/7 ULA (fc, fd)
+                if (ipv6.startsWith("fc") || ipv6.startsWith("fd")) return false;
             }
             return true;
         } catch (Exception e) {

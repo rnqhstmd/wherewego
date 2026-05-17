@@ -1,11 +1,11 @@
 package com.wherewego.domain.place;
 
-import com.wherewego.config.env.GooglePlacesProperties;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.chatbot.handler.PlaceCardBuilder;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.infrastructure.chatbot.callback.KakaoCallbackClient;
 import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import com.wherewego.infrastructure.place.google.GooglePlacesClient;
@@ -44,25 +44,25 @@ public class PlaceFallbackOrchestrator {
     private static final long ASYNC_DEADLINE_MS = 2_000L;
 
     private final GooglePlacesClient googlePlacesClient;
-    private final GooglePlacesProperties googlePlacesProperties;
     private final KakaoCallbackClient kakaoCallbackClient;
     private final SlackNotifier slackNotifier;
     private final PinService pinService;
     private final PlaceSelectionCandidateStore candidateStore;
+    private final TwoSecondMemoSession twoSecondMemoSession;
     private final ThreadPoolExecutor executor;
 
     public PlaceFallbackOrchestrator(GooglePlacesClient googlePlacesClient,
-                                     GooglePlacesProperties googlePlacesProperties,
                                      KakaoCallbackClient kakaoCallbackClient,
                                      SlackNotifier slackNotifier,
                                      PinService pinService,
-                                     PlaceSelectionCandidateStore candidateStore) {
+                                     PlaceSelectionCandidateStore candidateStore,
+                                     TwoSecondMemoSession twoSecondMemoSession) {
         this.googlePlacesClient = googlePlacesClient;
-        this.googlePlacesProperties = googlePlacesProperties;
         this.kakaoCallbackClient = kakaoCallbackClient;
         this.slackNotifier = slackNotifier;
         this.pinService = pinService;
         this.candidateStore = candidateStore;
+        this.twoSecondMemoSession = twoSecondMemoSession;
 
         AtomicInteger seq = new AtomicInteger();
         this.executor = new ThreadPoolExecutor(
@@ -138,6 +138,7 @@ public class PlaceFallbackOrchestrator {
             try {
                 Pin saved = pinService.registerFromInstagram(
                         jobCtx.userId(), jobCtx.groupId(), single.hit(), jobCtx.instagramUrl());
+                twoSecondMemoSession.put(jobCtx.botUserKey(), saved.getId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
                         "장소가 저장되었어요: " + saved.getPlaceName());
             } catch (DataIntegrityViolationException dup) {

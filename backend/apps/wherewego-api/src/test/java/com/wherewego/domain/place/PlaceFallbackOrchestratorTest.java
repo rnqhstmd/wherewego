@@ -1,10 +1,10 @@
 package com.wherewego.domain.place;
 
-import com.wherewego.config.env.GooglePlacesProperties;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.infrastructure.chatbot.callback.KakaoCallbackClient;
 import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import com.wherewego.infrastructure.place.google.GooglePlacesClient;
@@ -50,9 +50,6 @@ class PlaceFallbackOrchestratorTest {
     private GooglePlacesClient googlePlacesClient;
 
     @Mock
-    private GooglePlacesProperties googlePlacesProperties;
-
-    @Mock
     private KakaoCallbackClient kakaoCallbackClient;
 
     @Mock
@@ -65,6 +62,9 @@ class PlaceFallbackOrchestratorTest {
     private PlaceSelectionCandidateStore candidateStore;
 
     @Mock
+    private TwoSecondMemoSession twoSecondMemoSession;
+
+    @Mock
     private Pin savedPin;
 
     private PlaceFallbackOrchestrator orchestrator;
@@ -73,11 +73,11 @@ class PlaceFallbackOrchestratorTest {
     void setUp() {
         orchestrator = new PlaceFallbackOrchestrator(
                 googlePlacesClient,
-                googlePlacesProperties,
                 kakaoCallbackClient,
                 slackNotifier,
                 pinService,
-                candidateStore
+                candidateStore,
+                twoSecondMemoSession
         );
     }
 
@@ -88,7 +88,7 @@ class PlaceFallbackOrchestratorTest {
     private static FallbackJobContext jobCtx() {
         return new FallbackJobContext(
                 BOT_USER_KEY, 1L, 2L, CALLBACK_URL,
-                INSTAGRAM_URL, KEYWORD, System.currentTimeMillis()
+                INSTAGRAM_URL, KEYWORD
         );
     }
 
@@ -179,6 +179,7 @@ class PlaceFallbackOrchestratorTest {
                     .thenReturn(List.of(h));
             when(pinService.registerFromInstagram(anyLong(), anyLong(), any(PlaceSearchHit.class), anyString()))
                     .thenReturn(savedPin);
+            when(savedPin.getId()).thenReturn(42L);
             when(savedPin.getPlaceName()).thenReturn("도쿄라멘본점");
 
             // act
@@ -187,6 +188,8 @@ class PlaceFallbackOrchestratorTest {
             // assert
             verify(pinService, timeout(ASYNC_TIMEOUT_MS))
                     .registerFromInstagram(eq(1L), eq(2L), eq(h), eq(INSTAGRAM_URL));
+            verify(twoSecondMemoSession, timeout(ASYNC_TIMEOUT_MS))
+                    .put(eq(BOT_USER_KEY), eq(42L));
             verify(kakaoCallbackClient, timeout(ASYNC_TIMEOUT_MS))
                     .pushText(eq(CALLBACK_URL), eq("장소가 저장되었어요: 도쿄라멘본점"));
         }
