@@ -49,7 +49,6 @@ import java.util.Optional;
 public class GeminiPlaceClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiPlaceClient.class);
-    private static final String BASE_URL = "https://generativelanguage.googleapis.com";
     private static final String GENERATE_CONTENT_PATH =
             "/v1beta/models/gemini-2.0-flash:generateContent";
     private static final int MAX_OUTPUT_TOKENS = 50;
@@ -88,9 +87,10 @@ public class GeminiPlaceClient {
         this.userQuotaService = userQuotaService;
         this.responseCache = responseCache;
         this.metrics = metrics;
-        // TODO(후속): RestClient timeoutMs는 생성자 시점 1회 캡처. 런타임 timeout 변경은 본 PR 범위 외.
+        // baseUrl과 timeoutMs는 생성자 시점 1회 캡처된다. PlaceProperties가 @RefreshScope 여도
+        // RestClient는 갱신되지 않으므로 운영 변경 시 재기동 필요. (TODO 후속: 런타임 갱신 전략)
         this.restClient = RestClient.builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(placeProperties.scraper().gemini().baseUrl())
                 .requestFactory(buildRequestFactory(placeProperties.scraper().gemini().timeoutMs()))
                 .build();
     }

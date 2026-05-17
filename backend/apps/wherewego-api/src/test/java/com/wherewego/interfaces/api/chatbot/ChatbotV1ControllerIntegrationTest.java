@@ -9,6 +9,8 @@ import com.wherewego.domain.bot.BotLinkCode;
 import com.wherewego.domain.bot.BotLinkCodeService;
 import com.wherewego.domain.bot.BotUserMapping;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
+import com.wherewego.domain.place.PlaceSearchHit;
+import com.wherewego.domain.place.PlaceSelectionCandidateStore;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.infrastructure.bot.BotLinkCodeJpaRepository;
 import com.wherewego.infrastructure.bot.BotUserMappingJpaRepository;
@@ -105,6 +107,9 @@ class ChatbotV1ControllerIntegrationTest {
 
     @Autowired
     private ChatbotRateLimiter rateLimiter;
+
+    @Autowired
+    private PlaceSelectionCandidateStore placeSelectionCandidateStore;
 
     private Long userId;
     private Long groupId;
@@ -368,6 +373,159 @@ class ChatbotV1ControllerIntegrationTest {
     @Test
     void webhook_instagramLink_kakaoMultiple_returnsListCard() {
         // 비활성 — 설계서 권장 옵션 (b) 에 따라 단위 테스트로 위임
+    }
+
+    // ------------------------------------------------------------------
+    // PLACE_SELECTION 헬퍼 (Phase 2.7 영역 1)
+    // ------------------------------------------------------------------
+
+    /**
+     * PLACE_SELECTION 흐름의 webhook 호출. {@code action.params.placeId} 본문 JSON 에 포함.
+     * MessageClassifier 가 placeId 비공백 시 PLACE_SELECTION 으로 분기 (clientExtra 우선, params 폴백).
+     */
+    private ResponseEntity<JsonNode> webhookCallWithPlaceId(
+            String botUserKey, String placeId, String skillSecret) {
+        String body = """
+                {
+                  "userRequest": {
+                    "utterance": "1",
+                    "user": {
+                      "id": "%s",
+                      "type": "botUserKey"
+                    }
+                  },
+                  "action": {
+                    "params": {
+                      "placeId": %s
+                    },
+                    "clientExtra": {
+                      "placeId": %s
+                    }
+                  }
+                }
+                """.formatted(botUserKey, quote(placeId), quote(placeId));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (skillSecret != null) {
+            headers.add(SKILL_HEADER, skillSecret);
+        }
+        return restTemplate.exchange(
+                "/api/v1/chatbot/webhook",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                JsonNode.class
+        );
+    }
+
+    /**
+     * PlaceSelectionCandidateStore 에 후보 1건을 사전 적재.
+     * {@code Entry(PlaceSearchHit hit, String instagramUrl)} 2필드 record; placeId 는 캐시 키로만 사용.
+     */
+    private void seedSelectionCandidate(String botUserKey, String placeId, String placeName) {
+        PlaceSearchHit hit = new PlaceSearchHit(placeId, placeName, "서울 강남구", 37.5, 127.0);
+        placeSelectionCandidateStore.put(
+                botUserKey,
+                placeId,
+                new PlaceSelectionCandidateStore.Entry(hit, "https://www.instagram.com/p/X/")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // PLACE_SELECTION E2E (Phase 2.7 영역 1, AC-1~AC-5)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("PLACE_SELECTION 분기 E2E")
+    class PlaceSelection {
+
+        @DisplayName("(AC-1) 연동 + 그룹 가입 사용자가 적재된 후보 placeId 로 webhook → HTTP 200 + '장소가 저장되었어요' + pins 1건 삽입")
+        @Test
+        void placeSelection_normal_registersPin() {
+            // given : 매핑 + 활성 group_members 시드(BeforeEach 재활용) + 후보 적재
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+            seedSelectionCandidate(BOT_USER_KEY, "kakao-1", "테스트장소");
+
+            // when
+            ResponseEntity<JsonNode> response = webhookCallWithPlaceId(BOT_USER_KEY, "kakao-1", SKILL_SECRET);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("장소가 저장되었어요");
+            Integer pinCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pins", Integer.class);
+            assertThat(pinCount).isEqualTo(1);
+        }
+
+        @DisplayName("(AC-2) 후보 없는 placeId 로 webhook → HTTP 200 + '선택 시간이 만료되었어요' + pins 무삽입")
+        @Test
+        void placeSelection_noCandidate_returnsExpiredMessage() {
+            // given : 매핑 + 활성 group_members 시드(BeforeEach 재활용), store 미적재
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+
+            // when
+            ResponseEntity<JsonNode> response =
+                    webhookCallWithPlaceId(BOT_USER_KEY, "non-existing", SKILL_SECRET);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("선택 시간이 만료되었어요");
+            Integer pinCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pins", Integer.class);
+            assertThat(pinCount).isZero();
+        }
+
+        @DisplayName("(AC-3) 봇 미연동 사용자의 PLACE_SELECTION 요청 → HTTP 200 + '연동코드' 안내")
+        @Test
+        void placeSelection_notLinked_returnsLinkCodeGuide() {
+            // given : BotUserMapping 미적재
+            // (ChatbotWebhookService 가 PLACE_SELECTION 진입 전 미연동 가드에서 즉시 차단)
+
+            // when
+            ResponseEntity<JsonNode> response =
+                    webhookCallWithPlaceId(BOT_USER_KEY, "kakao-1", SKILL_SECRET);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("연동코드");
+        }
+
+        @DisplayName("(AC-4) 연동 + 그룹 미가입 사용자의 PLACE_SELECTION 요청 → HTTP 200 + '그룹에 먼저 참여해주세요'")
+        @Test
+        void placeSelection_noGroupMembership_returnsJoinGroupMessage() {
+            // given : 매핑 적재 + BeforeEach 가 시드한 group_members 제거 + store 적재
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+            jdbcTemplate.update("DELETE FROM group_members WHERE user_id = ?", userId);
+            seedSelectionCandidate(BOT_USER_KEY, "kakao-1", "테스트장소");
+
+            // when
+            ResponseEntity<JsonNode> response =
+                    webhookCallWithPlaceId(BOT_USER_KEY, "kakao-1", SKILL_SECRET);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("그룹에 먼저 참여해주세요");
+        }
+
+        @DisplayName("(AC-5) 이미 저장된 장소와 동일한 후보 → HTTP 200 + '이미 저장된 장소입니다'")
+        @Test
+        void placeSelection_duplicatePin_returnsAlreadySavedMessage() {
+            // given : 매핑 + 활성 group_members(BeforeEach) + 동일 (group_id, instagram_url) 사전 INSERT + store 적재
+            // 중복 검증은 uq_pins_group_instagram 제약(group_id, instagram_url)을 트리거하여 발생.
+            botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
+            jdbcTemplate.update(
+                    "INSERT INTO pins (group_id, created_by, place_name, latitude, longitude, instagram_url, tag) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, 'PLACE')",
+                    groupId, userId, "테스트장소", 37.5, 127.0, "https://www.instagram.com/p/X/"
+            );
+            seedSelectionCandidate(BOT_USER_KEY, "kakao-1", "테스트장소");
+
+            // when
+            ResponseEntity<JsonNode> response =
+                    webhookCallWithPlaceId(BOT_USER_KEY, "kakao-1", SKILL_SECRET);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(simpleText(response.getBody())).contains("이미 저장된 장소입니다");
+        }
     }
 
     // ------------------------------------------------------------------
