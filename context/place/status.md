@@ -18,10 +18,11 @@
 | FR-PLC-5 | 결과 1건/복수/0건 분기 처리 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — sealed `PlaceSearchOutcome` Single/Multiple/Empty |
 | FR-PLC-6 | 좌표 정규화 (lat/lng 통일) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
 | FR-PLC-7 | Gemini 2.0 Flash 장소명 추출 (regex 대체) | ✅ | [#15](https://github.com/rnqhstmd/wherewego/pull/15) — `GeminiPlaceClient` + `CaptionCleaner` 신규, `PlaceNameExtractor` 삭제. `x-goog-api-key` 헤더 인증 + 캡션 500자 가드 + Gemini 호출 직전 데드라인 가드 |
-| FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ⚠️ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — 재기동 토글, `@RefreshScope`는 Phase 후속 |
+| FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ✅ | [#18](https://github.com/rnqhstmd/wherewego/pull/18) — Phase 2.6 PR-B: `PlaceProperties` `@RefreshScope` + Actuator `/refresh` (localhost 제한). record→class 전환으로 CGLIB 호환. `GeminiPlaceClient` sub-record 캡처 제거로 매 호출 재평가 |
 
 ## 후속 작업
 
 - **Phase 2.5 완료**: `PlaceNameExtractor` → `GeminiPlaceClient` + `CaptionCleaner` 교체 ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places API 비동기 폴백 — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
-- **Phase 2.6**: `@RefreshScope` + Spring Cloud Config (FR-PLC-8 즉시 토글), `GeminiPlaceClient` WireMock HTTP 계약 테스트(BASE_URL 외부화 선행)
+- **Phase 2.6 PR-B 완료**: `@RefreshScope` + Actuator `/refresh` (FR-PLC-8 즉시 토글) — [#18](https://github.com/rnqhstmd/wherewego/pull/18)
+- **Phase 2.6 PR-C 이월**: `GeminiPlaceClient` WireMock HTTP 계약 테스트(BASE_URL 외부화 선행)

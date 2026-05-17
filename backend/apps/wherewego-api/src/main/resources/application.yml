@@ -29,6 +29,15 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, refresh
+  endpoint:
+    refresh:
+      enabled: true
+
 jwt:
   secret: ${JWT_SECRET}
   access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS}
@@ -51,7 +60,7 @@ kakao:
 place:
   instagram:
     # 베타 운영 결정: 사용자 2명 규모 — true로 운영. 차단 사고 발생 시 환경변수로 false 토글 후 재기동.
-    # TODO(Phase 5): @RefreshScope + Spring Cloud Config 도입 시 즉시 토글 가능.
+    # Phase 2.6 B-2: @RefreshScope 적용 완료. application.yml 수정 후 POST /actuator/refresh 호출로 즉시 토글 가능.
     scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:true}
   search:
     sync-deadline-ms: 4500
@@ -72,6 +81,12 @@ bot:
     ttl-minutes: 10
     max-generation-retries: 5
 
+chatbot:
+  rate-limit:
+    capacity: 10
+    refill-seconds: 60
+    max-keys: 10000
+
 mapbox:
   token: ${MAPBOX_TOKEN}
 
@@ -85,7 +100,7 @@ web-security:
   cookie:
     secure: ${WEB_SECURITY_COOKIE_SECURE:true}
     domain: ${WEB_SECURITY_COOKIE_DOMAIN:}
-    same-site: ${WEB_SECURITY_COOKIE_SAME_SITE:None}
+    same-site: ${WEB_SECURITY_COOKIE_SAME_SITE:Lax}
   cors:
     allowed-origins:
       - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}

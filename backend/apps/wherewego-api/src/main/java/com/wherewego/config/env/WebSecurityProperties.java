@@ -18,7 +18,7 @@ public record WebSecurityProperties(
     public record Cookie(
             @DefaultValue("true") boolean secure,
             @DefaultValue("") String domain,
-            @NotBlank @DefaultValue("None") String sameSite
+            @NotBlank @DefaultValue("Lax") String sameSite
     ) { }
 
     public record Cors(

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.wherewego.config.security.ChatbotRateLimiter;
 import com.wherewego.domain.bot.BotLinkCode;
 import com.wherewego.domain.bot.BotLinkCodeService;
 import com.wherewego.domain.bot.BotUserMapping;
@@ -74,6 +75,8 @@ class ChatbotV1ControllerIntegrationTest {
         registry.add("kakao.local.base-url", wireMock::baseUrl);
         registry.add("google.places.base-url", wireMock::baseUrl);
         registry.add("place.instagram.scraping-enabled", () -> "false");
+        // Phase 2.6 PR-B B-3: 본 IT 는 webhook 핸들러 로직 회귀 방지가 목적이므로 레이트 리밋을 사실상 무한으로.
+        registry.add("chatbot.rate-limit.capacity", () -> String.valueOf(Integer.MAX_VALUE));
     }
 
     @Autowired
@@ -100,6 +103,9 @@ class ChatbotV1ControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private ChatbotRateLimiter rateLimiter;
+
     private Long userId;
     private Long groupId;
 
@@ -108,6 +114,8 @@ class ChatbotV1ControllerIntegrationTest {
         truncateAll();
         twoSecondMemoSession.invalidate(BOT_USER_KEY);
         wireMock.resetAll();
+        // Phase 2.6 PR-B B-3: 테스트 간 레이트 리밋 카운터 격리.
+        rateLimiter.invalidateAll();
 
         UserModel saved = userJpaRepository.save(UserModel.create(2002002000L, "chatbot-tester", null));
         this.userId = saved.getId();

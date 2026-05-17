@@ -1,5 +1,6 @@
 package com.wherewego.domain.group;
 
+import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class GroupMemberService {
     private final GroupMemberRepository groupMemberRepository;
     private final GroupRepository groupRepository;
     private final InviteLinkRepository inviteLinkRepository;
+    private final BotUserMappingService botUserMappingService;
 
     /**
      * 사용자의 최근 활성 그룹 ID 를 반환한다. 활성 그룹이 없으면 {@link Optional#empty()}.
@@ -142,6 +144,7 @@ public class GroupMemberService {
             groupRepository.save(group);
             inviteLinkRepository.expirePendingByGroupId(groupId, now);
         }
+        botUserMappingService.unlink(userId);
     }
 
     /**

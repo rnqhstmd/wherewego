@@ -17,6 +17,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final KakaoSkillSecretFilter kakaoSkillSecretFilter;
+    private final ChatbotRateLimitFilter chatbotRateLimitFilter;
+    private final ActuatorIpRestrictionFilter actuatorIpRestrictionFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -35,6 +37,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/api/v1/chatbot/webhook",
                                 "/actuator/health",
+                                "/actuator/refresh",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
@@ -42,7 +45,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(kakaoSkillSecretFilter, JwtAuthenticationFilter.class);
+                .addFilterBefore(kakaoSkillSecretFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(chatbotRateLimitFilter, KakaoSkillSecretFilter.class)
+                .addFilterBefore(actuatorIpRestrictionFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 }
