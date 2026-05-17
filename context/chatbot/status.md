@@ -17,7 +17,7 @@
 | FR-BOT-4 | 인스타 링크 수신 → 동기 5초 내 place 파이프라인 (Kakao Local까지) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — `ChatbotContext.deadlineMs=4500` 데드라인 가드 |
 | FR-BOT-5 | Google 폴백 비동기 + 콜백 메시지 푸시 | ⬜ | Phase 5 이월 |
 | FR-BOT-6 | 검색 결과 복수 시 리스트 카드(최대 5개) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — `PlaceSearchOutcome.Multiple` + `placeSelectionCandidate` Caffeine 10m |
-| FR-BOT-7 | 장소명 추출 실패 시 폴백 메시지 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — Phase 2.5에서 Gemini로 추출 정확도 ↑ 예정 |
+| FR-BOT-7 | 장소명 추출 실패 시 폴백 메시지 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — Phase 2.5([#15](https://github.com/rnqhstmd/wherewego/pull/15))에서 Gemini로 추출 정확도 ↑ |
 | FR-BOT-8 | 핀 등록 완료 알림 응답 (자동 태그=PLACE 명시) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — `Pin.autoFromInstagram()` tag=PLACE 고정 |
 
 ## 후속 작업

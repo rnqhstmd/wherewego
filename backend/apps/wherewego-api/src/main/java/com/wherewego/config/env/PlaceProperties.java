@@ -1,6 +1,7 @@
 package com.wherewego.config.env;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -28,10 +29,23 @@ public record PlaceProperties(
     ) { }
 
     public record Scraper(
-            @Valid InstagramScraper instagram
+            @Valid InstagramScraper instagram,
+            @Valid Gemini gemini
     ) { }
 
     public record InstagramScraper(
             @Positive int timeoutMs
     ) { }
+
+    public record Gemini(
+            boolean enabled,
+            String apiKey,
+            @Positive int timeoutMs,
+            @Positive int dailyQuotaPerUser
+    ) {
+        @AssertTrue(message = "place.scraper.gemini.api-key는 enabled=true일 때 필수입니다")
+        public boolean isApiKeyValidWhenEnabled() {
+            return !enabled || (apiKey != null && !apiKey.isBlank());
+        }
+    }
 }

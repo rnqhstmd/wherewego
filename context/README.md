@@ -39,7 +39,7 @@
 | Phase 0 | DB 스키마(V001) + 인프라 기반(Spring Boot, Gradle multi-module, Testcontainers, Flyway, observability) | ✅ 완료 | [#1](https://github.com/rnqhstmd/wherewego/pull/1) |
 | Phase 1 | 카카오 OAuth2 + JWT 세션 (auth 도메인) | ✅ 완료 | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 | **Phase 2** | **카카오톡 챗봇 Skill Webhook + 인스타 장소 파이프라인** (bot/chatbot/place/pin/group read-only/memo) | ✅ 완료 | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
-| Phase 2.5 | 장소명 추출 regex → **Gemini 2.0 Flash** 전환 ([상세](place/gemini-migration.md)) | ⬜ 계획 | — |
+| Phase 2.5 | 장소명 추출 regex → **Gemini 2.0 Flash** 전환 ([상세](place/gemini-migration.md)) | ✅ 완료 | [#15](https://github.com/rnqhstmd/wherewego/pull/15) |
 | Phase 3 | 그룹 생성/초대/탈퇴 + 활성 GroupMember 권한 검사 (group 도메인 본 구현) | ⬜ 계획 | — |
 | Phase 4 | 웹 UI 핀 CRUD (목록/수정/삭제, 메모 수동 편집) | ⬜ 계획 | — |
 | Phase 5 | **Google Places API 비동기 폴백** + 카카오 콜백 푸시 (해외 장소 지원) | ✅ 완료 | [#11](https://github.com/rnqhstmd/wherewego/pull/11) |
