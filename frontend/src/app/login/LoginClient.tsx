@@ -7,6 +7,7 @@ import { GlobeBg } from "@/components/ui/GlobeBg";
 import { PinDot } from "@/components/ui/PinDot";
 import { getKakaoLoginUrl } from "@/lib/api/auth";
 import { kakaoState } from "@/lib/oauth/kakao-state";
+import { returnUrlStash } from "@/lib/oauth/return-url";
 import { colors, fonts } from "@/lib/design/tokens";
 
 /**
@@ -36,6 +37,9 @@ export function LoginClient() {
     if (submitting) return;
     setSubmitting(true);
     try {
+      // EC-003: 가드가 붙여 보낸 returnUrl 을 카카오 왕복 사이에 sessionStorage 로 보존.
+      // 카카오는 redirect_uri 외 임의 쿼리를 보장 보존하지 않으므로 클라 stash 로 처리.
+      returnUrlStash.set(searchParams.get("returnUrl"));
       const state = kakaoState.generate();
       const { loginUrl } = await getKakaoLoginUrl();
       const separator = loginUrl.includes("?") ? "&" : "?";

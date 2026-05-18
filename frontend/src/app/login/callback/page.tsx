@@ -6,6 +6,7 @@ import { GlobeBg } from "@/components/ui/GlobeBg";
 import { postKakaoCallback } from "@/lib/api/auth";
 import { apiFetch, ApiError } from "@/lib/api/http-client";
 import { kakaoState } from "@/lib/oauth/kakao-state";
+import { returnUrlStash } from "@/lib/oauth/return-url";
 import { nicknameSet } from "@/lib/storage/local-flags";
 import { colors, fonts } from "@/lib/design/tokens";
 import type { ActiveGroupResponse } from "@/lib/api/types";
@@ -34,11 +35,6 @@ async function fetchActiveGroupClient(): Promise<ActiveGroupResponse | null> {
   }
 }
 
-function isSafeReturnUrl(value: string | null): value is string {
-  if (!value) return false;
-  return /^\/(map|pins)(\/|$|\?)/.test(value);
-}
-
 function CallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,7 +47,9 @@ function CallbackInner() {
 
     const code = searchParams.get("code");
     const state = searchParams.get("state");
-    const returnUrl = searchParams.get("returnUrl");
+    // EC-003: 카카오는 redirect_uri 외 임의 쿼리를 보장 보존하지 않으므로
+    // LoginClient 가 stash 한 returnUrl 을 sessionStorage 에서 1회 소비.
+    const stashedReturnUrl = returnUrlStash.consume();
 
     if (!kakaoState.validate(state)) {
       router.replace("/login?error=invalid_state");
@@ -72,7 +70,7 @@ function CallbackInner() {
 
       const group = await fetchActiveGroupClient();
       if (group !== null) {
-        const target = isSafeReturnUrl(returnUrl) ? returnUrl : "/map";
+        const target = stashedReturnUrl ?? "/map";
         router.replace(target);
         return;
       }

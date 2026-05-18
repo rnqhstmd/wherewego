@@ -22,6 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -85,7 +88,8 @@ class UserV1ControllerIntegrationTest {
     }
 
     private ResponseEntity<JsonNode> updateNickname(String token, String nickname) {
-        String body = "{\"nickname\":\"" + (nickname == null ? "" : nickname.replace("\"", "\\\"")) + "\"}";
+        Map<String, String> body = new HashMap<>();
+        body.put("nickname", nickname);
         return restTemplate.exchange(
                 "/api/v1/users/me",
                 HttpMethod.PUT,

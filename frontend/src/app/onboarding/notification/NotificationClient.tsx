@@ -59,6 +59,7 @@ export function NotificationClient() {
     >
       <PermissionDialog
         icon={<IconBell size={28} color={colors.cta} />}
+        iconBgOpacity={0.15}
         title="알림 받아볼래요?"
         description={"함께하는 사람이 핀을 추가하면\n알려드려요"}
         primaryLabel="알림 허용"
