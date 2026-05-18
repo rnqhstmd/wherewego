@@ -47,8 +47,9 @@
 | **Phase 2.6 PR-A** | **UX 완성**: 웹 메모 수동 편집(FR-MMO-2/4), 룰렛 MEMORY 토글(FR-REC-6), `tokens.ts` self-host 주석 정리 | ✅ 완료 | [#17](https://github.com/rnqhstmd/wherewego/pull/17) |
 | **Phase 2.6 PR-B** | **보안·운영 안정화**: SameSite Lax(보안 HIGH), `@RefreshScope`+Actuator `/refresh`(localhost 제한), Bucket4j 챗봇 레이트 리밋(분당 10회), 그룹 탈퇴 시 BotUserMapping cascade | ✅ 완료 | [#18](https://github.com/rnqhstmd/wherewego/pull/18) |
 | Phase 2.7 | **신뢰 인프라**(테스트 자동화 완성): PLACE_SELECTION E2E 5건, 그룹 동시성 통합 3종, `GeminiPlaceClient` WireMock(BASE_URL 외부화), PR-A 이월 frontend Vitest 6건, map 디자인 번들 컴포넌트 Vitest 7건 (총 28 케이스) | ✅ 완료 | [#20](https://github.com/rnqhstmd/wherewego/pull/20) |
-| Phase 2.8 | **핀 도메인 완성**(사용자 가시 UX 잔여): 핀 등록 시 `instagramUrl` 입력 UI, 핀 장소 정보(`place_name`/좌표) 수정, 삭제 핀 복원, map ⋮ 메뉴에 삭제 액션 추가 | ⬜ 계획 | — |
-| Phase 2.9 | **규모 대응**(조건부): DOM Marker→Mapbox GL symbol layer(그룹 핀 500+), 핀 페이지네이션(1k+). main 머지는 이 phase 완료 후 일괄 | ⬜ 조건부 | — |
+| Phase 2.8 | **핀 도메인 완성**(사용자 가시 UX 잔여 부분): 핀 등록 시 `instagramUrl` 입력 UI, 핀 장소 정보(`place_name`/`address`) 텍스트 수정, map ⋮ 메뉴 삭제 액션. 좌표 수정/삭제 복원은 분리 → Phase 2.10 | ✅ 완료 | [#21](https://github.com/rnqhstmd/wherewego/pull/21) |
+| Phase 2.9 | **규모 대응**: 핀 목록 API 페이지네이션 계약 준비(`page`/`size` + `totalCount`/`hasNext` 선택 응답, 부분 전달/비숫자 400 매핑) + DOM Marker→Mapbox GL symbol layer 마이그레이션 사전 분석 문서(`context/map/gl-migration-plan.md`). 실제 GL 전환과 `/pins` UI 페이지네이션은 임계치 도달 시 별도 Phase | ✅ 완료 | [#22](https://github.com/rnqhstmd/wherewego/pull/22) |
+| Phase 2.10 | **잔여 후속 통합**(MVP 운영 잔여): ① 핀 좌표 수정(지도 picker 재사용) + 삭제 핀 복원 UI([pin](pin/status.md)), ② 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증([chatbot](chatbot/status.md) — Phase 2.6 PR-C 이월), ③ Pretendard 폰트 self-host 전환 + Mapbox 토큰 회전 SOP 운영자 가이드([map](map/status.md)) | ⬜ 계획 | — |
 | Phase 3.0 | **MVP 후 확장**(비즈니스 정책, 도메인별 별도 PRD): Group N인 확장(1인 1활성 제약 해제), 재가입 허용 정책(`uq_group_members_pair` 변경), BotUserMapping 회원 탈퇴 cascade(회원 탈퇴 PRD 선행) | ⬜ 장기 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
