@@ -80,7 +80,7 @@ export default function PinCoordinateEditPicker({
           wordBreak: "break-word",
         }}
       >
-        📍 {coord.lat.toFixed(6)}, {coord.lng.toFixed(6)}
+        📍 {coord.lat.toFixed(7)}, {coord.lng.toFixed(7)}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <BtnSub onClick={onCancel} style={{ flex: 1, padding: "11px 0" }}>

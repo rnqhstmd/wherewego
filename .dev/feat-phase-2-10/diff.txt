@@ -1,13 +1,19 @@
-# Phase 2.10 phase-complete diff (cached, final pre-commit)
-# 본 Phase 2.10 코드/문서 변경 + review [HIGH] coordinateError 수정 + 환경변수 가이드 신설
+# Phase 2.10 cross-review + PR review 후속 반영 diff (cached)
+# 코드 변경 한정. .dev 산출물 갱신은 별도 staging.
 
 ## 변경 통계
- context/map/mapbox-env.md                     | 61 +++++++++++++++++++++++++++
- context/map/mapbox-token-sop.md               |  2 +-
- frontend/src/app/map/_components/PinPopup.tsx |  7 +++
- 3 files changed, 69 insertions(+), 1 deletion(-)
+ .claude/settings.local.json                        |  8 ---
+ .gitignore                                         |  2 +
+ .../com/wherewego/domain/pin/PinUpdateCommand.java | 14 ++++-
+ .../wherewego/interfaces/api/pin/PinV1ApiSpec.java |  2 +-
+ .../wherewego/domain/pin/PinUpdateCommandTest.java | 62 ++++++++++++++++++++++
+ .../map/_components/PinCoordinateEditPicker.tsx    |  2 +-
+ 6 files changed, 78 insertions(+), 12 deletions(-)
 
 ## 변경 파일 목록
-context/map/mapbox-env.md
-context/map/mapbox-token-sop.md
-frontend/src/app/map/_components/PinPopup.tsx
+D	.claude/settings.local.json
+M	.gitignore
+M	backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateCommand.java
+M	backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1ApiSpec.java
+M	backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinUpdateCommandTest.java
+M	frontend/src/app/map/_components/PinCoordinateEditPicker.tsx

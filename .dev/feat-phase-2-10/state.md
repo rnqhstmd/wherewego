@@ -1,5 +1,5 @@
 ---
-phase: review
+phase: complete
 status: completed
 vcs-type: git
 branch: feat/phase-2-10
@@ -13,68 +13,57 @@ mode: normal
 intent-source: user-selection
 started: 2026-05-18T15:50:00
 resumed: 2026-05-18T19:30:00
-last-known-head: ee670480497b879967d7a54a21f19c936c52eaf5
-current-step: "phase-complete 진입 대기"
+finished: 2026-05-18T21:10:00
+last-known-head: (post cross-review + PR review fix)
+pr-url: https://github.com/rnqhstmd/wherewego/pull/24
+current-step: "cross-review + PR 리뷰 후속 반영 커밋 준비"
 phases:
   setup: completed
   requirements: completed
   design: completed
   implement: completed
   review: completed
-  complete: pending
+  complete: completed
+  cross-review: completed
 scope:
-  - pin 좌표 수정 (지도 picker 재사용) + 삭제 핀 복원 UI
-  - chatbot 카카오 i 오픈빌더 PLACE_SELECTION (action="message" + extra.placeId) 동작 검증
+  - pin 좌표 수정 (지도 picker 재사용)
+  - chatbot 카카오 i 오픈빌더 PLACE_SELECTION 동작 검증
   - map Pretendard 폰트 self-host 전환 + Mapbox 토큰 회전 SOP 운영자 가이드
-findings:
-  - "frontend/public/fonts/README.md에는 이미 self-host 완료라고 기재됨 (map/status.md '예정' 표기와 불일치) — PRD 단계에서 사실 정합성 확인 필요"
-  - "PlaceSelectionHandler는 clientExtra.placeId 우선 + params 폴백 코드는 이미 구현됨 (Phase 2.10 작업은 외부 카카오 빌더 측 시나리오 설정 + 동작 검증)"
-  - "review에서 [HIGH/RISK] coordinateError 표시 버그 발견 → popup 재노출 시 expanded 강제 (useEffect 추가) 자동 수정 완료"
 execution-log:
   - phase: setup
-    step: "VCS/베이스 브랜치 확인"
-    result: "git OK, base=develop (사용자 선택)"
-  - phase: setup
-    step: "Phase 2.10 범위 확정"
-    result: "사용자가 3개 항목 전부 선택"
-  - phase: setup
-    step: "브랜치 생성 + DEV_DIR"
-    result: "feat/phase-2-10 생성, .dev/feat-phase-2-10/ 준비"
-  - phase: setup
-    step: "코드 맵 작성"
-    result: "codemap.md 저장 (핵심 16 + 참조 5 + 설정 3 = 24항목)"
+    result: "git OK, base=develop (사용자 선택), 코드맵 24항목"
+  - phase: requirements
+    result: "PRD 확정 (FR-PIN-7~9, FR-BOT-9~10, FR-MAP-6~8, AC-1~15)"
+  - phase: design
+    result: "설계 Rev.2 확정 (단일 coordinateProvided 플래그, PinCoordinateEditPicker 분리)"
   - phase: implement
-    step: "구현 + 자기점검"
-    result: "Critical 1건 자동 수정, Warning 1/Info 1/QUESTION 2건 phase-review 이월"
-  - phase: implement
-    step: "수동 커밋 + 푸시"
-    result: "ee67048 origin/feat/phase-2-10 푸시 (사용자가 의도적으로 커밋)"
+    result: "자기점검 Critical 1건 자동 수정, Warning/Info/QUESTION 4건 phase-review 이월. ee67048 푸시"
   - phase: review
-    step: "Mechanical Gate"
-    result: "backend build ✅ / frontend build ✅ / backend test ✅"
-  - phase: review
-    step: "diff 갱신 (ee67048 단일 커밋, .dev 제외)"
-    result: ".dev/feat-phase-2-10/diff.txt 53줄"
-  - phase: review
-    agent: "qa-manager + security-auditor (병렬)"
-    result: "QA Critical 0/Warn 2/Info 2/Q 2, ZT CRITICAL 0/HIGH 4/MED 5/LOW 4"
-  - phase: review
-    step: "Trust Ledger 저장"
-    result: ".dev/feat-phase-2-10/trust-ledger.md"
-  - phase: review
-    step: "사용자 결정 수렴"
-    result: "coordinateError 수정=expanded 강제 / Q1=현 유지 / Q2=유지"
-  - phase: review
-    agent: "coder (자동 수정)"
-    result: "PinPopup.tsx useEffect 추가 (line 104~109), tsc 통과"
-  - phase: review
-    agent: "qa-manager (확인 리뷰, 단발성)"
-    result: "충족, 사이드이펙트 없음, AC-4 충족 재판정, phase-complete 진입 가능"
-  - phase: review
-    step: "frontend build 재검증"
-    result: "exit 0"
-deferred-to-complete:
-  - "[HIGH/GAP] FR-BOT-9/10 운영 작업 증적 → PR 본문 작성 시 기록"
-  - "[HIGH/DOC] [PR-LINK] placeholder → PR 머지 후 일괄 치환"
-  - "[MEDIUM] frontend/.env.local.example 생성 여부 → phase-complete 진입 시 사용자 확인"
-  - "PinPopup.tsx coordinateError 수정 추가 커밋 필요"
+    result: "QA 0/2/2/2, ZT 0/4/5/4. coordinateError 표시 결함 해소 (PinPopup useEffect). AC-4 완전 충족"
+  - phase: complete
+    result: "인수 검증 ACCEPT. c14fe91 커밋. PR #24 생성 (base=develop)"
+  - phase: cross-review
+    advisor: codex (GPT-5.4)
+    result: "AC 13/15 충족 + 부분 2(운영 증적). 신규 Warning 1(좌표 scale 검증 부재) + Info 1(settings.local.json 진입). 설계 범위 이탈 39개는 develop 노후화 false positive"
+  - phase: pr-review
+    bot: gemini-code-assist
+    result: "Security HIGH 1 (settings.local.json 절대경로), Medium 2 (BigDecimal 상수화, toFixed 정밀도)"
+  - phase: pr-review
+    bot: copilot-pull-request-reviewer
+    result: "리뷰 에러 (재요청 가능)"
+  - phase: post-cross-review
+    step: "통합 처리 (4건)"
+    result: |
+      #1 .claude/settings.local.json git rm --cached + .gitignore (.claude/settings.local.json만)
+      #2 PinUpdateCommand scale 검증 추가 (stripTrailingZeros().scale() > 7)
+      #3 BigDecimal LAT_MIN/LAT_MAX/LNG_MIN/LNG_MAX + COORDINATE_MAX_SCALE 5개 상수화
+      #4 PinCoordinateEditPicker toFixed(6) → toFixed(7) 표시 정밀도
+      추가: PinV1ApiSpec description에 scale 정보 보강
+      테스트: PinUpdateCommandTest scale 검증 4 케이스 추가
+      검증: backend test BUILD SUCCESSFUL + frontend build exit 0
+post-merge-tasks:
+  - "context/pin/status.md, context/map/status.md, context/chatbot/status.md의 [PR-LINK] 3곳을 [#24]로 일괄 교체"
+  - "PR 본문 Operations Verification 섹션에 FR-BOT-9 빌더 콘솔 설정 증적 + FR-BOT-10 카카오톡 실기기 E2E 절차/결과 기록 (머지 전)"
+  - "(선택) Mapbox 운영 토큰 URL Restriction 실제 적용 여부 점검"
+  - "(선택) PinServiceIT에 좌표 수정 케이스 추가 여부 정책 결정"
+  - "(선택) Copilot 리뷰 재요청"

@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(JAVA_HOME=\"/c/Users/SQI/.jdks/openjdk-21.0.1\" ./gradlew --stop)",
-      "Bash(JAVA_HOME=\"/c/Users/SQI/.jdks/openjdk-21.0.1\" ./gradlew :apps:wherewego-api:test --no-daemon --rerun-tasks)"
-    ]
-  }
-}

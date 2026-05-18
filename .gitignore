@@ -39,6 +39,8 @@ Thumbs.db
 # ========================
 .omc/
 # .dev/ 는 단일 개발자 환경에서 산출물(PRD/설계/state 등)을 git으로 관리하기 위해 추적 대상에 둔다.
+# Claude Code/Plugin 로컬 권한 설정 (.claude/config.json은 팀 공유 유지, settings.local.json만 제외)
+.claude/settings.local.json
 
 # ========================
 # Build artifacts (additional)

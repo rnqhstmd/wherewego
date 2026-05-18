@@ -308,6 +308,68 @@ class PinUpdateCommandTest {
             assertThat(cmd.latitude()).isEqualTo(lat);
             assertThat(cmd.longitude()).isEqualTo(lng);
         }
+
+        @DisplayName("latitude scale 이 8 (37.12345678) 이면 PIN_COORDINATE_INVALID 가 발생한다 (PRD 좌표 정밀도 7자리 제한).")
+        @Test
+        void coordinatePrecisionExceeded_throwsPinCoordinateInvalid() {
+            // arrange - latitude 가 scale=8 (소수점 8자리) 인 경우
+            BigDecimal lat = new BigDecimal("37.12345678");
+            BigDecimal lng = new BigDecimal("127.0");
+
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, lat, lng))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("longitude scale 이 8 (127.12345678) 이면 PIN_COORDINATE_INVALID 가 발생한다 (PRD 좌표 정밀도 7자리 제한).")
+        @Test
+        void coordinateLongitudePrecisionExceeded_throwsPinCoordinateInvalid() {
+            // arrange - longitude 가 scale=8 (소수점 8자리) 인 경우
+            BigDecimal lat = new BigDecimal("37.5");
+            BigDecimal lng = new BigDecimal("127.12345678");
+
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, lat, lng))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("좌표 scale 이 정확히 7 (37.1234567 / 127.1234567) 이면 경계값으로 정상 통과한다.")
+        @Test
+        void coordinatePrecisionAtBoundary_passes() {
+            // arrange - scale=7 (경계값, 허용)
+            BigDecimal lat = new BigDecimal("37.1234567");
+            BigDecimal lng = new BigDecimal("127.1234567");
+
+            // act
+            PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, lat, lng);
+
+            // assert
+            assertThat(cmd.coordinateProvided()).isTrue();
+            assertThat(cmd.latitude()).isEqualTo(lat);
+            assertThat(cmd.longitude()).isEqualTo(lng);
+        }
+
+        @DisplayName("trailing 0 이 있는 좌표 (37.50000000) 는 stripTrailingZeros 후 scale=0 이므로 정상 통과한다.")
+        @Test
+        void coordinateTrailingZeros_passes() {
+            // arrange - scale=8 이지만 의미상으로는 37.5 (stripTrailingZeros 후 scale=1)
+            BigDecimal lat = new BigDecimal("37.50000000");
+            BigDecimal lng = new BigDecimal("127.00000000");
+
+            // act
+            PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, lat, lng);
+
+            // assert
+            assertThat(cmd.coordinateProvided()).isTrue();
+            assertThat(cmd.latitude()).isEqualTo(lat);
+            assertThat(cmd.longitude()).isEqualTo(lng);
+        }
     }
 
     @DisplayName("정상 케이스에서,")

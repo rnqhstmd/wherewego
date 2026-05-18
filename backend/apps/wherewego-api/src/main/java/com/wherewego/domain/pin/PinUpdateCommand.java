@@ -31,6 +31,12 @@ public record PinUpdateCommand(
         BigDecimal longitude
 ) {
 
+    private static final BigDecimal LAT_MIN = BigDecimal.valueOf(-90);
+    private static final BigDecimal LAT_MAX = BigDecimal.valueOf(90);
+    private static final BigDecimal LNG_MIN = BigDecimal.valueOf(-180);
+    private static final BigDecimal LNG_MAX = BigDecimal.valueOf(180);
+    private static final int COORDINATE_MAX_SCALE = 7;
+
     public static PinUpdateCommand of(boolean memoProvided, String memo,
                                       boolean tagProvided, PinTag tag,
                                       boolean placeNameProvided, String placeName,
@@ -63,10 +69,14 @@ public record PinUpdateCommand(
             if (latitude == null || longitude == null) {
                 throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
             }
-            if (latitude.compareTo(BigDecimal.valueOf(-90)) < 0 || latitude.compareTo(BigDecimal.valueOf(90)) > 0) {
+            if (latitude.stripTrailingZeros().scale() > COORDINATE_MAX_SCALE
+                    || longitude.stripTrailingZeros().scale() > COORDINATE_MAX_SCALE) {
                 throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
             }
-            if (longitude.compareTo(BigDecimal.valueOf(-180)) < 0 || longitude.compareTo(BigDecimal.valueOf(180)) > 0) {
+            if (latitude.compareTo(LAT_MIN) < 0 || latitude.compareTo(LAT_MAX) > 0) {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+            if (longitude.compareTo(LNG_MIN) < 0 || longitude.compareTo(LNG_MAX) > 0) {
                 throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
             }
         }
