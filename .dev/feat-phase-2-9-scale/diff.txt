@@ -1,0 +1,23 @@
+ .../com/wherewego/domain/pin/PinListResult.java    |   9 +
+ .../com/wherewego/domain/pin/PinRepository.java    |  20 ++
+ .../java/com/wherewego/domain/pin/PinService.java  |  25 +++
+ .../infrastructure/pin/PinJpaRepository.java       |   9 +
+ .../infrastructure/pin/PinRepositoryImpl.java      |  24 +++
+ .../wherewego/interfaces/api/pin/PinV1ApiSpec.java |   9 +-
+ .../interfaces/api/pin/PinV1Controller.java        |  53 ++++-
+ .../com/wherewego/interfaces/api/pin/PinV1Dto.java |  19 +-
+ .../com/wherewego/support/error/ErrorType.java     |   4 +-
+ .../com/wherewego/domain/pin/PinServiceIT.java     |  72 +++++++
+ .../api/pin/PinV1ControllerIntegrationTest.java    | 230 +++++++++++++++++++++
+ backend/gradle.properties                          |   2 +
+ context/map/architecture.md                        |   1 +
+ context/map/gl-migration-plan.md                   |  76 +++++++
+ context/map/status.md                              |   2 +-
+ context/pin/architecture.md                        |   8 +-
+ context/pin/glossary.md                            |   5 +
+ context/pin/status.md                              |   2 +-
+ frontend/src/lib/api/pin.ts                        |  29 ++-
+ frontend/src/lib/api/types.ts                      |   2 +
+ 20 files changed, 585 insertions(+), 16 deletions(-)
+---
+위는 요약입니다. 변경된 파일을 Read 도구로 직접 확인하라.

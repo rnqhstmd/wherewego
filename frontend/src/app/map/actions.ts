@@ -96,6 +96,40 @@ export async function updatePinMemoAction(
   }
 }
 
+export type UpdatePinCoordinateActionResult = CreatePinActionResult;
+
+/**
+ * 핀 좌표 변경 Server Action (Phase 2.10 FR-PIN-COORD).
+ *
+ * `/map`은 useOptimistic이 즉시 갱신하므로 `revalidatePath('/map')`은 호출하지 않는다.
+ * `/pins` UI는 좌표를 직접 표시하지 않으나 정합성을 위해 갱신한다.
+ * revalidatePath 실패가 저장 성공 응답을 가리지 않도록 try/catch 분리.
+ */
+export async function updatePinCoordinateAction(
+  groupId: number,
+  pinId: number,
+  latitude: number,
+  longitude: number,
+): Promise<UpdatePinCoordinateActionResult> {
+  try {
+    const data = await updatePin(groupId, pinId, { latitude, longitude });
+    try {
+      revalidatePath("/pins");
+    } catch (revalidateError) {
+      console.error(
+        "revalidatePath('/pins') 실패 (좌표 변경은 성공)",
+        revalidateError,
+      );
+    }
+    return { ok: true, data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+    throw error;
+  }
+}
+
 export type DeletePinActionResult =
   | { ok: true }
   | { ok: false; code: string; message: string };

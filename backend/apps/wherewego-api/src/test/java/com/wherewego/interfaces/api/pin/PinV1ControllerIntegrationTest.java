@@ -432,6 +432,103 @@ class PinV1ControllerIntegrationTest {
                 .isEqualTo("PIN_ADDRESS_INVALID");
     }
 
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 좌표 변경 시 200 + 좌표 갱신 + 다른 필드 불변 (Phase 2.10 AC-1, AC-5).")
+    @Test
+    void updatePin_withCoordinates_changesLocationAndKeepsOtherFields() {
+        // arrange : 초기 lat=37.5, lng=127.0, placeName="P1", address="서울 강남구", memo="m0", tag=PLACE
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR1/",
+                "m0", "MANUAL", "PLACE");
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"latitude\": 37.5665, \"longitude\": 126.9780}");
+
+        // assert HTTP & 좌표 갱신 (AC-1)
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(new BigDecimal(data.get("latitude").asText()))
+                .isEqualByComparingTo(new BigDecimal("37.5665"));
+        assertThat(new BigDecimal(data.get("longitude").asText()))
+                .isEqualByComparingTo(new BigDecimal("126.9780"));
+
+        // assert 다른 필드 불변 (AC-5)
+        assertThat(data.get("placeName").asText()).isEqualTo("P1");
+        assertThat(data.get("address").asText()).isEqualTo("서울 강남구");
+        assertThat(data.get("memo").asText()).isEqualTo("m0");
+        assertThat(data.get("tag").asText()).isEqualTo("PLACE");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 좌표 범위 초과는 400 PIN_COORDINATE_INVALID (Phase 2.10 AC-2).")
+    @Test
+    void updatePin_coordinateOutOfRange_returns400() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR2/",
+                null, null, "PLACE");
+
+        // act : latitude=91 (범위 초과)
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"latitude\": 91, \"longitude\": 127.0}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_COORDINATE_INVALID");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 비멤버 좌표 수정은 403 GROUP_NOT_MEMBER (Phase 2.10 AC-3).")
+    @Test
+    void updatePin_byNonMember_returns403() {
+        // arrange : userC 는 그룹 비멤버
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR3/",
+                null, null, "PLACE");
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenC, groupId, pinId,
+                "{\"latitude\": 37.5, \"longitude\": 127.0}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("GROUP_NOT_MEMBER");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 좌표 미포함 시 기존 좌표가 유지된다 (Phase 2.10 AC-6).")
+    @Test
+    void updatePin_withoutCoordinates_keepsCoordinates() {
+        // arrange : 초기 lat=37.5, lng=127.0
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR4/",
+                null, null, "PLACE");
+
+        // act : memo 만 변경 (좌표 미포함)
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"memo\": \"x\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(new BigDecimal(data.get("latitude").asText()))
+                .isEqualByComparingTo(new BigDecimal("37.5"));
+        assertThat(new BigDecimal(data.get("longitude").asText()))
+                .isEqualByComparingTo(new BigDecimal("127.0"));
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - latitude 만 단일 전달은 400 PIN_COORDINATE_INVALID (Phase 2.10 XOR).")
+    @Test
+    void updatePin_latitudeOnly_returns400() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR5/",
+                null, null, "PLACE");
+
+        // act : latitude 만 전달 (longitude 누락)
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"latitude\": 37.5}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_COORDINATE_INVALID");
+    }
+
     @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 삭제된 핀은 404 PIN_NOT_FOUND 를 반환한다 (AC-14).")
     @Test
     void patchPin_deletedPin_returns404() {

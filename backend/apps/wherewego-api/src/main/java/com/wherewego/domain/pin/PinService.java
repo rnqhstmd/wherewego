@@ -132,6 +132,9 @@ public class PinService {
         } else if (cmd.addressProvided()) {
             pin.changePlaceInfo(pin.getPlaceName(), true, cmd.address());
         }
+        if (cmd.coordinateProvided()) {
+            pin.changeCoordinate(cmd.latitude(), cmd.longitude());
+        }
         return PinSummary.from(pin);
     }
 
