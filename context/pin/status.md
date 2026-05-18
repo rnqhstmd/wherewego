@@ -24,5 +24,5 @@
 - **Phase 2.8 완료**: 웹 등록 시 `instagramUrl` 명시 입력 UI (`MemoTagPanelContent` 공통, 검색·picker 양 경로 자동 커버). 클라이언트 `https://` 시작 검증 + 백엔드 `Pin.validateInstagramUrl` 양방향 보안 검증 + `PinCard.tsx` 조건부 href — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
 - **Phase 2.8 완료**: 핀 장소 정보(`place_name`, `address`) 텍스트 수정 — `PinUpdateCommand` 확장 + `PinEditDialog` 장소명/주소 편집 필드 (순서: 장소명 → 주소 → 태그 → 메모) + `PinListClient.applyPatch` 낙관적 반영 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
 - **Phase 2.8 완료**: map ⋮ 메뉴 삭제 액션 — `PinPopup` footer에 HLine + 우측 정렬 텍스트 버튼, `PinDeleteConfirm` 재사용, `useOptimistic` reducer 일반화(`patch|remove`)로 마커 즉시 제거 + 실패 시 자동 롤백 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
-- **별도 Phase 예정**: 핀 장소 좌표 수정 (지도 picker 재사용), 삭제 핀 복원 기능 — Phase 2.8 범위에서 제외
+- **Phase 2.10 예정**: 핀 장소 좌표 수정 (지도 picker 재사용), 삭제 핀 복원 기능 — Phase 2.8에서 분리되어 잔여 후속 통합으로 묶음
 - **Phase 2.9 완료**: 핀 목록 API 페이지네이션 계약 — `GET /api/v1/groups/{groupId}/pins?page=&size=` + `totalCount`/`hasNext` 선택 응답 필드, 하위 호환 유지(파라미터 미전달 시 `{items}` 그대로). 부분 전달은 `PIN_PAGE_PARAM_INVALID`(400), `size>100`은 `PIN_PAGE_SIZE_EXCEEDED`(400), 비숫자 입력도 동일 매핑. `PinService.listGroupPinsPaged` 신규 + `PinRepository` 포트에 paged/count 메서드 4개 추가(Spring 의존 미노출). `/pins` UI 페이지네이션 컨트롤은 MVP 단계 ROI 낮아 본 Phase 제외(필요 시점에 별도 작업) — [#22](https://github.com/rnqhstmd/wherewego/pull/22)
