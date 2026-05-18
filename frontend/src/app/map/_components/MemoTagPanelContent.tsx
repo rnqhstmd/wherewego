@@ -35,11 +35,29 @@ export default function MemoTagPanelContent({
   const [tag, setTag] = useState<PinTagType | null>(null);
   const [memo, setMemo] = useState("");
   const [placeName, setPlaceName] = useState(origin.placeName);
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const effectivePlaceName = origin.editable ? placeName.trim() : origin.placeName;
-  const canSubmit = !!tag && effectivePlaceName.length > 0 && !pending;
+  // origin.placeName 이 빈 경우 폴백 — 검색 API 엣지케이스 방어 (editable=false 일 때만 적용)
+  const effectivePlaceName = origin.editable
+    ? placeName.trim()
+    : origin.placeName || "(이름 없음)";
+  const canSubmit =
+    !!tag && effectivePlaceName.length > 0 && !pending && urlError === null;
+
+  const validateUrl = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+    if (!trimmed.startsWith("https://")) return "올바른 URL 형식이 아닙니다";
+    return null;
+  };
+
+  const handleInstagramUrlChange = (value: string) => {
+    setInstagramUrl(value);
+    setUrlError(validateUrl(value));
+  };
 
   const handleSave = () => {
     if (!tag) return;
@@ -53,6 +71,7 @@ export default function MemoTagPanelContent({
         address: origin.address,
         latitude: origin.latitude,
         longitude: origin.longitude,
+        instagramUrl: instagramUrl.trim() || null,
         memo: memo.trim() || null,
         tag,
       });
@@ -147,6 +166,26 @@ export default function MemoTagPanelContent({
           outline: "none",
         }}
       />
+
+      <PanelLabel>Instagram URL (선택)</PanelLabel>
+      <Input
+        placeholder="https://instagram.com/..."
+        value={instagramUrl}
+        onChange={handleInstagramUrlChange}
+        style={{ marginBottom: urlError ? 6 : 16 }}
+      />
+      {urlError && (
+        <div
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            color: colors.pinNew,
+            marginBottom: 16,
+          }}
+        >
+          {urlError}
+        </div>
+      )}
 
       {error && (
         <div

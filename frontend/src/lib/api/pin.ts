@@ -9,6 +9,8 @@ import type {
 export interface PinPatch {
   memo?: string;
   tag?: PinTag;
+  placeName?: string;
+  address?: string;
 }
 
 /**

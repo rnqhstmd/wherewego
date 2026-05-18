@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api/http";
-import { createPin, updatePin } from "@/lib/api/pin";
+import { createPin, deletePin, updatePin } from "@/lib/api/pin";
 import type {
   CreatePinInput,
   PinSummaryResponse,
@@ -88,6 +88,40 @@ export async function updatePinMemoAction(
       );
     }
     return { ok: true, data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+    throw error;
+  }
+}
+
+export type DeletePinActionResult =
+  | { ok: true }
+  | { ok: false; code: string; message: string };
+
+/**
+ * 핀 삭제 Server Action (Phase 2.8 FR-7).
+ *
+ * /map은 클라이언트 state(useOptimistic)로 마커 인스턴스 캐시 유지가 필요.
+ * revalidatePath('/map') 호출 시 mapbox-gl 컴포넌트 재마운트 발생 → MUST-1 위배.
+ * /pins 라우트만 try/catch로 fail-safe revalidate (updatePinMemoAction 패턴).
+ */
+export async function deletePinAction(
+  groupId: number,
+  pinId: number,
+): Promise<DeletePinActionResult> {
+  try {
+    await deletePin(groupId, pinId);
+    try {
+      revalidatePath("/pins");
+    } catch (revalidateError) {
+      console.error(
+        "revalidatePath('/pins') 실패 (삭제는 성공)",
+        revalidateError,
+      );
+    }
+    return { ok: true };
   } catch (error) {
     if (error instanceof ApiError) {
       return { ok: false, code: error.code, message: error.message };
