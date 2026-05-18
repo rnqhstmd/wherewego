@@ -518,6 +518,51 @@ class PinV1ControllerIntegrationTest {
         }
     }
 
+    /**
+     * 페이지네이션 tie-breaker 검증용 25핀 적재. Thread.sleep 을 호출하지 않아
+     * 동일 ms 에 createdAt 이 떨어질 수 있는 환경을 시뮬레이션한다 (AC-6 tie-breaker).
+     */
+    private void seedTwentyFivePinsWithoutSleep() {
+        for (int i = 0; i < 25; i++) {
+            insertPin(groupId, userAId, "T" + i,
+                    "https://www.instagram.com/p/TB" + i + "/", null, null, "PLACE");
+        }
+    }
+
+    @DisplayName("GET /api/v1/groups/{groupId}/pins - 동일 createdAt 가능 환경에서도 page 0/1 은 disjoint (AC-6 tie-breaker).")
+    @Test
+    void listPins_pagination_tieBreaker_disjoint_AC6() {
+        // arrange : sleep 없이 25핀을 즉시 INSERT → 동일 ms createdAt 가능
+        seedTwentyFivePinsWithoutSleep();
+
+        // act : page=0/1, size=10
+        ResponseEntity<JsonNode> first = listPinsRaw(tokenA, groupId, "page=0&size=10");
+        ResponseEntity<JsonNode> second = listPinsRaw(tokenA, groupId, "page=1&size=10");
+
+        // assert
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Set<Long> firstIds = new HashSet<>();
+        for (JsonNode item : first.getBody().get("data").get("items")) {
+            firstIds.add(item.get("id").asLong());
+        }
+        Set<Long> secondIds = new HashSet<>();
+        for (JsonNode item : second.getBody().get("data").get("items")) {
+            secondIds.add(item.get("id").asLong());
+        }
+
+        // 교집합 없음 (disjoint)
+        assertThat(firstIds).doesNotContainAnyElementsOf(secondIds);
+
+        // 합집합 크기 = 두 페이지 합 (중복/누락 없음)
+        Set<Long> union = new HashSet<>(firstIds);
+        union.addAll(secondIds);
+        assertThat(union).hasSize(firstIds.size() + secondIds.size());
+        // 25개 중 page 0/1 합 20개 도달 (동일 ms 환경에서도 tie-breaker 가 안정 정렬 보장)
+        assertThat(union).hasSize(20);
+    }
+
     @DisplayName("GET /api/v1/groups/{groupId}/pins - 파라미터 없음(legacy) 응답은 items 키만 가진다 (AC-0 케이스1, AC-2).")
     @Test
     void listPins_legacyMode_returnsItemsOnly_AC0_AC2() throws InterruptedException {

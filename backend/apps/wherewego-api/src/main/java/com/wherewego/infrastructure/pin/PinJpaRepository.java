@@ -30,9 +30,11 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
 
     List<Pin> findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(Long groupId, PinTag tag);
 
-    List<Pin> findByGroupIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long groupId, Pageable pageable);
+    // paged 변형은 메서드명에 OrderBy 를 포함하지 않는다. 호출자가 Pageable.Sort 로
+    // (createdAt DESC, id DESC) tie-breaker 를 명시한다 (cross-review Warning 후속).
+    List<Pin> findByGroupIdAndDeletedAtIsNull(Long groupId, Pageable pageable);
 
-    List<Pin> findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(Long groupId, PinTag tag, Pageable pageable);
+    List<Pin> findByGroupIdAndTagAndDeletedAtIsNull(Long groupId, PinTag tag, Pageable pageable);
 
     long countByGroupIdAndDeletedAtIsNull(Long groupId);
 

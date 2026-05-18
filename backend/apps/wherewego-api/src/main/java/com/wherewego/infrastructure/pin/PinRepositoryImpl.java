@@ -49,14 +49,22 @@ public class PinRepositoryImpl implements PinRepository {
 
     @Override
     public List<Pin> findActiveByGroupIdOrderByCreatedAtDesc(Long groupId, int page, int size) {
-        return jpaRepository.findByGroupIdAndDeletedAtIsNullOrderByCreatedAtDesc(
-                groupId, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return jpaRepository.findByGroupIdAndDeletedAtIsNull(
+                groupId, PageRequest.of(page, size, pagedSort()));
     }
 
     @Override
     public List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag, int page, int size) {
-        return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(
-                groupId, tag, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNull(
+                groupId, tag, PageRequest.of(page, size, pagedSort()));
+    }
+
+    /**
+     * 페이지네이션 tie-breaker. 동일 {@code created_at} 행에서 page disjoint 를 보장하기 위해
+     * 보조 키로 {@code id DESC} 를 추가한다 (cross-review Warning 후속).
+     */
+    private static Sort pagedSort() {
+        return Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
     }
 
     @Override
