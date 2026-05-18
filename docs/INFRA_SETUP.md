@@ -13,7 +13,7 @@
 | 인스턴스 타입 | t3.micro (프리 티어, 1vCPU / 1GB RAM) |
 | OS | Ubuntu Server 22.04 LTS |
 | 리전 | ap-northeast-2 (서울) |
-| 탄력적 IP | 54.116.3.177 (고정) |
+| 탄력적 IP | {EC2_PUBLIC_IP} (고정) |
 | 스토리지 | 30GB gp3 |
 
 **보안 그룹 (wherewego-sg) 인바운드 규칙:**
@@ -25,7 +25,7 @@
 
 **SSH 접속:**
 ```bash
-ssh -i ~/.ssh/wherewego-key.pem ubuntu@54.116.3.177
+ssh -i ~/.ssh/wherewego-key.pem ubuntu@{EC2_PUBLIC_IP}
 ```
 
 **PEM 키 위치:** `~/.ssh/wherewego-key.pem`
@@ -34,8 +34,8 @@ ssh -i ~/.ssh/wherewego-key.pem ubuntu@54.116.3.177
 
 ### 2. VPC / 네트워크 설정
 
-- 기본 VPC: `vpc-0fe873103bc41346a` (172.31.0.0/16)
-- 서브넷: `wherewego-subnet-2a` (172.31.0.0/20, ap-northeast-2a)
+- 기본 VPC: `{VPC_ID}` ({VPC_CIDR})
+- 서브넷: `wherewego-subnet-2a` ({SUBNET_CIDR}, ap-northeast-2a)
 - 인터넷 게이트웨이: `wherewego-igw` 생성 후 VPC 연결
 - 라우팅 테이블: `0.0.0.0/0 → wherewego-igw` 추가
 
@@ -106,7 +106,7 @@ sudo systemctl enable nginx
 **Cloudflare DNS 레코드:**
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
-| A | @ | 54.116.3.177 | Proxied ✅ |
+| A | @ | {EC2_PUBLIC_IP} | Proxied ✅ |
 | CNAME | www | wherewego.win | Proxied ✅ |
 
 **접속 흐름:**
@@ -122,7 +122,7 @@ sudo systemctl enable nginx
 
 | Secret 이름 | 용도 |
 |------------|------|
-| `EC2_HOST` | 54.116.3.177 |
+| `EC2_HOST` | {EC2_PUBLIC_IP} |
 | `EC2_USER` | ubuntu |
 | `EC2_SSH_KEY` | `~/.ssh/wherewego-key.pem` 전체 내용 |
 | `ENV_FILE` | 운영 환경변수 전체 (prod값으로 수정) |
@@ -161,7 +161,7 @@ GitHub Secrets (ENV_FILE)
 
 ```
 스킬명: 인스타링크수집
-URL: http://54.116.3.177:8080/api/v1/chatbot/webhook
+URL: http://{EC2_PUBLIC_IP}:8080/api/v1/chatbot/webhook
 헤더: X-Kakao-Skill-Secret (KAKAO_SKILL_SECRET 값)
 ```
 
@@ -199,7 +199,7 @@ URL: http://54.116.3.177:8080/api/v1/chatbot/webhook
 | 프론트엔드 (예정) | https://wherewego.win |
 | API | https://wherewego.win/api/v1 |
 | Swagger | https://wherewego.win/swagger-ui.html |
-| EC2 직접 | http://54.116.3.177:8080 |
+| EC2 직접 | http://{EC2_PUBLIC_IP}:8080 |
 
 ---
 
