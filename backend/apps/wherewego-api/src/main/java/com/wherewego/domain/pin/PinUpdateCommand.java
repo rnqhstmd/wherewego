@@ -27,6 +27,12 @@ public record PinUpdateCommand(
                                       boolean tagProvided, PinTag tag,
                                       boolean placeNameProvided, String placeName,
                                       boolean addressProvided, String address) {
+        // Q5 정책: 빈/null address 는 "미변경" 의미. DTO 레이어가 정규화하지만
+        // 도메인 command 자체에서도 invariant 를 강제하여 changePlaceInfo 가 address 를
+        // null 로 덮어쓰는 정책 위반을 차단한다.
+        if (addressProvided && address == null) {
+            addressProvided = false;
+        }
         if (!memoProvided && !tagProvided && !placeNameProvided && !addressProvided) {
             throw new CoreException(ErrorType.PIN_UPDATE_EMPTY);
         }
@@ -41,7 +47,7 @@ public record PinUpdateCommand(
                 throw new CoreException(ErrorType.PIN_PLACE_NAME_INVALID);
             }
         }
-        if (addressProvided && address != null && address.length() > 500) {
+        if (addressProvided && address.length() > 500) {
             throw new CoreException(ErrorType.PIN_ADDRESS_INVALID);
         }
         return new PinUpdateCommand(memoProvided, memo, tagProvided, tag,

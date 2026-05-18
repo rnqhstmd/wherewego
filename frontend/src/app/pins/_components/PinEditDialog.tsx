@@ -58,8 +58,14 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
   const initialAddress = pin.address ?? "";
   // pin.placeName 은 백엔드에서 trim 된 값이므로 단방향 trim 으로 비교한다.
   const placeNameChanged = placeName.trim() !== pin.placeName;
-  const addressChanged = address.trim() !== initialAddress.trim();
-  const memoChanged = memo !== initialMemo;
+  // address 는 빈 문자열을 "미변경" 으로 정규화한다 (Q5 정책).
+  // 사용자가 기존 주소를 다 지우면 addressChanged=false 가 되어 빈 patch 전송을 차단한다.
+  const trimmedAddress = address.trim();
+  const addressChanged =
+    trimmedAddress.length > 0 && trimmedAddress !== initialAddress.trim();
+  // memo 는 trim 비교로 일관성 유지. trailing whitespace 만 다른 경우 미변경으로 처리.
+  // 단, initialMemo 가 비어있지 않은데 사용자가 다 지우면 trim 후 빈 문자열로 잠금 해제 (BR-8).
+  const memoChanged = memo.trim() !== initialMemo.trim();
   const tagChanged = tag !== pin.tag;
   const canSave =
     (placeNameChanged || addressChanged || memoChanged || tagChanged) &&
@@ -113,7 +119,7 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
       // 빈 경우 키 생략 (Q5 — 미변경 시맨틱과 일치)
     }
     if (memoChanged) {
-      patch.memo = memo;
+      patch.memo = memo.trim();
     }
     if (tagChanged) {
       patch.tag = tag;

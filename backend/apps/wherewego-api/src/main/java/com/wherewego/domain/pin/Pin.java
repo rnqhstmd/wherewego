@@ -93,7 +93,7 @@ public class Pin extends BaseEntity {
      * tag=PLACE, memoSource=null (2초 룰 메모가 도착해야 AUTO 부착).
      */
     public static Pin autoFromInstagram(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
-        validateInstagramUrl(instagramUrl);
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -101,7 +101,7 @@ public class Pin extends BaseEntity {
                 hit.address(),
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
-                instagramUrl,
+                normalizedUrl,
                 PinTag.PLACE
         );
     }
@@ -111,7 +111,7 @@ public class Pin extends BaseEntity {
      * autoFromInstagram 과 동일 구조 (tag=PLACE, memoSource=null).
      */
     public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
-        validateInstagramUrl(instagramUrl);
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -119,7 +119,7 @@ public class Pin extends BaseEntity {
                 hit.address(),
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
-                instagramUrl,
+                normalizedUrl,
                 PinTag.PLACE
         );
     }
@@ -137,7 +137,7 @@ public class Pin extends BaseEntity {
                                      BigDecimal longitude,
                                      String instagramUrl,
                                      PinTag tag) {
-        validateInstagramUrl(instagramUrl);
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 userId,
@@ -145,7 +145,7 @@ public class Pin extends BaseEntity {
                 address,
                 latitude,
                 longitude,
-                instagramUrl,
+                normalizedUrl,
                 tag
         );
     }
@@ -155,16 +155,19 @@ public class Pin extends BaseEntity {
     }
 
     /**
-     * instagramUrl 검증 (XSS 방어). null/빈 문자열은 허용 (선택 필드),
+     * instagramUrl 검증 (XSS 방어) 및 trim 정규화. null/빈 문자열(trim 후 빈)은 null 반환 (선택 필드),
      * 값이 있으면 반드시 {@code https://} 로 시작해야 한다 (javascript:, data: 등 차단).
+     * <p>반환된 trim 된 값을 그대로 entity 에 저장하여 선행/후행 공백이 DB 에 새지 않도록 한다
+     * (PinCard.startsWith("https://") 검사 일관성 + UNIQUE 우회 차단).</p>
      */
-    private static void validateInstagramUrl(String url) {
-        if (url == null) return;
+    private static String validateInstagramUrl(String url) {
+        if (url == null) return null;
         String trimmed = url.trim();
-        if (trimmed.isEmpty()) return;
+        if (trimmed.isEmpty()) return null;
         if (!trimmed.startsWith("https://")) {
             throw new CoreException(ErrorType.PIN_INSTAGRAM_URL_INVALID);
         }
+        return trimmed;
     }
 
     /**

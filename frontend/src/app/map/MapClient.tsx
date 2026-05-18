@@ -314,6 +314,13 @@ export default function MapClient({
       if (result.ok) {
         setPins((prev) => prev.filter((p) => p.id !== pinId));
         setSelectedPinId(null);
+        // 직전 실패가 남긴 orphan 에러 키를 정리한다.
+        // 키가 없으면 동일 참조를 유지하여 불필요한 렌더를 방지.
+        setDeleteErrorByPinId((prev) => {
+          if (!(pinId in prev)) return prev;
+          const { [pinId]: _omit, ...rest } = prev;
+          return rest;
+        });
         return;
       }
       const message =

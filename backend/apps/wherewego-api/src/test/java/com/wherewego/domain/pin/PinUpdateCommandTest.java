@@ -173,16 +173,30 @@ class PinUpdateCommandTest {
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_ADDRESS_INVALID);
         }
 
-        @DisplayName("addressProvided=true 이고 address=null 이어도 정상 통과한다.")
+        @DisplayName("addressProvided=true + address=null 단독은 미변경으로 정규화되어 PIN_UPDATE_EMPTY 가 발생한다.")
         @Test
-        void addressProvidedNull_passes() {
-            // act
-            PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+        void addressProvidedNullOnly_throwsPinUpdateEmpty() {
+            // address 만 provided=true + null 인 경우 정규화 후 모든 필드 미제공이 되어
+            // PIN_UPDATE_EMPTY 가 발생한다 (Q5 정책: 빈/null address 는 미변경).
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, true, null))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_UPDATE_EMPTY);
+        }
+
+        @DisplayName("addressProvided=true + address=null 은 다른 필드와 함께 와도 not-provided 로 정규화된다.")
+        @Test
+        void addressProvidedNullWithOther_normalizedToNotProvided() {
+            // act - memo 만 실제 변경이고 address 는 null → addressProvided 가 false 로 정규화되어야 한다.
+            PinUpdateCommand cmd = PinUpdateCommand.of(true, "hello", false, null,
                     false, null, true, null);
 
             // assert
-            assertThat(cmd.addressProvided()).isTrue();
+            assertThat(cmd.addressProvided()).isFalse();
             assertThat(cmd.address()).isNull();
+            assertThat(cmd.memoProvided()).isTrue();
+            assertThat(cmd.memo()).isEqualTo("hello");
         }
     }
 
