@@ -27,6 +27,7 @@ import ActionBar from "./_components/ActionBar";
 import DesktopSidebar from "./_components/DesktopSidebar";
 import SearchPanelContent from "./_components/SearchPanelContent";
 import AddPinPickerContent from "./_components/AddPinPickerContent";
+import PinCoordinateEditPicker from "./_components/PinCoordinateEditPicker";
 import CrosshairOverlay from "./_components/CrosshairOverlay";
 import MemoTagPanelContent from "./_components/MemoTagPanelContent";
 import RouletteSpinContent from "./_components/RouletteSpinContent";
@@ -46,6 +47,7 @@ import {
 import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
 import {
   deletePinAction,
+  updatePinCoordinateAction,
   updatePinMemoAction,
   updatePinTagAction,
 } from "./actions";
@@ -70,7 +72,13 @@ interface MapClientProps {
   mapboxStyleUrl: string | null;
 }
 
-type ActiveSheet = "search" | "add" | "memo" | "roulette" | null;
+type ActiveSheet =
+  | "search"
+  | "add"
+  | "memo"
+  | "roulette"
+  | "coordinate-edit"
+  | null;
 
 /**
  * useOptimistic reducer 액션 (Phase 2.8 FR-7).
@@ -295,6 +303,15 @@ export default function MapClient({
     Record<number, string>
   >({});
 
+  // Phase 2.10 B4b: 좌표 수정 흐름 상태.
+  // - coordinateEditTarget: 좌표 수정 picker 대상 핀.
+  // - coordinateErrorByPinId: 핀별 직전 좌표 변경 실패 메시지 (자동 롤백 후 인라인 표시).
+  const [coordinateEditTarget, setCoordinateEditTarget] =
+    useState<PinSummaryResponse | null>(null);
+  const [coordinateErrorByPinId, setCoordinateErrorByPinId] = useState<
+    Record<number, string>
+  >({});
+
   /**
    * AC-15/16/17: 모달 확인 → optimistic remove → server action.
    * 1) 모달 닫기 (낙관적 흐름 시작 전)
@@ -333,6 +350,101 @@ export default function MapClient({
       setSelectedPinId(pinId);
     });
   }, [deleteCandidate, groupId, applyOptimistic]);
+
+  /**
+   * Phase 2.10 B4b: 좌표 수정 진입 핸들러.
+   * - 해당 pin 의 기존 에러 클리어
+   * - popup 닫고 (M5) picker 시트 오픈
+   * - 깜빡임 완화를 위해 지도 중심을 핀 위치로 flyTo (M4)
+   */
+  const handleRequestCoordinateEdit = useCallback(
+    (pin: PinSummaryResponse) => {
+      setCoordinateErrorByPinId((prev) => {
+        if (!(pin.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[pin.id];
+        return next;
+      });
+      setSelectedPinId(null);
+      setCoordinateEditTarget(pin);
+      setActiveSheet("coordinate-edit");
+      if (map) {
+        map.flyTo({
+          center: [Number(pin.longitude), Number(pin.latitude)],
+          zoom: 16,
+        });
+      }
+    },
+    [map],
+  );
+
+  /**
+   * 좌표 수정 완료: optimistic patch + server action.
+   * 성공 시 pins state 갱신 + 캐시 fetchedAt 갱신.
+   * 실패 시 핀별 에러 저장 + 동일 핀 재선택 → 자동 롤백 + 인라인 에러.
+   */
+  const handleConfirmCoordinateEdit = useCallback(
+    ({ lat, lng }: { lat: number; lng: number }) => {
+      const target = coordinateEditTarget;
+      if (!target) return;
+      const pinId = target.id;
+      setActiveSheet(null);
+      setCoordinateEditTarget(null);
+
+      startOptimisticTransition(async () => {
+        applyOptimistic({
+          kind: "patch",
+          pinId,
+          patch: { latitude: lat, longitude: lng },
+        });
+        setSelectedPinId(pinId);
+        const result = await updatePinCoordinateAction(
+          groupId,
+          pinId,
+          lat,
+          lng,
+        );
+        if (result.ok) {
+          setPins((prev) =>
+            prev.map((p) => (p.id === pinId ? result.data : p)),
+          );
+          if (pinsCacheRef.current) {
+            pinsCacheRef.current.fetchedAt = Date.now();
+          }
+          // 직전 실패가 남긴 orphan 에러 키 정리.
+          setCoordinateErrorByPinId((prev) => {
+            if (!(pinId in prev)) return prev;
+            const { [pinId]: _omit, ...rest } = prev;
+            return rest;
+          });
+          return;
+        }
+        const message =
+          result.code === "PIN_COORDINATE_INVALID"
+            ? "좌표가 유효한 범위를 벗어났어요"
+            : result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_NOT_FOUND"
+                ? "이 핀을 찾을 수 없어요"
+                : result.message;
+        setCoordinateErrorByPinId((prev) => ({ ...prev, [pinId]: message }));
+        setSelectedPinId(pinId);
+      });
+    },
+    [coordinateEditTarget, groupId, applyOptimistic],
+  );
+
+  /**
+   * 좌표 수정 취소: picker 닫고 원래 popup 복귀.
+   */
+  const handleCancelCoordinateEdit = useCallback(() => {
+    const pinId = coordinateEditTarget?.id ?? null;
+    setActiveSheet(null);
+    setCoordinateEditTarget(null);
+    if (pinId !== null) {
+      setSelectedPinId(pinId);
+    }
+  }, [coordinateEditTarget]);
 
   /**
    * 좌표 + 핀 목록을 받아 추첨을 수행하고 결과를 상태에 반영.
@@ -576,15 +688,20 @@ export default function MapClient({
   }, []);
 
   const handleSheetClose = useCallback(() => {
+    // coordinate-edit 시트를 × 로 닫으면 취소와 동일하게 처리
+    if (activeSheet === "coordinate-edit" && coordinateEditTarget) {
+      setSelectedPinId(coordinateEditTarget.id);
+    }
     setActiveSheet(null);
     setAddPinOrigin(null);
+    setCoordinateEditTarget(null);
     setRouletteState({ status: "idle" });
     pendingRouletteRef.current = false;
     if (spinTimerRef.current !== null) {
       window.clearTimeout(spinTimerRef.current);
       spinTimerRef.current = null;
     }
-  }, []);
+  }, [activeSheet, coordinateEditTarget]);
 
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
   const handleShowOnMap = useCallback(
@@ -843,6 +960,17 @@ export default function MapClient({
     );
   } else if (activeSheet === "roulette") {
     activePanel = renderPanel("오늘 어디 갈까?", renderRouletteContent());
+  } else if (activeSheet === "coordinate-edit" && coordinateEditTarget) {
+    activePanel = renderPanel(
+      "좌표 수정",
+      <PinCoordinateEditPicker
+        map={map}
+        mapboxToken={mapboxToken}
+        initialPin={coordinateEditTarget}
+        onCancel={handleCancelCoordinateEdit}
+        onConfirm={handleConfirmCoordinateEdit}
+      />,
+    );
   }
 
   return (
@@ -871,7 +999,9 @@ export default function MapClient({
           onAddPin={() => handleTabChange("add")}
         />
       )}
-      {activeSheet === "add" && <CrosshairOverlay />}
+      {(activeSheet === "add" || activeSheet === "coordinate-edit") && (
+        <CrosshairOverlay />
+      )}
       {selectedPin && (
         <PinPopup
           pin={selectedPin}
@@ -888,6 +1018,8 @@ export default function MapClient({
             setDeleteCandidate(pin);
           }}
           deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
+          onRequestCoordinateEdit={handleRequestCoordinateEdit}
+          coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
         />
       )}
       {deleteCandidate && (
@@ -966,5 +1098,6 @@ function activeSheetToTab(sheet: ActiveSheet): ActionBarTab {
   if (sheet === "search") return "search";
   if (sheet === "add" || sheet === "memo") return "add";
   if (sheet === "roulette") return "roulette";
+  // "coordinate-edit"는 액션바 비강조 (Phase 2.10 B4b): null fallback.
   return null;
 }

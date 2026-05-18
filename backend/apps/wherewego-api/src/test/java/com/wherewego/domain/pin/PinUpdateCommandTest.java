@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -15,6 +17,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>memo / tag / placeName / address 가 각각 독립적으로 제공될 수 있으며,
  * 모두 미제공 / tag 누락 / memo 초과 길이 / placeName blank·초과 / address 초과 시
  * {@link CoreException} 으로 차단된다.</p>
+ *
+ * <p>Phase 2.10: 좌표 수정 케이스(`CoordinateValidation`) 추가. 기존 8 인자 호출들은
+ * `coordinateProvided=false, latitude=null, longitude=null` 로 확장된 11 인자 시그니처에 맞춰 패치한다.</p>
  */
 class PinUpdateCommandTest {
 
@@ -27,7 +32,7 @@ class PinUpdateCommandTest {
         void noneProvided_throwsPinUpdateEmpty() {
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    false, null, false, null))
+                    false, null, false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_UPDATE_EMPTY);
         }
@@ -42,7 +47,7 @@ class PinUpdateCommandTest {
         void tagProvidedButNull_throwsPinTagInvalid() {
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, true, null,
-                    false, null, false, null))
+                    false, null, false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_TAG_INVALID);
         }
@@ -60,7 +65,7 @@ class PinUpdateCommandTest {
 
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, memo, false, null,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
@@ -76,7 +81,7 @@ class PinUpdateCommandTest {
 
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(true, memo, false, null,
-                    false, null, false, null))
+                    false, null, false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_MEMO_TOO_LONG);
         }
@@ -86,7 +91,7 @@ class PinUpdateCommandTest {
         void memoEmptyString_passes() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
@@ -98,7 +103,7 @@ class PinUpdateCommandTest {
         void memoProvidedNull_passes() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, null, false, null,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
@@ -115,7 +120,7 @@ class PinUpdateCommandTest {
         void placeNameProvidedNull_throwsPinPlaceNameInvalid() {
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    true, null, false, null))
+                    true, null, false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_PLACE_NAME_INVALID);
         }
@@ -125,7 +130,7 @@ class PinUpdateCommandTest {
         void placeNameBlank_throwsPinPlaceNameInvalid() {
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    true, "   ", false, null))
+                    true, "   ", false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_PLACE_NAME_INVALID);
         }
@@ -138,7 +143,7 @@ class PinUpdateCommandTest {
 
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    true, tooLong, false, null))
+                    true, tooLong, false, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_PLACE_NAME_INVALID);
         }
@@ -148,7 +153,7 @@ class PinUpdateCommandTest {
         void placeNameOneChar_passes() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                    true, "x", false, null);
+                    true, "x", false, null, false, null, null);
 
             // assert
             assertThat(cmd.placeNameProvided()).isTrue();
@@ -168,7 +173,7 @@ class PinUpdateCommandTest {
 
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    false, null, true, tooLong))
+                    false, null, true, tooLong, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_ADDRESS_INVALID);
         }
@@ -180,7 +185,7 @@ class PinUpdateCommandTest {
             // PIN_UPDATE_EMPTY 가 발생한다 (Q5 정책: 빈/null address 는 미변경).
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
-                    false, null, true, null))
+                    false, null, true, null, false, null, null))
                     .isInstanceOf(CoreException.class)
                     .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_UPDATE_EMPTY);
         }
@@ -190,13 +195,118 @@ class PinUpdateCommandTest {
         void addressProvidedNullWithOther_normalizedToNotProvided() {
             // act - memo 만 실제 변경이고 address 는 null → addressProvided 가 false 로 정규화되어야 한다.
             PinUpdateCommand cmd = PinUpdateCommand.of(true, "hello", false, null,
-                    false, null, true, null);
+                    false, null, true, null, false, null, null);
 
             // assert
             assertThat(cmd.addressProvided()).isFalse();
             assertThat(cmd.address()).isNull();
             assertThat(cmd.memoProvided()).isTrue();
             assertThat(cmd.memo()).isEqualTo("hello");
+        }
+    }
+
+    @DisplayName("좌표(coordinate) 검증을 할 때 (Phase 2.10),")
+    @Nested
+    class CoordinateValidation {
+
+        @DisplayName("coordinateProvided=true 이고 latitude=null 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void coordinateProvidedWithLatNull_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, null, BigDecimal.valueOf(127.0)))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("coordinateProvided=true 이고 longitude=null 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void coordinateProvidedWithLngNull_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, BigDecimal.valueOf(37.5), null))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("latitude 가 91 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void latitudeAbove90_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null,
+                    true, BigDecimal.valueOf(91), BigDecimal.valueOf(127.0)))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("latitude 가 -91 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void latitudeBelowMinus90_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null,
+                    true, BigDecimal.valueOf(-91), BigDecimal.valueOf(127.0)))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("longitude 가 181 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void longitudeAbove180_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null,
+                    true, BigDecimal.valueOf(37.5), BigDecimal.valueOf(181)))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("longitude 가 -181 이면 PIN_COORDINATE_INVALID 가 발생한다.")
+        @Test
+        void longitudeBelowMinus180_throwsPinCoordinateInvalid() {
+            // act & assert
+            assertThatThrownBy(() -> PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null,
+                    true, BigDecimal.valueOf(37.5), BigDecimal.valueOf(-181)))
+                    .isInstanceOf(CoreException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_COORDINATE_INVALID);
+        }
+
+        @DisplayName("범위 내 좌표 (lat=37.5665, lng=126.9780) 는 정상 통과한다.")
+        @Test
+        void coordinateProvidedInRange_passes() {
+            // arrange
+            BigDecimal lat = new BigDecimal("37.5665");
+            BigDecimal lng = new BigDecimal("126.9780");
+
+            // act
+            PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                    false, null, false, null, true, lat, lng);
+
+            // assert
+            assertThat(cmd.coordinateProvided()).isTrue();
+            assertThat(cmd.latitude()).isEqualTo(lat);
+            assertThat(cmd.longitude()).isEqualTo(lng);
+        }
+
+        @DisplayName("좌표 + memo 동시 변경 시 두 플래그 모두 true 로 설정된다.")
+        @Test
+        void coordinateAndMemoTogether_buildsCommand() {
+            // arrange
+            BigDecimal lat = new BigDecimal("37.5665");
+            BigDecimal lng = new BigDecimal("126.9780");
+
+            // act
+            PinUpdateCommand cmd = PinUpdateCommand.of(true, "memo", false, null,
+                    false, null, false, null, true, lat, lng);
+
+            // assert
+            assertThat(cmd.memoProvided()).isTrue();
+            assertThat(cmd.memo()).isEqualTo("memo");
+            assertThat(cmd.coordinateProvided()).isTrue();
+            assertThat(cmd.latitude()).isEqualTo(lat);
+            assertThat(cmd.longitude()).isEqualTo(lng);
         }
     }
 
@@ -209,7 +319,7 @@ class PinUpdateCommandTest {
         void memoOnly_buildsCommand() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, "hello", false, null,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
@@ -223,7 +333,7 @@ class PinUpdateCommandTest {
         void tagOnly_buildsCommand() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isFalse();
@@ -237,7 +347,7 @@ class PinUpdateCommandTest {
         void bothProvided_buildsCommand() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, "memo", true, PinTag.PLACE,
-                    false, null, false, null);
+                    false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
@@ -251,7 +361,7 @@ class PinUpdateCommandTest {
         void placeNameOnly_buildsCommand() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                    true, "새 장소", false, null);
+                    true, "새 장소", false, null, false, null, null);
 
             // assert
             assertThat(cmd.placeNameProvided()).isTrue();
@@ -265,7 +375,7 @@ class PinUpdateCommandTest {
         void memoAndPlaceName_buildsCommand() {
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, "memo", false, null,
-                    true, "장소", false, null);
+                    true, "장소", false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();

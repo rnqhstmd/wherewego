@@ -25,5 +25,5 @@
 - **Phase 2.5 완료**: 장소명 추출을 Gemini 2.0 Flash로 교체 → FR-BOT-7 추출 성공률 ↑ ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places 비동기 폴백 (FR-BOT-5) — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
 - **Phase 2.6 PR-B 완료**: Bucket4j 챗봇 Webhook 레이트 리밋(botUserKey 분당 10회), 그룹 탈퇴 시 BotUserMapping cascade, `@RefreshScope` + Actuator `/refresh` — [#18](https://github.com/rnqhstmd/wherewego/pull/18)
-- **Phase 2.10 예정** (Phase 2.6 PR-C 이월): 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증 — 잔여 후속 통합으로 묶음
+- **Phase 2.10 완료**: 카카오 i 오픈빌더 PLACE_SELECTION 시나리오 설정(빌더 콘솔 운영 작업, 코드 변경 없음) + 카카오톡 실기기 1회 수동 E2E 검증(PR 본문 절차/결과 기록) + Phase 2.7 IT 5케이스 회귀 통과 — [PR-LINK]
 - **Phase 2.7 완료**: PLACE_SELECTION E2E IT 5케이스 보강 (정상/만료/미연동/그룹 미가입/중복 핀) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)

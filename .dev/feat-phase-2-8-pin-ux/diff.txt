@@ -1,0 +1,24 @@
+ .../main/java/com/wherewego/domain/pin/Pin.java    |  29 ++++
+ .../java/com/wherewego/domain/pin/PinService.java  |  13 +-
+ .../com/wherewego/domain/pin/PinUpdateCommand.java |  29 +++-
+ .../com/wherewego/interfaces/api/pin/PinV1Dto.java |  34 ++++-
+ .../com/wherewego/support/error/ErrorType.java     |   3 +-
+ .../com/wherewego/domain/pin/PinServiceIT.java     | 106 ++++++++++++++-
+ .../wherewego/domain/pin/PinUpdateCommandTest.java | 146 +++++++++++++++++++--
+ .../api/pin/PinV1ControllerIntegrationTest.java    | 106 +++++++++++++++
+ context/map/architecture.md                        |   7 +
+ context/map/status.md                              |   2 +-
+ context/pin/architecture.md                        |   9 +-
+ context/pin/status.md                              |   8 +-
+ frontend/src/app/map/MapClient.tsx                 |  98 ++++++++++++--
+ .../app/map/_components/MemoTagPanelContent.tsx    |  43 +++++-
+ frontend/src/app/map/_components/PinPopup.tsx      |  51 +++++++
+ frontend/src/app/map/actions.ts                    |  36 ++++-
+ frontend/src/app/pins/PinListClient.tsx            |   6 +
+ frontend/src/app/pins/_components/PinCard.tsx      |   2 +-
+ .../src/app/pins/_components/PinEditDialog.tsx     | 127 +++++++++++++++++-
+ frontend/src/lib/api/pin.ts                        |   2 +
+ frontend/src/lib/pin/constants.ts                  |  15 +++
+ 21 files changed, 816 insertions(+), 56 deletions(-)
+---
+위는 요약입니다. 변경된 파일을 Read 도구로 직접 확인하라.

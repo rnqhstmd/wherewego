@@ -38,7 +38,7 @@ Thumbs.db
 # Tools
 # ========================
 .omc/
-.dev/
+# .dev/ 는 단일 개발자 환경에서 산출물(PRD/설계/state 등)을 git으로 관리하기 위해 추적 대상에 둔다.
 
 # ========================
 # Build artifacts (additional)

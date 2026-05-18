@@ -206,6 +206,15 @@ public class Pin extends BaseEntity {
         }
     }
 
+    /**
+     * 좌표 변경 (Phase 2.10 FR-PIN-7). 범위 검증은 Command 레이어에서 수행하므로
+     * 도메인은 단순 위임한다. latitude/longitude 는 non-null (호출 전 Command 에서 보장).
+     */
+    public void changeCoordinate(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     public boolean isDeleted() {
         return getDeletedAt() != null;
     }

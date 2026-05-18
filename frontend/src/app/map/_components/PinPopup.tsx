@@ -38,6 +38,15 @@ interface PinPopupProps {
    * 인라인 빨간 텍스트로 표시한다.
    */
   deleteError: string | null;
+  /**
+   * 좌표 수정 의도 위임 콜백 (Phase 2.10 B4b). MapClient 가 picker 시트를
+   * 열고 새 좌표 확정 시 optimistic patch + server action 을 책임진다.
+   */
+  onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
+  /**
+   * 직전 좌표 변경 실패 메시지. null 이 아니면 footer 하단에 인라인 빨간 텍스트로 표시.
+   */
+  coordinateError: string | null;
 }
 
 type PopupView = "tag" | "memo";
@@ -70,6 +79,8 @@ export default function PinPopup({
   onMemoChange,
   onRequestDelete,
   deleteError,
+  onRequestCoordinateEdit,
+  coordinateError,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
@@ -256,7 +267,7 @@ export default function PinPopup({
           onCancel={() => setView("tag")}
         />
       )}
-      {/* 삭제 버튼: HLine 으로 본문과 분리, 우측 정렬 (AC-12). */}
+      {/* 삭제/좌표 수정 버튼: HLine 으로 본문과 분리, 우측 정렬 (AC-12). */}
       <div
         style={{
           marginTop: 10,
@@ -264,8 +275,25 @@ export default function PinPopup({
           borderTop: `1px solid ${colors.hairline}`,
           display: "flex",
           justifyContent: "flex-end",
+          gap: 4,
         }}
       >
+        <button
+          type="button"
+          onClick={() => onRequestCoordinateEdit(pin)}
+          style={{
+            padding: "6px 10px",
+            border: "none",
+            background: "transparent",
+            color: colors.inkSoft,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          좌표 수정
+        </button>
         <button
           type="button"
           onClick={() => onRequestDelete(pin)}
@@ -293,6 +321,18 @@ export default function PinPopup({
           }}
         >
           {deleteError}
+        </div>
+      )}
+      {coordinateError && (
+        <div
+          style={{
+            marginTop: 6,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            color: colors.pinNew,
+          }}
+        >
+          {coordinateError}
         </div>
       )}
     </div>

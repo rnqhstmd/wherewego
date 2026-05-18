@@ -171,7 +171,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동", false, null,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -190,7 +190,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -210,7 +210,7 @@ class PinServiceIT {
 
         // act : 빈 문자열 전송 → 잠금 해제
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert : DB 값도 NULL
@@ -231,7 +231,7 @@ class PinServiceIT {
 
         // act : 수동 메모 저장
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동 메모", false, null,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert : AUTO 메모 시도는 차단
@@ -247,7 +247,7 @@ class PinServiceIT {
 
         // act & assert
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         assertThatThrownBy(() -> pinService.updatePin(userCId, groupId, pin.getId(), cmd))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
@@ -263,7 +263,7 @@ class PinServiceIT {
 
         // act & assert
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null,
-                false, null, false, null);
+                false, null, false, null, false, null, null);
         assertThatThrownBy(() -> pinService.updatePin(userAId, groupId, pin.getId(), cmd))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_NOT_FOUND);
@@ -278,7 +278,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                true, "새 장소", false, null);
+                true, "새 장소", false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -298,7 +298,7 @@ class PinServiceIT {
 
         // act & assert : userC 는 비멤버
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                true, "새 장소", false, null);
+                true, "새 장소", false, null, false, null, null);
         assertThatThrownBy(() -> pinService.updatePin(userCId, groupId, pin.getId(), cmd))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
@@ -312,7 +312,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                true, "userB 수정", false, null);
+                true, "userB 수정", false, null, false, null, null);
         PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd);
 
         // assert
@@ -328,7 +328,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                false, null, true, "새 주소");
+                false, null, true, "새 주소", false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -349,7 +349,7 @@ class PinServiceIT {
 
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
-                true, "새 장소", true, "새 주소");
+                true, "새 장소", true, "새 주소", false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert

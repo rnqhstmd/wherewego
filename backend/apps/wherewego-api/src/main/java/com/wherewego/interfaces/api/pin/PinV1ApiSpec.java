@@ -44,7 +44,9 @@ public interface PinV1ApiSpec {
             summary = "핀 부분 수정",
             description = "활성 그룹원이 핀의 memo/tag 를 부분 수정합니다 (FR-2, BR-7). " +
                     "memo 가 빈 문자열이면 잠금 해제(BR-8), 비어있지 않으면 MANUAL 마킹(BR-3, FR-4). " +
-                    "키 없음 vs JSON null vs 빈 문자열을 구분하기 위해 본문은 JsonNode 로 받습니다."
+                    "키 없음 vs JSON null vs 빈 문자열을 구분하기 위해 본문은 JsonNode 로 받습니다. " +
+                    "Phase 2.10: 좌표 수정 지원 — latitude/longitude 는 함께 전달해야 하며 한 쪽만 전달 시 " +
+                    "PIN_COORDINATE_INVALID (400). 범위: latitude -90~90, longitude -180~180."
     )
     ApiResponse<PinV1Dto.PinSummaryResponse> updatePin(
             @Parameter(hidden = true) Long userId,

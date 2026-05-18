@@ -11,6 +11,8 @@ export interface PinPatch {
   tag?: PinTag;
   placeName?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface ListPinsOptions {

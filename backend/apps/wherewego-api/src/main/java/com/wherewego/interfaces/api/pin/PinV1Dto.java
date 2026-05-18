@@ -144,9 +144,13 @@ public final class PinV1Dto {
      *
      * <p>Phase 2.8: placeName/address 부분 수정 지원. address 의 빈 문자열은 "안전 무시"(미변경)으로
      * 정규화하여 클라이언트가 의도치 않은 입력을 보냈을 때도 안전하게 처리한다 (Q5).</p>
+     *
+     * <p>Phase 2.10: 좌표(latitude/longitude) 부분 수정 지원. JsonNode 대신 BigDecimal 직접 매핑
+     * (CreatePinRequest 대칭). 한 쪽만 전달 시 PIN_COORDINATE_INVALID.</p>
      */
     public record UpdatePinRequest(JsonNode memo, JsonNode tag,
-                                   JsonNode placeName, JsonNode address) {
+                                   JsonNode placeName, JsonNode address,
+                                   BigDecimal latitude, BigDecimal longitude) {
 
         public PinUpdateCommand toCommand() {
             boolean memoProvided = memo != null && !memo.isNull();
@@ -194,8 +198,19 @@ public final class PinV1Dto {
                 }
             }
 
+            // Phase 2.10: 좌표 단일 플래그 처리
+            boolean coordinateProvided;
+            if (latitude == null && longitude == null) {
+                coordinateProvided = false;
+            } else if (latitude != null && longitude != null) {
+                coordinateProvided = true;
+            } else {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+
             return PinUpdateCommand.of(memoProvided, memoValue, tagProvided, tagValue,
-                    placeNameProvided, placeNameValue, addressProvided, addressValue);
+                    placeNameProvided, placeNameValue, addressProvided, addressValue,
+                    coordinateProvided, latitude, longitude);
         }
     }
 
