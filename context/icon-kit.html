@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>MayGo Icon Kit</title>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f4ede0;color:#1c1810;font-family:-apple-system,system-ui,sans-serif;min-height:100vh}
+header{padding:48px 40px 32px;border-bottom:1.5px dashed #1c181040}
+.wordmark{font-family:"Nanum Pen Script",cursive;font-size:38px;letter-spacing:-1px}
+.sub{font-size:14px;color:#5b5040;margin-top:6px}
+.controls{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+.toggle{display:flex;border:1.4px solid #1c1810;border-radius:999px;overflow:hidden}
+.toggle button{padding:8px 18px;background:none;border:none;cursor:pointer;font-size:14px;color:#1c1810;transition:background .15s,color .15s}
+.toggle button.active{background:#1c1810;color:#f4ede0}
+.dl-all{padding:9px 20px;background:#d85b5b;color:#fff;border:none;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none}
+.dl-all:hover{background:#c04a4a}
+main{padding:40px}
+.section-title{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#a59880;margin:36px 0 16px;border-bottom:1px dashed #1c181030;padding-bottom:8px}
+.section-title:first-child{margin-top:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.pin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.app-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+
+/* icon card */
+.card{border:1.4px solid #1c181020;border-radius:14px;background:#fff8;padding:18px 10px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
+.card:hover{border-color:#d85b5b;box-shadow:0 4px 16px #d85b5b18}
+.card img{display:block}
+.card-name{font-size:11.5px;color:#5b5040;text-align:center;line-height:1.3}
+.card .dl-btn{display:none;position:absolute;bottom:8px;right:8px;padding:3px 8px;background:#d85b5b;color:#fff;border-radius:6px;font-size:10px;text-decoration:none}
+.card:hover .dl-btn{display:block}
+
+/* preview bg variants */
+body.dark-preview{background:#0d1430;color:#f0e7d3}
+body.dark-preview header{border-color:#f0e7d330}
+body.dark-preview .wordmark{color:#f0e7d3}
+body.dark-preview .sub{color:#b3a994}
+body.dark-preview .toggle{border-color:#f0e7d3}
+body.dark-preview .toggle button{color:#f0e7d3}
+body.dark-preview .toggle button.active{background:#f0e7d3;color:#0d1430}
+body.dark-preview .section-title{color:#6c6552;border-color:#f0e7d310}
+body.dark-preview .card{background:#161e3d;border-color:#f0e7d315}
+body.dark-preview .card:hover{border-color:#ff8a8a}
+body.dark-preview .card img{filter:invert(1) sepia(.3) hue-rotate(10deg)}
+body.dark-preview .card img.colored{filter:none}
+body.dark-preview .card-name{color:#b3a994}
+
+/* note */
+.note{font-size:12px;color:#a59880;margin-top:8px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">MayGo Icon Kit</div>
+  <div class="sub">29 SVG icons — UI 19 · Pin Markers 8 · App Icons 2</div>
+  <div class="controls">
+    <div class="toggle">
+      <button class="active" onclick="setTheme('light')">Light</button>
+      <button onclick="setTheme('dark')">Dark</button>
+    </div>
+    <a class="dl-all" href="#" onclick="dlAll(event)">↓  전체 다운로드 (ZIP)</a>
+  </div>
+  <div class="note">아이콘 카드를 클릭하면 개별 SVG 다운로드 · currentColor 적용 가능 · 개발자 핸드오프 ready</div>
+</header>
+
+<main>
+  <!-- UI Icons -->
+  <div class="section-title">UI Icons — 19종 (stroke · currentColor)</div>
+  <div class="grid" id="ui-grid"></div>
+
+  <!-- Pin Markers -->
+  <div class="section-title">Pin Markers — 4종 × Light / Dark</div>
+  <div class="pin-grid" id="pin-grid"></div>
+
+  <!-- App Icons -->
+  <div class="section-title">App Icon — 512×512</div>
+  <div class="app-grid" id="app-grid"></div>
+</main>
+
+<script>
+const UI = [
+  'ic-search','ic-add','ic-list','ic-map','ic-globe',
+  'ic-location','ic-compass','ic-back','ic-close','ic-share',
+  'ic-copy','ic-check','ic-chat','ic-dice','ic-profile',
+  'ic-heart','ic-star','ic-reel','ic-settings'
+];
+const LABELS = {
+  'ic-search':'검색','ic-add':'추가','ic-list':'목록','ic-map':'지도','ic-globe':'지구본',
+  'ic-location':'위치','ic-compass':'나침반','ic-back':'뒤로','ic-close':'닫기','ic-share':'공유',
+  'ic-copy':'복사','ic-check':'완료','ic-chat':'채팅','ic-dice':'오늘 어디?','ic-profile':'프로필',
+  'ic-heart':'하트','ic-star':'별','ic-reel':'릴스','ic-settings':'설정'
+};
+const PINS = [
+  ['pin-star-light','별 핀 (미방문)','light'],
+  ['pin-moon-light','달 핀 (야간)','light'],
+  ['pin-star-visited-light','별 핀 (방문)','light'],
+  ['pin-heart-light','하트 핀 (완료)','light'],
+  ['pin-star-dark','별 핀 (미방문)','dark'],
+  ['pin-moon-dark','달 핀 (야간)','dark'],
+  ['pin-star-visited-dark','별 핀 (방문)','dark'],
+  ['pin-heart-dark','하트 핀 (완료)','dark'],
+];
+const APPS = [
+  ['app-icon-dark','앱 아이콘 Dark'],
+  ['app-icon-light','앱 아이콘 Light'],
+];
+
+function card(name, label, imgH, colored=false) {
+  return `<div class="card" onclick="dl('icons/${name}.svg','${name}.svg')" title="클릭하여 다운로드">
+    <img src="icons/${name}.svg" height="${imgH}" ${colored?'class="colored"':''} alt="${name}"/>
+    <span class="card-name">${label}<br/><span style="font-size:10px;opacity:.5">${name}</span></span>
+    <a class="dl-btn" href="#" onclick="event.stopPropagation();dl('icons/${name}.svg','${name}.svg');return false">↓ SVG</a>
+  </div>`;
+}
+
+document.getElementById('ui-grid').innerHTML =
+  UI.map(n => card(n, LABELS[n]||n, 40)).join('');
+
+document.getElementById('pin-grid').innerHTML =
+  PINS.map(([n,l,t]) => {
+    const bg = t==='dark' ? 'background:#0d1430;border-radius:10px;padding:6px' : '';
+    return `<div class="card" onclick="dl('icons/${n}.svg','${n}.svg')" title="클릭하여 다운로드">
+      <div style="${bg}"><img src="icons/${n}.svg" height="60" class="colored" alt="${n}"/></div>
+      <span class="card-name">${l}<br/><span style="font-size:10px;opacity:.5">${t}</span></span>
+      <a class="dl-btn" href="#" onclick="event.stopPropagation();dl('icons/${n}.svg','${n}.svg');return false">↓ SVG</a>
+    </div>`;
+  }).join('');
+
+document.getElementById('app-grid').innerHTML =
+  APPS.map(([n,l]) => card(n, l, 120, true)).join('');
+
+function dl(path, filename) {
+  fetch(path).then(r=>r.blob()).then(blob=>{
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+  });
+}
+
+function dlAll(e) {
+  e.preventDefault();
+  alert('오른쪽 아이콘 키트 다운로드 버튼 (채팅 하단 카드)을 이용해 전체 ZIP으로 받을 수 있어요!');
+}
+
+function setTheme(t) {
+  document.body.classList.toggle('dark-preview', t==='dark');
+  document.querySelectorAll('.toggle button').forEach((b,i)=>{
+    b.classList.toggle('active', (t==='light'&&i===0)||(t==='dark'&&i===1));
+  });
+}
+</script>
+</body>
+</html>

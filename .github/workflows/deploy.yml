@@ -75,7 +75,9 @@ jobs:
             docker run -d \
               --name wherewego-api \
               --env-file /etc/wherewego/.env \
+              -e JAVA_TOOL_OPTIONS="-Xmx512m -Xms256m" \
               -p 8080:8080 \
+              --memory 700m \
               --restart unless-stopped \
               ${{ env.IMAGE }}:latest
 
