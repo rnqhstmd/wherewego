@@ -314,6 +314,112 @@ class PinV1ControllerIntegrationTest {
         assertThat(row.get("memo_source")).isNull();
     }
 
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - placeName 만 전달하면 200 과 갱신된 placeName 을 반환한다 (Phase 2.8).")
+    @Test
+    void patchPin_placeNameOnly_returns200WithUpdatedPlaceName() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN1/",
+                null, null, "PLACE");
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"placeName\": \"새 이름\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("placeName").asText()).isEqualTo("새 이름");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 빈 placeName 은 400 PIN_PLACE_NAME_INVALID 를 반환한다 (Phase 2.8).")
+    @Test
+    void patchPin_emptyPlaceName_returnsPinPlaceNameInvalid() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN2/",
+                null, null, "PLACE");
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"placeName\": \"\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_PLACE_NAME_INVALID");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 빈 address 는 200 + address 미변경 (Q5 안전 무시).")
+    @Test
+    void patchPin_emptyAddress_returns200WithUnchangedAddress() {
+        // arrange : 기존 address = "서울 강남구"
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN3/",
+                null, null, "PLACE");
+
+        // act : 빈 address + non-empty memo 조합 → address 미변경, memo 반영
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"memo\": \"m\", \"address\": \"\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("address").asText()).isEqualTo("서울 강남구");
+        assertThat(data.get("memo").asText()).isEqualTo("m");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 빈 address 단독은 400 PIN_UPDATE_EMPTY 를 반환한다 (Phase 2.8 정규화).")
+    @Test
+    void patchPin_addressOnlyEmpty_returns400PinUpdateEmpty() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN6/",
+                null, null, "PLACE");
+
+        // act : 빈 address 단독 → addressProvided=false 로 정규화되어 수정 필드 없음
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"address\": \"\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_UPDATE_EMPTY");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - placeName 과 memo 동시 전달 시 양쪽이 반영된다 (Phase 2.8).")
+    @Test
+    void patchPin_placeNameAndMemo_returns200WithBothApplied() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN4/",
+                null, null, "PLACE");
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"placeName\": \"x\", \"memo\": \"y\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("placeName").asText()).isEqualTo("x");
+        assertThat(data.get("memo").asText()).isEqualTo("y");
+        assertThat(data.get("memoSource").asText()).isEqualTo("MANUAL");
+    }
+
+    @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 501자 address 는 400 PIN_ADDRESS_INVALID 를 반환한다 (Phase 2.8).")
+    @Test
+    void patchPin_addressTooLong_returnsPinAddressInvalid() {
+        // arrange
+        Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN5/",
+                null, null, "PLACE");
+        String tooLong = "a".repeat(501);
+
+        // act
+        ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
+                "{\"address\": \"" + tooLong + "\"}");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText())
+                .isEqualTo("PIN_ADDRESS_INVALID");
+    }
+
     @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 삭제된 핀은 404 PIN_NOT_FOUND 를 반환한다 (AC-14).")
     @Test
     void patchPin_deletedPin_returns404() {

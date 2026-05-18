@@ -43,7 +43,12 @@ import {
   reRollFromSamePool,
   type RouletteRadiusKm,
 } from "./_lib/roulette";
-import { updatePinMemoAction, updatePinTagAction } from "./actions";
+import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
+import {
+  deletePinAction,
+  updatePinMemoAction,
+  updatePinTagAction,
+} from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
 
 /**
@@ -66,6 +71,17 @@ interface MapClientProps {
 }
 
 type ActiveSheet = "search" | "add" | "memo" | "roulette" | null;
+
+/**
+ * useOptimistic reducer 액션 (Phase 2.8 FR-7).
+ *
+ * `patch`: 태그/메모 등 필드 부분 머지 (MUST-5).
+ * `remove`: 삭제 흐름의 낙관적 제거. 실패 시 transition 종료로 자동 롤백되어
+ * 마커가 복원되고 PinPopup 재mount → 인라인 에러 표시 (AC-16).
+ */
+type OptimisticAction =
+  | { kind: "patch"; pinId: number; patch: Partial<PinSummaryResponse> }
+  | { kind: "remove"; pinId: number };
 
 /** 룰렛 시트 내부 상태 머신 (설계 §10). */
 type RouletteUIState =
@@ -114,14 +130,19 @@ export default function MapClient({
 }: MapClientProps) {
   const [pins, setPins] = useState<PinSummaryResponse[]>(initialPins);
   // MUST-5: 태그/메모 등 부분 갱신을 마커/팝업에 즉시 반영하기 위한 useOptimistic.
-  // reducer 는 `Partial<PinSummaryResponse>` 머지 방식으로 일반화하여
-  // 태그 변경(`{ tag }`)과 메모 변경(`{ memo }`)을 동일 패턴으로 처리한다.
+  // Phase 2.8: reducer 를 `patch | remove` 액션으로 일반화하여 삭제 흐름(FR-7)도 포괄.
+  // transition 종료 시 자동 롤백되어 실패 시 마커가 복원된다 (AC-16).
   const [optimisticPins, applyOptimistic] = useOptimistic<
     PinSummaryResponse[],
-    { pinId: number; patch: Partial<PinSummaryResponse> }
-  >(pins, (current, { pinId, patch }) =>
-    current.map((p) => (p.id === pinId ? { ...p, ...patch } : p)),
-  );
+    OptimisticAction
+  >(pins, (current, action) => {
+    if (action.kind === "remove") {
+      return current.filter((p) => p.id !== action.pinId);
+    }
+    return current.map((p) =>
+      p.id === action.pinId ? { ...p, ...action.patch } : p,
+    );
+  });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
@@ -202,7 +223,7 @@ export default function MapClient({
       // await 동안 transition이 유지되어 useOptimistic 상태도 보존됨 → 즉시 롤백 깜빡임 방지.
       return new Promise((resolve) => {
         startOptimisticTransition(async () => {
-          applyOptimistic({ pinId, patch: { tag: nextTag } });
+          applyOptimistic({ kind: "patch", pinId, patch: { tag: nextTag } });
           const result = await updatePinTagAction(groupId, pinId, nextTag);
           if (result.ok) {
             setPins((prev) =>
@@ -235,7 +256,7 @@ export default function MapClient({
     ): Promise<{ ok: boolean; message?: string }> => {
       return new Promise((resolve) => {
         startOptimisticTransition(async () => {
-          applyOptimistic({ pinId, patch: { memo: nextMemo } });
+          applyOptimistic({ kind: "patch", pinId, patch: { memo: nextMemo } });
           const result = await updatePinMemoAction(groupId, pinId, nextMemo);
           if (result.ok) {
             setPins((prev) =>
@@ -263,6 +284,48 @@ export default function MapClient({
     },
     [applyOptimistic, groupId],
   );
+
+  // Phase 2.8 FR-7: 삭제 흐름 상태.
+  // - deleteCandidate: 모달 표시 대상 핀 (null 이면 모달 닫힘).
+  // - deleteErrorByPinId: 핀별 직전 실패 메시지 (AC-16). 자동 롤백 후
+  //   재선택된 PinPopup 의 deleteError prop 으로 전달되어 인라인 노출.
+  const [deleteCandidate, setDeleteCandidate] =
+    useState<PinSummaryResponse | null>(null);
+  const [deleteErrorByPinId, setDeleteErrorByPinId] = useState<
+    Record<number, string>
+  >({});
+
+  /**
+   * AC-15/16/17: 모달 확인 → optimistic remove → server action.
+   * 1) 모달 닫기 (낙관적 흐름 시작 전)
+   * 2) startOptimisticTransition 안에서 remove 액션 + deletePinAction 호출
+   * 3) 성공: 실제 pins state 에서 제거 + selectedPinId 해제
+   * 4) 실패: 핀별 에러 저장 + 동일 핀 재선택 → transition 종료 시 자동 롤백 →
+   *    마커 복원 + PinPopup 재mount → deleteError 인라인 표시
+   */
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteCandidate) return;
+    const pinId = deleteCandidate.id;
+    setDeleteCandidate(null);
+
+    startOptimisticTransition(async () => {
+      applyOptimistic({ kind: "remove", pinId });
+      const result = await deletePinAction(groupId, pinId);
+      if (result.ok) {
+        setPins((prev) => prev.filter((p) => p.id !== pinId));
+        setSelectedPinId(null);
+        return;
+      }
+      const message =
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : result.code === "PIN_NOT_FOUND"
+            ? "이 핀을 찾을 수 없어요"
+            : result.message;
+      setDeleteErrorByPinId((prev) => ({ ...prev, [pinId]: message }));
+      setSelectedPinId(pinId);
+    });
+  }, [deleteCandidate, groupId, applyOptimistic]);
 
   /**
    * 좌표 + 핀 목록을 받아 추첨을 수행하고 결과를 상태에 반영.
@@ -808,6 +871,23 @@ export default function MapClient({
           map={map}
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
+          onRequestDelete={(pin) => {
+            setDeleteErrorByPinId((prev) => {
+              if (!(pin.id in prev)) return prev;
+              const next = { ...prev };
+              delete next[pin.id];
+              return next;
+            });
+            setDeleteCandidate(pin);
+          }}
+          deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
+        />
+      )}
+      {deleteCandidate && (
+        <PinDeleteConfirm
+          pin={deleteCandidate}
+          onCancel={() => setDeleteCandidate(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
       {activePanel}

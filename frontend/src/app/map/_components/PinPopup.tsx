@@ -28,6 +28,16 @@ interface PinPopupProps {
     pinId: number,
     nextMemo: string,
   ) => Promise<{ ok: boolean; message?: string }>;
+  /**
+   * 삭제 의도 위임 콜백 (FR-7 / AC-15). MapClient 가 확인 모달을 띄운 뒤
+   * 최종 확인 시 server action 호출 + optimistic remove 를 책임진다.
+   */
+  onRequestDelete: (pin: PinSummaryResponse) => void;
+  /**
+   * 직전 삭제 실패 메시지 (AC-16/AC-17). null 이 아니면 footer 하단에
+   * 인라인 빨간 텍스트로 표시한다.
+   */
+  deleteError: string | null;
 }
 
 type PopupView = "tag" | "memo";
@@ -58,6 +68,8 @@ export default function PinPopup({
   authorLabel,
   onTagChange,
   onMemoChange,
+  onRequestDelete,
+  deleteError,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
@@ -243,6 +255,45 @@ export default function PinPopup({
           onSave={handleSaveMemo}
           onCancel={() => setView("tag")}
         />
+      )}
+      {/* 삭제 버튼: HLine 으로 본문과 분리, 우측 정렬 (AC-12). */}
+      <div
+        style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: `1px solid ${colors.hairline}`,
+          display: "flex",
+          justifyContent: "flex-end",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => onRequestDelete(pin)}
+          style={{
+            padding: "6px 10px",
+            border: "none",
+            background: "transparent",
+            color: colors.pinNew,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          삭제
+        </button>
+      </div>
+      {deleteError && (
+        <div
+          style={{
+            marginTop: 6,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            color: colors.pinNew,
+          }}
+        >
+          {deleteError}
+        </div>
       )}
     </div>
   ) : null;

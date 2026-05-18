@@ -48,12 +48,13 @@ public enum ErrorType {
 
     /** 핀 (Phase 4) */
     PIN_NOT_FOUND(HttpStatus.NOT_FOUND, "PIN_NOT_FOUND", "존재하지 않는 핀입니다."),
-    PIN_UPDATE_EMPTY(HttpStatus.BAD_REQUEST, "PIN_UPDATE_EMPTY", "수정할 필드(memo 또는 tag)가 없습니다."),
+    PIN_UPDATE_EMPTY(HttpStatus.BAD_REQUEST, "PIN_UPDATE_EMPTY", "수정할 필드가 없습니다."),
     PIN_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "PIN_MEMO_TOO_LONG", "메모는 최대 500자까지 입력할 수 있습니다."),
     PIN_MEMO_INVALID(HttpStatus.BAD_REQUEST, "PIN_MEMO_INVALID", "메모 값이 유효하지 않습니다."),
     PIN_TAG_INVALID(HttpStatus.BAD_REQUEST, "PIN_TAG_INVALID", "태그는 PLACE 또는 MEMORY 중 하나여야 합니다."),
     PIN_PLACE_NAME_INVALID(HttpStatus.BAD_REQUEST, "PIN_PLACE_NAME_INVALID", "장소 이름은 1~200자여야 합니다."),
     PIN_ADDRESS_INVALID(HttpStatus.BAD_REQUEST, "PIN_ADDRESS_INVALID", "주소는 최대 500자까지 입력할 수 있습니다."),
+    PIN_INSTAGRAM_URL_INVALID(HttpStatus.BAD_REQUEST, "PIN_INSTAGRAM_URL_INVALID", "Instagram URL은 https://로 시작해야 합니다."),
     PIN_COORDINATE_INVALID(HttpStatus.BAD_REQUEST, "PIN_COORDINATE_INVALID", "좌표 범위가 유효하지 않습니다.");
 
     private final HttpStatus status;

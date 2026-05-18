@@ -3,11 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
-import { MEMO_MAX_LENGTH } from "@/lib/pin/constants";
+import {
+  ADDRESS_MAX_LENGTH,
+  MEMO_MAX_LENGTH,
+  PLACE_NAME_MAX_LENGTH,
+} from "@/lib/pin/constants";
 
 export interface PinEditPatch {
-  memo?: string;
+  placeName?: string;
+  address?: string;
   tag?: PinTag;
+  memo?: string;
+  // Phase 2.8 범위 외: instagramUrl 수정 (별도 Phase)
 }
 
 interface PinEditDialogProps {
@@ -18,6 +25,8 @@ interface PinEditDialogProps {
 
 export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const [placeName, setPlaceName] = useState<string>(pin.placeName);
+  const [address, setAddress] = useState<string>(pin.address ?? "");
   const [memo, setMemo] = useState<string>(pin.memo ?? "");
   const [tag, setTag] = useState<PinTag>(pin.tag);
 
@@ -34,15 +43,52 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
     };
   }, []);
 
+  const placeNameLength = placeName.length;
+  const trimmedPlaceName = placeName.trim();
+  const isPlaceNameEmpty = trimmedPlaceName.length === 0;
+  const isPlaceNameTooLong = placeNameLength > PLACE_NAME_MAX_LENGTH;
+
+  const addressLength = address.length;
+  const isAddressTooLong = addressLength > ADDRESS_MAX_LENGTH;
+
   const memoLength = memo.length;
   const isMemoTooLong = memoLength > MEMO_MAX_LENGTH;
 
   const initialMemo = pin.memo ?? "";
+  const initialAddress = pin.address ?? "";
+  // pin.placeName 은 백엔드에서 trim 된 값이므로 단방향 trim 으로 비교한다.
+  const placeNameChanged = placeName.trim() !== pin.placeName;
+  const addressChanged = address.trim() !== initialAddress.trim();
   const memoChanged = memo !== initialMemo;
   const tagChanged = tag !== pin.tag;
-  const canSave = (memoChanged || tagChanged) && !isMemoTooLong;
+  const canSave =
+    (placeNameChanged || addressChanged || memoChanged || tagChanged) &&
+    !isPlaceNameEmpty &&
+    !isPlaceNameTooLong &&
+    !isAddressTooLong &&
+    !isMemoTooLong;
 
-  const counterClassName = useMemo(() => {
+  const placeNameCounterClassName = useMemo(() => {
+    if (isPlaceNameTooLong) {
+      return "text-red-600 dark:text-red-400";
+    }
+    if (placeNameLength >= PLACE_NAME_MAX_LENGTH - 50) {
+      return "text-amber-600 dark:text-amber-400";
+    }
+    return "text-zinc-500 dark:text-zinc-400";
+  }, [isPlaceNameTooLong, placeNameLength]);
+
+  const addressCounterClassName = useMemo(() => {
+    if (isAddressTooLong) {
+      return "text-red-600 dark:text-red-400";
+    }
+    if (addressLength >= ADDRESS_MAX_LENGTH - 50) {
+      return "text-amber-600 dark:text-amber-400";
+    }
+    return "text-zinc-500 dark:text-zinc-400";
+  }, [isAddressTooLong, addressLength]);
+
+  const memoCounterClassName = useMemo(() => {
     if (isMemoTooLong) {
       return "text-red-600 dark:text-red-400";
     }
@@ -56,6 +102,16 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
     event.preventDefault();
     if (!canSave) return;
     const patch: PinEditPatch = {};
+    if (placeNameChanged) {
+      patch.placeName = placeName.trim();
+    }
+    if (addressChanged) {
+      const trimmed = address.trim();
+      if (trimmed.length > 0) {
+        patch.address = trimmed;
+      }
+      // 빈 경우 키 생략 (Q5 — 미변경 시맨틱과 일치)
+    }
     if (memoChanged) {
       patch.memo = memo;
     }
@@ -86,6 +142,67 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
             {pin.placeName}
           </p>
         </header>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="pin-place-name"
+              className="text-sm font-medium"
+            >
+              장소명
+            </label>
+            <span className={`text-xs ${placeNameCounterClassName}`}>
+              {placeNameLength}/{PLACE_NAME_MAX_LENGTH}
+            </span>
+          </div>
+          <input
+            id="pin-place-name"
+            type="text"
+            value={placeName}
+            onChange={(event) => setPlaceName(event.target.value)}
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-6 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
+          />
+          {isPlaceNameEmpty ? (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              장소명을 입력해주세요
+            </p>
+          ) : isPlaceNameTooLong ? (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              장소명은 최대 {PLACE_NAME_MAX_LENGTH}자까지 입력할 수 있습니다.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="pin-address"
+              className="text-sm font-medium"
+            >
+              주소
+            </label>
+            <span className={`text-xs ${addressCounterClassName}`}>
+              {addressLength}/{ADDRESS_MAX_LENGTH}
+            </span>
+          </div>
+          <input
+            id="pin-address"
+            type="text"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            placeholder="예: 서울시 강남구..."
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-6 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
+          />
+          {isAddressTooLong ? (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              주소는 최대 {ADDRESS_MAX_LENGTH}자까지 입력할 수 있습니다.
+            </p>
+          ) : (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              빈 값으로 저장해도 기존 주소는 유지됩니다.
+            </p>
+          )}
+        </div>
 
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium">태그</legend>
@@ -123,7 +240,7 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
             >
               메모
             </label>
-            <span className={`text-xs ${counterClassName}`}>
+            <span className={`text-xs ${memoCounterClassName}`}>
               {memoLength}/{MEMO_MAX_LENGTH}
             </span>
           </div>

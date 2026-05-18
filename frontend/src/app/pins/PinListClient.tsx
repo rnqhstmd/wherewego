@@ -40,6 +40,12 @@ function applyPatch(
       next.memoSource = "MANUAL";
     }
   }
+  if (patch.placeName !== undefined) {
+    next.placeName = patch.placeName;
+  }
+  if (patch.address !== undefined) {
+    next.address = patch.address;
+  }
   return next;
 }
 

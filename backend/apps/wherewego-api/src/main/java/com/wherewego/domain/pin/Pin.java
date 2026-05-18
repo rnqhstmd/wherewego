@@ -2,6 +2,8 @@ package com.wherewego.domain.pin;
 
 import com.wherewego.domain.BaseEntity;
 import com.wherewego.domain.place.PlaceSearchHit;
+import com.wherewego.support.error.CoreException;
+import com.wherewego.support.error.ErrorType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -91,6 +93,7 @@ public class Pin extends BaseEntity {
      * tag=PLACE, memoSource=null (2초 룰 메모가 도착해야 AUTO 부착).
      */
     public static Pin autoFromInstagram(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+        validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -108,6 +111,7 @@ public class Pin extends BaseEntity {
      * autoFromInstagram 과 동일 구조 (tag=PLACE, memoSource=null).
      */
     public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+        validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -133,6 +137,7 @@ public class Pin extends BaseEntity {
                                      BigDecimal longitude,
                                      String instagramUrl,
                                      PinTag tag) {
+        validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 userId,
@@ -147,6 +152,19 @@ public class Pin extends BaseEntity {
 
     private static BigDecimal toBigDecimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
+    }
+
+    /**
+     * instagramUrl 검증 (XSS 방어). null/빈 문자열은 허용 (선택 필드),
+     * 값이 있으면 반드시 {@code https://} 로 시작해야 한다 (javascript:, data: 등 차단).
+     */
+    private static void validateInstagramUrl(String url) {
+        if (url == null) return;
+        String trimmed = url.trim();
+        if (trimmed.isEmpty()) return;
+        if (!trimmed.startsWith("https://")) {
+            throw new CoreException(ErrorType.PIN_INSTAGRAM_URL_INVALID);
+        }
     }
 
     /**
@@ -172,6 +190,17 @@ public class Pin extends BaseEntity {
      */
     public void changeTag(PinTag tag) {
         this.tag = tag;
+    }
+
+    /**
+     * 장소 정보 변경 (Phase 2.8). placeName 검증은 Command 레이어에서 수행하므로 도메인은 단순 위임한다.
+     * {@code addressProvided=true} 일 때만 address 를 갱신한다 (키 없음 / JSON null / 빈 문자열은 미변경).
+     */
+    public void changePlaceInfo(String placeName, boolean addressProvided, String address) {
+        this.placeName = placeName;
+        if (addressProvided) {
+            this.address = address;
+        }
     }
 
     public boolean isDeleted() {

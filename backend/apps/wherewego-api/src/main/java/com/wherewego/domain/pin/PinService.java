@@ -82,8 +82,9 @@ public class PinService {
     }
 
     /**
-     * 핀 부분 수정. 활성 멤버십(AC-15) → 비관 락 조회 → memo/tag 독립 갱신(AC-6,7,8).
+     * 핀 부분 수정. 활성 멤버십(AC-15) → 비관 락 조회 → memo/tag/placeName/address 독립 갱신(AC-6,7,8).
      * 빈 memo 는 잠금 해제(AC-11/BR-8), 비어있지 않은 memo 는 MANUAL 마킹(AC-10/BR-3).
+     * Phase 2.8: placeName/address 도 동일 트랜잭션에서 독립 갱신 가능.
      */
     @Transactional
     public PinSummary updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {
@@ -94,11 +95,17 @@ public class PinService {
             pin.changeTag(cmd.tag());
         }
         if (cmd.memoProvided()) {
-            if (cmd.memo().isEmpty()) {
+            String m = cmd.memo();
+            if (m == null || m.isEmpty()) {
                 pin.clearMemo();
             } else {
-                pin.applyManualMemo(cmd.memo());
+                pin.applyManualMemo(m);
             }
+        }
+        if (cmd.placeNameProvided()) {
+            pin.changePlaceInfo(cmd.placeName(), cmd.addressProvided(), cmd.address());
+        } else if (cmd.addressProvided()) {
+            pin.changePlaceInfo(pin.getPlaceName(), true, cmd.address());
         }
         return PinSummary.from(pin);
     }
