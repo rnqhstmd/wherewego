@@ -52,4 +52,4 @@
 ## 관련 문서
 
 - [status.md](./status.md)
-- 환경 변수 샘플: `frontend/.env.local.example`
+- [mapbox-env.md](./mapbox-env.md) — Mapbox 환경변수 형식·사용처·설정 흐름 가이드

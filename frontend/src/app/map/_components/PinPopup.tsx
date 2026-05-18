@@ -101,6 +101,13 @@ export default function PinPopup({
     [],
   );
 
+  // 좌표 수정 실패 메시지가 도착하면 footer 를 자동으로 펼쳐 사용자에게 보이도록 한다.
+  useEffect(() => {
+    if (coordinateError) {
+      setExpanded(true);
+    }
+  }, [coordinateError]);
+
   // 다른 핀으로 전환되면 메뉴 펼침/에러/뷰를 렌더 중 분기로 초기화한다
   // (react-hooks/set-state-in-effect 회피 — React 공식 권장 패턴).
   const [trackedPinId, setTrackedPinId] = useState<number>(pin.id);
