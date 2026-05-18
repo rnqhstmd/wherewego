@@ -55,7 +55,9 @@ public enum ErrorType {
     PIN_PLACE_NAME_INVALID(HttpStatus.BAD_REQUEST, "PIN_PLACE_NAME_INVALID", "장소 이름은 1~200자여야 합니다."),
     PIN_ADDRESS_INVALID(HttpStatus.BAD_REQUEST, "PIN_ADDRESS_INVALID", "주소는 최대 500자까지 입력할 수 있습니다."),
     PIN_INSTAGRAM_URL_INVALID(HttpStatus.BAD_REQUEST, "PIN_INSTAGRAM_URL_INVALID", "Instagram URL은 https://로 시작해야 합니다."),
-    PIN_COORDINATE_INVALID(HttpStatus.BAD_REQUEST, "PIN_COORDINATE_INVALID", "좌표 범위가 유효하지 않습니다.");
+    PIN_COORDINATE_INVALID(HttpStatus.BAD_REQUEST, "PIN_COORDINATE_INVALID", "좌표 범위가 유효하지 않습니다."),
+    PIN_PAGE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PAGE_SIZE_EXCEEDED", "한 번에 조회할 수 있는 핀은 100개까지입니다."),
+    PIN_PAGE_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_PAGE_PARAM_INVALID", "페이지 파라미터가 유효하지 않습니다.");
 
     private final HttpStatus status;
     private final String code;

@@ -1,11 +1,15 @@
 package com.wherewego.interfaces.api.pin;
 
 import com.wherewego.config.security.AuthUser;
+import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.interfaces.api.ApiResponse;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/groups")
 @RequiredArgsConstructor
 public class PinV1Controller implements PinV1ApiSpec {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final PinService pinService;
 
@@ -44,7 +50,9 @@ public class PinV1Controller implements PinV1ApiSpec {
     public ApiResponse<PinV1Dto.PinListResponse> listPins(
             @AuthUser Long userId,
             @PathVariable Long groupId,
-            @RequestParam(required = false) String tag
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size
     ) {
         PinTag tagFilter = null;
         if (tag != null && !tag.isBlank()) {
@@ -54,9 +62,46 @@ public class PinV1Controller implements PinV1ApiSpec {
                 throw new CoreException(ErrorType.PIN_TAG_INVALID);
             }
         }
-        return ApiResponse.success(
-                PinV1Dto.PinListResponse.from(
-                        pinService.listGroupPins(userId, groupId, tagFilter)));
+
+        // 비숫자 파라미터는 PIN_PAGE_PARAM_INVALID 로 매핑 (전역 ApiControllerAdvice 변경 회피)
+        Integer pageNum = parsePageParam(page);
+        Integer sizeNum = parsePageParam(size);
+
+        // 1. 부분 전달 검증 (Q3 결정: 둘 다 와야 페이지 모드)
+        if ((pageNum == null) != (sizeNum == null)) {
+            throw new CoreException(ErrorType.PIN_PAGE_PARAM_INVALID);
+        }
+
+        // 2. 둘 다 null → legacy 모드
+        if (pageNum == null && sizeNum == null) {
+            List<PinSummary> list = pinService.listGroupPins(userId, groupId, tagFilter);
+            return ApiResponse.success(PinV1Dto.PinListResponse.from(list));
+        }
+
+        // 3. 둘 다 전달 → 검증 후 페이지 모드
+        if (pageNum < 0) {
+            throw new CoreException(ErrorType.PIN_PAGE_PARAM_INVALID);
+        }
+        if (sizeNum <= 0) {
+            throw new CoreException(ErrorType.PIN_PAGE_PARAM_INVALID);
+        }
+        if (sizeNum > MAX_PAGE_SIZE) {
+            throw new CoreException(ErrorType.PIN_PAGE_SIZE_EXCEEDED);
+        }
+
+        PinListResult result = pinService.listGroupPinsPaged(userId, groupId, tagFilter, pageNum, sizeNum);
+        return ApiResponse.success(PinV1Dto.PinListResponse.fromPaged(result));
+    }
+
+    private static Integer parsePageParam(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            throw new CoreException(ErrorType.PIN_PAGE_PARAM_INVALID);
+        }
     }
 
     @PatchMapping("/{groupId}/pins/{pinId}")

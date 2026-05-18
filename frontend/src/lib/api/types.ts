@@ -34,6 +34,8 @@ export interface PinSummaryResponse {
 
 export interface PinListResponse {
   items: PinSummaryResponse[];
+  totalCount?: number;
+  hasNext?: boolean;
 }
 
 export interface ActiveGroupResponse {

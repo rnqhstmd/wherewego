@@ -82,6 +82,31 @@ public class PinService {
     }
 
     /**
+     * 그룹의 활성 핀 목록을 페이지네이션하여 조회한다.
+     * 활성 멤버십이 없으면 {@link ErrorType#GROUP_NOT_MEMBER}.
+     * {@code hasNext} 는 {@code (long)(page + 1) * size < totalCount} 로 계산하여 오버플로를 방지한다.
+     */
+    @Transactional(readOnly = true)
+    public PinListResult listGroupPinsPaged(Long userId, Long groupId, PinTag tagFilter, int page, int size) {
+        groupMemberService.requireActiveMembership(userId, groupId);
+
+        List<Pin> pins;
+        long totalCount;
+        if (tagFilter == null) {
+            pins = pinRepository.findActiveByGroupIdOrderByCreatedAtDesc(groupId, page, size);
+            totalCount = pinRepository.countActiveByGroupId(groupId);
+        } else {
+            pins = pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(groupId, tagFilter, page, size);
+            totalCount = pinRepository.countActiveByGroupIdAndTag(groupId, tagFilter);
+        }
+
+        List<PinSummary> items = pins.stream().map(PinSummary::from).toList();
+        boolean hasNext = (long) (page + 1) * size < totalCount;
+
+        return new PinListResult(items, totalCount, hasNext);
+    }
+
+    /**
      * 핀 부분 수정. 활성 멤버십(AC-15) → 비관 락 조회 → memo/tag/placeName/address 독립 갱신(AC-6,7,8).
      * 빈 memo 는 잠금 해제(AC-11/BR-8), 비어있지 않은 memo 는 MANUAL 마킹(AC-10/BR-3).
      * Phase 2.8: placeName/address 도 동일 트랜잭션에서 독립 갱신 가능.

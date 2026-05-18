@@ -34,6 +34,26 @@ public interface PinRepository {
     List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag);
 
     /**
+     * 그룹의 활성 핀 목록을 {@code created_at} 내림차순으로 페이지네이션 조회한다.
+     */
+    List<Pin> findActiveByGroupIdOrderByCreatedAtDesc(Long groupId, int page, int size);
+
+    /**
+     * 그룹의 활성 핀을 태그 필터링 후 {@code created_at} 내림차순으로 페이지네이션 조회한다.
+     */
+    List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag, int page, int size);
+
+    /**
+     * 그룹의 활성 핀 전체 개수를 반환한다.
+     */
+    long countActiveByGroupId(Long groupId);
+
+    /**
+     * 그룹의 활성 핀을 태그로 필터링한 개수를 반환한다.
+     */
+    long countActiveByGroupIdAndTag(Long groupId, PinTag tag);
+
+    /**
      * PATCH/DELETE 단일 행 잠금 조회. {@code PESSIMISTIC_WRITE} 로 동시성을 직렬화한다 (Q4).
      */
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId);

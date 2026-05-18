@@ -13,16 +13,39 @@ export interface PinPatch {
   address?: string;
 }
 
+export interface ListPinsOptions {
+  tag?: PinTag;
+  page?: number;
+  size?: number;
+}
+
 /**
  * 그룹에 속한 활성 핀 목록을 조회한다. `tag` 미지정 시 전체를 반환한다.
+ *
+ * 두 번째 인자는 `PinTag` 문자열(legacy) 또는 `ListPinsOptions` 객체(page/size 포함)로 받는다.
  */
 export async function listPins(
   groupId: number,
-  tag?: PinTag,
+  optionsOrTag?: ListPinsOptions | PinTag,
 ): Promise<PinListResponse> {
-  const query = tag ? `?tag=${tag}` : "";
+  const options: ListPinsOptions =
+    typeof optionsOrTag === "string"
+      ? { tag: optionsOrTag }
+      : (optionsOrTag ?? {});
+
+  // page 와 size 는 항상 함께 지정해야 한다 (백엔드 PIN_PAGE_PARAM_INVALID 매핑과 일관).
+  if ((options.page !== undefined) !== (options.size !== undefined)) {
+    throw new Error("page와 size는 함께 지정해야 합니다");
+  }
+
+  const params = new URLSearchParams();
+  if (options.tag) params.set("tag", options.tag);
+  if (options.page !== undefined) params.set("page", String(options.page));
+  if (options.size !== undefined) params.set("size", String(options.size));
+
+  const query = params.toString();
   return apiFetchServer<PinListResponse>(
-    `/groups/${groupId}/pins${query}`,
+    `/groups/${groupId}/pins${query ? `?${query}` : ""}`,
   );
 }
 

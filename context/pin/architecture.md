@@ -13,8 +13,12 @@
   - `INDEX(group_id, tag) WHERE deleted_at IS NULL` — 지도 렌더링 시 그룹별 + 태그별 필터
   - `INDEX(group_id, latitude, longitude) WHERE deleted_at IS NULL` — [[recommendation]] Bounding Box 1차 필터
 - 거리 계산: **Haversine 공식 (애플리케이션 레벨)**. PostGIS 미도입
-- 웹 CRUD API (Phase 4 도입, Phase 2.8 확장):
-  - `GET /api/v1/groups/{groupId}/pins?tag=PLACE|MEMORY` — 활성 그룹원 목록 조회 (`deleted_at IS NULL`, `created_at` 내림차순). 페이지네이션 미적용
+- 웹 CRUD API (Phase 4 도입, Phase 2.8 확장, Phase 2.9 페이지네이션 도입):
+  - `GET /api/v1/groups/{groupId}/pins?tag=PLACE|MEMORY[&page=&size=]` — 활성 그룹원 목록 조회 (`deleted_at IS NULL`, `created_at` 내림차순). **두 모드 분기 (Phase 2.9)**:
+    - **legacy 모드**: `page`/`size` 둘 다 미전달 → 응답 `{items}` 단일 (기존 `MapClient.tsx` 룰렛 stale 재조회 / `/pins` 초기 fetch 무수정 동작 보장)
+    - **페이지 모드**: `page`/`size` 둘 다 전달 → 응답 `{items, totalCount, hasNext}` (JacksonConfig 전역 `NON_NULL` 직렬화로 legacy 모드에서는 두 키 자체 누락)
+  - **페이지 파라미터 검증** (Phase 2.9): 부분 전달(`page` 또는 `size`만) → `PIN_PAGE_PARAM_INVALID`(400). 비숫자(`page=abc`) → 동일 매핑. `size>100` → `PIN_PAGE_SIZE_EXCEEDED`(400). `page<0`/`size<=0` → `PIN_PAGE_PARAM_INVALID`. 검증은 컨트롤러 명시 throw (`PlaceV1Controller.search` 컨벤션)
+  - **도메인 포트 순수성**: `PinRepository` 포트는 `int page, int size` + `long count*` 시그니처(4개 메서드)로 노출. Spring Data `Pageable`은 `PinRepositoryImpl` 내부에서만 `PageRequest.of(page, size, Sort.by(DESC, "createdAt"))`로 변환
   - `PATCH /api/v1/groups/{groupId}/pins/{pinId}` — 부분 수정. `memo`/`tag`/`placeName`/`address` 각각 독립 갱신, 4개 모두 미전달이면 400 `PIN_UPDATE_EMPTY`. JSON 본문은 `JsonNode`로 받아 "키 없음 vs JSON null vs 빈 문자열" 구분. 빈 memo는 [[memo]] 잠금 해제, 빈 placeName은 `PIN_PLACE_NAME_INVALID`, 빈 address는 **미변경으로 안전 무시** (주소 제거 UX는 제공 안 함). Phase 2.8에서 `PinUpdateCommand`가 4-arg → 8-arg로 확장됨
   - `DELETE /api/v1/groups/{groupId}/pins/{pinId}` — 소프트 삭제, 204 No Content. `BaseEntity.delete()` 멱등. `/map`과 `/pins` 양쪽에서 호출
   - 권한: **활성 GroupMember 전체**(등록자 검사 없음). 비활성 시 403 `GROUP_NOT_MEMBER`
