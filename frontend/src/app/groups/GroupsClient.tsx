@@ -17,8 +17,7 @@ interface GroupsClientProps {
  *
  * - 상단 바: 워드마크 + 아바타 + 닉네임.
  * - 카드 클릭: notifAsked.get() ? /map : /onboarding/notification.
- * - 점선 카드(새 그룹 만들기): 준비 중 토스트 3초.
- *   TODO: 그룹 생성 화면은 별도 PRD에서 처리.
+ * - 점선 카드(새 그룹 만들기) → /groups/new.
  */
 export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
   const router = useRouter();
@@ -44,7 +43,7 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
   };
 
   const onClickCreate = () => {
-    setToast("준비 중입니다");
+    router.push("/groups/new");
   };
 
   return (
@@ -82,7 +81,21 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
         >
           우리가 갈 지도
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => router.push("/settings")}
+          aria-label="설정"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
           <div
             aria-hidden="true"
             style={{
@@ -107,7 +120,7 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
           >
             {user.nickname}
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Center container */}

@@ -2,6 +2,7 @@ package com.wherewego.config.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,13 +47,16 @@ class ChatbotRateLimitFilterTest {
     @Mock
     private ChatbotRateLimiter rateLimiter;
 
+    @Mock
+    private SlackNotifier slackNotifier;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ChatbotRateLimitFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new ChatbotRateLimitFilter(rateLimiter, objectMapper);
+        filter = new ChatbotRateLimitFilter(rateLimiter, objectMapper, slackNotifier);
     }
 
     private MockHttpServletRequest webhookRequest(String body) {

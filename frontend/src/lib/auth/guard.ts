@@ -45,7 +45,8 @@ export async function requireAuthAndGroup(
   await requireAuth(returnUrl);
   try {
     const group = await getMyActiveGroup();
-    if (group === null) {
+    // null 또는 undefined(parseResponse 잔여 케이스) 모두 잡아 그룹 미가입으로 처리.
+    if (group == null) {
       redirect("/onboarding/group-start");
     }
     return group;
@@ -64,7 +65,8 @@ export async function requireAuthAndGroup(
 export async function redirectIfAuthed(target: string = "/map"): Promise<void> {
   try {
     const group = await getMyActiveGroup();
-    if (group !== null) {
+    // 그룹 보유 사용자만 redirect. 미가입(null/undefined)은 진입 허용.
+    if (group != null) {
       redirect(target);
     }
   } catch (e) {

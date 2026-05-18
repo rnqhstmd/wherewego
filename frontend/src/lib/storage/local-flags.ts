@@ -2,6 +2,7 @@
  * SSR-safe localStorage 플래그 접근 헬퍼.
  * - `maygo:notif-asked`: NotifPerm 안내를 1회 노출했는지 여부
  * - `maygo:nickname-set`: 닉네임 설정 완료 여부
+ * - `maygo:location-asked`: 위치 권한 안내를 1회 노출했는지 여부
  */
 
 function readFlag(key: string): boolean {
@@ -26,4 +27,9 @@ export const notifAsked = {
 export const nicknameSet = {
   get: (): boolean => readFlag("maygo:nickname-set"),
   set: (v: boolean): void => setFlag("maygo:nickname-set", v),
+};
+
+export const locationAsked = {
+  get: (): boolean => readFlag("maygo:location-asked"),
+  set: (v: boolean): void => setFlag("maygo:location-asked", v),
 };

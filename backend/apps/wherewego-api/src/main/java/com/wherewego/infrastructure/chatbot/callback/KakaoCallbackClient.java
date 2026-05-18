@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.chatbot.callback;
 
 import com.wherewego.config.env.KakaoApiProperties;
+import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * 카카오 i 오픈빌더 callbackUrl로 SkillResponse 푸시.
@@ -32,21 +34,23 @@ public class KakaoCallbackClient {
 
     private final RestClient restClient;
     private final boolean strictHostCheck;
+    private final SlackNotifier slackNotifier;
 
     @Autowired
-    public KakaoCallbackClient(KakaoApiProperties properties) {
-        this(properties.callback().timeoutMs(), true);
+    public KakaoCallbackClient(KakaoApiProperties properties, SlackNotifier slackNotifier) {
+        this(properties.callback().timeoutMs(), true, slackNotifier);
     }
 
     /**
      * 테스트 전용 생성자. {@code strictHostCheck=false}로 SSRF 가드를 우회한다.
      * WireMock 의 baseUrl(http://localhost:포트) 통합 검증에 한해 사용한다.
      */
-    KakaoCallbackClient(int timeoutMs, boolean strictHostCheck) {
+    KakaoCallbackClient(int timeoutMs, boolean strictHostCheck, SlackNotifier slackNotifier) {
         this.restClient = RestClient.builder()
                 .requestFactory(buildRequestFactory(timeoutMs))
                 .build();
         this.strictHostCheck = strictHostCheck;
+        this.slackNotifier = slackNotifier;
     }
 
     private static ClientHttpRequestFactory buildRequestFactory(int timeoutMs) {
@@ -79,6 +83,10 @@ public class KakaoCallbackClient {
             log.debug("kakao callback push ok host={}", safeHost(callbackUrl));
         } catch (RestClientException e) {
             log.warn("kakao callback push failed cause={}", e.getMessage());
+            slackNotifier.notifyFailure("카카오 콜백 푸시 실패", Map.of(
+                    "host", safeHost(callbackUrl),
+                    "cause", e.getMessage() == null ? "unknown" : e.getMessage()
+            ));
         }
     }
 

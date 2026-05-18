@@ -39,6 +39,7 @@ public class PlaceFallbackOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(PlaceFallbackOrchestrator.class);
     private static final int MAX_MULTIPLE = 5;
+    private static final int PIN_SAVE_ALERT_THRESHOLD = 10;
 
     // Google 비동기 호출 시 timeout 강제용 데드라인. timeoutMs + 약간 여유.
     private static final long ASYNC_DEADLINE_MS = 2_000L;
@@ -50,6 +51,7 @@ public class PlaceFallbackOrchestrator {
     private final PlaceSelectionCandidateStore candidateStore;
     private final TwoSecondMemoSession twoSecondMemoSession;
     private final ThreadPoolExecutor executor;
+    private final AtomicInteger pinSaveCount = new AtomicInteger(0);
 
     public PlaceFallbackOrchestrator(GooglePlacesClient googlePlacesClient,
                                      KakaoCallbackClient kakaoCallbackClient,
@@ -141,6 +143,13 @@ public class PlaceFallbackOrchestrator {
                 twoSecondMemoSession.put(jobCtx.botUserKey(), saved.getId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
                         "장소가 저장되었어요: " + saved.getPlaceName());
+                int count = pinSaveCount.incrementAndGet();
+                if (count % PIN_SAVE_ALERT_THRESHOLD == 0) {
+                    slackNotifier.notify("핀 저장 " + count + "건 달성", Map.of(
+                            "totalCount", count,
+                            "latestKeyword", jobCtx.keyword()
+                    ));
+                }
             } catch (DataIntegrityViolationException dup) {
                 log.debug("async duplicate pin groupId={}", jobCtx.groupId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(), "이미 저장된 장소예요.");

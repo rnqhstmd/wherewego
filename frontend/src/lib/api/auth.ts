@@ -42,3 +42,12 @@ export async function postKakaoCallback(
     body: JSON.stringify(body),
   });
 }
+
+/**
+ * 로그아웃. 백엔드가 Set-Cookie로 `access_token` / `refresh_token`을 만료시킨다. (client-side)
+ */
+export async function postLogout(): Promise<void> {
+  await apiFetch<void>("/auth/logout", {
+    method: "POST",
+  });
+}

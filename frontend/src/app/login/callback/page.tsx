@@ -7,7 +7,7 @@ import { postKakaoCallback } from "@/lib/api/auth";
 import { apiFetch, ApiError } from "@/lib/api/http-client";
 import { kakaoState } from "@/lib/oauth/kakao-state";
 import { returnUrlStash } from "@/lib/oauth/return-url";
-import { nicknameSet } from "@/lib/storage/local-flags";
+import { locationAsked, nicknameSet } from "@/lib/storage/local-flags";
 import { colors, fonts } from "@/lib/design/tokens";
 import type { ActiveGroupResponse } from "@/lib/api/types";
 
@@ -25,8 +25,10 @@ import type { ActiveGroupResponse } from "@/lib/api/types";
 async function fetchActiveGroupClient(): Promise<ActiveGroupResponse | null> {
   // 콜백 시점에는 막 토큰을 받은 직후이므로 401 발생 가능성은 낮지만
   // 안전망으로 401 → null fallback 유지. 그 외 오류는 상위로 전파.
+  // parseResponse 는 data:null 을 undefined 로 변환하므로 명시적으로 null 정규화.
   try {
-    return await apiFetch<ActiveGroupResponse | null>("/groups/me");
+    const result = await apiFetch<ActiveGroupResponse | null>("/groups/me");
+    return result ?? null;
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
       return null;
@@ -69,21 +71,30 @@ function CallbackInner() {
       }
 
       const group = await fetchActiveGroupClient();
+      // 1) 최종 목적지(다음 단계) 결정
+      let target: string;
       if (group !== null) {
-        const target = stashedReturnUrl ?? "/map";
-        router.replace(target);
+        target = stashedReturnUrl ?? "/map";
+      } else if (nicknameSet.get()) {
+        // TODO(보안 강화): 현재 신규 판정은 localStorage('maygo:nickname-set') flag에만 의존.
+        // 백엔드(AuthService.java)는 카카오 닉네임을 그대로 채워 식별 가능한 기본값 패턴이 없으므로
+        // 서버 응답의 user.nickname으로 신규/기존을 구분할 수 없음. 추후 백엔드에
+        // `nicknameConfirmed: boolean` 필드 추가 시 그것을 1차 기준으로 사용하도록 교체할 것.
+        target = "/onboarding/group-start";
+      } else {
+        target = "/onboarding/nickname";
+      }
+
+      // 2) 위치 권한을 한 번도 안내한 적이 없으면 카카오 로그인 직후 우선 노출.
+      //    응답(허용/나중에) 후 위 target 으로 이어진다.
+      if (!locationAsked.get()) {
+        router.replace(
+          `/onboarding/location?next=${encodeURIComponent(target)}`,
+        );
         return;
       }
 
-      // TODO(보안 강화): 현재 신규 판정은 localStorage('maygo:nickname-set') flag에만 의존.
-      // 백엔드(AuthService.java)는 카카오 닉네임을 그대로 채워 식별 가능한 기본값 패턴이 없으므로
-      // 서버 응답의 user.nickname으로 신규/기존을 구분할 수 없음. 추후 백엔드에
-      // `nicknameConfirmed: boolean` 필드 추가 시 그것을 1차 기준으로 사용하도록 교체할 것.
-      if (nicknameSet.get()) {
-        router.replace("/onboarding/group-start");
-        return;
-      }
-      router.replace("/onboarding/nickname");
+      router.replace(target);
     })();
   }, [router, searchParams]);
 

@@ -7,14 +7,18 @@ import { colors, fonts } from "@/lib/design/tokens";
 /**
  * Screen 0c — 그룹 시작 (screens-login.jsx::Screen0cGroupStart 1:1).
  *
- * 두 카드(새 그룹 만들기 / 초대 코드로 합류) 모두 /groups로 이동.
- * 실제 생성/합류 흐름은 별도 PRD에서 처리.
+ * - 새 그룹 만들기 → /groups/new
+ * - 초대 코드로 합류 → /onboarding/invite-code
  */
 export function GroupStartClient() {
   const router = useRouter();
 
-  const onClickCard = () => {
-    router.push("/groups");
+  const onClickCreate = () => {
+    router.push("/groups/new");
+  };
+
+  const onClickJoin = () => {
+    router.push("/onboarding/invite-code");
   };
 
   return (
@@ -55,7 +59,7 @@ export function GroupStartClient() {
       {/* Option 1: Create new group */}
       <button
         type="button"
-        onClick={onClickCard}
+        onClick={onClickCreate}
         style={{
           marginTop: 32,
           background: colors.panel,
@@ -104,7 +108,7 @@ export function GroupStartClient() {
       {/* Option 2: Join with code */}
       <button
         type="button"
-        onClick={onClickCard}
+        onClick={onClickJoin}
         style={{
           marginTop: 12,
           background: "transparent",
