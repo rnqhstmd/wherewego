@@ -42,3 +42,5 @@
 | 주제 | 설명 |
 |------|------|
 | gl-migration-plan | DOM Marker → GL symbol layer 전환 시 변경 지점 사전 분석 (Phase 2.9) |
+| mapbox-token-sop | Mapbox 액세스 토큰 회전·발급·URL Restriction·폐기 SOP — 운영자 가이드 (Phase 2.10) |
+| mapbox-env | Mapbox 환경변수(`NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_MAPBOX_STYLE_URL`) 형식·사용처·설정 흐름 가이드 (Phase 2.10) |
