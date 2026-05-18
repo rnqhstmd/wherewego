@@ -20,10 +20,29 @@
 | 포트 | 용도 |
 |------|------|
 | 22 | SSH |
-| 80 | HTTP |
+| 80 | HTTP (Nginx) |
 | 8080 | Spring Boot API |
 
-**EC2 초기 세팅 (접속 후 실행 필요):**
+**SSH 접속:**
+```bash
+ssh -i ~/.ssh/wherewego-key.pem ubuntu@54.116.3.177
+```
+
+**PEM 키 위치:** `~/.ssh/wherewego-key.pem`
+
+---
+
+### 2. VPC / 네트워크 설정
+
+- 기본 VPC: `vpc-0fe873103bc41346a` (172.31.0.0/16)
+- 서브넷: `wherewego-subnet-2a` (172.31.0.0/20, ap-northeast-2a)
+- 인터넷 게이트웨이: `wherewego-igw` 생성 후 VPC 연결
+- 라우팅 테이블: `0.0.0.0/0 → wherewego-igw` 추가
+
+---
+
+### 3. EC2 초기 세팅 (접속 후 실행 필요)
+
 ```bash
 # Docker 설치
 sudo apt-get update && sudo apt-get upgrade -y
@@ -36,25 +55,70 @@ sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# 재접속 (docker 그룹 적용)
+exit
 ```
 
-**SSH 접속:**
+---
+
+### 4. Nginx 설치 & 리버스 프록시 설정
+
 ```bash
-ssh -i ~/.ssh/wherewego-key.pem ubuntu@54.116.3.177
+sudo apt-get install -y nginx
+
+sudo nano /etc/nginx/sites-available/wherewego
+```
+
+설정 내용:
+```nginx
+server {
+    listen 80;
+    server_name wherewego.win www.wherewego.win;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/wherewego /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl restart nginx
+sudo systemctl enable nginx
 ```
 
 ---
 
-### 2. VPC / 네트워크 설정
+### 5. 도메인 & HTTPS 설정
 
-- 기본 VPC: `vpc-0fe873103bc41346a` (172.31.0.0/16)
-- 서브넷 생성: `wherewego-subnet-2a` (172.31.0.0/20, ap-northeast-2a)
-- 인터넷 게이트웨이: `wherewego-igw` 생성 후 VPC 연결
-- 라우팅 테이블: `0.0.0.0/0 → wherewego-igw` 추가
+| 항목 | 값 |
+|------|-----|
+| 도메인 | `wherewego.win` |
+| 구매처 | Cloudflare (2026-05-18 구매, 2027-05-18 만료) |
+| HTTPS | Cloudflare Proxy (주황 구름) 자동 적용 |
+
+**Cloudflare DNS 레코드:**
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | @ | 54.116.3.177 | Proxied ✅ |
+| CNAME | www | wherewego.win | Proxied ✅ |
+
+**접속 흐름:**
+```
+사용자 → https://wherewego.win (Cloudflare HTTPS)
+  → EC2:80 (Nginx)
+  → localhost:8080 (Spring Boot)
+```
 
 ---
 
-### 3. GitHub Actions Secrets 등록
+### 6. GitHub Actions Secrets 등록
 
 | Secret 이름 | 용도 |
 |------------|------|
@@ -66,11 +130,10 @@ ssh -i ~/.ssh/wherewego-key.pem ubuntu@54.116.3.177
 
 ---
 
-### 4. deploy.yml 개선
+### 7. deploy.yml 개선
 
-- EC2에 `.env` 파일을 영구 저장하지 않도록 변경
-- `mktemp` 임시 파일 생성 → `docker run` 후 즉시 삭제
-- JVM 메모리 제한 추가: `-Xmx512m -Xms256m`
+- EC2에 `.env` 파일 영구 저장 제거 (`mktemp` 임시 파일 → 배포 후 즉시 삭제)
+- JVM 메모리 제한: `-Xmx512m -Xms256m`
 - Docker 컨테이너 메모리 제한: `--memory 700m`
 
 ```
@@ -83,7 +146,7 @@ GitHub Secrets (ENV_FILE)
 
 ---
 
-### 5. 외부 API 키 발급
+### 8. 외부 API 키 발급
 
 | API | 상태 |
 |-----|------|
@@ -94,7 +157,7 @@ GitHub Secrets (ENV_FILE)
 
 ---
 
-### 6. 카카오 i 오픈빌더 스킬 URL 업데이트
+### 9. 카카오 i 오픈빌더 스킬 URL 업데이트
 
 ```
 스킬명: 인스타링크수집
@@ -102,30 +165,41 @@ URL: http://54.116.3.177:8080/api/v1/chatbot/webhook
 헤더: X-Kakao-Skill-Secret (KAKAO_SKILL_SECRET 값)
 ```
 
+> 도메인 배포 완료 후 → `https://wherewego.win/api/v1/chatbot/webhook` 으로 변경 필요
+
 ---
 
 ## 남은 작업
 
 ```
 [ ] EC2 Docker 설치 완료 (재접속 후 docker --version 확인)
-[ ] ENV_FILE Secret — SPRING_PROFILES_ACTIVE=prod, EC2 IP로 수정 완료 확인
-[ ] main 브랜치 push → GitHub Actions 첫 자동 배포
-[ ] http://54.116.3.177:8080/swagger-ui.html 접속 확인
-[ ] 카카오 오픈빌더 스킬 테스트 통과
+[ ] ENV_FILE Secret 운영값으로 최종 확인
+     - SPRING_PROFILES_ACTIVE=prod
+     - KAKAO_REDIRECT_URI=https://wherewego.win/auth/kakao/callback
+     - CORS_ALLOWED_ORIGINS=https://wherewego.win
+     - GOOGLE_PLACES_API_KEY=실제 키
+     - GEMINI_API_KEY=실제 키
+[ ] feat/login-onboarding-design → main 머지
+[ ] main 머지 후 GitHub Actions 첫 자동 배포
+[ ] https://wherewego.win/swagger-ui.html 접속 확인
 [ ] 카카오 개발자 콘솔 Redirect URI 추가
-     (http://54.116.3.177:8080/auth/kakao/callback)
+     → https://wherewego.win/auth/kakao/callback
+[ ] 카카오 오픈빌더 스킬 URL 도메인으로 변경
+     → https://wherewego.win/api/v1/chatbot/webhook
+[ ] Mapbox 토큰 URL 제한에 wherewego.win 등록
 [ ] AWS Budgets 과금 알림 설정 (0원 초과 시 이메일)
 ```
 
 ---
 
-## 주요 파일
+## 운영 주소
 
-| 파일 | 설명 |
-|------|------|
-| `.github/workflows/deploy.yml` | GitHub Actions CI/CD 파이프라인 |
-| `backend/Dockerfile` | Alpine JRE 21 경량 이미지 |
-| `~/.ssh/wherewego-key.pem` | EC2 SSH 접속 키 (로컬에만 보관) |
+| 환경 | URL |
+|------|-----|
+| 프론트엔드 (예정) | https://wherewego.win |
+| API | https://wherewego.win/api/v1 |
+| Swagger | https://wherewego.win/swagger-ui.html |
+| EC2 직접 | http://54.116.3.177:8080 |
 
 ---
 
@@ -135,10 +209,9 @@ URL: http://54.116.3.177:8080/api/v1/chatbot/webhook
 # 프론트엔드
 cd frontend && npm run dev          # http://localhost:3000
 
-# 백엔드 (backend/.env 파일 필요)
+# 백엔드 (backend/.env 필요)
 cd backend && ./gradlew :apps:wherewego-api:bootRun
 
 # 로컬 DB만 Docker로
-cd backend/docker
-docker-compose -f infra-compose.yml up
+cd backend/docker && docker-compose -f infra-compose.yml up
 ```
