@@ -59,27 +59,29 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: ENV_FILE,GH_PAT
           script: |
-            # .env 갱신
-            sudo mkdir -p /etc/wherewego
-            printf '%s' "$ENV_FILE" | sudo tee /etc/wherewego/.env > /dev/null
-            sudo chown "$USER:$USER" /etc/wherewego/.env
-            sudo chmod 600 /etc/wherewego/.env
-
             # ghcr.io 로그인 후 이미지 pull
             echo "$GH_PAT" | docker login ghcr.io -u rnqhstmd --password-stdin
             docker pull ${{ env.IMAGE }}:latest
+
+            # 배포 시에만 사용하는 임시 env 파일 (배포 완료 후 즉시 삭제)
+            ENV_TMP=$(mktemp)
+            chmod 600 "$ENV_TMP"
+            printf '%s' "$ENV_FILE" > "$ENV_TMP"
 
             # 컨테이너 교체
             docker stop wherewego-api || true
             docker rm   wherewego-api || true
             docker run -d \
               --name wherewego-api \
-              --env-file /etc/wherewego/.env \
+              --env-file "$ENV_TMP" \
               -e JAVA_TOOL_OPTIONS="-Xmx512m -Xms256m" \
               -p 8080:8080 \
               --memory 700m \
               --restart unless-stopped \
               ${{ env.IMAGE }}:latest
+
+            # 임시 파일 즉시 삭제 (EC2에 잔류하지 않음)
+            rm -f "$ENV_TMP"
 
             # 미사용 이미지 정리
             docker image prune -f
