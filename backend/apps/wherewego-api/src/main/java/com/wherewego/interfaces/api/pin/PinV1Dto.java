@@ -3,6 +3,7 @@ package com.wherewego.interfaces.api.pin;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wherewego.domain.pin.MemoSource;
 import com.wherewego.domain.pin.PinCreateCommand;
+import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
@@ -47,9 +48,23 @@ public final class PinV1Dto {
         }
     }
 
-    public record PinListResponse(List<PinSummaryResponse> items) {
+    public record PinListResponse(
+            List<PinSummaryResponse> items,
+            Long totalCount,
+            Boolean hasNext
+    ) {
         public static PinListResponse from(List<PinSummary> list) {
-            return new PinListResponse(list.stream().map(PinSummaryResponse::from).toList());
+            return new PinListResponse(
+                    list.stream().map(PinSummaryResponse::from).toList(),
+                    null,
+                    null);
+        }
+
+        public static PinListResponse fromPaged(PinListResult result) {
+            return new PinListResponse(
+                    result.items().stream().map(PinSummaryResponse::from).toList(),
+                    result.totalCount(),
+                    result.hasNext());
         }
     }
 

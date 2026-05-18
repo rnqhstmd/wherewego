@@ -41,3 +41,4 @@
 
 | 주제 | 설명 |
 |------|------|
+| gl-migration-plan | DOM Marker → GL symbol layer 전환 시 변경 지점 사전 분석 (Phase 2.9) |

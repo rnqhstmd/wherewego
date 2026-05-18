@@ -4,6 +4,8 @@ import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinRepository;
 import com.wherewego.domain.pin.PinTag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -43,6 +45,28 @@ public class PinRepositoryImpl implements PinRepository {
     @Override
     public List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag) {
         return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(groupId, tag);
+    }
+
+    @Override
+    public List<Pin> findActiveByGroupIdOrderByCreatedAtDesc(Long groupId, int page, int size) {
+        return jpaRepository.findByGroupIdAndDeletedAtIsNullOrderByCreatedAtDesc(
+                groupId, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @Override
+    public List<Pin> findActiveByGroupIdAndTagOrderByCreatedAtDesc(Long groupId, PinTag tag, int page, int size) {
+        return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNullOrderByCreatedAtDesc(
+                groupId, tag, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @Override
+    public long countActiveByGroupId(Long groupId) {
+        return jpaRepository.countByGroupIdAndDeletedAtIsNull(groupId);
+    }
+
+    @Override
+    public long countActiveByGroupIdAndTag(Long groupId, PinTag tag) {
+        return jpaRepository.countByGroupIdAndTagAndDeletedAtIsNull(groupId, tag);
     }
 
     @Override

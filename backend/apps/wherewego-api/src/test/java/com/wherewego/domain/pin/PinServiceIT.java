@@ -413,4 +413,76 @@ class PinServiceIT {
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
     }
+
+    @DisplayName("listGroupPinsPaged - 25개 핀에서 page=0/size=10 → items 10, totalCount 25, hasNext true.")
+    @Test
+    void listGroupPinsPaged_returnsCorrectSliceAndTotal() {
+        // arrange : 25개 핀
+        for (int i = 0; i < 25; i++) {
+            savePin(userAId, "https://www.instagram.com/p/PG" + i + "/");
+        }
+
+        // act
+        PinListResult result = pinService.listGroupPinsPaged(userAId, groupId, null, 0, 10);
+
+        // assert
+        assertThat(result.items()).hasSize(10);
+        assertThat(result.totalCount()).isEqualTo(25L);
+        assertThat(result.hasNext()).isTrue();
+    }
+
+    @DisplayName("listGroupPinsPaged - 25개 핀에서 마지막 페이지(page=2/size=10) → items 5, hasNext false.")
+    @Test
+    void listGroupPinsPaged_lastPage_hasNextFalse() {
+        // arrange : 25개 핀
+        for (int i = 0; i < 25; i++) {
+            savePin(userAId, "https://www.instagram.com/p/PL" + i + "/");
+        }
+
+        // act
+        PinListResult result = pinService.listGroupPinsPaged(userAId, groupId, null, 2, 10);
+
+        // assert
+        assertThat(result.items()).hasSize(5);
+        assertThat(result.totalCount()).isEqualTo(25L);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @DisplayName("listGroupPinsPaged - 비활성(비멤버) 사용자는 GROUP_NOT_MEMBER 를 반환한다.")
+    @Test
+    void listGroupPinsPaged_nonMember_throwsGroupNotMember() {
+        // act & assert : userC 는 그룹 비멤버
+        assertThatThrownBy(() -> pinService.listGroupPinsPaged(userCId, groupId, null, 0, 10))
+                .isInstanceOf(CoreException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
+    }
+
+    @DisplayName("listGroupPinsPaged - tag 필터는 count 와 items 모두 반영된다.")
+    @Test
+    void listGroupPinsPaged_withTagFilter() {
+        // arrange : PLACE 15 + MEMORY 10
+        for (int i = 0; i < 15; i++) {
+            savePin(userAId, "https://www.instagram.com/p/TPF" + i + "/");
+        }
+        for (int i = 0; i < 10; i++) {
+            Pin memory = savePin(userBId, "https://www.instagram.com/p/TMF" + i + "/");
+            memory.changeTag(PinTag.MEMORY);
+            pinJpaRepository.saveAndFlush(memory);
+        }
+
+        // act
+        PinListResult placeOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.PLACE, 0, 10);
+        PinListResult memoryOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.MEMORY, 0, 10);
+
+        // assert : count 가 태그 필터를 반영
+        assertThat(placeOnly.totalCount()).isEqualTo(15L);
+        assertThat(placeOnly.items()).hasSize(10);
+        assertThat(placeOnly.hasNext()).isTrue();
+        assertThat(placeOnly.items()).allMatch(s -> s.tag() == PinTag.PLACE);
+
+        assertThat(memoryOnly.totalCount()).isEqualTo(10L);
+        assertThat(memoryOnly.items()).hasSize(10);
+        assertThat(memoryOnly.hasNext()).isFalse();
+        assertThat(memoryOnly.items()).allMatch(s -> s.tag() == PinTag.MEMORY);
+    }
 }
