@@ -49,7 +49,20 @@ public class PinService {
      */
     @Transactional
     public Pin registerFromInstagram(Long userId, Long groupId, PlaceSearchHit hit, String instagramUrl) {
+        return registerFromInstagram(userId, groupId, hit, instagramUrl, null);
+    }
+
+    /**
+     * 인스타그램 링크 단건 결과 기반 자동 등록 + 사용자 메모 포함.
+     * memo가 null/blank 이면 메모 없이 저장, 값이 있으면 MANUAL 마킹.
+     */
+    @Transactional
+    public Pin registerFromInstagram(Long userId, Long groupId, PlaceSearchHit hit,
+                                     String instagramUrl, String memo) {
         Pin pin = Pin.autoFromInstagram(groupId, userId, hit, instagramUrl);
+        if (memo != null && !memo.isBlank()) {
+            pin.applyManualMemo(memo);
+        }
         return pinRepository.save(pin);
     }
 
