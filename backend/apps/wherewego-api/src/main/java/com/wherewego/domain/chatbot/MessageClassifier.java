@@ -10,38 +10,46 @@ import java.util.regex.Pattern;
 /**
  * Skill 요청 → {@link MessageType} 분류. 우선순위 평가:
  * <ol>
- *     <li>PLACE_SELECTION : {@code action.params.placeId != null}</li>
- *     <li>LINK_CODE       : utterance trim 후 {@code ^\d{6}$}</li>
- *     <li>INSTAGRAM_LINK  : 인스타 게시물/릴 URL 정규식</li>
- *     <li>TEXT_2SEC_CANDIDATE : 위 셋 아니고 {@code twoSecondMemoSession.peek(botUserKey).isPresent()}</li>
- *     <li>UNKNOWN         : 그 외</li>
+ *     <li>PLACE_SELECTION       : {@code action.params.placeId != null}</li>
+ *     <li>LINK_CODE             : {@code action.params.code != null} (i 오픈빌더 slot filling)</li>
+ *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 pending 덮어씀)</li>
+ *     <li>INSTAGRAM_PENDING_MEMO: 인스타 URL 아님 + {@link PendingInstagramSession#peek} 존재 → 메모/저장/취소 분기</li>
+ *     <li>TEXT_2SEC_CANDIDATE   : 2초 메모 세션</li>
+ *     <li>UNKNOWN               : 그 외</li>
  * </ol>
  */
 @Component
 @RequiredArgsConstructor
 public class MessageClassifier {
 
-    private static final Pattern LINK_CODE = Pattern.compile("^\\d{6}$");
     private static final Pattern INSTAGRAM_URL = Pattern.compile(
             "^https?://(www\\.)?(instagram\\.com|instagr\\.am)/(p|reel|reels)/[A-Za-z0-9_-]+/?.*"
     );
 
     private final TwoSecondMemoSession twoSecondMemoSession;
+    private final PendingInstagramSession pendingInstagramSession;
 
     public MessageType classify(ChatbotV1Dto.SkillRequest req, String botUserKey) {
-        if (hasPlaceId(req)) {
+        if (hasParam(req, "placeId")) {
             return MessageType.PLACE_SELECTION;
+        }
+        if (hasParam(req, "code")) {
+            return MessageType.LINK_CODE;
         }
 
         String utterance = utterance(req);
         if (utterance != null) {
             String trimmed = utterance.trim();
-            if (LINK_CODE.matcher(trimmed).matches()) {
-                return MessageType.LINK_CODE;
-            }
             if (INSTAGRAM_URL.matcher(trimmed).matches()) {
+                // 새 인스타 URL은 pending 여부와 무관하게 INSTAGRAM_LINK로 처리
+                // (핸들러에서 이전 pending 자동 덮어씀).
                 return MessageType.INSTAGRAM_LINK;
             }
+        }
+
+        // 인스타 URL이 아니고 pending 있으면 메모/저장/취소 분기 핸들러로
+        if (pendingInstagramSession.peek(botUserKey).isPresent()) {
+            return MessageType.INSTAGRAM_PENDING_MEMO;
         }
 
         if (twoSecondMemoSession.peek(botUserKey).isPresent()) {
@@ -50,28 +58,33 @@ public class MessageClassifier {
         return MessageType.UNKNOWN;
     }
 
-    private static boolean hasPlaceId(ChatbotV1Dto.SkillRequest req) {
-        String placeId = extractPlaceId(req);
-        return placeId != null && !placeId.isBlank();
+    private static boolean hasParam(ChatbotV1Dto.SkillRequest req, String key) {
+        String value = extractParam(req, key);
+        return value != null && !value.isBlank();
     }
 
     /**
      * 카카오 i 오픈빌더 버튼 {@code action="message"} 전송 시 {@code extra}는
      * 요청의 {@code action.clientExtra}로 들어온다. clientExtra 우선, params 폴백.
      */
-    static String extractPlaceId(ChatbotV1Dto.SkillRequest req) {
+    public static String extractParam(ChatbotV1Dto.SkillRequest req, String key) {
         if (req == null || req.action() == null) {
             return null;
         }
         ChatbotV1Dto.Action action = req.action();
-        String placeId = null;
+        String value = null;
         if (action.clientExtra() != null) {
-            placeId = action.clientExtra().get("placeId");
+            value = action.clientExtra().get(key);
         }
-        if ((placeId == null || placeId.isBlank()) && action.params() != null) {
-            placeId = action.params().get("placeId");
+        if ((value == null || value.isBlank()) && action.params() != null) {
+            value = action.params().get(key);
         }
-        return placeId;
+        return value;
+    }
+
+    /** placeId 추출 - 기존 호출자 호환용 (PlaceSelection 핸들러). */
+    public static String extractPlaceId(ChatbotV1Dto.SkillRequest req) {
+        return extractParam(req, "placeId");
     }
 
     private static String utterance(ChatbotV1Dto.SkillRequest req) {

@@ -10,6 +10,7 @@ public record PinSummary(
         Long id,
         Long groupId,
         Long createdBy,
+        String createdByNickname,
         String placeName,
         String address,
         BigDecimal latitude,
@@ -21,11 +22,12 @@ public record PinSummary(
         ZonedDateTime createdAt
 ) {
 
-    public static PinSummary from(Pin pin) {
+    public static PinSummary from(Pin pin, String createdByNickname) {
         return new PinSummary(
                 pin.getId(),
                 pin.getGroupId(),
                 pin.getCreatedBy(),
+                createdByNickname,
                 pin.getPlaceName(),
                 pin.getAddress(),
                 pin.getLatitude(),

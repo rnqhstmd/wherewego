@@ -68,7 +68,11 @@ public class GooglePlacesClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Goog-Api-Key", properties.apiKey())
                     .header("X-Goog-FieldMask", FIELD_MASK)
-                    .body(Map.of("textQuery", keyword))
+                    .body(Map.of(
+                            "textQuery", keyword,
+                            "languageCode", "ko",
+                            "regionCode", "KR"
+                    ))
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
                         throw new CoreException(ErrorType.PLC_GOOGLE_PLACES_FAILED,

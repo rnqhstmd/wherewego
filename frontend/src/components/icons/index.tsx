@@ -194,3 +194,5 @@ export function IconBack({
     </svg>
   );
 }
+
+export { IconBell } from "./IconBell";

@@ -2,6 +2,7 @@ package com.wherewego.config.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,6 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 카카오 챗봇 Webhook 레이트 리밋 Filter (Phase 2.6 PR-B B-3).
@@ -42,9 +46,14 @@ public class ChatbotRateLimitFilter extends OncePerRequestFilter {
     private static final String MISSING_KEY_MESSAGE =
             "일시적으로 이용에 불편이 있어요. 잠시 후 다시 시도해 주세요.";
     private static final String RATE_LIMITED_MESSAGE = "잠시 후 다시 시도해 주세요.";
+    private static final long RATE_LIMIT_ALERT_COOLDOWN_MS = 5 * 60 * 1_000L;
 
     private final ChatbotRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
+    private final SlackNotifier slackNotifier;
+
+    private final AtomicInteger rateLimitCount = new AtomicInteger(0);
+    private final AtomicLong lastAlertEpochMs = new AtomicLong(0L);
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
@@ -75,6 +84,7 @@ public class ChatbotRateLimitFilter extends OncePerRequestFilter {
 
         if (!rateLimiter.tryConsume(botUserKey)) {
             writeSkillResponse(response, RATE_LIMITED_MESSAGE);
+            alertRateLimitIfNeeded(botUserKey);
             return;
         }
 
@@ -95,6 +105,19 @@ public class ChatbotRateLimitFilter extends OncePerRequestFilter {
         } catch (IOException e) {
             log.warn("Failed to parse chatbot webhook body cause={}", e.getMessage());
             return null;
+        }
+    }
+
+    private void alertRateLimitIfNeeded(String botUserKey) {
+        rateLimitCount.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long last = lastAlertEpochMs.get();
+        if (now - last >= RATE_LIMIT_ALERT_COOLDOWN_MS && lastAlertEpochMs.compareAndSet(last, now)) {
+            int count = rateLimitCount.getAndSet(0);
+            slackNotifier.notifyWarning("레이트리밋 초과 감지", Map.of(
+                    "botUserKey", botUserKey,
+                    "recentCount", count
+            ));
         }
     }
 

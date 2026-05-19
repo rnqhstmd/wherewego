@@ -1,7 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { colors } from "@/lib/design/tokens";
-import { IconSearch, IconPlus, IconShuffle } from "@/components/icons";
+import {
+  IconSearch,
+  IconPlus,
+  IconShuffle,
+} from "@/components/icons";
 import type { ActionBarTab } from "./types";
 
 interface DesktopSidebarProps {
@@ -9,6 +14,8 @@ interface DesktopSidebarProps {
   onChange: (tab: Exclude<ActionBarTab, null>) => void;
   /** 셔플 탭만 비활성화 (위치 권한 거부 등). */
   rouletteDisabled?: boolean;
+  /** 로그인한 사용자 닉네임 (하단 마이페이지 진입 영역에 노출). */
+  myNickname?: string;
 }
 
 /**
@@ -19,6 +26,7 @@ export default function DesktopSidebar({
   active,
   onChange,
   rouletteDisabled = false,
+  myNickname,
 }: DesktopSidebarProps) {
   const tabs = [
     { id: "search" as const, Icon: IconSearch },
@@ -88,6 +96,30 @@ export default function DesktopSidebar({
           </button>
         );
       })}
+      {/* 하단 고정 — 마이페이지 진입. 사용자 닉네임 첫 글자 아바타 + 호버 시 풀 닉네임. */}
+      <Link
+        href="/settings"
+        aria-label={myNickname ? `${myNickname}님 마이페이지` : "마이페이지"}
+        title={myNickname ? `${myNickname}님` : "마이페이지"}
+        style={{
+          marginTop: "auto",
+          marginBottom: 12,
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: `linear-gradient(135deg, ${colors.pinMemory}, ${colors.pinPlace})`,
+          color: "#ffffff",
+          textDecoration: "none",
+          fontFamily: "var(--font-emo), 'Gowun Batang', serif",
+          fontSize: 16,
+          fontWeight: 700,
+        }}
+      >
+        {myNickname ? myNickname.slice(0, 1) : "?"}
+      </Link>
     </div>
   );
 }

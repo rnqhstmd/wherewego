@@ -34,9 +34,19 @@ public class GroupV1Dto {
         }
     }
 
-    public record ActiveGroupResponse(Long groupId, String name, ZonedDateTime createdAt) {
+    public record ActiveGroupResponse(
+            Long groupId,
+            String name,
+            ZonedDateTime createdAt,
+            long memberCount
+    ) {
         public static ActiveGroupResponse from(ActiveGroupInfo info) {
-            return new ActiveGroupResponse(info.groupId(), info.name(), info.createdAt());
+            return new ActiveGroupResponse(
+                    info.groupId(),
+                    info.name(),
+                    info.createdAt(),
+                    info.memberCount()
+            );
         }
     }
 

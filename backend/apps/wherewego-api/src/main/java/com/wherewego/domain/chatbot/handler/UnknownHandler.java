@@ -5,6 +5,8 @@ import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class UnknownHandler implements MessageHandler {
 
@@ -16,7 +18,8 @@ public class UnknownHandler implements MessageHandler {
     @Override
     public ChatbotV1Dto.SkillResponse handle(ChatbotV1Dto.SkillRequest request, ChatbotContext ctx) {
         return ChatbotV1Dto.SkillResponse.simple(
-                "장소 등록은 인스타그램 링크를 보내주세요. 연동은 앱에서 발급한 6자리 숫자를 입력하세요."
+                "인스타그램 릴스 링크를 보내면 장소가 자동으로 저장돼요. 그룹 연동이 필요하면 아래 [🔗 그룹 연동하기]를 눌러주세요.",
+                List.of(ChatbotV1Dto.QuickReply.message("🔗 그룹 연동하기", "그룹 연동하기"))
         );
     }
 }

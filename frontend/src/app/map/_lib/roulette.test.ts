@@ -148,7 +148,7 @@ describe("reRollFromSamePool", () => {
 });
 
 describe("ROULETTE_RADIUS_STEPS_KM", () => {
-  it("순서는 1, 5, 10", () => {
-    expect(ROULETTE_RADIUS_STEPS_KM).toEqual([1, 5, 10]);
+  it("10km 단일 반경", () => {
+    expect(ROULETTE_RADIUS_STEPS_KM).toEqual([10]);
   });
 });

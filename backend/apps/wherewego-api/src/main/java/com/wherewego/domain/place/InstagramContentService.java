@@ -76,20 +76,25 @@ public class InstagramContentService {
             log.info("Instagram cleaned caption blank url={}", url);
             return Optional.empty();
         }
+        log.info("Instagram cleaned caption url={} len={} preview=[{}]",
+                url, cleanedCaption.length(),
+                cleanedCaption.length() > 200 ? cleanedCaption.substring(0, 200) + "..." : cleanedCaption);
 
         if (ctx.expired()) {
             log.warn("Instagram extract cutoff before Gemini call url={}", url);
             throw new CoreException(ErrorType.PLC_INSTAGRAM_SCRAPE_FAILED, "처리가 지연되었어요. 다시 시도해 주세요.");
         }
 
-        Optional<String> placeKeyword = geminiPlaceClient.extractPlaceName(cleanedCaption, ctx.userId());
-        if (placeKeyword.isEmpty()) {
-            log.info("Instagram place name not extracted via Gemini url={}", url);
+        // Gemini로 최대 10개 장소 추출 (name + confident 동봉 JSON).
+        java.util.List<com.wherewego.domain.place.PlaceCandidate> candidates =
+                geminiPlaceClient.extractPlaceCandidates(cleanedCaption, ctx.userId(), 10);
+        if (candidates.isEmpty()) {
+            log.info("Instagram place candidates not extracted via Gemini url={}", url);
             return Optional.empty();
         }
 
         String snippet = truncate(cleanedCaption, CAPTION_SNIPPET_MAX);
-        return Optional.of(new InstagramExtraction(placeKeyword.get(), snippet));
+        return Optional.of(InstagramExtraction.fromCandidates(candidates, snippet));
     }
 
     private static String truncate(String text, int max) {

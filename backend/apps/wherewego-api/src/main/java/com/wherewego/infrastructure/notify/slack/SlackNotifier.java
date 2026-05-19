@@ -12,21 +12,27 @@ import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Slack Incoming Webhook 알림 발송.
+ * Slack Incoming Webhook 알림 발송 (Block Kit).
  *
- * <p>기존 logback ASYNC-SLACK 어펜더와 별개로, context map 첨부가 필요한
- * 비동기 폴백 실패 케이스에 사용한다. {@code slack.webhook-uri}가 비어 있으면
- * 안전한 no-op (dev/test 환경). 모든 예외는 swallow + log.warn.</p>
+ * <p>{@code slack.webhook-uri}가 비어 있으면 no-op (dev/test 환경).
+ * 모든 예외는 swallow + log.warn.</p>
  */
 @Component
 public class SlackNotifier {
 
     private static final Logger log = LoggerFactory.getLogger(SlackNotifier.class);
     private static final int TIMEOUT_MS = 2_000;
+    private static final DateTimeFormatter TIMESTAMP_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final SlackProperties properties;
     private final RestClient restClient;
@@ -56,11 +62,22 @@ public class SlackNotifier {
         return factory;
     }
 
-    /**
-     * 실패 알림 발송. context map의 key-value를 Slack 본문에 인라인으로 첨부한다.
-     * webhookUri가 비어 있으면 no-op.
-     */
+    /** 🚨 실패 알림 — 빨간색 */
     public void notifyFailure(String title, Map<String, Object> context) {
+        send("🚨", title, context, "#FF0000");
+    }
+
+    /** ⚠️ 경고 알림 — 노란색 */
+    public void notifyWarning(String title, Map<String, Object> context) {
+        send("⚠️", title, context, "#FFA500");
+    }
+
+    /** ✅ 정보/성공 알림 — 초록색 */
+    public void notify(String title, Map<String, Object> context) {
+        send("✅", title, context, "#36a64f");
+    }
+
+    private void send(String emoji, String title, Map<String, Object> context, String color) {
         String uri = properties.webhookUri();
         if (uri == null || uri.isBlank()) {
             return;
@@ -77,20 +94,50 @@ public class SlackNotifier {
             return;
         }
         try {
-            StringBuilder text = new StringBuilder();
-            text.append("[").append(properties.username() == null ? "wherewego" : properties.username()).append("] ");
-            text.append(title);
+            String appName = properties.username() == null ? "wherewego" : properties.username();
+            List<Map<String, Object>> blocks = new ArrayList<>();
+
+            // 제목
+            Map<String, Object> header = new LinkedHashMap<>();
+            header.put("type", "section");
+            Map<String, Object> headerText = new LinkedHashMap<>();
+            headerText.put("type", "mrkdwn");
+            headerText.put("text", emoji + " *[" + appName + "] " + title + "*");
+            header.put("text", headerText);
+            blocks.add(header);
+
+            // 컨텍스트 필드 (2열 그리드)
             if (context != null && !context.isEmpty()) {
-                text.append("\n");
+                Map<String, Object> fieldsSection = new LinkedHashMap<>();
+                fieldsSection.put("type", "section");
+                List<Map<String, Object>> fields = new ArrayList<>();
                 for (Map.Entry<String, Object> e : context.entrySet()) {
-                    text.append("- ").append(e.getKey()).append(": ").append(e.getValue()).append("\n");
+                    Map<String, Object> field = new LinkedHashMap<>();
+                    field.put("type", "mrkdwn");
+                    field.put("text", "*" + e.getKey() + "*\n" + e.getValue());
+                    fields.add(field);
                 }
+                fieldsSection.put("fields", fields);
+                blocks.add(fieldsSection);
             }
+
+            // 타임스탬프
+            String timestamp = LocalDateTime.now(ZoneId.of("Asia/Seoul")).format(TIMESTAMP_FMT);
+            Map<String, Object> ctxBlock = new LinkedHashMap<>();
+            ctxBlock.put("type", "context");
+            ctxBlock.put("elements", List.of(Map.of("type", "mrkdwn", "text", "📅 " + timestamp + " KST")));
+            blocks.add(ctxBlock);
+
+            Map<String, Object> attachment = new LinkedHashMap<>();
+            attachment.put("color", color);
+            attachment.put("blocks", blocks);
+
             Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("text", text.toString());
+            payload.put("attachments", List.of(attachment));
             if (properties.channel() != null && !properties.channel().isBlank()) {
                 payload.put("channel", properties.channel());
             }
+
             restClient.post()
                     .uri(parsedUri)
                     .contentType(MediaType.APPLICATION_JSON)

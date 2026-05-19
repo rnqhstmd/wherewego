@@ -15,6 +15,8 @@ interface SpeechBubblePopupProps {
   author: string;
   date: string;
   pinType: PinDotType;
+  /** 인스타그램 릴스 URL — 있으면 주소 아래 "릴스 보기 ↗" 링크 노출 */
+  instagramUrl?: string | null;
   width?: number;
   /** ⋮ 메뉴 클릭 콜백 (인라인 태그 칩 펼침 토글) */
   onMenuClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -22,6 +24,11 @@ interface SpeechBubblePopupProps {
   footerContent?: ReactNode;
   /** 본문 하단 추가 children (커스텀 확장) */
   children?: ReactNode;
+  /**
+   * true면 메모/장소/주소 영역을 숨기고 footerContent에만 집중.
+   * 수정 모드 등에서 원본 값과 입력값이 동시에 보여 헷갈리는 것을 방지.
+   */
+  collapseBody?: boolean;
   className?: string;
   style?: CSSProperties;
 }
@@ -45,10 +52,12 @@ export function SpeechBubblePopup({
   author,
   date,
   pinType,
+  instagramUrl,
   width = 296,
   onMenuClick,
   footerContent,
   children,
+  collapseBody = false,
   className,
   style,
 }: SpeechBubblePopupProps) {
@@ -78,70 +87,97 @@ export function SpeechBubblePopup({
           position: "relative",
         }}
       >
-        {/* Memo */}
-        <div
-          style={{
-            fontSize: 15,
-            fontWeight: 500,
-            color: colors.ink,
-            lineHeight: 1.5,
-            letterSpacing: -0.2,
-          }}
-        >
-          {lines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </div>
-
-        {/* Place + address */}
-        <div style={{ marginTop: 12 }}>
-          {hasPlace ? (
+        {!collapseBody && (
+          <>
+            {/* Memo */}
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                marginBottom: 3,
+                fontSize: 15,
+                fontWeight: 500,
+                color: colors.ink,
+                lineHeight: 1.5,
+                letterSpacing: -0.2,
               }}
             >
-              <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
-              <span
+              {lines.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+
+            {/* Place + address */}
+            <div style={{ marginTop: 12 }}>
+              {hasPlace ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    marginBottom: 3,
+                  }}
+                >
+                  <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
+                  <span
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: colors.ink,
+                      letterSpacing: -0.2,
+                    }}
+                  >
+                    {place}
+                  </span>
+                </div>
+              ) : null}
+              <div
                 style={{
-                  fontSize: 13.5,
-                  fontWeight: 700,
-                  color: colors.ink,
-                  letterSpacing: -0.2,
+                  fontFamily: fonts.mono,
+                  fontSize: 11.5,
+                  color: colors.inkSoft,
+                  letterSpacing: -0.1,
+                  paddingLeft: hasPlace ? 18 : 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
-                {place}
-              </span>
+                {!hasPlace ? (
+                  <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
+                ) : null}
+                <span>{addr}</span>
+              </div>
+              {instagramUrl ? (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 8,
+                    marginLeft: hasPlace ? 18 : 0,
+                    fontFamily: fonts.sans,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#C13584",
+                    textDecoration: "none",
+                  }}
+                >
+                  <span>📷</span>
+                  <span>릴스 보기</span>
+                  <span style={{ fontSize: 10 }}>↗</span>
+                </a>
+              ) : null}
             </div>
-          ) : null}
-          <div
-            style={{
-              fontFamily: fonts.mono,
-              fontSize: 11.5,
-              color: colors.inkSoft,
-              letterSpacing: -0.1,
-              paddingLeft: hasPlace ? 18 : 0,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            {!hasPlace ? (
-              <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
-            ) : null}
-            <span>{addr}</span>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Bottom row: date + author + ⋮ */}
         <div
           style={{
-            marginTop: 12,
-            paddingTop: 10,
-            borderTop: `1px solid ${colors.hairline}`,
+            marginTop: collapseBody ? 0 : 12,
+            paddingTop: collapseBody ? 0 : 10,
+            borderTop: collapseBody ? "none" : `1px solid ${colors.hairline}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -156,6 +192,18 @@ export function SpeechBubblePopup({
             }}
           >
             {date}&nbsp;&nbsp;
+            <span
+              style={{
+                fontFamily: fonts.sans,
+                fontStyle: "italic",
+                color: colors.inkSoft,
+                fontWeight: 400,
+                fontSize: 11,
+                marginRight: 6,
+              }}
+            >
+              written by
+            </span>
             <span
               style={{
                 fontFamily: fonts.sans,
