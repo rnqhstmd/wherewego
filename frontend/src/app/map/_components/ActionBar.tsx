@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment } from "react";
-import { colors } from "@/lib/design/tokens";
+import Link from "next/link";
+import { colors, fonts } from "@/lib/design/tokens";
 import { IconSearch, IconPlus, IconShuffle } from "@/components/icons";
 import type { ActionBarTab } from "./types";
 
@@ -10,22 +11,26 @@ interface ActionBarProps {
   onChange: (tab: Exclude<ActionBarTab, null>) => void;
   /** 셔플 탭만 비활성화 (위치 권한 거부 등). */
   rouletteDisabled?: boolean;
+  /** 마이페이지 아바타에 노출할 닉네임 첫 글자. */
+  myNickname?: string;
 }
 
 /**
- * 모바일 하단 액션바 — 검색 / 추가 / 룰렛 3개 탭.
- * 활성 탭은 cta 컬러로 표시.
+ * 모바일 하단 액션바 — 검색 / 추가 / 룰렛 + 마이페이지 진입 4분할.
+ * 활성 탭은 cta 컬러로 표시. 마이페이지는 navigation이므로 active state 없음.
  */
 export default function ActionBar({
   active,
   onChange,
   rouletteDisabled = false,
+  myNickname,
 }: ActionBarProps) {
   const tabs = [
     { id: "search" as const, Icon: IconSearch },
     { id: "add" as const, Icon: IconPlus },
     { id: "roulette" as const, Icon: IconShuffle },
   ];
+  const initial = myNickname?.trim().charAt(0) ?? "";
 
   return (
     <div
@@ -40,7 +45,7 @@ export default function ActionBar({
         boxShadow: `0 -2px 12px ${colors.shadow}`,
         display: "flex",
         alignItems: "center",
-        zIndex: 15,
+        zIndex: 25,
       }}
     >
       {tabs.map((tab, i) => (
@@ -84,6 +89,45 @@ export default function ActionBar({
           })()}
         </Fragment>
       ))}
+      <div
+        style={{
+          width: 1,
+          height: 24,
+          background: colors.hairline,
+        }}
+      />
+      <Link
+        href="/settings"
+        aria-label="마이페이지"
+        style={{
+          flex: 1,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          textDecoration: "none",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            background: `linear-gradient(135deg, ${colors.pinMemory}, ${colors.pinPlace})`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ffffff",
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: -0.3,
+          }}
+        >
+          {initial}
+        </div>
+      </Link>
     </div>
   );
 }

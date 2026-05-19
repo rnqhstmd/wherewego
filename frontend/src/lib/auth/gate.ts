@@ -1,7 +1,8 @@
 /**
  * Gate(2인 비공개 서비스) 쿠키 발급/검증.
  *
- * 쿠키 값 = HMAC-SHA256(USER + ":" + PASSWORD, GATE_COOKIE_SECRET) 의 hex.
+ * 단일 초대 코드(GATE_INVITE_CODE) 입력 방식.
+ * 쿠키 값 = HMAC-SHA256(CODE, GATE_COOKIE_SECRET) 의 hex.
  * 서버만 secret을 알기 때문에 외부에서 위조 불가.
  * Web Crypto API 사용 (Edge runtime 호환 — middleware에서 호출 가능).
  */
@@ -32,13 +33,12 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** 환경변수에서 자격증명 + secret을 읽어 expected 쿠키 값을 계산. */
+/** 환경변수에서 초대 코드 + secret을 읽어 expected 쿠키 값을 계산. */
 export async function computeExpectedGateCookie(): Promise<string | null> {
-  const user = process.env.BASIC_AUTH_USER;
-  const password = process.env.BASIC_AUTH_PASSWORD;
+  const code = process.env.GATE_INVITE_CODE;
   const secret = process.env.GATE_COOKIE_SECRET;
-  if (!user || !password || !secret) return null;
-  return hmacHex(secret, `${user}:${password}`);
+  if (!code || !secret) return null;
+  return hmacHex(secret, code);
 }
 
 export async function verifyGateCookie(
@@ -50,12 +50,8 @@ export async function verifyGateCookie(
   return timingSafeEqual(value, expected);
 }
 
-export async function verifyCredentials(
-  user: string,
-  password: string,
-): Promise<boolean> {
-  const envUser = process.env.BASIC_AUTH_USER;
-  const envPassword = process.env.BASIC_AUTH_PASSWORD;
-  if (!envUser || !envPassword) return false;
-  return timingSafeEqual(user, envUser) && timingSafeEqual(password, envPassword);
+export async function verifyInviteCode(code: string): Promise<boolean> {
+  const envCode = process.env.GATE_INVITE_CODE;
+  if (!envCode) return false;
+  return timingSafeEqual(code, envCode);
 }

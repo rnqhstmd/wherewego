@@ -6,7 +6,6 @@ import {
   IconSearch,
   IconPlus,
   IconShuffle,
-  IconBack,
 } from "@/components/icons";
 import type { ActionBarTab } from "./types";
 
@@ -53,24 +52,6 @@ export default function DesktopSidebar({
         zIndex: 15,
       }}
     >
-      {/* 그룹 목록으로 뒤로가기 — 항상 상단 고정 */}
-      <Link
-        href="/groups"
-        aria-label="그룹 목록"
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: colors.inkSoft,
-          textDecoration: "none",
-          marginBottom: 8,
-        }}
-      >
-        <IconBack size={20} color={colors.inkSoft} />
-      </Link>
       {tabs.map((tab) => {
         const disabled = tab.id === "roulette" && rouletteDisabled;
         return (

@@ -10,8 +10,8 @@ interface SheetProps {
 }
 
 /**
- * Bottom sheet — screens-mobile.jsx::Sheet 1:1 변환.
- * 콘텐츠 크기, 화면 하단(액션 바 위) 정렬.
+ * Bottom sheet — 모바일 전용. ActionBar(높이 64px)를 가리지 않도록
+ * 기본 bottom 오프셋을 두어 항상 액션바가 노출되도록 한다.
  * 컨테이너 역할만 담당. 콘텐츠는 children 으로 주입.
  */
 export function Sheet({ children, padTop = 6, className, style }: SheetProps) {
@@ -20,7 +20,7 @@ export function Sheet({ children, padTop = 6, className, style }: SheetProps) {
       className={className}
       style={{
         position: "absolute",
-        bottom: 0,
+        bottom: 64,
         left: 0,
         right: 0,
         background: colors.panel,

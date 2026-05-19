@@ -642,7 +642,8 @@ export default function MapClient({
       } else if (status === "unavailable") {
         setRouletteState({
           status: "geo-error",
-          message: "이 브라우저에서는 위치를 사용할 수 없어요.",
+          message:
+            "위치 정보를 받지 못했어요. macOS는 시스템 설정 > 개인정보 보호 > 위치 서비스에서 브라우저 항목이 켜져 있어야 해요. WiFi가 꺼져 있어도 실패할 수 있어요.",
         });
       } else if (status === "timeout") {
         setRouletteState({
@@ -680,22 +681,57 @@ export default function MapClient({
       });
       if (tab === "add") {
         setAddPinOrigin(null);
+        // + 탭 진입 시 너무 줌아웃되어 있으면 현재 위치 기준으로 줌인 이동.
+        // 좌표 picker UX 개선 — 사용자가 핀 위치를 정확히 찍기 쉽도록.
+        if (map && map.getZoom() < 13) {
+          if (geoState.status === "granted") {
+            map.flyTo({
+              center: [geoState.coords.lng, geoState.coords.lat],
+              zoom: 15,
+            });
+          } else if (typeof navigator !== "undefined" && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                map.flyTo({
+                  center: [pos.coords.longitude, pos.coords.latitude],
+                  zoom: 15,
+                });
+              },
+              () => {
+                // 위치 잡기 실패 시 현재 지도 중심을 유지하면서 줌만 살짝 올림.
+                map.flyTo({ zoom: 14 });
+              },
+              { timeout: 5000, maximumAge: 60000 },
+            );
+          } else {
+            map.flyTo({ zoom: 14 });
+          }
+        }
       }
     },
-    [activeSheet, handleRouletteTap],
+    [activeSheet, handleRouletteTap, map, geoState],
   );
 
-  // 검색에서 장소 선택 → MemoTag 단계로 전이
-  const handleSelectPlace = useCallback((place: PlaceSearchItem) => {
-    setAddPinOrigin({
-      placeName: place.placeName,
-      address: place.address,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      editable: false,
-    });
-    setActiveSheet("memo");
-  }, []);
+  // 검색에서 장소 선택 → MemoTag 단계로 전이 + 해당 좌표로 카메라 이동
+  const handleSelectPlace = useCallback(
+    (place: PlaceSearchItem) => {
+      setAddPinOrigin({
+        placeName: place.placeName,
+        address: place.address,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        editable: false,
+      });
+      setActiveSheet("memo");
+      if (map) {
+        map.flyTo({
+          center: [Number(place.longitude), Number(place.latitude)],
+          zoom: 15,
+        });
+      }
+    },
+    [map],
+  );
 
   // Crosshair에서 좌표 확정 → MemoTag 단계로 전이.
   // reverse geocoding 으로 채워진 placeName/address 를 초기값으로 사용하되,
@@ -724,17 +760,26 @@ export default function MapClient({
     setAddPinOrigin(null);
   }, []);
 
-  // 저장 성공 → 클라 state 에 직접 추가 (revalidate 없음, MUST-1)
-  const handlePinCreated = useCallback((newPin: PinSummaryResponse) => {
-    setPins((prev) => [...prev, newPin]);
-    // 캐시 fetchedAt도 갱신: 방금 만든 핀까지 포함하는 fresh 상태.
-    if (pinsCacheRef.current) {
-      pinsCacheRef.current.fetchedAt = Date.now();
-    }
-    setActiveSheet(null);
-    setAddPinOrigin(null);
-    setSelectedPinId(newPin.id);
-  }, []);
+  // 저장 성공 → 클라 state 에 직접 추가 (revalidate 없음, MUST-1) + 새 핀 위치로 카메라 이동.
+  const handlePinCreated = useCallback(
+    (newPin: PinSummaryResponse) => {
+      setPins((prev) => [...prev, newPin]);
+      // 캐시 fetchedAt도 갱신: 방금 만든 핀까지 포함하는 fresh 상태.
+      if (pinsCacheRef.current) {
+        pinsCacheRef.current.fetchedAt = Date.now();
+      }
+      setActiveSheet(null);
+      setAddPinOrigin(null);
+      setSelectedPinId(newPin.id);
+      if (map) {
+        map.flyTo({
+          center: [Number(newPin.longitude), Number(newPin.latitude)],
+          zoom: 15,
+        });
+      }
+    },
+    [map],
+  );
 
   const handleSheetClose = useCallback(() => {
     // coordinate-edit 시트를 × 로 닫으면 취소와 동일하게 처리
@@ -1137,6 +1182,7 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          myNickname={myNickname}
         />
       )}
       {showPermDialog && (

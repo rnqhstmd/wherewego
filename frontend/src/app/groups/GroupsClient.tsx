@@ -13,11 +13,11 @@ interface GroupsClientProps {
 }
 
 /**
- * Screen 1 — 그룹 선택 (screens-login.jsx::Screen1Groups 1:1).
+ * Screen 1 — 그룹 선택.
  *
  * - 상단 바: 워드마크 + 아바타 + 닉네임.
- * - 카드 클릭: notifAsked.get() ? /map : /onboarding/notification.
- * - 점선 카드(새 그룹 만들기) → /groups/new.
+ * - 그룹 카드: 메인 영역(클릭 → /map 또는 알림 권한) + 하단 액션 행(초대 링크).
+ * - 점선 카드(새 그룹 만들기): 활성 그룹 보유 시 disabled — 1인 1활성 그룹 정책 (BR-1).
  */
 export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
   const router = useRouter();
@@ -42,8 +42,18 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
     }
   };
 
+  const hasActiveGroup = groups.length > 0;
+
   const onClickCreate = () => {
+    if (hasActiveGroup) {
+      setToast("이미 그룹에 참여 중이에요. 그룹을 나간 후 만들 수 있어요.");
+      return;
+    }
     router.push("/groups/new");
+  };
+
+  const onClickInvite = () => {
+    router.push("/groups/invite");
   };
 
   return (
@@ -170,63 +180,110 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
           }}
         >
           {groups.map((g) => (
-            <button
+            <div
               key={g.groupId}
-              type="button"
-              onClick={onClickGroup}
               style={{
                 background: colors.panel,
                 borderRadius: 14,
                 border: `1px solid ${colors.hairline}`,
-                padding: "18px 22px",
                 boxShadow: `0 2px 8px ${colors.shadow}`,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                textAlign: "left",
-                fontFamily: "inherit",
+                overflow: "hidden",
               }}
             >
-              <div>
-                <div
-                  style={{
-                    fontFamily: fonts.emo,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: colors.ink,
-                    letterSpacing: -0.3,
-                  }}
-                >
-                  {g.name}
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 12,
-                    color: colors.inkSoft,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                  }}
-                >
-                  <span aria-hidden="true">👥</span>
-                  <span>{g.memberCount}명 참여 중</span>
-                </div>
-              </div>
-              <span
-                aria-hidden="true"
-                style={{ color: colors.inkSoft, fontSize: 18 }}
+              <button
+                type="button"
+                onClick={onClickGroup}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  padding: "18px 22px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  textAlign: "left",
+                  fontFamily: "inherit",
+                }}
               >
-                →
-              </span>
-            </button>
+                <div>
+                  <div
+                    style={{
+                      fontFamily: fonts.emo,
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: colors.ink,
+                      letterSpacing: -0.3,
+                    }}
+                  >
+                    {g.name}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 12,
+                      color: colors.inkSoft,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <span aria-hidden="true">👥</span>
+                    <span>{g.memberCount}명 참여 중</span>
+                  </div>
+                </div>
+                <span
+                  aria-hidden="true"
+                  style={{ color: colors.inkSoft, fontSize: 18 }}
+                >
+                  →
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={onClickInvite}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  borderTop: `1px solid ${colors.hairline}`,
+                  padding: "12px 22px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  textAlign: "left",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: colors.inkSoft,
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span aria-hidden="true">📨</span>
+                  <span>초대 링크 보내기</span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  style={{ color: colors.inkFaint, fontSize: 16 }}
+                >
+                  →
+                </span>
+              </button>
+            </div>
           ))}
 
-          {/* New group (placeholder — 별도 PRD) */}
+          {/* 새 그룹 만들기 — 1인 1활성 그룹 정책(BR-1)으로 활성 그룹 보유 시 비활성화 */}
           <button
             type="button"
             onClick={onClickCreate}
+            disabled={hasActiveGroup}
+            aria-disabled={hasActiveGroup}
+            title={
+              hasActiveGroup
+                ? "그룹은 한 번에 하나만 참여할 수 있어요"
+                : undefined
+            }
             style={{
               background: "transparent",
               borderRadius: 14,
@@ -236,9 +293,10 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              cursor: "pointer",
+              cursor: hasActiveGroup ? "not-allowed" : "pointer",
               color: colors.ctaSub,
               fontFamily: "inherit",
+              opacity: hasActiveGroup ? 0.4 : 1,
             }}
           >
             <span style={{ fontSize: 18 }} aria-hidden="true">
@@ -254,6 +312,21 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
               새 그룹 만들기
             </span>
           </button>
+          {hasActiveGroup ? (
+            <div
+              style={{
+                marginTop: -4,
+                textAlign: "center",
+                fontSize: 11,
+                color: colors.inkFaint,
+                lineHeight: 1.5,
+              }}
+            >
+              그룹은 한 번에 하나만 참여할 수 있어요.
+              <br />
+              다른 그룹을 만들려면 먼저 현재 그룹에서 나가야 해요.
+            </div>
+          ) : null}
         </div>
       </div>
 

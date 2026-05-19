@@ -62,7 +62,10 @@ public class ChatbotWebhookService {
             if (type == MessageType.INSTAGRAM_LINK || type == MessageType.PLACE_SELECTION) {
                 Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
                 if (userIdOpt.isEmpty()) {
-                    return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+                    return ChatbotV1Dto.SkillResponse.simple(
+                            "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러 앱에서 발급한 코드를 입력해주세요.",
+                            menuQuickReplies()
+                    );
                 }
                 ctx.setUserId(userIdOpt.get());
             }
@@ -71,7 +74,8 @@ public class ChatbotWebhookService {
             if (handler == null) {
                 log.warn("No handler for messageType={}", type);
                 return ChatbotV1Dto.SkillResponse.simple(
-                        "장소 등록은 인스타그램 링크를 보내주세요. 연동은 앱에서 발급한 6자리 숫자를 입력하세요."
+                        "인스타그램 릴스 링크를 보내면 장소가 자동으로 저장돼요. 그룹 연동이 필요하면 아래 [🔗 그룹 연동하기]를 눌러주세요.",
+                        menuQuickReplies()
                 );
             }
             return handler.handle(request, ctx);
@@ -82,5 +86,16 @@ public class ChatbotWebhookService {
             log.error("Chatbot webhook unexpected error", e);
             return ChatbotV1Dto.SkillResponse.simple("일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         }
+    }
+
+    /**
+     * 폴백/안내 응답 하단에 노출되는 기본 빠른 답장.
+     * blockId는 카카오 i 오픈빌더에서 "그룹 연동" 블록을 만든 뒤 해당 ID를 messageText 폴백으로 사용.
+     * 사용자가 i 오픈빌더에서 "그룹 연동하기"라는 발화 패턴을 해당 블록에 연결하면 자동 라우팅된다.
+     */
+    private static java.util.List<ChatbotV1Dto.QuickReply> menuQuickReplies() {
+        return java.util.List.of(
+                ChatbotV1Dto.QuickReply.message("🔗 그룹 연동하기", "그룹 연동하기")
+        );
     }
 }

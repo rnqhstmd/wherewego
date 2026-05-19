@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
+import { BackButton } from "@/components/ui/BackButton";
 import { createGroup } from "@/lib/api/group-client";
 import { colors, fonts } from "@/lib/design/tokens";
 
@@ -42,14 +43,25 @@ export function NewGroupClient() {
   return (
     <div
       style={{
-        padding: "80px 32px 32px",
         background: colors.bg,
         minHeight: "100vh",
         fontFamily: fonts.sans,
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
+        boxSizing: "border-box",
       }}
     >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          padding: "80px 32px 32px",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+        }}
+      >
+      <BackButton onClick={() => router.back()} />
       <div
         style={{
           fontFamily: fonts.emo,
@@ -148,6 +160,7 @@ export function NewGroupClient() {
         >
           취소
         </BtnSub>
+      </div>
       </div>
     </div>
   );

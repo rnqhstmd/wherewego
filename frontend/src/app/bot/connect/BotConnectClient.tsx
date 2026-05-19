@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BtnSub } from "@/components/ui/BtnSub";
+import { BackButton } from "@/components/ui/BackButton";
 import { issueBotLinkCode } from "@/lib/api/bot-client";
 import { colors, fonts } from "@/lib/design/tokens";
 
@@ -99,31 +100,42 @@ export function BotConnectClient() {
   return (
     <div
       style={{
-        padding: "70px 28px 32px",
         background: colors.bg,
         minHeight: "100vh",
         fontFamily: fonts.sans,
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
         boxSizing: "border-box",
       }}
     >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          padding: "80px 32px 32px",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+        }}
+      >
+      <BackButton onClick={() => router.back()} />
       {/* Heading */}
       <div
         style={{
           fontFamily: fonts.emo,
-          fontSize: 28,
+          fontSize: 32,
           fontWeight: 700,
           color: colors.ink,
           lineHeight: 1.3,
           letterSpacing: -1,
+          whiteSpace: "pre-wrap",
         }}
       >
-        카카오톡 챗봇 연동
+        {"카카오톡 챗봇과\n연동해요"}
       </div>
       <div
         style={{
-          marginTop: 10,
+          marginTop: 12,
           fontSize: 14,
           color: colors.inkSoft,
           lineHeight: 1.6,
@@ -248,6 +260,7 @@ export function BotConnectClient() {
       >
         닫기
       </BtnSub>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BtnSub } from "@/components/ui/BtnSub";
 import { PanelLabel } from "@/components/ui/PanelLabel";
+import { BackButton } from "@/components/ui/BackButton";
 import { IconBack } from "@/components/icons";
 import type { UserResponse } from "@/lib/api/auth";
 import { postLogout } from "@/lib/api/auth";
@@ -23,8 +24,9 @@ interface SettingsClientProps {
  *  1. 사용자 (아바타 + 닉네임 + 닉네임 수정)
  *  2. 활성 그룹 (그룹명/N명/그룹 탈퇴) — 활성 그룹 보유 시에만 노출
  *  3. 챗봇 연동 (코드 발급 진입)
- *  4. 친구 초대 (초대 링크 진입) — 활성 그룹 보유 시에만 노출
- *  5. 계정 (로그아웃)
+ *  4. 계정 (로그아웃)
+ *
+ * 친구 초대는 그룹 컨텍스트가 명확한 /groups 화면에서 처리한다.
  */
 export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
   const router = useRouter();
@@ -77,72 +79,59 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
   return (
     <div
       style={{
-        width: "100%",
-        maxWidth: 520,
-        margin: "0 auto",
-        minHeight: "100vh",
         background: colors.bg,
+        minHeight: "100vh",
         fontFamily: fonts.sans,
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
+        boxSizing: "border-box",
       }}
     >
-      {/* Top bar */}
       <div
         style={{
-          height: 56,
-          background: colors.panel,
-          borderBottom: `1px solid ${colors.hairline}`,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 16px",
-          flexShrink: 0,
-          gap: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="뒤로"
-          style={{
-            width: 36,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: colors.ink,
-            padding: 0,
-          }}
-        >
-          <IconBack size={22} />
-        </button>
-        <span
-          style={{
-            fontFamily: fonts.emo,
-            fontSize: 22,
-            fontWeight: 700,
-            color: colors.ink,
-            letterSpacing: -0.5,
-          }}
-        >
-          마이페이지
-        </span>
-      </div>
-
-      {/* Body */}
-      <div
-        style={{
-          flex: 1,
-          padding: "20px 20px 40px",
+          width: "100%",
+          maxWidth: 460,
+          padding: "80px 32px 40px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
-          overflowY: "auto",
+          boxSizing: "border-box",
         }}
       >
+        <BackButton onClick={() => router.back()} />
+        {/* Heading */}
+        <div
+          style={{
+            fontFamily: fonts.emo,
+            fontSize: 32,
+            fontWeight: 700,
+            color: colors.ink,
+            lineHeight: 1.3,
+            letterSpacing: -1,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {"안녕하세요\n마이페이지에요"}
+        </div>
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 14,
+            color: colors.inkSoft,
+            lineHeight: 1.6,
+          }}
+        >
+          계정과 그룹을 관리할 수 있어요
+        </div>
+
+        {/* Body */}
+        <div
+          style={{
+            marginTop: 32,
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+          }}
+        >
         {/* 1) 사용자 */}
         <section>
           <PanelLabel>사용자</PanelLabel>
@@ -230,11 +219,15 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
                 <span>{activeGroup.memberCount}명 참여 중</span>
               </div>
               <Row
+                label="📨 초대 링크 보내기"
+                onClick={() => router.push("/groups/invite")}
+                style={{ marginTop: 14 }}
+              />
+              <Row
                 label="그룹 탈퇴"
                 onClick={onLeaveGroup}
                 danger
                 disabled={busy !== null}
-                style={{ marginTop: 14 }}
               />
             </div>
           </section>
@@ -270,39 +263,7 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
           </div>
         </section>
 
-        {/* 4) 친구 초대 */}
-        {activeGroup ? (
-          <section>
-            <PanelLabel>친구 초대</PanelLabel>
-            <div
-              style={{
-                fontSize: 12,
-                color: colors.inkSoft,
-                lineHeight: 1.5,
-                margin: "4px 4px 8px",
-              }}
-            >
-              초대 링크를 카카오톡 등으로 친구에게 공유하세요. 친구가 링크를
-              열면 이 그룹의 핀을 함께 보고 추가할 수 있어요.
-            </div>
-            <div
-              style={{
-                background: colors.panel,
-                borderRadius: 14,
-                border: `1px solid ${colors.hairline}`,
-                padding: "6px 22px",
-                boxShadow: `0 2px 8px ${colors.shadow}`,
-              }}
-            >
-              <Row
-                label="초대 링크 보내기"
-                onClick={() => router.push("/groups/invite")}
-              />
-            </div>
-          </section>
-        ) : null}
-
-        {/* 5) 계정 */}
+        {/* 4) 계정 */}
         <section>
           <PanelLabel>계정</PanelLabel>
           <BtnSub
@@ -330,6 +291,7 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
             {error}
           </div>
         ) : null}
+        </div>
       </div>
     </div>
   );

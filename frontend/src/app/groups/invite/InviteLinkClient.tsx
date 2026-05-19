@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
+import { BackButton } from "@/components/ui/BackButton";
 import { issueInviteLink } from "@/lib/api/group-client";
 import { colors, fonts } from "@/lib/design/tokens";
 
@@ -106,31 +107,42 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
   return (
     <div
       style={{
-        padding: "70px 28px 32px",
         background: colors.bg,
         minHeight: "100vh",
         fontFamily: fonts.sans,
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
         boxSizing: "border-box",
       }}
     >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          padding: "80px 32px 32px",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+        }}
+      >
+      <BackButton onClick={() => router.back()} />
       {/* Heading */}
       <div
         style={{
           fontFamily: fonts.emo,
-          fontSize: 28,
+          fontSize: 32,
           fontWeight: 700,
           color: colors.ink,
           lineHeight: 1.3,
           letterSpacing: -1,
+          whiteSpace: "pre-wrap",
         }}
       >
-        친구를 초대해요
+        {"친구를\n초대해요"}
       </div>
       <div
         style={{
-          marginTop: 10,
+          marginTop: 12,
           fontSize: 14,
           color: colors.inkSoft,
           lineHeight: 1.6,
@@ -232,7 +244,7 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
       <div style={{ flex: 1 }} />
 
       <BtnSub
-        onClick={() => router.push("/groups")}
+        onClick={() => router.back()}
         style={{
           width: "100%",
           padding: "13px 0",
@@ -241,6 +253,7 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
       >
         확인
       </BtnSub>
+      </div>
     </div>
   );
 }
