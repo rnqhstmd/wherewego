@@ -107,10 +107,9 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
             color: colors.ink,
             lineHeight: 1.3,
             letterSpacing: -1,
-            whiteSpace: "pre-wrap",
           }}
         >
-          {"안녕하세요\n마이페이지에요"}
+          마이페이지
         </div>
         <div
           style={{
@@ -175,7 +174,7 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
             </div>
             <Row
               label="닉네임 수정"
-              onClick={() => router.push("/onboarding/nickname")}
+              onClick={() => router.push("/settings/nickname")}
               style={{ marginTop: 14 }}
             />
           </div>

@@ -159,7 +159,10 @@ public class InstagramLinkHandler implements MessageHandler {
     }
 
     /**
-     * 신버전 흐름 — confident=true는 자동 등록, false는 처음 N개만 카드, 초과분은 이름 안내.
+     * 신버전 흐름 — confident=true만 Google Places 검색해서 자동 저장.
+     * confident=false는 검색 API 호출조차 안 하고 "직접 등록" 안내 목록에 추가.
+     * confident=true인데 검색 결과 없음 / deadline 초과한 잔여 candidates도 동일 안내 목록으로 통합.
+     * 카드(BasicCard) 흐름 제거 — 모든 응답은 simpleText로 끝나며 사용자에게 재전송 요구하지 않는다.
      */
     private ChatbotV1Dto.SkillResponse handleCandidates(String botUserKey,
                                                         Long userId,
@@ -168,51 +171,49 @@ public class InstagramLinkHandler implements MessageHandler {
                                                         List<PlaceCandidate> candidates,
                                                         ChatbotContext ctx) {
         List<String> autoRegistered = new ArrayList<>();
-        List<String> autoFailed = new ArrayList<>();          // 등록 시도 후 실패/skip된 이름
-        List<Map<String, Object>> cardOutputs = new ArrayList<>();
-        List<String> skippedMoreCards = new ArrayList<>();    // 카드 max 초과로 버려진 이름
-        List<String> timeoutSkipped = new ArrayList<>();      // 카카오 데드라인으로 처리 못한 이름
+        List<String> manualNeeded = new ArrayList<>();   // 모호 / 검색실패 / deadline 초과 통합
 
         Long lastSavedPinId = null;
 
         for (int i = 0; i < candidates.size(); i++) {
             PlaceCandidate cand = candidates.get(i);
+
+            // deadline 초과 시 남은 후보 전부 manualNeeded로 누적 후 종료
             if (ctx.expired()) {
                 for (int j = i; j < candidates.size(); j++) {
-                    timeoutSkipped.add(candidates.get(j).name());
+                    manualNeeded.add(candidates.get(j).name());
                 }
-                log.warn("Chatbot deadline hit, {} remaining candidates skipped", candidates.size() - i);
+                log.warn("Chatbot deadline hit, {} remaining candidates → manualNeeded",
+                        candidates.size() - i);
                 break;
             }
+
+            // confident=false → Google Places 호출 절약, 즉시 manualNeeded
+            if (!cand.confident()) {
+                manualNeeded.add(cand.name());
+                continue;
+            }
+
+            // confident=true → Google Places 검색
             PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(cand.name(), ctx);
 
-            // 결과 없음 → skip + 안내문에만 노출
             if (outcome instanceof PlaceSearchOutcome.Empty) {
-                autoFailed.add(cand.name());
+                manualNeeded.add(cand.name());
                 continue;
             }
 
-            // Single → 즉시 자동 등록
             if (outcome instanceof PlaceSearchOutcome.Single single) {
-                Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl, autoRegistered, autoFailed);
+                Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl,
+                        autoRegistered, manualNeeded);
                 if (savedId != null) lastSavedPinId = savedId;
                 continue;
             }
 
-            // Multiple
+            // Multiple — confident=true이므로 첫 번째 결과 자동 등록
             List<PlaceSearchHit> hits = ((PlaceSearchOutcome.Multiple) outcome).hits();
-            if (cand.confident()) {
-                // confident=true → 첫 번째 자동 등록
-                Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl, autoRegistered, autoFailed);
-                if (savedId != null) lastSavedPinId = savedId;
-            } else if (cardOutputs.size() < MAX_CONFIRMATION_CARDS) {
-                // 모호 + 카드 슬롯 여유 → 카드로
-                cardOutputs.add(PlaceCardBuilder.buildCardOutput(
-                        botUserKey, hits, instagramUrl, placeSelectionCandidateStore, cand.name()));
-            } else {
-                // 모호 + 카드 슬롯 초과 → 이름만 안내
-                skippedMoreCards.add(cand.name());
-            }
+            Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl,
+                    autoRegistered, manualNeeded);
+            if (savedId != null) lastSavedPinId = savedId;
         }
 
         // 2초 메모 세션은 가장 마지막으로 등록한 핀 하나에 연결.
@@ -220,7 +221,7 @@ public class InstagramLinkHandler implements MessageHandler {
             twoSecondMemoSession.put(botUserKey, lastSavedPinId);
         }
 
-        return composeResponse(autoRegistered, autoFailed, cardOutputs, skippedMoreCards, timeoutSkipped);
+        return composeResponse(autoRegistered, manualNeeded);
     }
 
     /** 핀 등록 시도, 결과를 lists에 분류 누적. 저장된 pinId 반환(중복/실패 시 null). */
@@ -244,54 +245,32 @@ public class InstagramLinkHandler implements MessageHandler {
         }
     }
 
-    /** 자동등록/카드/스킵 결과들을 한 SkillResponse(outputs[])로 구성. */
+    /**
+     * 자동 등록 + 직접 등록 필요한 곳을 한 simpleText로 구성.
+     * 카드 흐름 제거. 재전송 요구 문구 없음.
+     */
     private ChatbotV1Dto.SkillResponse composeResponse(List<String> autoRegistered,
-                                                       List<String> autoFailed,
-                                                       List<Map<String, Object>> cardOutputs,
-                                                       List<String> skippedMoreCards,
-                                                       List<String> timeoutSkipped) {
-        List<Map<String, Object>> outputs = new ArrayList<>();
+                                                       List<String> manualNeeded) {
+        StringBuilder sb = new StringBuilder();
 
-        // 1) 자동 등록 결과 simpleText (있을 때만)
-        StringBuilder topText = new StringBuilder();
         if (!autoRegistered.isEmpty()) {
-            topText.append("장소 ").append(autoRegistered.size()).append("개가 저장되었어요\n");
-            for (String n : autoRegistered) topText.append("• ").append(n).append('\n');
+            sb.append("✅ 장소 ").append(autoRegistered.size()).append("개가 저장되었어요\n");
+            for (String n : autoRegistered) sb.append("• ").append(n).append('\n');
         }
 
-        // 2) 카드 출력 (max N개)
-        outputs.addAll(cardOutputs);
-
-        // 3) 안내문 (스킵된 후보들) — 카드 슬롯 초과 + 검색 실패 모두 사용자에게 알림
-        StringBuilder skipText = new StringBuilder();
-        if (!skippedMoreCards.isEmpty()) {
-            skipText.append("⚠ 추가로 추출됐지만 사용자 선택이 필요해 이번에는 등록되지 않은 곳: ")
-                    .append(String.join(", ", skippedMoreCards))
-                    .append("\n");
-        }
-        if (!autoFailed.isEmpty()) {
-            skipText.append("⚠ 검색 결과를 찾지 못한 곳: ")
-                    .append(String.join(", ", autoFailed))
-                    .append("\n");
-        }
-        if (!timeoutSkipped.isEmpty()) {
-            skipText.append("⏱ 시간이 부족해 이번에는 처리하지 못한 곳: ")
-                    .append(String.join(", ", timeoutSkipped))
-                    .append("\n해당 링크를 다시 한 번 보내주시면 이어서 등록됩니다.");
+        if (!manualNeeded.isEmpty()) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append("❓ 다음 장소는 정확하게 찾기 어려워 자동 저장하지 못했어요.\n");
+            sb.append("앱에서 직접 등록해주세요:\n");
+            for (String n : manualNeeded) sb.append("• ").append(n).append('\n');
         }
 
-        if (topText.length() == 0 && outputs.isEmpty() && skipText.length() == 0) {
-            return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 직접 검색해 주세요.");
+        if (sb.length() == 0) {
+            return ChatbotV1Dto.SkillResponse.simple(
+                    "장소를 찾지 못했어요. 앱에서 직접 등록해 주세요.");
         }
 
-        // 자동 등록 simpleText는 카드보다 위로 (있으면)
-        if (topText.length() > 0) {
-            outputs.add(0, PlaceCardBuilder.simpleTextOutput(topText.toString().trim()));
-        }
-        if (skipText.length() > 0) {
-            outputs.add(PlaceCardBuilder.simpleTextOutput(skipText.toString().trim()));
-        }
-        return ChatbotV1Dto.SkillResponse.cards(outputs);
+        return ChatbotV1Dto.SkillResponse.simple(sb.toString().trim());
     }
 
     /**

@@ -81,7 +81,7 @@ export default function SearchPanelContent({
     <div>
       <div style={{ position: "relative", marginBottom: 14 }}>
         <Input
-          placeholder="장소 검색 후 Enter 또는 돋보기 클릭"
+          placeholder="장소 검색"
           value={keyword}
           onChange={handleKeywordChange}
           onKeyDown={handleKeyDown}

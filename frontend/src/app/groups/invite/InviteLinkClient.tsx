@@ -135,10 +135,9 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
           color: colors.ink,
           lineHeight: 1.3,
           letterSpacing: -1,
-          whiteSpace: "pre-wrap",
         }}
       >
-        {"친구를\n초대해요"}
+        애인을 초대해요
       </div>
       <div
         style={{
