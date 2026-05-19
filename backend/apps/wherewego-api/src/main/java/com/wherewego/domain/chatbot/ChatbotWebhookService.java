@@ -59,7 +59,9 @@ public class ChatbotWebhookService {
             // 미연동 가드: 실제로 매핑이 필요한 핸들러(INSTAGRAM_LINK, PLACE_SELECTION)에만 적용.
             // UNKNOWN/TEXT_2SEC_CANDIDATE 는 가드 없이 라우터로 보내 불필요한 DB 조회를 피한다.
             // 조회한 userId 는 ctx 에 캐싱하여 핸들러에서 중복 조회를 방지한다.
-            if (type == MessageType.INSTAGRAM_LINK || type == MessageType.PLACE_SELECTION) {
+            if (type == MessageType.INSTAGRAM_LINK
+                    || type == MessageType.PLACE_SELECTION
+                    || type == MessageType.INSTAGRAM_PENDING_MEMO) {
                 Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
                 if (userIdOpt.isEmpty()) {
                     return ChatbotV1Dto.SkillResponse.simple(

@@ -6,6 +6,7 @@ import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.ChatbotErrorMessages;
 import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.chatbot.MessageType;
+import com.wherewego.domain.chatbot.PendingInstagramSession;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
@@ -30,20 +31,30 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * 인스타 링크 수신 핸들러 — 신정책 (메모 입력 분리 흐름).
+ *
+ * <p>흐름:
+ * <ol>
+ *   <li>사용자가 인스타 URL 보냄 → {@link #handle} 이 PendingInstagramSession에 URL 저장 + "메모 보내주세요" 안내.
+ *       실제 candidates 처리는 시작하지 않음.</li>
+ *   <li>사용자가 다음 메시지(메모/저장/취소/새 URL) 보냄 → MessageClassifier가 INSTAGRAM_PENDING_MEMO로 분류 →
+ *       {@code InstagramPendingMemoHandler}가 처리 분기. 메모/저장 선택 시 본 핸들러의
+ *       {@link #processWithMemoAsync}를 호출.</li>
+ *   <li>{@link #processWithMemoAsync}는 useCallback 응답 + 백그라운드 candidates 처리 + 카카오 callback push.</li>
+ * </ol>
+ */
 @Component
 @RequiredArgsConstructor
 public class InstagramLinkHandler implements MessageHandler {
 
     private static final Logger log = LoggerFactory.getLogger(InstagramLinkHandler.class);
 
-    /** 사용자에게 노출할 confident=false 카드 최대 개수. 초과분은 이름만 안내. */
-    private static final int MAX_CONFIRMATION_CARDS = 2;
     /** 비동기 candidates 처리에 적용하는 deadline (카카오 callback ttl ~1분). */
     private static final long ASYNC_CANDIDATES_DEADLINE_MS = 50_000L;
 
@@ -57,6 +68,7 @@ public class InstagramLinkHandler implements MessageHandler {
     private final PlaceFallbackOrchestrator placeFallbackOrchestrator;
     private final PlaceProperties placeProperties;
     private final KakaoCallbackClient kakaoCallbackClient;
+    private final PendingInstagramSession pendingInstagramSession;
 
     /** N개 candidates 비동기 처리용 풀. 4 thread 정도면 본인+여친 use case 충분. */
     private final ExecutorService asyncCandidatesExecutor =
@@ -71,16 +83,22 @@ public class InstagramLinkHandler implements MessageHandler {
         return MessageType.INSTAGRAM_LINK;
     }
 
+    /**
+     * 인스타 URL 수신 시: 가드 → pending 세션 저장 → 메모 입력 안내 응답.
+     * 실제 candidates 처리는 사용자가 다음 메시지(메모/저장/취소)를 보낸 시점에 시작.
+     */
     @Override
     public ChatbotV1Dto.SkillResponse handle(ChatbotV1Dto.SkillRequest request, ChatbotContext ctx) {
         String botUserKey = request.userRequest().user().id();
         String url = request.userRequest().utterance().trim();
 
+        // userId 가드는 WebhookService에서 이미 했지만 본 핸들러에서도 방어적으로 한 번 더.
         Long userId = ctx.userId();
         if (userId == null) {
             Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
             if (userIdOpt.isEmpty()) {
-                return ChatbotV1Dto.SkillResponse.simple("먼저 앱에서 발급한 6자리 연동코드를 보내주세요.");
+                return ChatbotV1Dto.SkillResponse.simple(
+                        "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러주세요.");
             }
             userId = userIdOpt.get();
         }
@@ -89,112 +107,151 @@ public class InstagramLinkHandler implements MessageHandler {
         if (groupIdOpt.isEmpty()) {
             return ChatbotV1Dto.SkillResponse.simple("그룹에 먼저 참여해주세요.");
         }
-        Long groupId = groupIdOpt.get();
 
         Optional<ContentParser> parserOpt = contentParserRegistry.resolve(url);
         if (parserOpt.isEmpty()) {
             return ChatbotV1Dto.SkillResponse.simple("지원하지 않는 링크입니다.");
         }
 
+        // 새 인스타 URL은 이전 pending을 덮어쓴다 (사용자가 메모 안 보내고 다른 링크 보낸 경우).
+        pendingInstagramSession.put(botUserKey, url);
+
+        return ChatbotV1Dto.SkillResponse.simple(
+                "📝 이 링크와 함께 저장할 메모를 보내주세요.\n"
+                        + "메모 없이 저장하거나 취소하려면 아래 버튼을 눌러주세요.",
+                memoQuickReplies());
+    }
+
+    /** 메모 안내 응답 하단에 노출되는 빠른답장(저장/취소). */
+    private static java.util.List<ChatbotV1Dto.QuickReply> memoQuickReplies() {
+        return java.util.List.of(
+                ChatbotV1Dto.QuickReply.message("💾 메모 없이 저장", "저장"),
+                ChatbotV1Dto.QuickReply.message("❌ 취소", "취소")
+        );
+    }
+
+    /**
+     * 메모 받은 후 candidates 처리. PendingMemoHandler가 호출.
+     * 즉시 useCallback 응답을 반환하고, 백그라운드 풀에서 candidates 처리 + 카카오 callback push.
+     * callbackUrl이 없으면 동기 처리 fallback.
+     *
+     * @param memo null/blank 이면 메모 없이 저장
+     */
+    public ChatbotV1Dto.SkillResponse processWithMemoAsync(String botUserKey,
+                                                          Long userId,
+                                                          Long groupId,
+                                                          String instagramUrl,
+                                                          String memo,
+                                                          String callbackUrl) {
+        Optional<ContentParser> parserOpt = contentParserRegistry.resolve(instagramUrl);
+        if (parserOpt.isEmpty()) {
+            return ChatbotV1Dto.SkillResponse.simple("지원하지 않는 링크입니다.");
+        }
+
+        if (callbackUrl != null && !callbackUrl.isBlank()) {
+            try {
+                final ContentParser parser = parserOpt.get();
+                asyncCandidatesExecutor.execute(() -> {
+                    try {
+                        ChatbotContext asyncCtx = ChatbotContext.start(ASYNC_CANDIDATES_DEADLINE_MS);
+                        asyncCtx.setUserId(userId);
+                        ChatbotV1Dto.SkillResponse result = runParseAndCandidates(
+                                parser, botUserKey, userId, groupId, instagramUrl, memo, asyncCtx);
+                        kakaoCallbackClient.push(callbackUrl, result);
+                    } catch (RuntimeException e) {
+                        log.error("Async candidates processing failed url={} cause={}",
+                                instagramUrl, e.getMessage(), e);
+                        kakaoCallbackClient.pushText(callbackUrl,
+                                "장소 처리 중 오류가 발생했어요. 다시 시도해 주세요.");
+                    }
+                });
+                return ChatbotV1Dto.SkillResponse.useCallback(
+                        "장소를 찾고 있어요. 잠시만 기다려주세요...");
+            } catch (RejectedExecutionException e) {
+                log.warn("Async candidates queue full, falling through to sync url={}", instagramUrl);
+                ChatbotContext syncCtx = ChatbotContext.start(3_500L);
+                syncCtx.setUserId(userId);
+                return runParseAndCandidates(
+                        parserOpt.get(), botUserKey, userId, groupId, instagramUrl, memo, syncCtx);
+            }
+        }
+
+        // callback 없는 환경 (테스트/시뮬레이터): 동기 처리.
+        return runParseAndCandidates(
+                parserOpt.get(), botUserKey, userId, groupId, instagramUrl, memo, ctxOrDefault(ctxNull(), userId));
+    }
+
+    private static ChatbotContext ctxNull() {
+        return ChatbotContext.start(ASYNC_CANDIDATES_DEADLINE_MS);
+    }
+
+    private static ChatbotContext ctxOrDefault(ChatbotContext c, Long userId) {
+        c.setUserId(userId);
+        return c;
+    }
+
+    /**
+     * 인스타 parse → candidates 처리 → 응답 조립. 비동기/동기 양쪽에서 호출.
+     */
+    private ChatbotV1Dto.SkillResponse runParseAndCandidates(ContentParser parser,
+                                                              String botUserKey,
+                                                              Long userId,
+                                                              Long groupId,
+                                                              String instagramUrl,
+                                                              String memo,
+                                                              ChatbotContext ctx) {
         Optional<ParsedContent> parsedOpt;
         try {
-            parsedOpt = parserOpt.get().parse(url, ctx);
+            parsedOpt = parser.parse(instagramUrl, ctx);
         } catch (CoreException e) {
             log.warn("Instagram parse failed code={}", e.getErrorType().getCode());
             return ChatbotV1Dto.SkillResponse.simple(ChatbotErrorMessages.userMessage(e));
         }
         if (parsedOpt.isEmpty()) {
-            return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 직접 검색해 주세요.");
+            return ChatbotV1Dto.SkillResponse.simple("장소를 찾지 못했어요. 앱에서 직접 등록해 주세요.");
         }
 
         List<PlaceCandidate> candidates = parsedOpt.get().candidates();
         if (candidates.isEmpty()) {
-            // 신버전 candidates가 비어있으면 구버전 placeKeyword로 fallback (호환).
-            return handleLegacySingle(parsedOpt.get(), botUserKey, userId, groupId, url, ctx, request);
+            // 구버전 placeKeyword fallback
+            return handleLegacySingle(parsedOpt.get(), botUserKey, userId, groupId, instagramUrl, memo, ctx);
         }
-
-        // 비동기 callback 흐름: 즉시 대기 메시지 + 백그라운드에서 candidates 모두 처리 후 push.
-        String callbackUrl = request.userRequest().callbackUrl();
-        if (callbackUrl != null && !callbackUrl.isBlank()) {
-            return submitAsyncCandidates(botUserKey, userId, groupId, url, candidates, callbackUrl);
-        }
-
-        // callback 없는 환경 (테스트/시뮬레이터 일부): 동기 처리.
-        return handleCandidates(botUserKey, userId, groupId, url, candidates, ctx);
+        return handleCandidates(botUserKey, userId, groupId, instagramUrl, candidates, memo, ctx);
     }
 
     /**
-     * candidates 처리를 백그라운드 풀에 제출하고 즉시 useCallback 응답을 반환.
-     * 백그라운드 작업이 끝나면 KakaoCallbackClient로 결과 push.
-     */
-    private ChatbotV1Dto.SkillResponse submitAsyncCandidates(String botUserKey,
-                                                              Long userId,
-                                                              Long groupId,
-                                                              String instagramUrl,
-                                                              List<PlaceCandidate> candidates,
-                                                              String callbackUrl) {
-        try {
-            asyncCandidatesExecutor.execute(() -> {
-                try {
-                    ChatbotContext asyncCtx = ChatbotContext.start(ASYNC_CANDIDATES_DEADLINE_MS);
-                    asyncCtx.setUserId(userId);
-                    ChatbotV1Dto.SkillResponse result = handleCandidates(
-                            botUserKey, userId, groupId, instagramUrl, candidates, asyncCtx);
-                    kakaoCallbackClient.push(callbackUrl, result);
-                } catch (RuntimeException e) {
-                    log.error("Async candidates processing failed url={} cause={}",
-                            instagramUrl, e.getMessage(), e);
-                    kakaoCallbackClient.pushText(callbackUrl,
-                            "장소 처리 중 오류가 발생했어요. 다시 시도해 주세요.");
-                }
-            });
-            return ChatbotV1Dto.SkillResponse.useCallback(
-                    candidates.size() + "개 장소를 찾고 있어요. 잠시만 기다려주세요...");
-        } catch (RejectedExecutionException e) {
-            log.warn("Async candidates queue full, falling through to sync url={}", instagramUrl);
-            ChatbotContext syncCtx = ChatbotContext.start(3_500L);
-            syncCtx.setUserId(userId);
-            return handleCandidates(botUserKey, userId, groupId, instagramUrl, candidates, syncCtx);
-        }
-    }
-
-    /**
-     * 신버전 흐름 — confident=true만 Google Places 검색해서 자동 저장.
-     * confident=false는 검색 API 호출조차 안 하고 "직접 등록" 안내 목록에 추가.
-     * confident=true인데 검색 결과 없음 / deadline 초과한 잔여 candidates도 동일 안내 목록으로 통합.
-     * 카드(BasicCard) 흐름 제거 — 모든 응답은 simpleText로 끝나며 사용자에게 재전송 요구하지 않는다.
+     * confident=true만 Google Places 검색해서 자동 저장 (메모 포함).
+     * confident=false / 검색실패 / deadline 초과는 모두 "직접 등록" 안내.
      */
     private ChatbotV1Dto.SkillResponse handleCandidates(String botUserKey,
                                                         Long userId,
                                                         Long groupId,
                                                         String instagramUrl,
                                                         List<PlaceCandidate> candidates,
+                                                        String memo,
                                                         ChatbotContext ctx) {
         List<String> autoRegistered = new ArrayList<>();
-        List<String> manualNeeded = new ArrayList<>();   // 모호 / 검색실패 / deadline 초과 통합
+        List<String> manualNeeded = new ArrayList<>();
 
         Long lastSavedPinId = null;
 
         for (int i = 0; i < candidates.size(); i++) {
             PlaceCandidate cand = candidates.get(i);
 
-            // deadline 초과 시 남은 후보 전부 manualNeeded로 누적 후 종료
             if (ctx.expired()) {
                 for (int j = i; j < candidates.size(); j++) {
                     manualNeeded.add(candidates.get(j).name());
                 }
-                log.warn("Chatbot deadline hit, {} remaining candidates → manualNeeded",
+                log.warn("Chatbot deadline hit, {} remaining → manualNeeded",
                         candidates.size() - i);
                 break;
             }
 
-            // confident=false → Google Places 호출 절약, 즉시 manualNeeded
             if (!cand.confident()) {
                 manualNeeded.add(cand.name());
                 continue;
             }
 
-            // confident=true → Google Places 검색
             PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(cand.name(), ctx);
 
             if (outcome instanceof PlaceSearchOutcome.Empty) {
@@ -203,59 +260,58 @@ public class InstagramLinkHandler implements MessageHandler {
             }
 
             if (outcome instanceof PlaceSearchOutcome.Single single) {
-                Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl,
+                Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl, memo,
                         autoRegistered, manualNeeded);
                 if (savedId != null) lastSavedPinId = savedId;
                 continue;
             }
 
-            // Multiple — confident=true이므로 첫 번째 결과 자동 등록
             List<PlaceSearchHit> hits = ((PlaceSearchOutcome.Multiple) outcome).hits();
-            Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl,
+            Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl, memo,
                     autoRegistered, manualNeeded);
             if (savedId != null) lastSavedPinId = savedId;
         }
 
-        // 2초 메모 세션은 가장 마지막으로 등록한 핀 하나에 연결.
         if (lastSavedPinId != null) {
             twoSecondMemoSession.put(botUserKey, lastSavedPinId);
         }
 
-        return composeResponse(autoRegistered, manualNeeded);
+        return composeResponse(autoRegistered, manualNeeded, memo);
     }
 
-    /** 핀 등록 시도, 결과를 lists에 분류 누적. 저장된 pinId 반환(중복/실패 시 null). */
+    /** 핀 등록 시도 (memo 포함). 결과를 lists에 누적. */
     private Long tryRegister(Long userId,
                              Long groupId,
                              PlaceSearchHit hit,
                              String instagramUrl,
+                             String memo,
                              List<String> autoRegistered,
-                             List<String> autoFailed) {
+                             List<String> manualNeeded) {
         try {
-            Pin saved = pinService.registerFromInstagram(userId, groupId, hit, instagramUrl);
+            Pin saved = pinService.registerFromInstagram(userId, groupId, hit, instagramUrl, memo);
             autoRegistered.add(saved.getPlaceName());
             return saved.getId();
         } catch (DataIntegrityViolationException e) {
-            // 같은 (group, url, place_name) 이미 등록됨 — silent skip
             return null;
         } catch (RuntimeException e) {
             log.warn("registerFromInstagram failed name={} cause={}", hit.placeName(), e.getMessage());
-            autoFailed.add(hit.placeName());
+            manualNeeded.add(hit.placeName());
             return null;
         }
     }
 
-    /**
-     * 자동 등록 + 직접 등록 필요한 곳을 한 simpleText로 구성.
-     * 카드 흐름 제거. 재전송 요구 문구 없음.
-     */
+    /** 응답 조립 — simpleText 1개. 메모가 있으면 안내문에 포함. */
     private ChatbotV1Dto.SkillResponse composeResponse(List<String> autoRegistered,
-                                                       List<String> manualNeeded) {
+                                                       List<String> manualNeeded,
+                                                       String memo) {
         StringBuilder sb = new StringBuilder();
 
         if (!autoRegistered.isEmpty()) {
             sb.append("✅ 장소 ").append(autoRegistered.size()).append("개가 저장되었어요\n");
             for (String n : autoRegistered) sb.append("• ").append(n).append('\n');
+            if (memo != null && !memo.isBlank()) {
+                sb.append("📝 메모: ").append(memo).append('\n');
+            }
         }
 
         if (!manualNeeded.isEmpty()) {
@@ -274,23 +330,25 @@ public class InstagramLinkHandler implements MessageHandler {
     }
 
     /**
-     * 구버전(또는 candidates 빈 경우) fallback — 단일 placeKeyword 흐름.
-     * 기존 동기/비동기 fallback orchestrator 흐름 보존.
+     * 구버전(candidates 빈 경우) fallback — 단일 placeKeyword 흐름.
+     * 메모는 등록 성공 시 함께 저장.
      */
     private ChatbotV1Dto.SkillResponse handleLegacySingle(ParsedContent parsed,
                                                           String botUserKey,
                                                           Long userId,
                                                           Long groupId,
                                                           String instagramUrl,
-                                                          ChatbotContext ctx,
-                                                          ChatbotV1Dto.SkillRequest request) {
+                                                          String memo,
+                                                          ChatbotContext ctx) {
         String keyword = parsed.placeKeyword();
         PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(keyword, ctx);
         if (outcome instanceof PlaceSearchOutcome.Single single) {
             try {
-                Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl);
+                Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl, memo);
                 twoSecondMemoSession.put(botUserKey, saved.getId());
-                return ChatbotV1Dto.SkillResponse.simple("장소가 저장되었어요: " + saved.getPlaceName());
+                String msg = "장소가 저장되었어요: " + saved.getPlaceName();
+                if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
+                return ChatbotV1Dto.SkillResponse.simple(msg);
             } catch (DataIntegrityViolationException e) {
                 return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
             }
@@ -299,7 +357,7 @@ public class InstagramLinkHandler implements MessageHandler {
             return PlaceCardBuilder.buildMultipleCard(
                     botUserKey, multiple.hits(), instagramUrl, placeSelectionCandidateStore);
         }
-        return handleGoogleFallback(botUserKey, userId, groupId, instagramUrl, keyword, ctx, request);
+        return handleGoogleFallback(botUserKey, userId, groupId, instagramUrl, keyword, memo, ctx);
     }
 
     private ChatbotV1Dto.SkillResponse handleGoogleFallback(String botUserKey,
@@ -307,16 +365,18 @@ public class InstagramLinkHandler implements MessageHandler {
                                                             Long groupId,
                                                             String instagramUrl,
                                                             String keyword,
-                                                            ChatbotContext ctx,
-                                                            ChatbotV1Dto.SkillRequest request) {
+                                                            String memo,
+                                                            ChatbotContext ctx) {
         long threshold = placeProperties.search().googleSyncThresholdMs();
         if (ctx.remaining() >= threshold) {
             PlaceSearchOutcome syncOutcome = placeFallbackOrchestrator.runSync(keyword, ctx);
             if (syncOutcome instanceof PlaceSearchOutcome.Single single) {
                 try {
-                    Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl);
+                    Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl, memo);
                     twoSecondMemoSession.put(botUserKey, saved.getId());
-                    return ChatbotV1Dto.SkillResponse.simple("장소가 저장되었어요: " + saved.getPlaceName());
+                    String msg = "장소가 저장되었어요: " + saved.getPlaceName();
+                    if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
+                    return ChatbotV1Dto.SkillResponse.simple(msg);
                 } catch (DataIntegrityViolationException e) {
                     return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
                 }
@@ -327,21 +387,16 @@ public class InstagramLinkHandler implements MessageHandler {
             }
             return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
         }
-
-        String callbackUrl = request.userRequest().callbackUrl();
-        if (callbackUrl == null || callbackUrl.isBlank()) {
-            return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
-        }
-
+        // 메모 흐름에선 callbackUrl 비동기 fallback orchestrator 사용 안 함 (이미 비동기).
         FallbackJobContext jobCtx = new FallbackJobContext(
-                botUserKey, userId, groupId, callbackUrl, instagramUrl, keyword
-        );
+                botUserKey, userId, groupId, /*callbackUrl*/"", instagramUrl, keyword);
+        // 동기 best-effort
         try {
-            placeFallbackOrchestrator.runAsync(keyword, jobCtx);
-            return ChatbotV1Dto.SkillResponse.useCallback("장소를 찾고 있어요. 잠시만 기다려주세요.");
-        } catch (RejectedExecutionException e) {
-            log.warn("place fallback rejected keyword={}", keyword);
+            placeFallbackOrchestrator.runSync(keyword, ctx);
             return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
+        } finally {
+            // unused but keeps reference signature
+            assert jobCtx != null;
         }
     }
 }

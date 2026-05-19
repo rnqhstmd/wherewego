@@ -10,16 +10,13 @@ import java.util.regex.Pattern;
 /**
  * Skill 요청 → {@link MessageType} 분류. 우선순위 평가:
  * <ol>
- *     <li>PLACE_SELECTION : {@code action.params.placeId != null}</li>
- *     <li>LINK_CODE       : {@code action.params.code != null} (i 오픈빌더 "그룹 연동" 블록 slot filling)</li>
- *     <li>INSTAGRAM_LINK  : 인스타 게시물/릴 URL 정규식</li>
- *     <li>TEXT_2SEC_CANDIDATE : 위 셋 아니고 {@code twoSecondMemoSession.peek(botUserKey).isPresent()}</li>
- *     <li>UNKNOWN         : 그 외</li>
+ *     <li>PLACE_SELECTION       : {@code action.params.placeId != null}</li>
+ *     <li>LINK_CODE             : {@code action.params.code != null} (i 오픈빌더 slot filling)</li>
+ *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 pending 덮어씀)</li>
+ *     <li>INSTAGRAM_PENDING_MEMO: 인스타 URL 아님 + {@link PendingInstagramSession#peek} 존재 → 메모/저장/취소 분기</li>
+ *     <li>TEXT_2SEC_CANDIDATE   : 2초 메모 세션</li>
+ *     <li>UNKNOWN               : 그 외</li>
  * </ol>
- *
- * <p><b>설계 메모:</b> 이전에는 utterance가 {@code ^\d{6}$}이면 LINK_CODE로 분류했으나
- * 일반 6자리 숫자 메시지와 충돌하여 slot filling 흐름으로 분리한다.
- * 카카오 시나리오에서 "그룹 연동" 블록의 슬롯 변수명을 {@code code}로 설정해야 한다.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -30,6 +27,7 @@ public class MessageClassifier {
     );
 
     private final TwoSecondMemoSession twoSecondMemoSession;
+    private final PendingInstagramSession pendingInstagramSession;
 
     public MessageType classify(ChatbotV1Dto.SkillRequest req, String botUserKey) {
         if (hasParam(req, "placeId")) {
@@ -43,8 +41,15 @@ public class MessageClassifier {
         if (utterance != null) {
             String trimmed = utterance.trim();
             if (INSTAGRAM_URL.matcher(trimmed).matches()) {
+                // 새 인스타 URL은 pending 여부와 무관하게 INSTAGRAM_LINK로 처리
+                // (핸들러에서 이전 pending 자동 덮어씀).
                 return MessageType.INSTAGRAM_LINK;
             }
+        }
+
+        // 인스타 URL이 아니고 pending 있으면 메모/저장/취소 분기 핸들러로
+        if (pendingInstagramSession.peek(botUserKey).isPresent()) {
+            return MessageType.INSTAGRAM_PENDING_MEMO;
         }
 
         if (twoSecondMemoSession.peek(botUserKey).isPresent()) {
@@ -61,7 +66,6 @@ public class MessageClassifier {
     /**
      * 카카오 i 오픈빌더 버튼 {@code action="message"} 전송 시 {@code extra}는
      * 요청의 {@code action.clientExtra}로 들어온다. clientExtra 우선, params 폴백.
-     * 핸들러 패키지에서 동일 키 추출이 필요하므로 {@code public}로 노출.
      */
     public static String extractParam(ChatbotV1Dto.SkillRequest req, String key) {
         if (req == null || req.action() == null) {
