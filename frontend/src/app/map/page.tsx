@@ -1,5 +1,6 @@
 import { requireAuthAndGroup } from "@/lib/auth/guard";
 import { listPins } from "@/lib/api/pin";
+import { getCurrentUserServer } from "@/lib/api/user-server";
 import MapClient from "./MapClient";
 import MapLoadError from "./_components/MapLoadError";
 
@@ -23,7 +24,10 @@ export default async function MapPage() {
 
   const group = await requireAuthAndGroup("/map");
 
-  const pinList = await listPins(group.groupId);
+  const [pinList, me] = await Promise.all([
+    listPins(group.groupId),
+    getCurrentUserServer(),
+  ]);
 
   return (
     <MapClient
@@ -32,6 +36,7 @@ export default async function MapPage() {
       groupName={group.name}
       mapboxToken={token}
       mapboxStyleUrl={styleUrl}
+      myNickname={me.nickname}
     />
   );
 }

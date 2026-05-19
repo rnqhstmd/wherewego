@@ -166,6 +166,11 @@ public class GroupMemberService {
         return groupMemberRepository.findLatestActiveGroupIdByUserId(userId)
                 .flatMap(groupRepository::findById)
                 .filter(group -> group.getDeletedAt() == null)
-                .map(group -> new ActiveGroupInfo(group.getId(), group.getName(), group.getCreatedAt()));
+                .map(group -> new ActiveGroupInfo(
+                        group.getId(),
+                        group.getName(),
+                        group.getCreatedAt(),
+                        groupMemberRepository.countActiveByGroupId(group.getId())
+                ));
     }
 }

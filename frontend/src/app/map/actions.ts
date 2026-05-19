@@ -130,6 +130,38 @@ export async function updatePinCoordinateAction(
   }
 }
 
+export type UpdatePinPlaceNameActionResult = CreatePinActionResult;
+
+/**
+ * 핀 장소 이름 변경 Server Action (Phase 2.8).
+ *
+ * 백엔드 PinUpdateCommand 의 placeNameProvided 분기로 위임.
+ * `/map`은 useOptimistic 즉시 갱신, `/pins`만 revalidatePath.
+ */
+export async function updatePinPlaceNameAction(
+  groupId: number,
+  pinId: number,
+  placeName: string,
+): Promise<UpdatePinPlaceNameActionResult> {
+  try {
+    const data = await updatePin(groupId, pinId, { placeName });
+    try {
+      revalidatePath("/pins");
+    } catch (revalidateError) {
+      console.error(
+        "revalidatePath('/pins') 실패 (장소명 변경은 성공)",
+        revalidateError,
+      );
+    }
+    return { ok: true, data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+    throw error;
+  }
+}
+
 export type DeletePinActionResult =
   | { ok: true }
   | { ok: false; code: string; message: string };

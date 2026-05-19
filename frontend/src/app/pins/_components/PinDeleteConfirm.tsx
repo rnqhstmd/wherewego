@@ -23,11 +23,9 @@ export function PinDeleteConfirm({
     if (!node.open) {
       node.showModal();
     }
-    return () => {
-      if (node.open) {
-        node.close();
-      }
-    };
+    // cleanup에서 dialog.close()를 호출하지 않는다.
+    // Strict Mode dev의 mount→cleanup→mount cycle에서 close가 race condition을
+    // 만들어 모달이 사라진 듯 보이는 문제가 있었다 — 실제 unmount는 React가 처리.
   }, []);
 
   return (

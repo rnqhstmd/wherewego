@@ -12,71 +12,34 @@ interface PinPopupProps {
   pin: PinSummaryResponse;
   map: mapboxgl.Map | null;
   authorLabel?: string;
-  /**
-   * 태그 변경 콜백 (MUST-5). MapClient 에서 useOptimistic + updatePinTagAction 호출.
-   * 응답으로 성공/실패와 표시할 에러 메시지를 반환한다.
-   */
   onTagChange: (
     pinId: number,
     nextTag: PinTag,
   ) => Promise<{ ok: boolean; message?: string }>;
-  /**
-   * 메모 변경 콜백 (FR-MMO-2). MapClient 에서 useOptimistic + updatePinMemoAction 호출.
-   * 응답으로 성공/실패와 표시할 에러 메시지를 반환한다.
-   */
   onMemoChange: (
     pinId: number,
     nextMemo: string,
   ) => Promise<{ ok: boolean; message?: string }>;
-  /**
-   * 삭제 의도 위임 콜백 (FR-7 / AC-15). MapClient 가 확인 모달을 띄운 뒤
-   * 최종 확인 시 server action 호출 + optimistic remove 를 책임진다.
-   */
+  onPlaceNameChange: (
+    pinId: number,
+    nextPlaceName: string,
+  ) => Promise<{ ok: boolean; message?: string }>;
   onRequestDelete: (pin: PinSummaryResponse) => void;
-  /**
-   * 직전 삭제 실패 메시지 (AC-16/AC-17). null 이 아니면 footer 하단에
-   * 인라인 빨간 텍스트로 표시한다.
-   */
   deleteError: string | null;
-  /**
-   * 좌표 수정 의도 위임 콜백 (Phase 2.10 B4b). MapClient 가 picker 시트를
-   * 열고 새 좌표 확정 시 optimistic patch + server action 을 책임진다.
-   */
   onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
-  /**
-   * 직전 좌표 변경 실패 메시지. null 이 아니면 footer 하단에 인라인 빨간 텍스트로 표시.
-   */
   coordinateError: string | null;
 }
 
-type PopupView = "tag" | "memo";
+type PopupMode = "view" | "menu" | "edit";
+type EditTab = "place" | "tag" | "memo";
 
-/**
- * ⋮ 펼침의 초기 뷰 선택 (디스커버러빌리티):
- * 메모가 비어있는 핀은 사용자가 ⋮ 첫 클릭 시 곧바로 메모 편집 화면으로 진입한다.
- */
-const initialView = (p: PinSummaryResponse): PopupView =>
-  p.memo && p.memo.length > 0 ? "tag" : "memo";
-
-/**
- * 선택된 핀의 [lng, lat]을 map.project로 화면 좌표 변환 후 SpeechBubblePopup 렌더.
- *
- * Mapbox 내장 Popup은 사용하지 않는다 (설계 §9). 지도가 이동/줌될 때
- * `move`/`zoom` 이벤트로 좌표를 재계산하여 말풍선 위치를 갱신한다.
- *
- * 배치 5 (MUST-5): ⋮ 클릭 → 하단 인라인 PinTag 칩 2개 펼침 →
- * 다른 태그 클릭 시 `onTagChange` 호출 → MapClient 의 useOptimistic 이
- * 마커 모양을 즉시 갱신. 실패 시 인라인 에러 메시지 노출.
- *
- * Phase 2.6 PR-A: ⋮ 펼침을 "태그 / 메모" 2뷰 세그먼트 탭으로 확장 (FR-MMO-2).
- * 메모 비어있는 핀은 ⋮ 첫 클릭 시 "memo" 탭으로 자동 진입한다.
- */
 export default function PinPopup({
   pin,
   map,
   authorLabel,
   onTagChange,
   onMemoChange,
+  onPlaceNameChange,
   onRequestDelete,
   deleteError,
   onRequestCoordinateEdit,
@@ -85,56 +48,55 @@ export default function PinPopup({
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
   );
-  const [expanded, setExpanded] = useState(false);
+  const [mode, setMode] = useState<PopupMode>("view");
+  const [editTab, setEditTab] = useState<EditTab>("tag");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<PopupView>(() => initialView(pin));
   const [memoPending, setMemoPending] = useState(false);
   const [memoError, setMemoError] = useState<string | null>(null);
+  const [placeDraft, setPlaceDraft] = useState(pin.placeName);
+  const [placePending, setPlacePending] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
 
-  // 언마운트 후 in-flight 응답이 setState 를 호출하지 않도록 가드 (React 경고 회피).
+  // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-    },
-    [],
-  );
-
-  // 좌표 수정 실패 메시지가 도착하면 footer 를 자동으로 펼쳐 사용자에게 보이도록 한다.
   useEffect(() => {
-    if (coordinateError) {
-      setExpanded(true);
-    }
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // 좌표 변경 실패 시 자동으로 edit 모드 펼침
+  useEffect(() => {
+    if (coordinateError) setMode("edit");
   }, [coordinateError]);
 
-  // 다른 핀으로 전환되면 메뉴 펼침/에러/뷰를 렌더 중 분기로 초기화한다
-  // (react-hooks/set-state-in-effect 회피 — React 공식 권장 패턴).
+  // 다른 핀 선택 → 모드/에러 리셋 (렌더 중 분기 — React 권장 패턴)
   const [trackedPinId, setTrackedPinId] = useState<number>(pin.id);
   if (trackedPinId !== pin.id) {
     setTrackedPinId(pin.id);
-    setExpanded(false);
+    setMode("view");
+    setEditTab("tag");
     setError(null);
-    setView(initialView(pin));
     setMemoPending(false);
     setMemoError(null);
+    setPlaceDraft(pin.placeName);
+    setPlacePending(false);
+    setPlaceError(null);
   }
 
   useEffect(() => {
     if (!map) return;
-
     const lng = Number(pin.longitude);
     const lat = Number(pin.latitude);
-
     const updatePos = () => {
-      const point = map.project([lng, lat]);
-      setScreenPos({ x: point.x, y: point.y });
+      const p = map.project([lng, lat]);
+      setScreenPos({ x: p.x, y: p.y });
     };
-
     updatePos();
     map.on("move", updatePos);
     map.on("zoom", updatePos);
-
     return () => {
       map.off("move", updatePos);
       map.off("zoom", updatePos);
@@ -161,6 +123,23 @@ export default function PinPopup({
     setPending(false);
     if (!result.ok) {
       setError(result.message ?? "태그 변경에 실패했어요");
+    } else {
+      setMode("view");
+    }
+  };
+
+  const handleSavePlaceName = async () => {
+    const trimmed = placeDraft.trim();
+    if (!trimmed || trimmed === pin.placeName || placePending) return;
+    setPlacePending(true);
+    setPlaceError(null);
+    const result = await onPlaceNameChange(pin.id, trimmed);
+    if (!mountedRef.current) return;
+    setPlacePending(false);
+    if (result.ok) {
+      setMode("view");
+    } else {
+      setPlaceError(result.message ?? "장소 이름 저장에 실패했어요");
     }
   };
 
@@ -172,46 +151,104 @@ export default function PinPopup({
     if (!mountedRef.current) return;
     setMemoPending(false);
     if (result.ok) {
-      setView("tag");
+      setMode("view");
     } else {
       setMemoError(result.message ?? "메모 저장에 실패했어요");
     }
   };
 
-  const renderSegmentButton = (target: PopupView, label: string) => {
-    const active = view === target;
-    return (
-      <button
-        type="button"
-        onClick={() => setView(target)}
-        style={{
-          height: 26,
-          padding: "4px 12px",
-          borderRadius: 999,
-          border: "none",
-          background: active ? colors.ink : "transparent",
-          color: active ? "#fff" : colors.inkSoft,
-          fontFamily: fonts.sans,
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
-        {label}
-      </button>
+  const handleMenuClick = () => {
+    setMode((prev) =>
+      prev === "menu" ? "view" : prev === "edit" ? "view" : "menu",
     );
   };
 
-  const tagBody = (
+  // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
+  // menu mode는 popup footer가 아닌 별도 dialog로 노출.
+
+  // ─── 수정 모드 (탭 + 폼) ─────────────────────────────────────
+  const tabHeader = (
+    <div
+      style={{
+        display: "flex",
+        gap: 0,
+        borderBottom: `1px solid ${colors.hairline}`,
+        marginBottom: 12,
+      }}
+      role="tablist"
+    >
+      {renderTabButton("place", "장소", editTab, setEditTab)}
+      {renderTabButton("tag", "태그", editTab, setEditTab)}
+      {renderTabButton("memo", "메모", editTab, setEditTab)}
+    </div>
+  );
+
+  const placePanel = (
     <div>
+      <input
+        type="text"
+        value={placeDraft}
+        onChange={(e) => setPlaceDraft(e.target.value)}
+        disabled={placePending}
+        maxLength={100}
+        placeholder="장소 이름"
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          fontFamily: fonts.sans,
+          fontSize: 13,
+          border: `1px solid ${colors.hairline}`,
+          borderRadius: 8,
+          outline: "none",
+          color: colors.ink,
+          background: "#fff",
+        }}
+      />
       <div
         style={{
           display: "flex",
-          gap: 8,
-          alignItems: "center",
-          marginBottom: error ? 8 : 0,
+          justifyContent: "flex-end",
+          gap: 6,
+          marginTop: 8,
         }}
       >
+        <button
+          type="button"
+          onClick={() => {
+            setPlaceDraft(pin.placeName);
+            setPlaceError(null);
+            setMode("view");
+          }}
+          disabled={placePending}
+          style={linkButtonStyle(colors.inkSoft)}
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={handleSavePlaceName}
+          disabled={
+            placePending ||
+            !placeDraft.trim() ||
+            placeDraft.trim() === pin.placeName
+          }
+          style={{
+            ...linkButtonStyle(colors.cta),
+            fontWeight: 700,
+          }}
+        >
+          {placePending ? "저장 중..." : "저장"}
+        </button>
+      </div>
+      {placeError && (
+        <div style={{ ...inlineErrorStyle, marginTop: 6 }}>{placeError}</div>
+      )}
+    </div>
+  );
+
+  const tagPanel = (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: error ? 8 : 0 }}>
         <PinTagChip
           type="place"
           active={pin.tag === "PLACE"}
@@ -225,145 +262,216 @@ export default function PinPopup({
           onClick={() => handleTagToggle("MEMORY")}
         />
         {pending && (
-          <span
-            style={{
-              fontFamily: fonts.sans,
-              fontSize: 12,
-              color: colors.inkSoft,
-            }}
-          >
-            저장 중...
-          </span>
+          <span style={hintTextStyle}>저장 중...</span>
         )}
       </div>
-      {error && (
-        <div
-          style={{
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            color: colors.pinNew,
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <div style={inlineErrorStyle}>{error}</div>}
     </div>
   );
 
-  const footer = expanded ? (
+  const memoPanel = (
+    <PinPopupMemoEditor
+      key={pin.id}
+      initialMemo={pin.memo}
+      pending={memoPending}
+      error={memoError}
+      onSave={handleSaveMemo}
+      onCancel={() => setMode("view")}
+    />
+  );
+
+  const editFooter = (
     <div>
+      {tabHeader}
+      {editTab === "place"
+        ? placePanel
+        : editTab === "tag"
+          ? tagPanel
+          : memoPanel}
+      {/* 보조 액션: 좌표 수정 / 취소 (메모 탭의 저장/취소는 PinPopupMemoEditor 자체에 있음) */}
       <div
         style={{
-          display: "flex",
-          gap: 6,
-          marginBottom: 10,
-        }}
-      >
-        {renderSegmentButton("tag", "태그")}
-        {renderSegmentButton("memo", "메모")}
-      </div>
-      {view === "tag" ? (
-        tagBody
-      ) : (
-        <PinPopupMemoEditor
-          key={pin.id}
-          initialMemo={pin.memo}
-          pending={memoPending}
-          error={memoError}
-          onSave={handleSaveMemo}
-          onCancel={() => setView("tag")}
-        />
-      )}
-      {/* 삭제/좌표 수정 버튼: HLine 으로 본문과 분리, 우측 정렬 (AC-12). */}
-      <div
-        style={{
-          marginTop: 10,
+          marginTop: 14,
           paddingTop: 10,
           borderTop: `1px solid ${colors.hairline}`,
           display: "flex",
-          justifyContent: "flex-end",
-          gap: 4,
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <button
           type="button"
           onClick={() => onRequestCoordinateEdit(pin)}
-          style={{
-            padding: "6px 10px",
-            border: "none",
-            background: "transparent",
-            color: colors.inkSoft,
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          style={linkButtonStyle(colors.inkSoft)}
         >
           좌표 수정
         </button>
         <button
           type="button"
-          onClick={() => onRequestDelete(pin)}
-          style={{
-            padding: "6px 10px",
-            border: "none",
-            background: "transparent",
-            color: colors.pinNew,
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          onClick={() => setMode("view")}
+          style={linkButtonStyle(colors.inkSoft)}
         >
-          삭제
+          닫기
         </button>
       </div>
-      {deleteError && (
-        <div
-          style={{
-            marginTop: 6,
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            color: colors.pinNew,
-          }}
-        >
-          {deleteError}
-        </div>
-      )}
       {coordinateError && (
-        <div
-          style={{
-            marginTop: 6,
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            color: colors.pinNew,
-          }}
-        >
+        <div style={{ ...inlineErrorStyle, marginTop: 6 }}>
           {coordinateError}
         </div>
       )}
     </div>
-  ) : null;
+  );
+
+  const footer = mode === "edit" ? editFooter : null;
+
+  // ⋮ 바로 아래에 뜨는 드롭다운형 popover (backdrop 없음, popup 내부에 absolute).
+  const menuPopover =
+    mode === "menu" ? (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          top: 50,
+          right: 14,
+          minWidth: 120,
+          background: colors.panel,
+          borderRadius: 10,
+          boxShadow: `0 8px 20px ${colors.shadowMd}, 0 0 0 1px ${colors.hairline}`,
+          padding: 4,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          zIndex: 5,
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMode("edit");
+            setEditTab(pin.memo && pin.memo.length > 0 ? "tag" : "memo");
+          }}
+          style={dropdownItemStyle()}
+        >
+          수정
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            // popover 자체에 onClick(e.stopPropagation) 핸들러가 있어 button onClick까지
+            // 도달 못 하는 케이스가 있어 mouseDown으로 트리거. setMode 변경은 하지 않는다
+            // — dialog 모달 useEffect와 같은 cycle에서 충돌하면 모달이 안 뜬다.
+            e.stopPropagation();
+            e.preventDefault();
+            onRequestDelete(pin);
+          }}
+          style={dropdownItemStyle(colors.pinNew)}
+        >
+          삭제
+        </button>
+        {deleteError && (
+          <div style={{ ...inlineErrorStyle, marginTop: 2, padding: "4px 8px" }}>
+            {deleteError}
+          </div>
+        )}
+      </div>
+    ) : null;
 
   return (
-    <SpeechBubblePopup
-      pinX={screenPos.x}
-      pinY={screenPos.y}
-      memo={pin.memo ?? ""}
-      place={pin.placeName}
-      addr={pin.address ?? ""}
-      author={authorLabel ?? String(pin.createdBy)}
-      date={formattedDate}
-      pinType={pin.tag === "MEMORY" ? "memory" : "place"}
-      onMenuClick={() => {
-        // Strict Mode 이중 호출 안전성: updater 는 순수하게 유지하고,
-        // 닫는 시점(현재 expanded=true) 판단은 외부에서 수행한다.
-        if (expanded) {
-          setView(initialView(pin));
-        }
-        setExpanded((prev) => !prev);
+    <>
+      <SpeechBubblePopup
+        pinX={screenPos.x}
+        pinY={screenPos.y}
+        memo={pin.memo ?? ""}
+        place={pin.placeName}
+        addr={pin.address ?? ""}
+        author={authorLabel ?? String(pin.createdBy)}
+        date={formattedDate}
+        pinType={pin.tag === "MEMORY" ? "memory" : "place"}
+        instagramUrl={pin.instagramUrl}
+        collapseBody={mode === "edit"}
+        onMenuClick={handleMenuClick}
+        footerContent={footer}
+      >
+        {menuPopover}
+      </SpeechBubblePopup>
+    </>
+  );
+}
+
+// ─── 스타일 헬퍼 ───────────────────────────────────────────────
+function dropdownItemStyle(color: string = colors.ink) {
+  return {
+    padding: "8px 12px",
+    border: "none",
+    background: "transparent",
+    color,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    fontWeight: 600,
+    textAlign: "left" as const,
+    cursor: "pointer",
+    borderRadius: 6,
+  };
+}
+
+function linkButtonStyle(color: string) {
+  return {
+    padding: "4px 6px",
+    border: "none",
+    background: "transparent",
+    color,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+}
+
+const inlineErrorStyle = {
+  fontFamily: fonts.sans,
+  fontSize: 12,
+  color: colors.pinNew,
+  marginTop: 6,
+} as const;
+
+const hintTextStyle = {
+  fontFamily: fonts.sans,
+  fontSize: 12,
+  color: colors.inkSoft,
+  alignSelf: "center" as const,
+};
+
+function renderTabButton(
+  target: EditTab,
+  label: string,
+  current: EditTab,
+  onSelect: (t: EditTab) => void,
+) {
+  const active = current === target;
+  return (
+    <button
+      key={target}
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={() => onSelect(target)}
+      style={{
+        padding: "8px 14px",
+        border: "none",
+        background: "transparent",
+        color: active ? colors.ink : colors.inkSoft,
+        fontFamily: fonts.sans,
+        fontSize: 13,
+        fontWeight: active ? 700 : 500,
+        cursor: "pointer",
+        borderBottom: active
+          ? `2px solid ${colors.ink}`
+          : "2px solid transparent",
+        marginBottom: -1,
       }}
-      footerContent={footer}
-    />
+    >
+      {label}
+    </button>
   );
 }

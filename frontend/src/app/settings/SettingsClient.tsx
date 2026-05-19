@@ -63,17 +63,23 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
       await postLogout();
     } catch {
       // 백엔드 호출 실패해도 클라이언트 측에서 로그인 화면으로 이동시키는 정책.
-      // 쿠키가 만료되지 않더라도 다음 보호 페이지 진입 시 가드가 재처리.
-    } finally {
-      router.replace("/login");
-      router.refresh();
     }
+    try {
+      // 서비스 자체 게이트(maygo-gate) 쿠키도 같이 해제 — 다음 접근 시 ID/PW 재입력.
+      await fetch("/api/auth/gate", { method: "DELETE" });
+    } catch {
+      /* 무시 — middleware가 어차피 다음 접근 때 /gate로 강제 */
+    }
+    router.replace("/gate");
+    router.refresh();
   };
 
   return (
     <div
       style={{
         width: "100%",
+        maxWidth: 520,
+        margin: "0 auto",
         minHeight: "100vh",
         background: colors.bg,
         fontFamily: fonts.sans,
@@ -122,7 +128,7 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
             letterSpacing: -0.5,
           }}
         >
-          설정
+          마이페이지
         </span>
       </div>
 
@@ -152,27 +158,11 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 12,
+                alignItems: "baseline",
+                gap: 4,
               }}
             >
-              <div
-                aria-hidden="true"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${colors.pinMemory}, ${colors.pinPlace})`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20,
-                  flexShrink: 0,
-                }}
-              >
-                🙂
-              </div>
-              <div
+              <span
                 style={{
                   fontFamily: fonts.emo,
                   fontSize: 18,
@@ -182,7 +172,17 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
                 }}
               >
                 {user.nickname}
-              </div>
+              </span>
+              <span
+                style={{
+                  fontFamily: fonts.sans,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: colors.inkSoft,
+                }}
+              >
+                님
+              </span>
             </div>
             <Row
               label="닉네임 수정"
@@ -245,6 +245,17 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
           <PanelLabel>챗봇 연동</PanelLabel>
           <div
             style={{
+              fontSize: 12,
+              color: colors.inkSoft,
+              lineHeight: 1.5,
+              margin: "4px 4px 8px",
+            }}
+          >
+            카카오톡 챗봇에 인스타 릴스 링크를 보내면 자동으로 핀이 등록돼요.
+            6자리 코드를 발급받아 챗봇에 한 번 입력하면 내 계정과 연결됩니다.
+          </div>
+          <div
+            style={{
               background: colors.panel,
               borderRadius: 14,
               border: `1px solid ${colors.hairline}`,
@@ -263,6 +274,17 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
         {activeGroup ? (
           <section>
             <PanelLabel>친구 초대</PanelLabel>
+            <div
+              style={{
+                fontSize: 12,
+                color: colors.inkSoft,
+                lineHeight: 1.5,
+                margin: "4px 4px 8px",
+              }}
+            >
+              초대 링크를 카카오톡 등으로 친구에게 공유하세요. 친구가 링크를
+              열면 이 그룹의 핀을 함께 보고 추가할 수 있어요.
+            </div>
             <div
               style={{
                 background: colors.panel,

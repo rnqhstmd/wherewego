@@ -2,6 +2,7 @@ package com.wherewego.domain.pin;
 
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.place.PlaceSearchHit;
+import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -17,6 +21,27 @@ public class PinService {
 
     private final PinRepository pinRepository;
     private final GroupMemberService groupMemberService;
+    private final UserRepository userRepository;
+
+    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 포함). */
+    private PinSummary toSummary(Pin pin) {
+        String nickname = userRepository.findById(pin.getCreatedBy())
+                .map(u -> u.getNickname())
+                .orElse(null);
+        return PinSummary.from(pin, nickname);
+    }
+
+    /** 다건 Pin → PinSummary 변환. N+1 회피를 위해 createdBy ids 배치 조회. */
+    private List<PinSummary> toSummaries(List<Pin> pins) {
+        if (pins.isEmpty()) return List.of();
+        Set<Long> userIds = pins.stream()
+                .map(Pin::getCreatedBy)
+                .collect(Collectors.toSet());
+        Map<Long, String> nicknames = userRepository.findNicknamesByIds(userIds);
+        return pins.stream()
+                .map(p -> PinSummary.from(p, nicknames.get(p.getCreatedBy())))
+                .toList();
+    }
 
     /**
      * 인스타그램 링크 단건 결과 기반 자동 등록.
@@ -65,7 +90,7 @@ public class PinService {
         } catch (DataIntegrityViolationException e) {
             throw new CoreException(ErrorType.PLC_DUPLICATE_PIN);
         }
-        return PinSummary.from(saved);
+        return toSummary(saved);
     }
 
     /**
@@ -78,7 +103,7 @@ public class PinService {
         List<Pin> pins = tagFilter == null
                 ? pinRepository.findActiveByGroupIdOrderByCreatedAtDesc(groupId)
                 : pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(groupId, tagFilter);
-        return pins.stream().map(PinSummary::from).toList();
+        return toSummaries(pins);
     }
 
     /**
@@ -100,7 +125,7 @@ public class PinService {
             totalCount = pinRepository.countActiveByGroupIdAndTag(groupId, tagFilter);
         }
 
-        List<PinSummary> items = pins.stream().map(PinSummary::from).toList();
+        List<PinSummary> items = toSummaries(pins);
         boolean hasNext = (long) (page + 1) * size < totalCount;
 
         return new PinListResult(items, totalCount, hasNext);
@@ -135,7 +160,7 @@ public class PinService {
         if (cmd.coordinateProvided()) {
             pin.changeCoordinate(cmd.latitude(), cmd.longitude());
         }
-        return PinSummary.from(pin);
+        return toSummary(pin);
     }
 
     /**

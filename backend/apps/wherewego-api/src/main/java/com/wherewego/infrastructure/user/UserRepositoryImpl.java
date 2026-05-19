@@ -5,7 +5,11 @@ import com.wherewego.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Component
@@ -26,5 +30,12 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public UserModel save(UserModel user) {
         return jpaRepository.save(user);
+    }
+
+    @Override
+    public Map<Long, String> findNicknamesByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return Collections.emptyMap();
+        return jpaRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(UserModel::getId, UserModel::getNickname));
     }
 }

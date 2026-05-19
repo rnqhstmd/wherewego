@@ -10,6 +10,6 @@ export const dynamic = "force-dynamic";
  * - 미인증/그룹 미가입 사용자는 LoginClient를 렌더링.
  */
 export default async function LoginPage() {
-  await redirectIfAuthed("/map");
+  await redirectIfAuthed("/groups");
   return <LoginClient />;
 }

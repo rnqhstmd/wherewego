@@ -40,10 +40,8 @@ export default function MemoTagPanelContent({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // origin.placeName 이 빈 경우 폴백 — 검색 API 엣지케이스 방어 (editable=false 일 때만 적용)
-  const effectivePlaceName = origin.editable
-    ? placeName.trim()
-    : origin.placeName || "(이름 없음)";
+  // 항상 사용자가 입력한(또는 초기값 그대로의) placeName을 사용 — 검색 진입에서도 편집 허용.
+  const effectivePlaceName = placeName.trim() || origin.placeName || "(이름 없음)";
   const canSubmit =
     !!tag && effectivePlaceName.length > 0 && !pending && urlError === null;
 
@@ -61,7 +59,7 @@ export default function MemoTagPanelContent({
 
   const handleSave = () => {
     if (!tag) return;
-    if (origin.editable && placeName.trim().length === 0) {
+    if (placeName.trim().length === 0) {
       setError("장소 이름을 입력해주세요");
       return;
     }
@@ -118,17 +116,13 @@ export default function MemoTagPanelContent({
       </div>
       <HLine style={{ marginBottom: 14 }} />
 
-      {origin.editable && (
-        <>
-          <PanelLabel>장소 이름</PanelLabel>
-          <Input
-            placeholder="예: 우리집"
-            value={placeName}
-            onChange={setPlaceName}
-            style={{ marginBottom: 16 }}
-          />
-        </>
-      )}
+      <PanelLabel>장소 이름</PanelLabel>
+      <Input
+        placeholder="예: 우리집"
+        value={placeName}
+        onChange={setPlaceName}
+        style={{ marginBottom: 16 }}
+      />
 
       <PanelLabel>태그</PanelLabel>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>

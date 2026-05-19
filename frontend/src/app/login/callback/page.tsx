@@ -72,9 +72,11 @@ function CallbackInner() {
 
       const group = await fetchActiveGroupClient();
       // 1) 최종 목적지(다음 단계) 결정
+      // 그룹이 있어도 기본적으로 그룹 목록 화면(/groups)으로 진입 →
+      // 사용자가 거기서 그룹 카드를 눌러야 /map으로 이동한다.
       let target: string;
       if (group !== null) {
-        target = stashedReturnUrl ?? "/map";
+        target = stashedReturnUrl ?? "/groups";
       } else if (nicknameSet.get()) {
         // TODO(보안 강화): 현재 신규 판정은 localStorage('maygo:nickname-set') flag에만 의존.
         // 백엔드(AuthService.java)는 카카오 닉네임을 그대로 채워 식별 가능한 기본값 패턴이 없으므로

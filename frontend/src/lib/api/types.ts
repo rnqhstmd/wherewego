@@ -21,6 +21,7 @@ export interface PinSummaryResponse {
   id: number;
   groupId: number;
   createdBy: number;
+  createdByNickname: string | null;
   placeName: string;
   address: string | null;
   latitude: number;

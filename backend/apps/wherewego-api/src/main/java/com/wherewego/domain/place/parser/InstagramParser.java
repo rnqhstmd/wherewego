@@ -30,6 +30,10 @@ public class InstagramParser implements ContentParser {
     @Override
     public Optional<ParsedContent> parse(String url, ChatbotContext ctx) {
         return instagramContentService.extract(url, ctx)
-                .map(e -> new ParsedContent(e.placeKeyword(), e.captionSnippet()));
+                .map(e -> new ParsedContent(
+                        e.placeKeyword(),
+                        e.captionSnippet(),
+                        e.extraPlaceKeywords(),
+                        e.candidates()));
     }
 }

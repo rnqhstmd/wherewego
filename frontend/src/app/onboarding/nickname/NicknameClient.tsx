@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CompositionEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { updateNickname } from "@/lib/api/user";
@@ -33,9 +39,26 @@ export function NicknameClient({ initialNickname }: NicknameClientProps) {
   const validation = useMemo(() => validateNickname(nickname), [nickname]);
   const canSubmit = validation.valid && !submitting;
 
+  // 한글 IME composition 중에는 자모만 들어와서 sanitize가 즉시 제거하면 입력이 끊긴다.
+  // composition이 끝난 시점(자모 → 완성 글자)에 한 번만 sanitize한다.
+  const composingRef = useRef(false);
+
   const onChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setNickname(sanitizeNickname(e.target.value));
+    if (composingRef.current) {
+      setNickname(e.target.value.slice(0, 12));
+    } else {
+      setNickname(sanitizeNickname(e.target.value));
+    }
     if (error) setError(null);
+  };
+
+  const onCompositionStart = () => {
+    composingRef.current = true;
+  };
+
+  const onCompositionEnd = (e: CompositionEvent<HTMLInputElement>) => {
+    composingRef.current = false;
+    setNickname(sanitizeNickname(e.currentTarget.value));
   };
 
   const onSubmit = async () => {
@@ -55,10 +78,19 @@ export function NicknameClient({ initialNickname }: NicknameClientProps) {
   return (
     <div
       style={{
-        padding: "80px 32px 32px",
         background: colors.bg,
         minHeight: "100vh",
         fontFamily: fonts.sans,
+        display: "flex",
+        justifyContent: "center",
+        boxSizing: "border-box",
+      }}
+    >
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 460,
+        padding: "80px 32px 32px",
         display: "flex",
         flexDirection: "column",
         boxSizing: "border-box",
@@ -103,6 +135,8 @@ export function NicknameClient({ initialNickname }: NicknameClientProps) {
           type="text"
           value={nickname}
           onChange={onChange}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
           maxLength={12}
           autoFocus
           aria-label="닉네임"
@@ -154,6 +188,7 @@ export function NicknameClient({ initialNickname }: NicknameClientProps) {
       >
         다음
       </BtnPrimary>
+    </div>
     </div>
   );
 }

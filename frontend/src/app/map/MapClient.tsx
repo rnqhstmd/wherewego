@@ -49,6 +49,7 @@ import {
   deletePinAction,
   updatePinCoordinateAction,
   updatePinMemoAction,
+  updatePinPlaceNameAction,
   updatePinTagAction,
 } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
@@ -70,6 +71,7 @@ interface MapClientProps {
   groupName: string;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  myNickname: string;
 }
 
 type ActiveSheet =
@@ -135,6 +137,7 @@ export default function MapClient({
   groupName,
   mapboxToken,
   mapboxStyleUrl,
+  myNickname,
 }: MapClientProps) {
   const [pins, setPins] = useState<PinSummaryResponse[]>(initialPins);
   // MUST-5: 태그/메모 등 부분 갱신을 마커/팝업에 즉시 반영하기 위한 useOptimistic.
@@ -210,7 +213,9 @@ export default function MapClient({
 
   const handleClustersChange = useCallback(
     ({ hasCluster: hc }: { hasCluster: boolean }) => {
-      setHasCluster(hc);
+      // 동일 값일 때 React가 리렌더를 skip하도록 functional setState로 안전화.
+      // (renderClusters가 매 viewport 변경마다 호출되어 set-state 폭주 방지)
+      setHasCluster((prev) => (prev === hc ? prev : hc));
     },
     [],
   );
@@ -286,6 +291,47 @@ export default function MapClient({
                   : result.code === "PIN_NOT_FOUND"
                     ? "이 핀을 찾을 수 없어요"
                     : result.message;
+          resolve({ ok: false, message });
+        });
+      });
+    },
+    [applyOptimistic, groupId],
+  );
+
+  /** 핀 장소 이름 변경. useOptimistic + updatePinPlaceNameAction. */
+  const handlePlaceNameChange = useCallback(
+    (
+      pinId: number,
+      nextPlaceName: string,
+    ): Promise<{ ok: boolean; message?: string }> => {
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          applyOptimistic({
+            kind: "patch",
+            pinId,
+            patch: { placeName: nextPlaceName },
+          });
+          const result = await updatePinPlaceNameAction(
+            groupId,
+            pinId,
+            nextPlaceName,
+          );
+          if (result.ok) {
+            setPins((prev) =>
+              prev.map((p) => (p.id === pinId ? result.data : p)),
+            );
+            if (pinsCacheRef.current) {
+              pinsCacheRef.current.fetchedAt = Date.now();
+            }
+            resolve({ ok: true });
+            return;
+          }
+          const message =
+            result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_NOT_FOUND"
+                ? "이 핀을 찾을 수 없어요"
+                : result.message;
           resolve({ ok: false, message });
         });
       });
@@ -391,18 +437,21 @@ export default function MapClient({
       setActiveSheet(null);
       setCoordinateEditTarget(null);
 
+      // 백엔드 검증: lat/lng scale ≤ 7. Mapbox center는 15+자리라 그대로 보내면 INVALID.
+      const roundedLat = Number(lat.toFixed(7));
+      const roundedLng = Number(lng.toFixed(7));
       startOptimisticTransition(async () => {
         applyOptimistic({
           kind: "patch",
           pinId,
-          patch: { latitude: lat, longitude: lng },
+          patch: { latitude: roundedLat, longitude: roundedLng },
         });
         setSelectedPinId(pinId);
         const result = await updatePinCoordinateAction(
           groupId,
           pinId,
-          lat,
-          lng,
+          roundedLat,
+          roundedLng,
         );
         if (result.ok) {
           setPins((prev) =>
@@ -524,12 +573,12 @@ export default function MapClient({
     if (geoState.status === "granted") {
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       void runRoulette(
         geoState.coords,
-        includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+        ["PLACE", "MEMORY"],
       );
       return;
     }
@@ -546,7 +595,7 @@ export default function MapClient({
       geoRequest();
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       return;
@@ -557,7 +606,7 @@ export default function MapClient({
       geoRequest();
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       return;
@@ -581,7 +630,7 @@ export default function MapClient({
       if (status === "granted") {
         void runRoulette(
           geoState.coords,
-          includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+          ["PLACE", "MEMORY"],
         );
       } else if (status === "denied") {
         setShowPermDialog(true);
@@ -726,13 +775,14 @@ export default function MapClient({
   // 룰렛: "다시" — 같은 풀에서 재추첨 또는 토글이 바뀌었으면 풀 재구성 (FR-REC-6).
   const handleReRoll = useCallback(() => {
     if (rouletteState.status !== "picked") return;
-    const { candidates, radiusKm, center, includeMemoryAtPick } = rouletteState;
+    const { candidates, radiusKm, center, includeMemoryAtPick, pin: prevPin } =
+      rouletteState;
 
     if (includeMemory !== includeMemoryAtPick) {
       // 토글 상태가 변했으므로 풀을 재구성하여 새로 추첨.
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       if (spinTimerRef.current !== null) {
@@ -740,7 +790,7 @@ export default function MapClient({
       }
       void runRoulette(
         center,
-        includeMemory ? ["PLACE", "MEMORY"] : ["PLACE"],
+        ["PLACE", "MEMORY"],
       );
       return;
     }
@@ -756,7 +806,7 @@ export default function MapClient({
     }
     spinTimerRef.current = window.setTimeout(() => {
       spinTimerRef.current = null;
-      const next = reRollFromSamePool(center, candidates, radiusKm);
+      const next = reRollFromSamePool(center, candidates, radiusKm, prevPin.id);
       if (next.kind === "exhausted") {
         setRouletteState({ status: "exhausted" });
         return;
@@ -837,8 +887,6 @@ export default function MapClient({
           distanceKm={rouletteState.distanceKm}
           onShowOnMap={() => handleShowOnMap(rouletteState.pin)}
           onReRoll={handleReRoll}
-          includeMemory={includeMemory}
-          onIncludeMemoryChange={setIncludeMemory}
         />
       );
     }
@@ -873,10 +921,26 @@ export default function MapClient({
               lineHeight: 1.5,
             }}
           >
-            10km 이내에서 추첨할 만한 장소를
-            <br />
-            먼저 추가해 보세요.
+            10km 이내에 추첨할 만한 장소가 없어요.
           </div>
+          <button
+            type="button"
+            onClick={handleRouletteTap}
+            style={{
+              marginTop: 8,
+              padding: "8px 18px",
+              borderRadius: 999,
+              border: "none",
+              background: colors.cta,
+              color: "#ffffff",
+              fontFamily: fonts.sans,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            다시 시도
+          </button>
         </div>
       );
     }
@@ -913,6 +977,24 @@ export default function MapClient({
           >
             {rouletteState.message}
           </div>
+          <button
+            type="button"
+            onClick={handleRouletteTap}
+            style={{
+              marginTop: 8,
+              padding: "8px 18px",
+              borderRadius: 999,
+              border: "none",
+              background: colors.cta,
+              color: "#ffffff",
+              fontFamily: fonts.sans,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            다시 시도
+          </button>
         </div>
       );
     }
@@ -987,6 +1069,7 @@ export default function MapClient({
         token={mapboxToken}
         styleUrl={mapboxStyleUrl}
         onMarkerClick={handleMarkerClick}
+        onMapBackgroundClick={() => setSelectedPinId(null)}
         onMapReady={handleMapReady}
         onClustersChange={handleClustersChange}
         onMapError={setMapError}
@@ -1006,8 +1089,12 @@ export default function MapClient({
         <PinPopup
           pin={selectedPin}
           map={map}
+          authorLabel={
+            selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`
+          }
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
+          onPlaceNameChange={handlePlaceNameChange}
           onRequestDelete={(pin) => {
             setDeleteErrorByPinId((prev) => {
               if (!(pin.id in prev)) return prev;
@@ -1039,6 +1126,7 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          myNickname={myNickname}
         />
       ) : (
         <ActionBar
@@ -1065,7 +1153,7 @@ export default function MapClient({
             pendingRouletteRef.current = true;
             setRouletteState({
               status: "spinning",
-              radiusKm: 1,
+              radiusKm: 10,
               candidateCount: 0,
             });
             geoRequest();
