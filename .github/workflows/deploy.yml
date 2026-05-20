@@ -78,7 +78,7 @@ jobs:
             "set -e",
             "GH_PAT=$(aws ssm get-parameter --name /wherewego/gh-pat --with-decryption --query Parameter.Value --output text)",
             "aws ssm get-parameter --name /wherewego/env --with-decryption --query Parameter.Value --output text > /tmp/wherewego_env",
-            "chmod 600 /tmp/wherewego_env && mv /tmp/wherewego_env /etc/wherewego/.env",
+            "mkdir -p /etc/wherewego && chmod 600 /tmp/wherewego_env && mv /tmp/wherewego_env /etc/wherewego/.env",
             "echo \"$GH_PAT\" | docker login ghcr.io -u rnqhstmd --password-stdin",
             ("docker pull " + $img + ":latest"),
             "docker stop wherewego-api || true",
