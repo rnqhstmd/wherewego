@@ -62,22 +62,29 @@ public final class ThresholdMonitorScheduler {
 
     @Scheduled(fixedRate = WINDOW_MS, initialDelay = WINDOW_MS)
     public void runMonitoringTick() {
-        // MUST-ADDRESS 4: MDC SCHEDULER 마커는 진입부 1회. 두 check가 같은 MDC 컨텍스트 공유.
-        MDC.put(RequestIdFilter.MDC_KEY, "SCHEDULER");
+        // NFR-4: 본문 최상위 try-catch(Exception) — MDC 조작이나 check 사이 외부 예외도 swallow.
+        // 다음 1h tick의 정상 재실행을 보장한다 (PendingInstagramAutoSaveScheduler 패턴).
         try {
-            // NFR-4: 각 check를 개별 try-catch로 분리 — 한쪽 실패가 다른쪽 알림 누락시키지 않음.
+            // MUST-ADDRESS 4: MDC SCHEDULER 마커는 진입부 1회. 두 check가 같은 MDC 컨텍스트 공유.
+            MDC.put(RequestIdFilter.MDC_KEY, "SCHEDULER");
             try {
-                checkGeminiServerErrorRate();
-            } catch (Exception e) {
-                log.error("Gemini 5xx threshold check failed", e);
+                // 각 check를 개별 try-catch로 분리 — 한쪽 실패가 다른쪽 알림 누락시키지 않음.
+                try {
+                    checkGeminiServerErrorRate();
+                } catch (Exception e) {
+                    log.error("Gemini 5xx threshold check failed", e);
+                }
+                try {
+                    checkInstagramBlockedRate();
+                } catch (Exception e) {
+                    log.error("Instagram blocked threshold check failed", e);
+                }
+            } finally {
+                MDC.clear();
             }
-            try {
-                checkInstagramBlockedRate();
-            } catch (Exception e) {
-                log.error("Instagram blocked threshold check failed", e);
-            }
-        } finally {
-            MDC.clear();
+        } catch (Exception e) {
+            // MDC put 자체나 finally 외부에서 발생할 수 있는 예외까지 최종 swallow.
+            log.error("Threshold monitoring tick failed unexpectedly", e);
         }
     }
 
