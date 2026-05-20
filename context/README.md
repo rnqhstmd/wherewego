@@ -15,6 +15,7 @@
 | **tag** | **MVP 핵심**: PLACE(파란 동그라미) / MEMORY(핑크 하트) 카테고리 | [상세](tag/README.md) |
 | map | Mapbox 3D 지도 + 파스텔 핀 UI | [상세](map/README.md) |
 | recommendation | 위치 기반 룰렛 (Haversine 거리) | [상세](recommendation/README.md) |
+| observability | 외부 API 사각지대 가시화 + 임계값 기반 Slack 알림 (횡단) | [상세](observability/README.md) |
 
 ## 공통
 
@@ -50,6 +51,7 @@
 | Phase 2.8 | **핀 도메인 완성**(사용자 가시 UX 잔여 부분): 핀 등록 시 `instagramUrl` 입력 UI, 핀 장소 정보(`place_name`/`address`) 텍스트 수정, map ⋮ 메뉴 삭제 액션. 좌표 수정/삭제 복원은 분리 → Phase 2.10 | ✅ 완료 | [#21](https://github.com/rnqhstmd/wherewego/pull/21) |
 | Phase 2.9 | **규모 대응**: 핀 목록 API 페이지네이션 계약 준비(`page`/`size` + `totalCount`/`hasNext` 선택 응답, 부분 전달/비숫자 400 매핑) + DOM Marker→Mapbox GL symbol layer 마이그레이션 사전 분석 문서(`context/map/gl-migration-plan.md`). 실제 GL 전환과 `/pins` UI 페이지네이션은 임계치 도달 시 별도 Phase | ✅ 완료 | [#22](https://github.com/rnqhstmd/wherewego/pull/22) |
 | Phase 2.10 | **잔여 후속 통합**(MVP 운영 잔여): ① 핀 좌표 수정(지도 picker 재사용) + 삭제 핀 복원 UI([pin](pin/status.md)), ② 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증([chatbot](chatbot/status.md) — Phase 2.6 PR-C 이월), ③ Pretendard 폰트 self-host 전환 + Mapbox 토큰 회전 SOP 운영자 가이드([map](map/status.md)) | ⬜ 계획 | — |
+| **Phase 2.11** | **observability foundation**(외부 API 사각지대 해소 + 운영 로그 적재): Phase 1 — MDC RequestId 필터, 외부 API 공통 구조화 로그(`api/op/duration_ms/outcome/cache`), Google Places Micrometer 메트릭+Caffeine 캐시(Gemini 패턴 복제), **일별 로그 회전+90일 보관(Logback `TimeBasedRollingPolicy`, `/var/log/wherewego/spring-%d.log.gz`, gzip 압축, Docker volume mount + json-file 이중 적재 150MB 상한)**. Phase 2 — `@Scheduled` 일일 합계 임계값 스케줄러(Google Places 80%/95% 2단계, Gemini 5xx 10%/1h), Instagram scraper 3-stage 차단 감지(1h 윈도우 50% 임계), Slack 본문 RequestId 동봉. [observability](observability/README.md) | ⬜ 계획 | — |
 | Phase 3.0 | **MVP 후 확장**(비즈니스 정책, 도메인별 별도 PRD): Group N인 확장(1인 1활성 제약 해제), 재가입 허용 정책(`uq_group_members_pair` 변경), BotUserMapping 회원 탈퇴 cascade(회원 탈퇴 PRD 선행) | ⬜ 장기 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
