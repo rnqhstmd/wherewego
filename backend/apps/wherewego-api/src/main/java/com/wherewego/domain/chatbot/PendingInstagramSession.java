@@ -9,12 +9,13 @@ import java.util.Optional;
 
 /**
  * 인스타 링크 받은 직후 메모 입력을 기다리는 pending 세션.
- * <p>key = botUserKey, value = instagramUrl, TTL = 10분.</p>
+ * <p>key = botUserKey, value = instagramUrl, TTL = {@code chatbot.instagram.pending-ttl-seconds} (기본 180초).</p>
  *
  * <p>흐름:
  * <ol>
- *   <li>사용자가 인스타 URL 전송 → {@link #put}으로 저장 + "메모 보내주세요" 안내</li>
- *   <li>사용자가 다음 메시지(메모/저장/취소/새 URL) 전송 → {@link #peek}으로 pending URL 꺼냄</li>
+ *   <li>사용자가 인스타 URL 전송 → {@link #put}으로 저장 + "메모 보내주세요" 안내 + AutoSaveScheduler에 자동 저장 task 등록</li>
+ *   <li>TTL 내 사용자가 다음 메시지(메모/"메모 없이 저장"/새 URL) 전송 → {@link #peek}으로 pending URL 꺼냄 + scheduler.cancel</li>
+ *   <li>TTL 만료 → scheduler가 백그라운드 자동 저장(memo=null) → 결과는 PendingNotificationSession에 적재</li>
  *   <li>처리 후 {@link #invalidate}로 세션 해제</li>
  * </ol></p>
  */

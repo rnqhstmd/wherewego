@@ -43,6 +43,9 @@ Thumbs.db
 # Claude Code/Plugin 로컬 권한 설정 (.claude/config.json은 팀 공유 유지, settings.local.json만 제외)
 .claude/settings.local.json
 
+# Sisyphus plan/draft 산출물 — 로컬 보존, 공유는 docs/SESSION_*.md 로
+.sisyphus/
+
 # ========================
 # Build artifacts (additional)
 # ========================

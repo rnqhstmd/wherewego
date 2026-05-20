@@ -1,6 +1,7 @@
 package com.wherewego.config.cache;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -15,12 +16,14 @@ public class CacheConfig {
 
     public static final String TWO_SECOND_MEMO = "twoSecondMemo";
     public static final String INSTAGRAM_PENDING = "instagramPending";
+    public static final String INSTAGRAM_PENDING_NOTIFICATION = "instagramPendingNotification";
     public static final String PLACE_SELECTION_CANDIDATE = "placeSelectionCandidate";
     public static final String GEMINI_USER_QUOTA = "geminiUserQuota";
     public static final String GEMINI_RESPONSE_CACHE = "geminiResponseCache";
 
     @Bean
-    public CacheManager cacheManager() {
+    public CacheManager cacheManager(
+            @Value("${chatbot.instagram.pending-ttl-seconds:180}") long instagramPendingTtlSeconds) {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.registerCustomCache(TWO_SECOND_MEMO,
                 Caffeine.newBuilder()
@@ -29,7 +32,12 @@ public class CacheConfig {
                         .build());
         manager.registerCustomCache(INSTAGRAM_PENDING,
                 Caffeine.newBuilder()
-                        .expireAfterWrite(Duration.ofMinutes(10))
+                        .expireAfterWrite(Duration.ofSeconds(instagramPendingTtlSeconds))
+                        .maximumSize(10_000)
+                        .build());
+        manager.registerCustomCache(INSTAGRAM_PENDING_NOTIFICATION,
+                Caffeine.newBuilder()
+                        .expireAfterWrite(Duration.ofDays(7))
                         .maximumSize(10_000)
                         .build());
         manager.registerCustomCache(PLACE_SELECTION_CANDIDATE,

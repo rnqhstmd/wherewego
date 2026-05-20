@@ -88,6 +88,10 @@ chatbot:
     capacity: 10
     refill-seconds: 60
     max-keys: 10000
+  instagram:
+    # 인스타 링크 받은 후 메모 입력 대기 TTL. 만료 시 자동으로 메모 없이 저장.
+    # local/test 프로파일에선 30초로 단축하여 e2e 검증 가능.
+    pending-ttl-seconds: ${CHATBOT_INSTAGRAM_PENDING_TTL_SECONDS:180}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
@@ -126,6 +130,11 @@ web-security:
   cors:
     allowed-origins:
       - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+chatbot:
+  instagram:
+    # 로컬/테스트에서 메모 흐름 e2e 검증을 빠르게 돌리기 위한 단축 TTL.
+    pending-ttl-seconds: 30
 
 ---
 spring:
