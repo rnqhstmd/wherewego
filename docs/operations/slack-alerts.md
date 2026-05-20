@@ -126,7 +126,7 @@ void alertRateLimitIfNeeded(...) {
 }
 ```
 
-PR-B의 `ThresholdMonitorScheduler`(FR-OBS-10)는 단계별(`google_places.80`, `google_places.95`, `gemini.5xx`) 쿨다운을 `ConcurrentMap<String, AtomicLong>`로 관리할 예정.
+PR-B의 `ThresholdMonitorScheduler`(FR-OBS-10/11)는 키별 쿨다운(`gemini.5xx`, `instagram.blocked`)을 `ConcurrentHashMap<String, Long>`(Epoch ms)으로 관리. 마지막 발송 시각 + `props.gemini().cooldownMinutes()` 또는 `props.instagram().cooldownMinutes()` 이상 경과 시 재발송 허용. Google Places 80%/95%는 Phase 3 보류(트래픽 30건/일로 8K 한도 도달 불가).
 
 ---
 
@@ -200,12 +200,15 @@ dev/prod 각각 별도 properties 파일이 있어 채널/사용자 구분 가�
 | Logback appender ERROR threshold | WARN/INFO/DEBUG는 발송 안 함 |
 | `ASYNC-SLACK` 큐 | 짧은 시간 다발 발생 시 비동기 흐름 |
 
-### 추가 (PR-B 예정)
+### 추가 (PR-B 완료, [#29](https://github.com/rnqhstmd/wherewego/pull/29))
 
 | 메커니즘 | 대상 |
 |---------|------|
-| `ThresholdMonitorScheduler` 단계별 쿨다운 (5분) | FR-OBS-10 임계값 알림 |
-| Instagram 차단 감지 쿨다운 (5분) | FR-OBS-11 차단 알림 |
+| `ThresholdMonitorScheduler` Gemini 5xx 쿨다운 (5분, 키 `gemini.5xx`) | FR-OBS-10 임계값 알림 |
+| `ThresholdMonitorScheduler` Instagram 차단 쿨다운 (5분, 키 `instagram.blocked`) | FR-OBS-11 차단 알림 |
+| `MonitoringThresholdProperties` record canonical constructor 가드(`cooldownMinutes >= 1`) | yml 잘못된 값(0 등) 설정 시 기동 실패 |
+| `@Scheduled(initialDelay = WINDOW_MS)` | 배포 직후 누적 카운터가 첫 윈도우 델타로 잡히는 오탐 차단 |
+| `spring.task.scheduling.pool.size: 1` | `previousGeminiSnapshot` clear/putAll 정합 보호 |
 
 ---
 
@@ -243,16 +246,19 @@ dev/prod 각각 별도 properties 파일이 있어 채널/사용자 구분 가�
 
 ---
 
-## PR-B 예정 변경
+## PR-B 완료 변경 ([#29](https://github.com/rnqhstmd/wherewego/pull/29))
 
-- `ThresholdMonitorScheduler` (FR-OBS-10) — `@Scheduled` 정시 실행 + 단계별 쿨다운 + Gemini 5xx 비율 알림
-- `InstagramFailureTracker` (FR-OBS-11) — 1시간 윈도우 50% 임계값 → `notifyFailure`
-- Logback appender pattern에 `%X{requestId:-}` 추가 검토 (Spring Cloud Sleuth MDC와 통합)
+- `ThresholdMonitorScheduler` (FR-OBS-10) — `@Scheduled(fixedRate=1h, initialDelay=1h)`. `MeterRegistry` Counter 누적값 스냅샷 + 직전 스냅샷 델타 차분. Gemini server_error 비율 10% 초과 + 5분 쿨다운 통과 시 `notifyWarning`. 분모는 `disabled` 제외(`effectiveTotal = total − disabled`). 분모 < 1 시 스킵
+- `InstagramBlockedRateTracker` (FR-OBS-11) — `synchronized` 단일 락으로 `attempts`/`blocked`/`lastBlockedUrl` 세 필드의 원자 스왑. `flushWindow()`가 캡처 + 리셋을 동시 수행. 50% 초과 + 5분 쿨다운 통과 시 `notifyFailure`(직전 blocked URL 동봉)
+- `GeminiPlaceClient` (FR-OBS-8-pre) — `onStatus` 4xx/5xx 분리. 5xx만 `GeminiResponseException` → `OUTCOME_SERVER_ERROR`. 4xx(429 제외)는 신규 `GeminiClientErrorException` → `OUTCOME_ERROR`
+- 장애 격리 NFR-1~6 — 캐시/메트릭/트래커/스케줄러 호출 전부 try-catch로 본 기능과 분리
+- Logback appender pattern에 `%X{requestId:-}` 통합은 미적용(후속 작업으로 분리)
 
 ---
 
 ## 관련 자산
 
-- 신규 도입: [Phase 2.11 PR-A](https://github.com/rnqhstmd/wherewego/pull/28)
+- PR-A: [Phase 2.11 PR-A](https://github.com/rnqhstmd/wherewego/pull/28)
+- PR-B: [Phase 2.11 PR-B](https://github.com/rnqhstmd/wherewego/pull/29)
 - 로그 시스템: [logging.md](logging.md)
 - Prometheus 메트릭 → Grafana: [grafana-monitoring.md](grafana-monitoring.md)
