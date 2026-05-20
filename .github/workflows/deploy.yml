@@ -48,40 +48,75 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
 
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
-          GH_PAT: ${{ secrets.GH_PAT }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ENV_FILE,GH_PAT
-          script: |
-            # ghcr.io 로그인 후 이미지 pull
-            echo "$GH_PAT" | docker login ghcr.io -u rnqhstmd --password-stdin
-            docker pull ${{ env.IMAGE }}:latest
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-            # 배포 시에만 사용하는 임시 env 파일 (배포 완료 후 즉시 삭제)
-            ENV_TMP=$(mktemp)
-            chmod 600 "$ENV_TMP"
-            printf '%s' "$ENV_FILE" > "$ENV_TMP"
+      - name: Sync secrets to SSM Parameter Store
+        run: |
+          aws ssm put-parameter \
+            --name "/wherewego/env" \
+            --value "${{ secrets.ENV_FILE }}" \
+            --type "SecureString" \
+            --overwrite
 
-            # 컨테이너 교체
-            docker stop wherewego-api || true
-            docker rm   wherewego-api || true
-            docker run -d \
-              --name wherewego-api \
-              --env-file "$ENV_TMP" \
-              -e JAVA_TOOL_OPTIONS="-Xmx512m -Xms256m" \
-              -p 8080:8080 \
-              --memory 700m \
-              --restart unless-stopped \
-              ${{ env.IMAGE }}:latest
+          aws ssm put-parameter \
+            --name "/wherewego/gh-pat" \
+            --value "${{ secrets.GH_PAT }}" \
+            --type "SecureString" \
+            --overwrite
 
-            # 임시 파일 즉시 삭제 (EC2에 잔류하지 않음)
-            rm -f "$ENV_TMP"
+      - name: Deploy to EC2 via SSM
+        env:
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+          IMAGE: ${{ env.IMAGE }}
+        run: |
+          COMMANDS=$(jq -n --arg img "$IMAGE" '[
+            "set -e",
+            "GH_PAT=$(aws ssm get-parameter --name /wherewego/gh-pat --with-decryption --query Parameter.Value --output text)",
+            "aws ssm get-parameter --name /wherewego/env --with-decryption --query Parameter.Value --output text > /tmp/wherewego_env",
+            "chmod 600 /tmp/wherewego_env && mv /tmp/wherewego_env /etc/wherewego/.env",
+            "echo \"$GH_PAT\" | docker login ghcr.io -u rnqhstmd --password-stdin",
+            ("docker pull " + $img + ":latest"),
+            "docker stop wherewego-api || true",
+            "docker rm wherewego-api || true",
+            ("docker run -d --name wherewego-api --env-file /etc/wherewego/.env -e JAVA_TOOL_OPTIONS=\"-Xmx512m -Xms256m\" -p 8080:8080 --memory 700m --restart unless-stopped " + $img + ":latest"),
+            "docker image prune -f"
+          ]')
 
-            # 미사용 이미지 정리
-            docker image prune -f
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${{ github.sha }}" \
+            --parameters "{\"commands\": $COMMANDS}" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command ID: $COMMAND_ID"
+
+          for i in $(seq 1 30); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
+
+            echo "[$i/30] $STATUS"
+
+            if [ "$STATUS" = "Success" ]; then
+              echo "배포 완료"
+              exit 0
+            elif [[ "$STATUS" =~ ^(Failed|TimedOut|Cancelled|DeliveryTimedOut)$ ]]; then
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardErrorContent" \
+                --output text
+              exit 1
+            fi
+            sleep 10
+          done
+          exit 1
