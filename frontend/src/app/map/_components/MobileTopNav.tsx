@@ -7,6 +7,8 @@ import { colors, fonts } from "@/lib/design/tokens";
 interface MobileTopNavProps {
   /** 마이페이지 아바타에 노출할 닉네임 첫 글자. (현재는 사람 아이콘으로 통일) */
   myNickname?: string;
+  /** 우상단 프로필 노출 여부. 데스크탑은 사이드바 하단에 프로필을 두므로 false. */
+  showProfile?: boolean;
 }
 
 /**
@@ -16,7 +18,9 @@ interface MobileTopNavProps {
  *         말풍선(제목 + 부제)이 등장. 외부 클릭 시 자동 접힘.
  * - 우측: 진한 톤 원형 프로필 (사람 아이콘). 지도 위에 단독으로 떠 있어도 대비를 확보.
  */
-export default function MobileTopNav({}: MobileTopNavProps) {
+export default function MobileTopNav({
+  showProfile = true,
+}: MobileTopNavProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -99,7 +103,7 @@ export default function MobileTopNav({}: MobileTopNavProps) {
               border: `1px solid ${colors.hairline}`,
               borderRadius: 16,
               boxShadow: `0 10px 28px ${colors.shadowMd}`,
-              padding: "12px 16px 14px",
+              padding: "14px 18px",
               maxWidth: 240,
               animation:
                 "maygo-bubble-pop 220ms cubic-bezier(0.2,0.8,0.2,1) both",
@@ -132,8 +136,8 @@ export default function MobileTopNav({}: MobileTopNavProps) {
                 fontSize: 17,
                 fontWeight: 700,
                 color: colors.ink,
-                letterSpacing: -0.5,
-                lineHeight: 1.2,
+                letterSpacing: -0.2,
+                lineHeight: 1.35,
               }}
             >
               우리가 갈 지도
@@ -154,39 +158,42 @@ export default function MobileTopNav({}: MobileTopNavProps) {
         )}
       </div>
 
-      {/* 우상단 프로필 — 진한 톤으로 단독 floating */}
-      <Link
-        href="/settings"
-        aria-label="마이페이지"
-        title="마이페이지"
-        style={{
-          position: "absolute",
-          top: 14,
-          right: 14,
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          background: colors.ink,
-          color: "#FFFFFF",
-          boxShadow: `0 6px 18px ${colors.shadowMd}`,
-          textDecoration: "none",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 26,
-        }}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="9" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
-          <path
-            d="M5.5 19.5c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
-        </svg>
-      </Link>
+      {/* 우상단 프로필 — 모바일 전용. 데스크탑 사이드바 하단 프로필과 동일한 담백 톤. */}
+      {showProfile && (
+        <Link
+          href="/settings"
+          aria-label="마이페이지"
+          title="마이페이지"
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 14,
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            background: colors.bg,
+            border: `1px solid ${colors.hairline}`,
+            color: colors.inkSoft,
+            boxShadow: `0 6px 18px ${colors.shadow}`,
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 26,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="9" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+            <path
+              d="M5.5 19.5c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+          </svg>
+        </Link>
+      )}
     </>
   );
 }

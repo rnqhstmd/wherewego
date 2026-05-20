@@ -80,19 +80,6 @@ export default function ActionBar({
               position: "relative",
             }}
           >
-            {isActive && (
-              <div
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  width: 4,
-                  height: 4,
-                  borderRadius: "50%",
-                  background: colors.cta,
-                }}
-              />
-            )}
             <tab.Icon
               size={22}
               color={isActive ? colors.cta : colors.inkSoft}
