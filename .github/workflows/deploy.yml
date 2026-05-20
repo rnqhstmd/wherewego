@@ -83,7 +83,8 @@ jobs:
             ("docker pull " + $img + ":latest"),
             "docker stop wherewego-api || true",
             "docker rm wherewego-api || true",
-            ("docker run -d --name wherewego-api --env-file /etc/wherewego/.env -e JAVA_TOOL_OPTIONS=\"-Xmx512m -Xms256m\" -p 8080:8080 --memory 700m --restart unless-stopped " + $img + ":latest"),
+            "sudo mkdir -p /var/log/wherewego && sudo chown 1000:1000 /var/log/wherewego",
+            ("docker run -d --name wherewego-api --env-file /etc/wherewego/.env -e JAVA_TOOL_OPTIONS=\"-Xmx512m -Xms256m\" -p 8080:8080 --memory 700m --restart unless-stopped --log-driver=json-file --log-opt max-size=50m --log-opt max-file=3 -v /var/log/wherewego:/var/log/wherewego " + $img + ":latest"),
             "docker image prune -f"
           ]')
 

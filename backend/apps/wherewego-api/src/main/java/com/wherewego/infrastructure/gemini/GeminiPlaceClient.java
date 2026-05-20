@@ -174,12 +174,16 @@ public class GeminiPlaceClient {
         Optional<Optional<String>> cached = responseCache.get(cacheKey);
         if (cached.isPresent()) {
             metrics.recordCall(OUTCOME_CACHED);
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    "gemini", "extractPlaceName", 0, OUTCOME_CACHED, "hit");
             return cached.get();
         }
 
         if (!userQuotaService.tryConsume(userId)) {
             log.warn("Gemini quota exceeded userId={}", userId);
             metrics.recordCall(OUTCOME_QUOTA_EXCEEDED);
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    "gemini", "extractPlaceName", 0, OUTCOME_QUOTA_EXCEEDED, "n/a");
             return Optional.empty();
         }
 
@@ -196,6 +200,7 @@ public class GeminiPlaceClient {
 
         long start = System.currentTimeMillis();
         String outcome = OUTCOME_ERROR;
+        boolean cachePut = false;
         try {
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
@@ -216,6 +221,7 @@ public class GeminiPlaceClient {
             ParseResult parsed = parsePlaceName(response);
             if (parsed.cacheable()) {
                 responseCache.put(cacheKey, parsed.value());
+                cachePut = true;
             }
             outcome = parsed.value().isPresent() ? OUTCOME_SUCCESS : OUTCOME_EMPTY;
             return parsed.value();
@@ -238,8 +244,11 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_ERROR;
             return Optional.empty();
         } finally {
-            metrics.recordDuration(System.currentTimeMillis() - start, outcome);
+            long elapsed = System.currentTimeMillis() - start;
+            metrics.recordDuration(elapsed, outcome);
             metrics.recordCall(outcome);
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    "gemini", "extractPlaceName", elapsed, outcome, cachePut ? "miss" : "n/a");
         }
     }
 
@@ -342,8 +351,11 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_ERROR;
             return List.of();
         } finally {
-            metrics.recordDuration(System.currentTimeMillis() - start, outcome);
+            long elapsed = System.currentTimeMillis() - start;
+            metrics.recordDuration(elapsed, outcome);
             metrics.recordCall(outcome);
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    "gemini", "extractPlaceCandidates", elapsed, outcome, "n/a");
         }
     }
 
@@ -484,8 +496,11 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_ERROR;
             return List.of();
         } finally {
-            metrics.recordDuration(System.currentTimeMillis() - start, outcome);
+            long elapsed = System.currentTimeMillis() - start;
+            metrics.recordDuration(elapsed, outcome);
             metrics.recordCall(outcome);
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    "gemini", "extractPlaceNames", elapsed, outcome, "n/a");
         }
     }
 

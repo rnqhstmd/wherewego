@@ -1,8 +1,10 @@
 package com.wherewego.domain.chatbot;
 
+import com.wherewego.config.security.RequestIdFilter;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,12 +47,15 @@ public class PendingInstagramAutoSaveScheduler {
             prev.cancel(false);
         }
         ScheduledFuture<?> next = scheduler.schedule(() -> {
+            // 스케줄러 진입 시 MDC에 "SCHEDULER" 마커 주입하여 Slack 알림/로그 추적성 확보 (MUST-1).
+            MDC.put(RequestIdFilter.MDC_KEY, "SCHEDULER");
             try {
                 task.run();
             } catch (RuntimeException e) {
                 log.error("Auto-save task failed botUserKey={} cause={}", botUserKey, e.getMessage(), e);
             } finally {
                 tasks.remove(botUserKey);
+                MDC.clear();
             }
         }, delayMs, TimeUnit.MILLISECONDS);
         tasks.put(botUserKey, next);
