@@ -100,7 +100,7 @@ public class InstagramLinkHandler implements MessageHandler {
                                 PendingInstagramSession pendingInstagramSession,
                                 PendingInstagramAutoSaveScheduler autoSaveScheduler,
                                 PendingNotificationSession pendingNotificationSession,
-                                @Value("${chatbot.instagram.pending-ttl-seconds:180}") long pendingTtlSeconds) {
+                                @Value("${chatbot.instagram.pending-ttl-seconds:60}") long pendingTtlSeconds) {
         this.botUserMappingService = botUserMappingService;
         this.groupMemberService = groupMemberService;
         this.contentParserRegistry = contentParserRegistry;
@@ -171,6 +171,7 @@ public class InstagramLinkHandler implements MessageHandler {
         pendingInstagramSession.put(botUserKey, url);
         autoSaveScheduler.schedule(botUserKey, pendingTtlMs,
                 () -> autoSaveOnExpiry(botUserKey, url));
+        log.info("pending registered botUserKey={} url={} ttlMs={}", botUserKey, url, pendingTtlMs);
 
         return ChatbotV1Dto.SkillResponse.simple(memoPromptText(dScenario), memoQuickReplies());
     }
@@ -181,11 +182,11 @@ public class InstagramLinkHandler implements MessageHandler {
             return "이전 링크는 백그라운드로 저장 중이에요.\n\n"
                     + "📝 이번 링크와 함께 저장할 메모를 보내주세요.\n"
                     + "메모 없이 저장하려면 아래 버튼을 눌러주세요.\n"
-                    + "(3분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)";
+                    + "(1분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)";
         }
         return "📝 이 링크와 함께 저장할 메모를 보내주세요.\n"
                 + "메모 없이 저장하려면 아래 버튼을 눌러주세요.\n"
-                + "(3분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)";
+                + "(1분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)";
     }
 
     /** 안내 응답 하단 빠른답장 — 1개. 라벨에 ❌ 이모티콘, 전송값은 "메모 없이 저장" 정확 매칭용. */
@@ -200,14 +201,19 @@ public class InstagramLinkHandler implements MessageHandler {
      * Scheduler 스레드에서 호출. peek 재확인 후 동일 URL일 때만 처리하여 race 안전.
      */
     void autoSaveOnExpiry(String botUserKey, String instagramUrl) {
+        log.info("autoSaveOnExpiry triggered botUserKey={} url={}", botUserKey, instagramUrl);
         try {
             Optional<String> peeked = pendingInstagramSession.peek(botUserKey);
             if (peeked.isEmpty() || !peeked.get().equals(instagramUrl)) {
-                return; // 이미 사용자가 응답했거나 다른 URL로 덮어씀
+                log.info("autoSaveOnExpiry skipped (user already responded or url changed) botUserKey={}", botUserKey);
+                return;
             }
             String body = runBackgroundAutoSave(botUserKey, instagramUrl);
             if (body != null && !body.isBlank()) {
                 pendingNotificationSession.put(botUserKey, AUTO_SAVE_NOTICE_PREFIX + body);
+                log.info("autoSaveOnExpiry notification stored botUserKey={} bodyLen={}", botUserKey, body.length());
+            } else {
+                log.warn("autoSaveOnExpiry produced empty body botUserKey={} url={}", botUserKey, instagramUrl);
             }
             pendingInstagramSession.invalidate(botUserKey);
         } catch (RuntimeException e) {
@@ -220,10 +226,14 @@ public class InstagramLinkHandler implements MessageHandler {
      * pending은 이미 새 URL로 덮어씌워졌으므로 invalidate 안 함.
      */
     void autoSavePreviousImmediately(String botUserKey, String previousUrl) {
+        log.info("autoSavePreviousImmediately triggered botUserKey={} url={}", botUserKey, previousUrl);
         try {
             String body = runBackgroundAutoSave(botUserKey, previousUrl);
             if (body != null && !body.isBlank()) {
                 pendingNotificationSession.put(botUserKey, AUTO_SAVE_NOTICE_PREFIX + body);
+                log.info("autoSavePreviousImmediately notification stored botUserKey={} bodyLen={}", botUserKey, body.length());
+            } else {
+                log.warn("autoSavePreviousImmediately produced empty body botUserKey={} url={}", botUserKey, previousUrl);
             }
         } catch (RuntimeException e) {
             log.error("autoSavePreviousImmediately failed url={} cause={}", previousUrl, e.getMessage(), e);

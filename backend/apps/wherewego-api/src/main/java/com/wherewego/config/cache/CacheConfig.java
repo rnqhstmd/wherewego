@@ -23,7 +23,7 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager(
-            @Value("${chatbot.instagram.pending-ttl-seconds:180}") long instagramPendingTtlSeconds) {
+            @Value("${chatbot.instagram.pending-ttl-seconds:60}") long instagramPendingTtlSeconds) {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.registerCustomCache(TWO_SECOND_MEMO,
                 Caffeine.newBuilder()
@@ -32,7 +32,10 @@ public class CacheConfig {
                         .build());
         manager.registerCustomCache(INSTAGRAM_PENDING,
                 Caffeine.newBuilder()
-                        .expireAfterWrite(Duration.ofSeconds(instagramPendingTtlSeconds))
+                        // cache TTL은 scheduler delay 보다 충분히 길어야 한다.
+                        // 자동 저장 trigger 시점에 peek 가드가 cache evict 와 user invalidate 를 구분하기 위함.
+                        // user invalidate(메모/저장 발화) 만이 명시적 empty 신호이며, cache evict 는 안전망.
+                        .expireAfterWrite(Duration.ofSeconds(instagramPendingTtlSeconds * 5L))
                         .maximumSize(10_000)
                         .build());
         manager.registerCustomCache(INSTAGRAM_PENDING_NOTIFICATION,

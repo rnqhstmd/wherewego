@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * 인스타 링크 받은 직후 메모 입력을 기다리는 pending 세션.
- * <p>key = botUserKey, value = instagramUrl, TTL = {@code chatbot.instagram.pending-ttl-seconds} (기본 180초).</p>
+ * <p>key = botUserKey, value = instagramUrl, TTL = {@code chatbot.instagram.pending-ttl-seconds} (기본 60초).</p>
  *
  * <p>흐름:
  * <ol>
