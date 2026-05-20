@@ -25,6 +25,7 @@ import { IconLocation } from "@/components/icons";
 import PinPopup from "./_components/PinPopup";
 import ActionBar from "./_components/ActionBar";
 import DesktopSidebar from "./_components/DesktopSidebar";
+import MobileTopNav from "./_components/MobileTopNav";
 import SearchPanelContent from "./_components/SearchPanelContent";
 import AddPinPickerContent from "./_components/AddPinPickerContent";
 import PinCoordinateEditPicker from "./_components/PinCoordinateEditPicker";
@@ -163,6 +164,8 @@ export default function MapClient({
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [addPinOrigin, setAddPinOrigin] = useState<NewPinOrigin | null>(null);
+  // 데스크탑 좌측 사이드바 펼침 여부. 펼침 시 SidePanel left 오프셋도 함께 이동시킨다.
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   // 룰렛 관련 상태.
   const { state: geoState, permissionState, request: geoRequest } =
@@ -950,7 +953,10 @@ export default function MapClient({
               </button>
             </div>
           }
-          style={{ left: 52 }}
+          style={{
+            left: sidebarExpanded ? 242 : 74,
+            transition: "left 200ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          }}
         >
           {content}
         </SidePanel>
@@ -1172,6 +1178,7 @@ export default function MapClient({
         }
       />
       {mapError && <MapLoadError reason={mapError} />}
+      {!isDesktop && <MobileTopNav myNickname={myNickname} />}
       <ClusterBanner visible={hasCluster} />
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -1224,6 +1231,7 @@ export default function MapClient({
             geoState.status === "denied"
           }
           myNickname={myNickname}
+          onExpandedChange={setSidebarExpanded}
         />
       ) : (
         <ActionBar
@@ -1234,7 +1242,6 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
-          myNickname={myNickname}
         />
       )}
       {showPermDialog && (
