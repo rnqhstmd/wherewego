@@ -37,7 +37,7 @@ import EmptyMapCard from "./_components/EmptyMapCard";
 import MapLoadError, {
   type MapLoadErrorReason,
 } from "./_components/MapLoadError";
-import { useMediaQuery } from "./_hooks/useMediaQuery";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useGeolocation, type LatLng } from "./_hooks/useGeolocation";
 import {
   pickRandomWithExpansion,
@@ -655,6 +655,17 @@ export default function MapClient({
     return () => window.clearTimeout(handle);
   }, [geoState, runRoulette, includeMemory]);
 
+  /**
+   * 메모/검색 흐름에서 적용한 flyTo padding 을 초기화한다.
+   * Mapbox 의 padding 은 다음 명시적 변경 전까지 지속되어 map.getCenter() 결과가
+   * 시각적 viewport 중앙이 아닌 optical center 로 어긋난다.
+   * 이 어긋남이 크로스헤어(+) 흐름에서 좌표 mismatch 를 유발하므로 흐름 종료/시작 시 매번 초기화.
+   */
+  const resetMapPadding = useCallback(() => {
+    if (!map) return;
+    map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+  }, [map]);
+
   // 액션바/사이드바 탭 변경: 같은 탭 재클릭 시 닫기 토글.
   const handleTabChange = useCallback(
     (tab: Exclude<ActionBarTab, null>) => {
@@ -681,6 +692,10 @@ export default function MapClient({
       });
       if (tab === "add") {
         setAddPinOrigin(null);
+        // + 탭 진입 시 직전 메모/검색 흐름의 padding 을 반드시 초기화한다.
+        // 그렇지 않으면 map.getCenter() 가 optical center 를 반환하여 크로스헤어 시각 중앙과
+        // 어긋난 좌표가 AddPinPickerContent 로 전달되고 결국 다른 위치가 저장된다.
+        resetMapPadding();
         // + 탭 진입 시 너무 줌아웃되어 있으면 현재 위치 기준으로 줌인 이동.
         // 좌표 picker UX 개선 — 사용자가 핀 위치를 정확히 찍기 쉽도록.
         if (map && map.getZoom() < 13) {
@@ -709,8 +724,23 @@ export default function MapClient({
         }
       }
     },
-    [activeSheet, handleRouletteTap, map, geoState],
+    [activeSheet, handleRouletteTap, map, geoState, resetMapPadding],
   );
+
+  /**
+   * 모바일(<768px)에서 메모 Sheet가 화면 하단을 덮을 때 마커가 보이는 영역의 중앙에 오도록
+   * flyTo padding 값을 계산한다. Mapbox는 padding 만큼을 비표시 영역으로 간주하고
+   * 나머지 영역 중앙에 center를 배치한다.
+   */
+  const computeMemoFlyToPadding = useCallback(():
+    | { top?: number; bottom?: number; left?: number; right?: number }
+    | undefined => {
+    if (typeof window === "undefined") return undefined;
+    if (isDesktop) return undefined;
+    // Sheet 높이를 매번 측정하기 어려우므로 viewport 의 55% 로 근사.
+    // 핀이 viewport 상단 22.5% 부근에 위치하게 되어 Sheet 와 가시 영역 모두에서 균형이 좋다.
+    return { bottom: Math.round(window.innerHeight * 0.55) };
+  }, [isDesktop]);
 
   // 검색에서 장소 선택 → MemoTag 단계로 전이 + 해당 좌표로 카메라 이동
   const handleSelectPlace = useCallback(
@@ -727,10 +757,11 @@ export default function MapClient({
         map.flyTo({
           center: [Number(place.longitude), Number(place.latitude)],
           zoom: 15,
+          padding: computeMemoFlyToPadding(),
         });
       }
     },
-    [map],
+    [map, computeMemoFlyToPadding],
   );
 
   // Crosshair에서 좌표 확정 → MemoTag 단계로 전이.
@@ -751,14 +782,22 @@ export default function MapClient({
         editable: true,
       });
       setActiveSheet("memo");
+      // 모바일에서는 Sheet가 화면 하단을 덮으므로 미리보기 마커가 보이는 영역의 중앙에 오도록 재정렬.
+      if (map) {
+        map.flyTo({
+          center: [origin.lng, origin.lat],
+          padding: computeMemoFlyToPadding(),
+        });
+      }
     },
-    [],
+    [map, computeMemoFlyToPadding],
   );
 
   const handleCancelMemo = useCallback(() => {
     setActiveSheet(null);
     setAddPinOrigin(null);
-  }, []);
+    resetMapPadding();
+  }, [resetMapPadding]);
 
   // 저장 성공 → 클라 state 에 직접 추가 (revalidate 없음, MUST-1) + 새 핀 위치로 카메라 이동.
   const handlePinCreated = useCallback(
@@ -772,9 +811,11 @@ export default function MapClient({
       setAddPinOrigin(null);
       setSelectedPinId(newPin.id);
       if (map) {
+        // 메모 단계의 padding 을 0 으로 되돌리며 새 핀 위치로 이동.
         map.flyTo({
           center: [Number(newPin.longitude), Number(newPin.latitude)],
           zoom: 15,
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
         });
       }
     },
@@ -795,7 +836,10 @@ export default function MapClient({
       window.clearTimeout(spinTimerRef.current);
       spinTimerRef.current = null;
     }
-  }, [activeSheet, coordinateEditTarget]);
+    // 메모/검색 흐름에서 적용한 padding 을 초기화하여 다음 + 흐름의 크로스헤어 좌표가
+    // 시각적 viewport 중앙과 일치하도록 보장한다.
+    resetMapPadding();
+  }, [activeSheet, coordinateEditTarget, resetMapPadding]);
 
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
   const handleShowOnMap = useCallback(

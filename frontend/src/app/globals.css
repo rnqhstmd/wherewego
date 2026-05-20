@@ -60,6 +60,21 @@ body {
   display: none !important;
 }
 
+/* Mapbox GeolocateControl 위치 보정.
+   모바일에서는 하단 ActionBar(64px)와 확실히 떨어지도록 위로 띄우고 우측 여백도 살짝 준다.
+   데스크탑(>=768px)에서는 ActionBar 가 없으므로 기본에 가깝게 둔다.
+   Mapbox 기본 CSS 가 동일 셀렉터에 0 을 잡고 있어 !important 가 필요하다. */
+.mapboxgl-ctrl-bottom-right {
+  bottom: 84px !important;
+  right: 10px !important;
+}
+@media (min-width: 768px) {
+  .mapboxgl-ctrl-bottom-right {
+    bottom: 16px !important;
+    right: 16px !important;
+  }
+}
+
 /* 자체 사용자 위치 마커: 진한 회색 작은 도트 + 부드러운 회색 펄스 */
 .user-location-marker {
   position: relative;

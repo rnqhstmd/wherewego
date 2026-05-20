@@ -536,15 +536,15 @@ export default function MapboxView({
       previewMarkerRef.current.setLngLat(lngLat);
       return;
     }
+    // 외부 div: Mapbox가 transform 으로 위치 제어 → animation/transform 사용 금지.
+    // 내부 div: 우리 애니메이션. translate/scale 은 이 안에서만 안전하다.
     const el = document.createElement("div");
-    el.style.cssText = `
-      width: 28px;
-      height: 36px;
-      pointer-events: none;
-      animation: maygo-preview-pin-drop 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-      transform-origin: 50% 100%;
-    `;
-    el.innerHTML = `<svg width="28" height="36" viewBox="0 0 28 36" style="display:block;filter:drop-shadow(0 3px 6px ${colors.cta}66);" aria-hidden="true"><path d="M14 0C6.27 0 0 6.27 0 14c0 9.4 14 22 14 22s14-12.6 14-22C28 6.27 21.73 0 14 0z" fill="${colors.cta}" stroke="#FFFFFF" stroke-width="2"/><circle cx="14" cy="14" r="5" fill="#FFFFFF"/></svg>`;
+    el.style.cssText = "width:28px;height:36px;pointer-events:none;";
+    el.innerHTML =
+      `<div style="width:100%;height:100%;animation:maygo-preview-pin-drop 360ms cubic-bezier(0.2,0.8,0.2,1) both;transform-origin:50% 100%;">` +
+      `<svg width="28" height="36" viewBox="0 0 28 36" style="display:block;filter:drop-shadow(0 3px 6px ${colors.cta}66);" aria-hidden="true">` +
+      `<path d="M14 0C6.27 0 0 6.27 0 14c0 9.4 14 22 14 22s14-12.6 14-22C28 6.27 21.73 0 14 0z" fill="${colors.cta}"/>` +
+      `<circle cx="14" cy="14" r="5" fill="#FFFFFF"/></svg></div>`;
     const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
       .setLngLat(lngLat)
       .addTo(map);
