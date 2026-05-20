@@ -60,6 +60,52 @@ body {
   display: none !important;
 }
 
+/* Mapbox 컨트롤 위치 보정.
+   - bottom-right: GeolocateControl (현재 위치) — attribution 은 MapboxView 에서 bottom-left 로 옮겨 분리.
+   - bottom-left: AttributionControl (저작권/Improve this map) — compact 모드로 등록.
+   모바일에서는 ActionBar(64px) 바로 위쪽에 두 컨트롤이 같은 baseline 에 놓이도록 한다.
+   Mapbox 기본 CSS 의 우선순위를 넘기기 위해 컨테이너+내부 .mapboxgl-ctrl 양쪽에 !important. */
+/* Mapbox 로고(.mapboxgl-ctrl-logo) 비표시. attribution(i 버튼)은 유지하여 저작권 정보 제공.
+   주의: Mapbox 무료 SKU 의 경우 로고 노출이 ToS 요건이므로 운영 단계에서 유료 플랜 또는
+   대체 노출(예: footer 텍스트) 검토 필요. */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+/* 모바일 — ActionBar(bottom:12 + height:68 = 80) 위로 충분히 띄우고 우측 정렬은 ActionBar right:12 와 동일. */
+.mapboxgl-ctrl-bottom-right {
+  bottom: 104px !important;
+  right: 12px !important;
+}
+.mapboxgl-ctrl-bottom-right .mapboxgl-ctrl {
+  margin: 0 !important;
+}
+.mapboxgl-ctrl-bottom-left {
+  bottom: 104px !important;
+  left: 12px !important;
+}
+.mapboxgl-ctrl-bottom-left .mapboxgl-ctrl {
+  margin: 0 !important;
+}
+/* 모바일에서는 분위기 환기 위해 attribution(i 버튼) 자체를 숨긴다.
+   주의: Mapbox 무료 SKU 의 경우 attribution 노출이 ToS 요건이므로 운영 단계에서
+   유료 플랜 또는 대체 노출(예: 설정 화면 내 저작권 페이지) 마련 필요. */
+@media (max-width: 767px) {
+  .mapboxgl-ctrl-bottom-left {
+    display: none !important;
+  }
+}
+@media (min-width: 768px) {
+  .mapboxgl-ctrl-bottom-right {
+    bottom: 24px !important;
+    right: 24px !important;
+  }
+  .mapboxgl-ctrl-bottom-left {
+    bottom: 24px !important;
+    left: 24px !important;
+  }
+}
+
 /* 자체 사용자 위치 마커: 진한 회색 작은 도트 + 부드러운 회색 펄스 */
 .user-location-marker {
   position: relative;
@@ -97,5 +143,33 @@ body {
   100% {
     transform: translate(-50%, -50%) scale(3);
     opacity: 0;
+  }
+}
+
+/* 검색/메모 단계 미리보기 마커 드롭 애니메이션. anchor:bottom 기준 살짝 위에서 떨어진다. */
+@keyframes maygo-preview-pin-drop {
+  0% {
+    transform: translateY(-18px) scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(2px) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 말풍선 팝 — 텍스트 sub-pixel 깨짐 회피 위해 scale 사용 금지. translateX + opacity 만으로 부드럽게. */
+@keyframes maygo-bubble-pop {
+  0% {
+    transform: translateX(-6px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
   }
 }

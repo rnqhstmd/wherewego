@@ -68,7 +68,7 @@ export default function RouletteSpinContent({
           color: colors.inkSoft,
         }}
       >
-        {radiusKm}km 이내 · 장소 핀 {candidateCount}개 중에서
+        {radiusKm}km 이내에서 고르고 있어요
       </div>
       <style>{`@keyframes roulette-spin { to { transform: rotate(360deg) } }`}</style>
     </div>

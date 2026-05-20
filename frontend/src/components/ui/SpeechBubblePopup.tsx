@@ -3,6 +3,7 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { colors, fonts } from "@/lib/design/tokens";
 import { IconMenuVert } from "@/components/icons";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { PinDot, type PinDotType } from "./PinDot";
 
 interface SpeechBubblePopupProps {
@@ -63,6 +64,28 @@ export function SpeechBubblePopup({
 }: SpeechBubblePopupProps) {
   const lines = (memo || "").split("\n");
   const hasPlace = place !== null && place !== undefined && place !== "";
+  // 모바일(<=480px)에서는 폰트/패딩/너비를 축소하여 지도 화면을 덜 가린다.
+  const isCompact = useMediaQuery("(max-width: 480px)");
+
+  const effectiveWidth = isCompact ? Math.min(width, 240) : width;
+  const containerPadding = isCompact ? "12px 14px 10px" : "16px 18px 14px";
+  const containerRadius = isCompact ? 14 : 18;
+  const memoFontSize = isCompact ? 13 : 15;
+  const memoLineHeight = isCompact ? 1.45 : 1.5;
+  const sectionGap = isCompact ? 10 : 12;
+  const placeFontSize = isCompact ? 12.5 : 13.5;
+  const placeRowGap = isCompact ? 6 : 7;
+  const placeDotSizePlace = isCompact ? 7 : 8;
+  const placeDotSizeMemory = isCompact ? 10 : 11;
+  const addrFontSize = isCompact ? 10.5 : 11.5;
+  const addrIndent = hasPlace ? (isCompact ? 16 : 18) : 0;
+  const bottomRowMarginTop = collapseBody ? 0 : isCompact ? 10 : 12;
+  const bottomRowPaddingTop = collapseBody ? 0 : isCompact ? 8 : 10;
+  const dateFontSize = isCompact ? 11 : 12;
+  const writtenByFontSize = isCompact ? 10 : 11;
+  const menuBtnSize = isCompact ? 24 : 28;
+  const menuIconSize = isCompact ? 14 : 16;
+  const instagramFontSize = isCompact ? 11 : 12;
 
   return (
     <div
@@ -71,18 +94,18 @@ export function SpeechBubblePopup({
         position: "absolute",
         left: pinX,
         top: pinY,
-        transform: "translate(-50%, calc(-100% - 16px))",
+        transform: `translate(-50%, calc(-100% - ${isCompact ? 12 : 16}px))`,
         zIndex: 22,
         ...style,
       }}
     >
       <div
         style={{
-          width,
+          width: effectiveWidth,
           background: colors.panel,
-          borderRadius: 18,
+          borderRadius: containerRadius,
           boxShadow: `0 10px 28px ${colors.shadowMd}, 0 0 0 1px ${colors.hairline}`,
-          padding: "16px 18px 14px",
+          padding: containerPadding,
           fontFamily: fonts.sans,
           position: "relative",
         }}
@@ -92,10 +115,10 @@ export function SpeechBubblePopup({
             {/* Memo */}
             <div
               style={{
-                fontSize: 15,
+                fontSize: memoFontSize,
                 fontWeight: 500,
                 color: colors.ink,
-                lineHeight: 1.5,
+                lineHeight: memoLineHeight,
                 letterSpacing: -0.2,
               }}
             >
@@ -105,20 +128,25 @@ export function SpeechBubblePopup({
             </div>
 
             {/* Place + address */}
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: sectionGap }}>
               {hasPlace ? (
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 7,
+                    gap: placeRowGap,
                     marginBottom: 3,
                   }}
                 >
-                  <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
+                  <PinDot
+                    type={pinType}
+                    size={
+                      pinType === "memory" ? placeDotSizeMemory : placeDotSizePlace
+                    }
+                  />
                   <span
                     style={{
-                      fontSize: 13.5,
+                      fontSize: placeFontSize,
                       fontWeight: 700,
                       color: colors.ink,
                       letterSpacing: -0.2,
@@ -131,17 +159,22 @@ export function SpeechBubblePopup({
               <div
                 style={{
                   fontFamily: fonts.mono,
-                  fontSize: 11.5,
+                  fontSize: addrFontSize,
                   color: colors.inkSoft,
                   letterSpacing: -0.1,
-                  paddingLeft: hasPlace ? 18 : 0,
+                  paddingLeft: addrIndent,
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                 }}
               >
                 {!hasPlace ? (
-                  <PinDot type={pinType} size={pinType === "memory" ? 11 : 8} />
+                  <PinDot
+                    type={pinType}
+                    size={
+                      pinType === "memory" ? placeDotSizeMemory : placeDotSizePlace
+                    }
+                  />
                 ) : null}
                 <span>{addr}</span>
               </div>
@@ -155,9 +188,9 @@ export function SpeechBubblePopup({
                     alignItems: "center",
                     gap: 4,
                     marginTop: 8,
-                    marginLeft: hasPlace ? 18 : 0,
+                    marginLeft: addrIndent,
                     fontFamily: fonts.sans,
-                    fontSize: 12,
+                    fontSize: instagramFontSize,
                     fontWeight: 600,
                     color: "#C13584",
                     textDecoration: "none",
@@ -175,8 +208,8 @@ export function SpeechBubblePopup({
         {/* Bottom row: date + author + ⋮ */}
         <div
           style={{
-            marginTop: collapseBody ? 0 : 12,
-            paddingTop: collapseBody ? 0 : 10,
+            marginTop: bottomRowMarginTop,
+            paddingTop: bottomRowPaddingTop,
             borderTop: collapseBody ? "none" : `1px solid ${colors.hairline}`,
             display: "flex",
             alignItems: "center",
@@ -186,7 +219,7 @@ export function SpeechBubblePopup({
           <div
             style={{
               fontFamily: fonts.mono,
-              fontSize: 12,
+              fontSize: dateFontSize,
               color: colors.inkSoft,
               fontStyle: "italic",
             }}
@@ -198,7 +231,7 @@ export function SpeechBubblePopup({
                 fontStyle: "italic",
                 color: colors.inkSoft,
                 fontWeight: 400,
-                fontSize: 11,
+                fontSize: writtenByFontSize,
                 marginRight: 6,
               }}
             >
@@ -220,8 +253,8 @@ export function SpeechBubblePopup({
             onClick={onMenuClick}
             aria-label="더 보기"
             style={{
-              width: 28,
-              height: 28,
+              width: menuBtnSize,
+              height: menuBtnSize,
               borderRadius: 6,
               background: "transparent",
               border: "none",
@@ -233,7 +266,7 @@ export function SpeechBubblePopup({
               justifyContent: "center",
             }}
           >
-            <IconMenuVert size={16} color={colors.inkSoft} />
+            <IconMenuVert size={menuIconSize} color={colors.inkSoft} />
           </button>
         </div>
 

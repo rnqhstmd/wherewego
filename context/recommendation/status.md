@@ -21,3 +21,5 @@
 ## 후속 작업
 
 - **Phase 2.7 완료**: RouletteResultContent Vitest 2건(체크박스 콜백 + 거리 레이블 포맷) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
+- **운영 UX 개선 (2026-05-20)**: `RouletteSpinContent` 안내 문구를 `{radius}km 이내 · 장소 핀 {N}개 중에서` → `{radius}km 이내에서 고르고 있어요` 로 교체. 추첨 직전 일시적으로 후보 수가 0 으로 노출되던 어색함 제거 — [#33](https://github.com/rnqhstmd/wherewego/pull/33)
+- **모바일 버튼 양옆 잘림 수정 (2026-05-20)**: `RouletteResultContent` "지도에서 보기"/"다시" 버튼이 모바일 ≤ 480px 환경에서 컨테이너 밖으로 밀려나가던 문제 해소. flex item 기본 `min-width: auto` + `whiteSpace: nowrap` 조합으로 인한 강제 오버플로를 `minWidth: 0` 추가로 차단하고, `padding: "12px 0"` → `"11px 12px"` 로 좌우 여백 회복 — [#33](https://github.com/rnqhstmd/wherewego/pull/33)
