@@ -13,12 +13,17 @@ public interface PinV1ApiSpec {
             description = "활성 그룹원이 자신의 그룹에 속한 핀 목록을 created_at 내림차순으로 반환합니다 (FR-1, BR-10). " +
                     "tag 쿼리 파라미터로 PLACE/MEMORY 필터링이 가능합니다 (FR-5). " +
                     "잘못된 tag 값은 PIN_TAG_INVALID (400) 으로 거부됩니다 (AC-2 일관성). " +
-                    "deleted_at IS NULL 인 행만 반환합니다 (BR-2)."
+                    "deleted_at IS NULL 인 행만 반환합니다 (BR-2). " +
+                    "page/size 둘 다 미전달 시 전체 목록(legacy 모드, items 만 반환). " +
+                    "둘 다 전달 시 페이지 모드(items + totalCount + hasNext). " +
+                    "부분 전달은 400 PIN_PAGE_PARAM_INVALID. size > 100 은 400 PIN_PAGE_SIZE_EXCEEDED."
     )
     ApiResponse<PinV1Dto.PinListResponse> listPins(
             @Parameter(hidden = true) Long userId,
             Long groupId,
-            String tag
+            String tag,
+            String page,
+            String size
     );
 
     @Operation(
@@ -39,7 +44,9 @@ public interface PinV1ApiSpec {
             summary = "핀 부분 수정",
             description = "활성 그룹원이 핀의 memo/tag 를 부분 수정합니다 (FR-2, BR-7). " +
                     "memo 가 빈 문자열이면 잠금 해제(BR-8), 비어있지 않으면 MANUAL 마킹(BR-3, FR-4). " +
-                    "키 없음 vs JSON null vs 빈 문자열을 구분하기 위해 본문은 JsonNode 로 받습니다."
+                    "키 없음 vs JSON null vs 빈 문자열을 구분하기 위해 본문은 JsonNode 로 받습니다. " +
+                    "Phase 2.10: 좌표 수정 지원 — latitude/longitude 는 함께 전달해야 하며 한 쪽만 전달 시 " +
+                    "PIN_COORDINATE_INVALID (400). 범위: latitude -90~90, longitude -180~180, 소수점 7자리 이하 (DB DECIMAL(10,7) 정합)."
     )
     ApiResponse<PinV1Dto.PinSummaryResponse> updatePin(
             @Parameter(hidden = true) Long userId,

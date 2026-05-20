@@ -25,9 +25,10 @@
 - 비관적 락(`SELECT ... FOR UPDATE`)으로 `groups` 행을 직렬화하여 락 → count → INSERT/UPDATE 순서 보장
 - 1인 1활성 그룹: 서비스 사전 검사 + DB `uq_group_members_active_user` partial unique index + `DataIntegrityViolationException` → `GROUP_ALREADY_ACTIVE` 변환 (3단 방어)
 - 마지막 멤버 탈퇴 + 정원 2명 race 모두 groups 행 락으로 보호
-- 동시성 통합 테스트 3종(ExecutorService 기반)은 Phase 3 범위 제외, 후속 Phase 검토
+- 동시성 통합 테스트 3종(ExecutorService 기반 + `assertEquals(1, successCount)` 엄격 검증)은 Phase 2.7에서 완성 — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
 
 ## 후속 작업
 
-- **Phase 4**: Pin REST API 신설 시 `requireActiveMembership` 호출 통합 + 단대단 403 검증, 동시성 통합 테스트 3종 구현 검토
+- **Phase 4 완료**: Pin REST API([#9](https://github.com/rnqhstmd/wherewego/pull/9), [#13](https://github.com/rnqhstmd/wherewego/pull/13))에 `requireActiveMembership` 통합 완료
+- **Phase 2.7 완료**: 동시성 통합 테스트 3종 구현 (createGroup/acceptInviteLink/leaveGroup 각각 5스레드 race) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
 - **장기**: 재가입 허용 정책 검토 (uq_group_members_pair 변경 필요, 별도 PRD)

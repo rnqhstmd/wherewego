@@ -66,7 +66,7 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
       <footer className="flex items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <div className="flex items-center gap-3">
           <span>{formatCreatedAt(pin.createdAt)}</span>
-          {pin.instagramUrl ? (
+          {pin.instagramUrl?.startsWith("https://") ? (
             <a
               href={pin.instagramUrl}
               target="_blank"

@@ -25,6 +25,23 @@ public final class PlaceCardBuilder {
             List<PlaceSearchHit> hits,
             String instagramUrl,
             PlaceSelectionCandidateStore store) {
+        List<Map<String, Object>> outputs = new ArrayList<>();
+        outputs.add(buildCardOutput(botUserKey, hits, instagramUrl, store, null));
+        return ChatbotV1Dto.SkillResponse.cards(outputs);
+    }
+
+    /**
+     * 카드 1개를 outputs 배열에 들어갈 형태(Map<String,Object>)로 반환.
+     * 여러 카드 + simpleText를 한 SkillResponse에 합치는 흐름에서 사용.
+     *
+     * @param keywordHint null이 아니면 카드 title에 "[키워드] 장소를 선택해 주세요"로 노출.
+     */
+    public static Map<String, Object> buildCardOutput(
+            String botUserKey,
+            List<PlaceSearchHit> hits,
+            String instagramUrl,
+            PlaceSelectionCandidateStore store,
+            String keywordHint) {
 
         List<ChatbotV1Dto.Button> buttons = new ArrayList<>();
         for (PlaceSearchHit hit : hits) {
@@ -51,13 +68,19 @@ public final class PlaceCardBuilder {
             description.append('\n');
         }
 
+        String title = (keywordHint != null && !keywordHint.isBlank())
+                ? ("\"" + keywordHint + "\" — 장소를 선택해 주세요")
+                : "장소를 선택해 주세요";
         ChatbotV1Dto.BasicCard card = new ChatbotV1Dto.BasicCard(
-                "장소를 선택해 주세요",
+                title,
                 description.toString().trim(),
                 buttons
         );
-        List<Map<String, Object>> outputs = new ArrayList<>();
-        outputs.add(Map.of("basicCard", card));
-        return ChatbotV1Dto.SkillResponse.cards(outputs);
+        return Map.of("basicCard", card);
+    }
+
+    /** outputs 배열에 들어갈 simpleText 1개. */
+    public static Map<String, Object> simpleTextOutput(String text) {
+        return Map.of("simpleText", Map.of("text", text));
     }
 }

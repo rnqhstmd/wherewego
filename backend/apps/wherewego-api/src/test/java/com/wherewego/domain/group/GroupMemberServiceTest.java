@@ -1,5 +1,6 @@
 package com.wherewego.domain.group;
 
+import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,9 @@ class GroupMemberServiceTest {
 
     @Mock
     private InviteLinkRepository inviteLinkRepository;
+
+    @Mock
+    private BotUserMappingService botUserMappingService;
 
     @InjectMocks
     private GroupMemberService groupMemberService;
@@ -355,6 +359,8 @@ class GroupMemberServiceTest {
             assertThat(group.getDeletedAt()).isNull();
             verify(groupRepository, never()).save(any(Group.class));
             verify(inviteLinkRepository, never()).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
+            // AC-B6: 탈퇴 시 봇 매핑도 해제되어야 한다 (Phase 2.6 B-4)
+            verify(botUserMappingService).unlink(USER_ID);
         }
 
         @DisplayName("마지막 멤버가 탈퇴하면 group.markDeleted 와 expirePending 이 호출된다 (AC-12).")
@@ -376,6 +382,8 @@ class GroupMemberServiceTest {
             assertThat(group.getDeletedAt()).isNotNull();
             verify(groupRepository).save(group);
             verify(inviteLinkRepository).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
+            // AC-B6: 마지막 멤버 탈퇴 + 봇 미연동인 경우도 unlink 는 멱등이므로 호출된다.
+            verify(botUserMappingService).unlink(USER_ID);
         }
 
         @DisplayName("비활성 멤버가 탈퇴하려 하면 GROUP_NOT_MEMBER 가 발생한다.")
@@ -392,6 +400,8 @@ class GroupMemberServiceTest {
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+            // AC-B6: 멤버십 검증 실패 시 봇 매핑 해제도 호출되지 않아야 한다.
+            verify(botUserMappingService, never()).unlink(any());
         }
     }
 

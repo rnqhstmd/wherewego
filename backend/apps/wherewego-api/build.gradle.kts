@@ -32,6 +32,12 @@ dependencies {
     // security
     implementation("org.springframework.boot:spring-boot-starter-security")
 
+    // spring cloud context (@RefreshScope + /actuator/refresh)
+    implementation("org.springframework.cloud:spring-cloud-starter")
+
+    // rate limiting (Bucket4j 토큰 버킷, Phase 2.6 PR-B B-3)
+    implementation("com.bucket4j:bucket4j-core:${project.properties["bucket4jVersion"]}")
+
     // jwt (jjwt 0.12.x)
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")

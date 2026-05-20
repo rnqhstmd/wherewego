@@ -17,11 +17,14 @@ public final class PlaceV1Dto {
     public record PlaceSearchResponse(List<PlaceItem> items) {
 
         public static PlaceSearchResponse from(PlaceSearchOutcome outcome) {
-            List<PlaceItem> items = switch (outcome) {
-                case PlaceSearchOutcome.Single s -> List.of(PlaceItem.from(s.hit()));
-                case PlaceSearchOutcome.Multiple m -> m.hits().stream().map(PlaceItem::from).toList();
-                case PlaceSearchOutcome.Empty ignored -> List.of();
-            };
+            List<PlaceItem> items;
+            if (outcome instanceof PlaceSearchOutcome.Single s) {
+                items = List.of(PlaceItem.from(s.hit()));
+            } else if (outcome instanceof PlaceSearchOutcome.Multiple m) {
+                items = m.hits().stream().map(PlaceItem::from).toList();
+            } else {
+                items = List.of();
+            }
             return new PlaceSearchResponse(items);
         }
     }

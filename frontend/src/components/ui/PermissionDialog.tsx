@@ -14,6 +14,11 @@ interface PermissionDialogProps {
   onPrimary: () => void;
   onSecondary: () => void;
   icon?: ReactNode;
+  /**
+   * 아이콘 원형 배경의 opacity (rust 톤, 기본 0.08).
+   * AC-011 등에서 강조가 필요한 호출처는 0.15 로 명시한다.
+   */
+  iconBgOpacity?: number;
   /** 'vertical' 권장(위치 권한 등 모달), 'horizontal' (보조 액션) */
   layout?: "vertical" | "horizontal";
   /** 지도 위 오버레이(딤 배경) 여부 */
@@ -26,7 +31,7 @@ interface PermissionDialogProps {
  * Permission dialog — screens-basic.jsx::PermissionDialog 1:1 변환.
  *
  * - 흰 카드(border-radius 18px, max-width 320px)
- * - 상단 60px 원형 아이콘 박스 (rust 8% 배경)
+ * - 상단 60px 원형 아이콘 박스 (rust 톤, opacity 는 iconBgOpacity 로 제어, 기본 8%)
  * - 제목(Gowun Batang 22px) + 설명(13.5px inkSoft)
  * - 버튼 스택(vertical: 위 primary / 아래 sub, horizontal: 좌 sub / 우 primary)
  */
@@ -38,6 +43,7 @@ export function PermissionDialog({
   onPrimary,
   onSecondary,
   icon,
+  iconBgOpacity = 0.08,
   layout = "vertical",
   onMap = false,
   className,
@@ -79,8 +85,8 @@ export function PermissionDialog({
               width: 60,
               height: 60,
               borderRadius: "50%",
-              // rgba(196,98,45,0.08) — rust 8%
-              background: "rgba(196,98,45,0.08)",
+              // rust 톤 (196,98,45) + iconBgOpacity (기본 0.08, AC-011 호출처는 0.15)
+              background: `rgba(196,98,45,${iconBgOpacity})`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

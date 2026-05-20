@@ -6,6 +6,11 @@ services:
       - "9090:9090"
     volumes:
       - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml
+    # Linux EC2 호환: host.docker.internal을 자동 해석하지 않으므로 명시적 매핑
+    # (macOS/Windows는 자동 동작하지만 host-gateway 매핑이 양쪽 모두 안전)
+    # 필요 Docker 버전: 20.10+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   grafana:
     image: grafana/grafana

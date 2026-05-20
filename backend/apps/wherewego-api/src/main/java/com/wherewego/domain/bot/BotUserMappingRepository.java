@@ -6,4 +6,5 @@ public interface BotUserMappingRepository {
     BotUserMapping save(BotUserMapping entity);
     Optional<BotUserMapping> findByBotUserKey(String botUserKey);
     Optional<BotUserMapping> findByUserId(Long userId);
+    void deleteByUserId(Long userId);
 }

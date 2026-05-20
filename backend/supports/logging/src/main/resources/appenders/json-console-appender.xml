@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <included>
+    <!--
+      Spring Boot 3.4+ structured-console-appender + logstash format은
+      MDC 컨텍스트를 JSON 본문에 자동 포함한다. 따라서 RequestIdFilter가
+      MDC.put("requestId", uuid) 한 값은 별도 키 매핑 없이 `requestId` 필드로 노출된다 (FR-OBS-6).
+    -->
     <property name="CONSOLE_LOG_STRUCTURED_FORMAT" value="logstash"/>
     <include resource="org/springframework/boot/logging/logback/defaults.xml" />
     <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml" />

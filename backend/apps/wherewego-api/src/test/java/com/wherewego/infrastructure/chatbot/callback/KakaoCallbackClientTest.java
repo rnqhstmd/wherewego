@@ -2,12 +2,16 @@ package com.wherewego.infrastructure.chatbot.callback;
 
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.wherewego.infrastructure.notify.slack.SlackNotifier;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.exactly;
@@ -17,6 +21,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+@ExtendWith(MockitoExtension.class)
 @DisplayName("KakaoCallbackClient.push 를 호출할 때,")
 class KakaoCallbackClientTest {
 
@@ -28,6 +33,9 @@ class KakaoCallbackClientTest {
             .options(WireMockConfiguration.options().dynamicPort())
             .build();
 
+    @Mock
+    private SlackNotifier slackNotifier;
+
     // WireMock baseUrl 은 http://localhost:포트 — SSRF 가드에 의해 막히므로
     // 통합 케이스는 strictHostCheck=false 로 우회한다. SSRF 가드 자체의 검증은
     // strictHostCheck=true 인스턴스 + isAllowedCallbackUrl 단위 테스트로 분리한다.
@@ -37,8 +45,8 @@ class KakaoCallbackClientTest {
     @BeforeEach
     void setUp() {
         wireMock.resetAll();
-        client = new KakaoCallbackClient(TIMEOUT_MS, false);
-        strictClient = new KakaoCallbackClient(TIMEOUT_MS, true);
+        client = new KakaoCallbackClient(TIMEOUT_MS, false, slackNotifier);
+        strictClient = new KakaoCallbackClient(TIMEOUT_MS, true, slackNotifier);
     }
 
     @Nested

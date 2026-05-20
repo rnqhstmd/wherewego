@@ -14,6 +14,7 @@ import com.wherewego.support.error.CoreException;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
@@ -39,6 +40,7 @@ public class PlaceFallbackOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(PlaceFallbackOrchestrator.class);
     private static final int MAX_MULTIPLE = 5;
+    private static final int PIN_SAVE_ALERT_THRESHOLD = 10;
 
     // Google 비동기 호출 시 timeout 강제용 데드라인. timeoutMs + 약간 여유.
     private static final long ASYNC_DEADLINE_MS = 2_000L;
@@ -50,6 +52,7 @@ public class PlaceFallbackOrchestrator {
     private final PlaceSelectionCandidateStore candidateStore;
     private final TwoSecondMemoSession twoSecondMemoSession;
     private final ThreadPoolExecutor executor;
+    private final AtomicInteger pinSaveCount = new AtomicInteger(0);
 
     public PlaceFallbackOrchestrator(GooglePlacesClient googlePlacesClient,
                                      KakaoCallbackClient kakaoCallbackClient,
@@ -109,9 +112,24 @@ public class PlaceFallbackOrchestrator {
     /**
      * 비동기 폴백 제출. queue full → {@link java.util.concurrent.RejectedExecutionException} 을 그대로 throw.
      * caller (InstagramLinkHandler) 가 catch하여 best-effort 콜백 푸시 + fast-fail.
+     *
+     * <p>raw {@link ThreadPoolExecutor}는 Spring TaskDecorator 적용을 받지 못하므로
+     * MDC 컨텍스트를 명시적으로 캡처하여 워커 스레드에 전파한다 (MUST-1).</p>
      */
     public void runAsync(String keyword, FallbackJobContext jobCtx) {
-        executor.execute(() -> processAsync(keyword, jobCtx));
+        Map<String, String> snapshot = MDC.getCopyOfContextMap();
+        executor.execute(() -> {
+            if (snapshot != null) {
+                MDC.setContextMap(snapshot);
+            } else {
+                MDC.clear();
+            }
+            try {
+                processAsync(keyword, jobCtx);
+            } finally {
+                MDC.clear();
+            }
+        });
     }
 
     private void processAsync(String keyword, FallbackJobContext jobCtx) {
@@ -141,6 +159,13 @@ public class PlaceFallbackOrchestrator {
                 twoSecondMemoSession.put(jobCtx.botUserKey(), saved.getId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
                         "장소가 저장되었어요: " + saved.getPlaceName());
+                int count = pinSaveCount.incrementAndGet();
+                if (count % PIN_SAVE_ALERT_THRESHOLD == 0) {
+                    slackNotifier.notify("핀 저장 " + count + "건 달성", Map.of(
+                            "totalCount", count,
+                            "latestKeyword", jobCtx.keyword()
+                    ));
+                }
             } catch (DataIntegrityViolationException dup) {
                 log.debug("async duplicate pin groupId={}", jobCtx.groupId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(), "이미 저장된 장소예요.");
@@ -181,7 +206,7 @@ public class PlaceFallbackOrchestrator {
         if (jobCtx != null) {
             ctxMap.put("userId", jobCtx.userId());
             ctxMap.put("groupId", jobCtx.groupId());
-            ctxMap.put("instagramUrl", jobCtx.instagramUrl());
+            ctxMap.put("instagramUrl", maskInstagramUrl(jobCtx.instagramUrl()));
         }
         ctxMap.put("error", buildErrorSummary(e));
         return ctxMap;
@@ -197,5 +222,26 @@ public class PlaceFallbackOrchestrator {
             return base + "(" + ce.getErrorType().getCode() + ")";
         }
         return base;
+    }
+
+    /**
+     * Slack 알림 채널 노출용 Instagram URL 마스킹.
+     * 전체 URL을 노출하지 않고 도메인 + 첫 번째 segment(p/reel 등)만 노출한다.
+     * <p>예: {@code https://www.instagram.com/p/ABCDEFG/} -> {@code instagram.com/p/***}.</p>
+     */
+    private static String maskInstagramUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "(none)";
+        }
+        int idx = url.indexOf("instagram.com/");
+        if (idx >= 0) {
+            String tail = url.substring(idx + "instagram.com/".length());
+            int slash = tail.indexOf('/');
+            if (slash > 0) {
+                return "instagram.com/" + tail.substring(0, slash) + "/***";
+            }
+            return "instagram.com/***";
+        }
+        return "(masked)";
     }
 }

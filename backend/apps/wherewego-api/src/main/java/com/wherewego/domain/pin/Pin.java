@@ -2,6 +2,8 @@ package com.wherewego.domain.pin;
 
 import com.wherewego.domain.BaseEntity;
 import com.wherewego.domain.place.PlaceSearchHit;
+import com.wherewego.support.error.CoreException;
+import com.wherewego.support.error.ErrorType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -91,6 +93,7 @@ public class Pin extends BaseEntity {
      * tag=PLACE, memoSource=null (2초 룰 메모가 도착해야 AUTO 부착).
      */
     public static Pin autoFromInstagram(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -98,7 +101,7 @@ public class Pin extends BaseEntity {
                 hit.address(),
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
-                instagramUrl,
+                normalizedUrl,
                 PinTag.PLACE
         );
     }
@@ -108,6 +111,7 @@ public class Pin extends BaseEntity {
      * autoFromInstagram 과 동일 구조 (tag=PLACE, memoSource=null).
      */
     public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 ownerUserId,
@@ -115,7 +119,7 @@ public class Pin extends BaseEntity {
                 hit.address(),
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
-                instagramUrl,
+                normalizedUrl,
                 PinTag.PLACE
         );
     }
@@ -133,6 +137,7 @@ public class Pin extends BaseEntity {
                                      BigDecimal longitude,
                                      String instagramUrl,
                                      PinTag tag) {
+        String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
                 userId,
@@ -140,13 +145,29 @@ public class Pin extends BaseEntity {
                 address,
                 latitude,
                 longitude,
-                instagramUrl,
+                normalizedUrl,
                 tag
         );
     }
 
     private static BigDecimal toBigDecimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
+    }
+
+    /**
+     * instagramUrl 검증 (XSS 방어) 및 trim 정규화. null/빈 문자열(trim 후 빈)은 null 반환 (선택 필드),
+     * 값이 있으면 반드시 {@code https://} 로 시작해야 한다 (javascript:, data: 등 차단).
+     * <p>반환된 trim 된 값을 그대로 entity 에 저장하여 선행/후행 공백이 DB 에 새지 않도록 한다
+     * (PinCard.startsWith("https://") 검사 일관성 + UNIQUE 우회 차단).</p>
+     */
+    private static String validateInstagramUrl(String url) {
+        if (url == null) return null;
+        String trimmed = url.trim();
+        if (trimmed.isEmpty()) return null;
+        if (!trimmed.startsWith("https://")) {
+            throw new CoreException(ErrorType.PIN_INSTAGRAM_URL_INVALID);
+        }
+        return trimmed;
     }
 
     /**
@@ -172,6 +193,26 @@ public class Pin extends BaseEntity {
      */
     public void changeTag(PinTag tag) {
         this.tag = tag;
+    }
+
+    /**
+     * 장소 정보 변경 (Phase 2.8). placeName 검증은 Command 레이어에서 수행하므로 도메인은 단순 위임한다.
+     * {@code addressProvided=true} 일 때만 address 를 갱신한다 (키 없음 / JSON null / 빈 문자열은 미변경).
+     */
+    public void changePlaceInfo(String placeName, boolean addressProvided, String address) {
+        this.placeName = placeName;
+        if (addressProvided) {
+            this.address = address;
+        }
+    }
+
+    /**
+     * 좌표 변경 (Phase 2.10 FR-PIN-7). 범위 검증은 Command 레이어에서 수행하므로
+     * 도메인은 단순 위임한다. latitude/longitude 는 non-null (호출 전 Command 에서 보장).
+     */
+    public void changeCoordinate(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public boolean isDeleted() {

@@ -138,6 +138,7 @@ export default function RouletteResultContent({
           <span>다시</span>
         </BtnSub>
       </div>
+
     </div>
   );
 }

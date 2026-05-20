@@ -18,6 +18,8 @@ interface MapboxViewProps {
   token: string;
   styleUrl: string | null;
   onMarkerClick: (pinId: number) => void;
+  /** 지도 빈 공간(핀/클러스터 외) 클릭 시 호출. 핀 팝업 닫기 등에 사용. */
+  onMapBackgroundClick?: () => void;
   onMapReady?: (map: mapboxgl.Map) => void;
   /** viewport 갱신마다 현재 클러스터 존재 여부를 전달 (FR-MAP-5 안내 배너용). */
   onClustersChange?: (info: { hasCluster: boolean }) => void;
@@ -48,8 +50,31 @@ function inferMapErrorReason(err: unknown): MapLoadErrorReason {
   return "GENERIC";
 }
 
+/**
+ * 지도 자체는 정상 동작하는 비치명적 에러(개별 layer/tile/mesh 로딩 실패 등)는
+ * UI 전환을 일으키지 않는다. 콘솔 로깅으로만 처리.
+ */
+function isFatalMapError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return true;
+  const e = err as { status?: number; message?: string };
+  if (typeof e.status === "number" && (e.status === 429 || e.status === 402 || e.status === 401)) {
+    return true;
+  }
+  const message = typeof e.message === "string" ? e.message.toLowerCase() : "";
+  const nonFatalSignals = [
+    "does not exist in the map's style",
+    "is not iterable",
+    "meshes",
+    "tile",
+  ];
+  if (nonFatalSignals.some((sig) => message.includes(sig))) {
+    return false;
+  }
+  return true;
+}
+
 /** 운영에서는 NEXT_PUBLIC_MAPBOX_STYLE_URL 사용, 미설정 시 개발용 fallback (설계 §9). */
-const FALLBACK_STYLE = "mapbox://styles/mapbox/light-v11";
+const FALLBACK_STYLE = "mapbox://styles/mapbox/standard";
 
 /** 기본 중심 좌표 (서울 시청 부근). 핀이 없을 때만 사용. */
 const DEFAULT_CENTER: [number, number] = [127.0, 37.5];
@@ -72,19 +97,20 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
   el.style.border = "none";
 
   if (tag === "PLACE") {
-    el.style.width = "10px";
-    el.style.height = "10px";
+    el.style.width = "18px";
+    el.style.height = "18px";
     el.style.borderRadius = "50%";
     el.style.background = colors.pinPlace;
-    el.style.boxShadow = `0 1px 4px ${colors.pinPlace}80`;
+    el.style.border = "none";
+    el.style.boxShadow = `0 2px 6px ${colors.pinPlace}99`;
   } else {
-    // MEMORY: SVG heart, PinDot의 viewBox와 동일
-    el.style.width = "15px";
-    el.style.height = "13px";
+    // MEMORY: 표준 material 하트 SVG (viewBox 24x24 정사각형으로 종횡비 보정).
+    el.style.width = "22px";
+    el.style.height = "22px";
     el.style.borderRadius = "0";
     el.style.background = "transparent";
     el.style.boxShadow = "none";
-    el.innerHTML = `<svg width="15" height="13" viewBox="-8 -6 16 12" style="display:block;filter:drop-shadow(0 1px 3px ${colors.pinMemory}80);" aria-hidden="true"><path d="M 0 4.5 C -7 0 -8 -5 -3.5 -5 C -1.5 -5 0 -3 0 -3 C 0 -3 1.5 -5 3.5 -5 C 8 -5 7 0 0 4.5 Z" fill="${colors.pinMemory}"/></svg>`;
+    el.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" style="display:block;filter:drop-shadow(0 2px 4px ${colors.pinMemory}AA);" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="${colors.pinMemory}"/></svg>`;
   }
 }
 
@@ -139,6 +165,7 @@ export default function MapboxView({
   token,
   styleUrl,
   onMarkerClick,
+  onMapBackgroundClick,
   onMapReady,
   onClustersChange,
   onMapError,
@@ -152,6 +179,12 @@ export default function MapboxView({
   const onMarkerClickRef = useRef(onMarkerClick);
   const onClustersChangeRef = useRef(onClustersChange);
   const onMapErrorRef = useRef(onMapError);
+  const onMapBackgroundClickRef = useRef(onMapBackgroundClick);
+  // 마지막으로 부모에 알린 hasCluster 값. 변화가 있을 때만 콜백 호출 → setState 폭주 차단.
+  const lastHasClusterRef = useRef<boolean | null>(null);
+  // 자체 사용자 위치 마커 — geolocate 이벤트마다 좌표만 갱신.
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const userMarkerAddedRef = useRef(false);
 
   // 최신 prop을 ref로 유지 → marker element 이벤트 리스너 재바인딩 회피.
   useEffect(() => {
@@ -163,6 +196,9 @@ export default function MapboxView({
   useEffect(() => {
     onMapErrorRef.current = onMapError;
   }, [onMapError]);
+  useEffect(() => {
+    onMapBackgroundClickRef.current = onMapBackgroundClick;
+  }, [onMapBackgroundClick]);
   useEffect(() => {
     pinsRef.current = pins;
   }, [pins]);
@@ -277,7 +313,11 @@ export default function MapboxView({
       }
     }
 
-    onClustersChangeRef.current?.({ hasCluster: clusterCount > 0 });
+    const nextHasCluster = clusterCount > 0;
+    if (lastHasClusterRef.current !== nextHasCluster) {
+      lastHasClusterRef.current = nextHasCluster;
+      onClustersChangeRef.current?.({ hasCluster: nextHasCluster });
+    }
   }, []);
 
   // 1) 지도 인스턴스 생성/정리 (token/styleUrl 변경 시에만 재생성)
@@ -290,7 +330,9 @@ export default function MapboxView({
       pins.length > 0
         ? [Number(pins[0].longitude), Number(pins[0].latitude)]
         : DEFAULT_CENTER;
-    const initialZoom = pins.length > 0 ? 12 : 2;
+    // 초기 진입 시 globe(3D) 시점 유지: 핀이 있어도 줌을 낮춰서 시작한다.
+    // 사용자가 줌인하면 Mapbox가 자연스럽게 2D 머카토르로 전환된다.
+    const initialZoom = pins.length > 0 ? 3 : 2;
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
@@ -303,33 +345,118 @@ export default function MapboxView({
     map.on("style.load", () => {
       // 3D 지구본 fog (설계 §9)
       map.setFog({});
-      // styleUrl 미설정 fallback (light-v11) 사용 시 디자인 토큰 일부 보정.
-      // layer id가 mapbox 스타일 버전마다 다를 수 있으니 실패는 무시한다.
-      // 운영에서는 반드시 NEXT_PUBLIC_MAPBOX_STYLE_URL 로 커스텀 스타일을 사용해야 함 (설계 §9).
+      // styleUrl 미설정 fallback (Mapbox Standard) 사용 시 파스텔 페이디드 분위기 적용.
+      // 운영에서는 NEXT_PUBLIC_MAPBOX_STYLE_URL 로 커스텀 스타일을 권장 (설계 §9).
       if (!styleUrl) {
+        // Standard 스타일 config: faded(채도 낮춘 파스텔) + day.
+        // monochrome은 물/숲까지 회색으로 만들어 가독성이 떨어짐 → faded 유지.
         try {
+          map.setConfigProperty("basemap", "theme", "faded");
+        } catch {
+          /* 구버전 스타일/SDK — 무시 */
+        }
+        try {
+          map.setConfigProperty("basemap", "lightPreset", "day");
+        } catch {
+          /* 구버전 스타일/SDK — 무시 */
+        }
+        try {
+          map.setConfigProperty("basemap", "show3dObjects", true);
+        } catch {
+          /* 구버전 스타일/SDK — 무시 */
+        }
+        try {
+          map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
+        } catch {
+          /* 구버전 스타일/SDK — 무시 */
+        }
+      }
+      // 커스텀 스타일을 쓰는 경우의 디자인 토큰 보정 (layer id가 다를 수 있어 사전 검사).
+      if (!styleUrl) {
+        // Mapbox는 미존재 layer에 setPaintProperty 시 비동기 'error' 이벤트를 발생시키므로
+        // try/catch로 잡히지 않는다. getLayer로 사전 확인 후 호출한다.
+        if (map.getLayer("background")) {
           map.setPaintProperty("background", "background-color", colors.mapBg);
-        } catch {
-          /* layer 없음 - 무시 */
         }
-        try {
+        if (map.getLayer("water")) {
           map.setPaintProperty("water", "fill-color", colors.mapWater);
-        } catch {
-          /* layer 없음 - 무시 */
         }
-        try {
+        if (map.getLayer("landuse-park")) {
           map.setPaintProperty("landuse-park", "fill-color", colors.mapPark);
-        } catch {
-          /* layer 없음 - 무시 */
         }
       }
     });
 
+    // 지도 빈 공간 클릭 시 부모에 알림. marker click은 자체적으로 stopPropagation 처리되어
+    // 여기로 전파되지 않으므로 항상 "빈 공간 클릭"으로 안전하게 해석할 수 있다.
+    map.on("click", () => {
+      onMapBackgroundClickRef.current?.();
+    });
+
     map.on("load", () => {
       mapRef.current = map;
+      // 현재 위치 이동 컨트롤 (우측 하단). 기본 위치 도트/정확도 원은 모두 숨기고
+      // 자체 마커(user-location-marker)로 그린다 — 색/위치/크기 정확히 매칭.
+      const geo = new mapboxgl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showUserHeading: false,
+        showUserLocation: false,
+        showAccuracyCircle: false,
+      });
+      map.addControl(geo, "bottom-right");
+
+      const userEl = document.createElement("div");
+      userEl.className = "user-location-marker";
+      userEl.innerHTML =
+        '<div class="user-location-marker__pulse"></div>' +
+        '<div class="user-location-marker__dot"></div>';
+      const userMarker = new mapboxgl.Marker({
+        element: userEl,
+        anchor: "center",
+      });
+      userMarkerRef.current = userMarker;
+      geo.on("geolocate", (e: GeolocationPosition) => {
+        const lng = e.coords.longitude;
+        const lat = e.coords.latitude;
+        userMarker.setLngLat([lng, lat]);
+        if (!userMarkerAddedRef.current) {
+          userMarker.addTo(map);
+          userMarkerAddedRef.current = true;
+        }
+      });
       onMapReady?.(map);
       // 초기 렌더: clusterer가 이미 준비되어 있다면 즉시 표시.
       renderClusters();
+
+      // 초기 진입 시 globe 시점 → 현재 위치로 부드러운 비행.
+      // 권한 거부/실패 시는 그대로 globe 유지.
+      if (typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lng = pos.coords.longitude;
+            const lat = pos.coords.latitude;
+            map.flyTo({
+              center: [lng, lat],
+              zoom: 15,
+              pitch: 0,
+              bearing: 0,
+              speed: 0.9,
+              curve: 1.5,
+              essential: true,
+            });
+            // GeolocateControl trigger 없이 진입한 경우에도 자체 마커 표시.
+            if (userMarkerRef.current && !userMarkerAddedRef.current) {
+              userMarkerRef.current.setLngLat([lng, lat]).addTo(map);
+              userMarkerAddedRef.current = true;
+            }
+          },
+          () => {
+            /* 권한 거부/실패 — globe 유지 */
+          },
+          { enableHighAccuracy: true, timeout: 5000 },
+        );
+      }
     });
 
     const handleViewportChange = () => {
@@ -341,6 +468,7 @@ export default function MapboxView({
     map.on("error", (e) => {
       const cause = e?.error ?? e;
       console.error("Mapbox error:", cause);
+      if (!isFatalMapError(cause)) return;
       const reason = inferMapErrorReason(cause);
       onMapErrorRef.current?.(reason);
     });
@@ -352,6 +480,11 @@ export default function MapboxView({
     return () => {
       map.off("moveend", handleViewportChange);
       map.off("zoomend", handleViewportChange);
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+        userMarkerRef.current = null;
+        userMarkerAddedRef.current = false;
+      }
       for (const m of pinCacheAtMount.values()) {
         m.remove();
       }

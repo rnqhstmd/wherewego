@@ -18,10 +18,13 @@
 | FR-PLC-5 | 결과 1건/복수/0건 분기 처리 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — sealed `PlaceSearchOutcome` Single/Multiple/Empty |
 | FR-PLC-6 | 좌표 정규화 (lat/lng 통일) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
 | FR-PLC-7 | Gemini 2.0 Flash 장소명 추출 (regex 대체) | ✅ | [#15](https://github.com/rnqhstmd/wherewego/pull/15) — `GeminiPlaceClient` + `CaptionCleaner` 신규, `PlaceNameExtractor` 삭제. `x-goog-api-key` 헤더 인증 + 캡션 500자 가드 + Gemini 호출 직전 데드라인 가드 |
-| FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ⚠️ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — 재기동 토글, `@RefreshScope`는 Phase 후속 |
+| FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ✅ | [#18](https://github.com/rnqhstmd/wherewego/pull/18) — Phase 2.6 PR-B: `PlaceProperties` `@RefreshScope` + Actuator `/refresh` (localhost 제한). record→class 전환으로 CGLIB 호환. `GeminiPlaceClient` sub-record 캡처 제거로 매 호출 재평가 |
+| FR-PLC-9 | Google Places 메트릭+캐시+호출량 가시화 (Gemini 패턴 복제: outcome별 Counter/Timer + Caffeine 24h 응답 캐시) | ✅ | [#29](https://github.com/rnqhstmd/wherewego/pull/29) — Phase 2.11 PR-B. `GooglePlacesMetrics`/`GooglePlacesResponseCacheService` 신규. SHA-256(keyword) 24h Caffeine + outcome별 Counter/Timer. [[observability]] FR-OBS-8/9 동시 충족 |
+| FR-PLC-10 | Instagram scraper 3-stage 최종 실패율 추적 + 차단 감지 알림 (1h 윈도우, 50% 임계값 + 5분 쿨다운 → `SlackNotifier.notifyFailure`) | ✅ | [#29](https://github.com/rnqhstmd/wherewego/pull/29) — Phase 2.11 PR-B. `InstagramBlockedRateTracker`(synchronized 단일 락) + `ThresholdMonitorScheduler` 통합. BLOCKED 확정 시 `recordBlocked(url)`, finally에서 `recordAttempt()`. [[observability]] FR-OBS-11 동시 충족 |
 
 ## 후속 작업
 
-- **Phase 2.5**: `PlaceNameExtractor`를 `GeminiPlaceClient` + `CaptionCleaner`로 교체 ([gemini-migration.md](gemini-migration.md))
+- **Phase 2.5 완료**: `PlaceNameExtractor` → `GeminiPlaceClient` + `CaptionCleaner` 교체 ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places API 비동기 폴백 — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
-- **Phase 후속**: `@RefreshScope` + Spring Cloud Config (FR-PLC-8 즉시 토글)
+- **Phase 2.6 PR-B 완료**: `@RefreshScope` + Actuator `/refresh` (FR-PLC-8 즉시 토글) — [#18](https://github.com/rnqhstmd/wherewego/pull/18)
+- **Phase 2.7 완료**: `GeminiPlaceClient` BASE_URL 외부화(`PlaceProperties.Gemini.baseUrl` + yaml `base-url` 기본값 보존) + WireMock 경량 단위 5케이스(200/null/429/500/timeout, 캐시 미적재 verify 포함) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)

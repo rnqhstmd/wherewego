@@ -35,15 +35,31 @@ export default function MemoTagPanelContent({
   const [tag, setTag] = useState<PinTagType | null>(null);
   const [memo, setMemo] = useState("");
   const [placeName, setPlaceName] = useState(origin.placeName);
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const effectivePlaceName = origin.editable ? placeName.trim() : origin.placeName;
-  const canSubmit = !!tag && effectivePlaceName.length > 0 && !pending;
+  // 항상 사용자가 입력한(또는 초기값 그대로의) placeName을 사용 — 검색 진입에서도 편집 허용.
+  const effectivePlaceName = placeName.trim() || origin.placeName || "(이름 없음)";
+  const canSubmit =
+    !!tag && effectivePlaceName.length > 0 && !pending && urlError === null;
+
+  const validateUrl = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+    if (!trimmed.startsWith("https://")) return "올바른 URL 형식이 아닙니다";
+    return null;
+  };
+
+  const handleInstagramUrlChange = (value: string) => {
+    setInstagramUrl(value);
+    setUrlError(validateUrl(value));
+  };
 
   const handleSave = () => {
     if (!tag) return;
-    if (origin.editable && placeName.trim().length === 0) {
+    if (placeName.trim().length === 0) {
       setError("장소 이름을 입력해주세요");
       return;
     }
@@ -53,6 +69,7 @@ export default function MemoTagPanelContent({
         address: origin.address,
         latitude: origin.latitude,
         longitude: origin.longitude,
+        instagramUrl: instagramUrl.trim() || null,
         memo: memo.trim() || null,
         tag,
       });
@@ -99,17 +116,13 @@ export default function MemoTagPanelContent({
       </div>
       <HLine style={{ marginBottom: 14 }} />
 
-      {origin.editable && (
-        <>
-          <PanelLabel>장소 이름</PanelLabel>
-          <Input
-            placeholder="예: 우리집"
-            value={placeName}
-            onChange={setPlaceName}
-            style={{ marginBottom: 16 }}
-          />
-        </>
-      )}
+      <PanelLabel>장소 이름</PanelLabel>
+      <Input
+        placeholder="예: 우리집"
+        value={placeName}
+        onChange={setPlaceName}
+        style={{ marginBottom: 16 }}
+      />
 
       <PanelLabel>태그</PanelLabel>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -147,6 +160,26 @@ export default function MemoTagPanelContent({
           outline: "none",
         }}
       />
+
+      <PanelLabel>Instagram URL (선택)</PanelLabel>
+      <Input
+        placeholder="https://instagram.com/..."
+        value={instagramUrl}
+        onChange={handleInstagramUrlChange}
+        style={{ marginBottom: urlError ? 6 : 16 }}
+      />
+      {urlError && (
+        <div
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            color: colors.pinNew,
+            marginBottom: 16,
+          }}
+        >
+          {urlError}
+        </div>
+      )}
 
       {error && (
         <div

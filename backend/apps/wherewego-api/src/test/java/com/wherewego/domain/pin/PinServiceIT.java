@@ -170,7 +170,8 @@ class PinServiceIT {
         PinTag originalTag = pin.getTag();
 
         // act
-        PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동", false, null);
+        PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동", false, null,
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -188,7 +189,8 @@ class PinServiceIT {
         pinJpaRepository.saveAndFlush(pin);
 
         // act
-        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY);
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert
@@ -207,7 +209,8 @@ class PinServiceIT {
         pinJpaRepository.saveAndFlush(pin);
 
         // act : 빈 문자열 전송 → 잠금 해제
-        PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null);
+        PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null,
+                false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert : DB 값도 NULL
@@ -227,7 +230,8 @@ class PinServiceIT {
         Pin pin = savePin(userAId, "https://www.instagram.com/p/U4/");
 
         // act : 수동 메모 저장
-        PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동 메모", false, null);
+        PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동 메모", false, null,
+                false, null, false, null, false, null, null);
         pinService.updatePin(userAId, groupId, pin.getId(), cmd);
 
         // assert : AUTO 메모 시도는 차단
@@ -242,7 +246,8 @@ class PinServiceIT {
         Pin pin = savePin(userAId, "https://www.instagram.com/p/U5/");
 
         // act & assert
-        PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null);
+        PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null,
+                false, null, false, null, false, null, null);
         assertThatThrownBy(() -> pinService.updatePin(userCId, groupId, pin.getId(), cmd))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
@@ -257,10 +262,99 @@ class PinServiceIT {
         pinJpaRepository.saveAndFlush(pin);
 
         // act & assert
-        PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null);
+        PinUpdateCommand cmd = PinUpdateCommand.of(true, "x", false, null,
+                false, null, false, null, false, null, null);
         assertThatThrownBy(() -> pinService.updatePin(userAId, groupId, pin.getId(), cmd))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.PIN_NOT_FOUND);
+    }
+
+    @DisplayName("updatePin - placeName 만 전달하면 placeName 만 갱신되고 address 는 유지된다 (Phase 2.8 AC-6).")
+    @Test
+    void updatePin_placeNameOnly_updatesPlaceNameAndKeepsAddress() {
+        // arrange
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/U7/");
+        String originalAddress = pin.getAddress();
+
+        // act
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                true, "새 장소", false, null, false, null, null);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+
+        // assert
+        assertThat(result.placeName()).isEqualTo("새 장소");
+        assertThat(result.address()).isEqualTo(originalAddress);
+
+        // DB 영속 확인
+        Pin reloaded = pinJpaRepository.findById(pin.getId()).orElseThrow();
+        assertThat(reloaded.getPlaceName()).isEqualTo("새 장소");
+    }
+
+    @DisplayName("updatePin - 비-멤버가 placeName 수정 시도 시 GROUP_NOT_MEMBER 를 반환한다 (Phase 2.8 AC-9).")
+    @Test
+    void updatePin_placeNameByNonMember_throwsGroupNotMember() {
+        // arrange
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/U8/");
+
+        // act & assert : userC 는 비멤버
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                true, "새 장소", false, null, false, null, null);
+        assertThatThrownBy(() -> pinService.updatePin(userCId, groupId, pin.getId(), cmd))
+                .isInstanceOf(CoreException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
+    }
+
+    @DisplayName("updatePin - 등록자가 아닌 활성 멤버도 placeName 을 수정할 수 있다 (Phase 2.8 BR-3).")
+    @Test
+    void updatePin_placeNameByAnotherActiveMember_succeeds() {
+        // arrange : userA 가 등록, userB 가 수정
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/U9/");
+
+        // act
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                true, "userB 수정", false, null, false, null, null);
+        PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd);
+
+        // assert
+        assertThat(result.placeName()).isEqualTo("userB 수정");
+    }
+
+    @DisplayName("updatePin - address 만 전달하면 address 만 갱신되고 placeName 은 유지된다 (Phase 2.8 AC-6).")
+    @Test
+    void updatePin_addressOnly_updatesAddressOnly() {
+        // arrange
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/UAO/");
+        String originalPlaceName = pin.getPlaceName();
+
+        // act
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                false, null, true, "새 주소", false, null, null);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+
+        // assert
+        assertThat(result.address()).isEqualTo("새 주소");
+        assertThat(result.placeName()).isEqualTo(originalPlaceName);
+
+        // DB 영속 확인
+        Pin reloaded = pinJpaRepository.findById(pin.getId()).orElseThrow();
+        assertThat(reloaded.getAddress()).isEqualTo("새 주소");
+        assertThat(reloaded.getPlaceName()).isEqualTo(originalPlaceName);
+    }
+
+    @DisplayName("updatePin - placeName 과 address 를 동시에 수정하면 둘 다 갱신된다 (Phase 2.8 동시 수정).")
+    @Test
+    void updatePin_placeNameAndAddress_updatesBoth() {
+        // arrange
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/UA/");
+
+        // act
+        PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                true, "새 장소", true, "새 주소", false, null, null);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+
+        // assert
+        assertThat(result.placeName()).isEqualTo("새 장소");
+        assertThat(result.address()).isEqualTo("새 주소");
     }
 
     @DisplayName("softDeletePin - 삭제 후 listGroupPins 에서 미반환된다 (AC-16).")
@@ -318,5 +412,77 @@ class PinServiceIT {
         assertThatThrownBy(() -> pinService.softDeletePin(userCId, groupId, pin.getId()))
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
+    }
+
+    @DisplayName("listGroupPinsPaged - 25개 핀에서 page=0/size=10 → items 10, totalCount 25, hasNext true.")
+    @Test
+    void listGroupPinsPaged_returnsCorrectSliceAndTotal() {
+        // arrange : 25개 핀
+        for (int i = 0; i < 25; i++) {
+            savePin(userAId, "https://www.instagram.com/p/PG" + i + "/");
+        }
+
+        // act
+        PinListResult result = pinService.listGroupPinsPaged(userAId, groupId, null, 0, 10);
+
+        // assert
+        assertThat(result.items()).hasSize(10);
+        assertThat(result.totalCount()).isEqualTo(25L);
+        assertThat(result.hasNext()).isTrue();
+    }
+
+    @DisplayName("listGroupPinsPaged - 25개 핀에서 마지막 페이지(page=2/size=10) → items 5, hasNext false.")
+    @Test
+    void listGroupPinsPaged_lastPage_hasNextFalse() {
+        // arrange : 25개 핀
+        for (int i = 0; i < 25; i++) {
+            savePin(userAId, "https://www.instagram.com/p/PL" + i + "/");
+        }
+
+        // act
+        PinListResult result = pinService.listGroupPinsPaged(userAId, groupId, null, 2, 10);
+
+        // assert
+        assertThat(result.items()).hasSize(5);
+        assertThat(result.totalCount()).isEqualTo(25L);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @DisplayName("listGroupPinsPaged - 비활성(비멤버) 사용자는 GROUP_NOT_MEMBER 를 반환한다.")
+    @Test
+    void listGroupPinsPaged_nonMember_throwsGroupNotMember() {
+        // act & assert : userC 는 그룹 비멤버
+        assertThatThrownBy(() -> pinService.listGroupPinsPaged(userCId, groupId, null, 0, 10))
+                .isInstanceOf(CoreException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.GROUP_NOT_MEMBER);
+    }
+
+    @DisplayName("listGroupPinsPaged - tag 필터는 count 와 items 모두 반영된다.")
+    @Test
+    void listGroupPinsPaged_withTagFilter() {
+        // arrange : PLACE 15 + MEMORY 10
+        for (int i = 0; i < 15; i++) {
+            savePin(userAId, "https://www.instagram.com/p/TPF" + i + "/");
+        }
+        for (int i = 0; i < 10; i++) {
+            Pin memory = savePin(userBId, "https://www.instagram.com/p/TMF" + i + "/");
+            memory.changeTag(PinTag.MEMORY);
+            pinJpaRepository.saveAndFlush(memory);
+        }
+
+        // act
+        PinListResult placeOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.PLACE, 0, 10);
+        PinListResult memoryOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.MEMORY, 0, 10);
+
+        // assert : count 가 태그 필터를 반영
+        assertThat(placeOnly.totalCount()).isEqualTo(15L);
+        assertThat(placeOnly.items()).hasSize(10);
+        assertThat(placeOnly.hasNext()).isTrue();
+        assertThat(placeOnly.items()).allMatch(s -> s.tag() == PinTag.PLACE);
+
+        assertThat(memoryOnly.totalCount()).isEqualTo(10L);
+        assertThat(memoryOnly.items()).hasSize(10);
+        assertThat(memoryOnly.hasNext()).isFalse();
+        assertThat(memoryOnly.items()).allMatch(s -> s.tag() == PinTag.MEMORY);
     }
 }

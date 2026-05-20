@@ -3,6 +3,7 @@ package com.wherewego.interfaces.api.pin;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wherewego.domain.pin.MemoSource;
 import com.wherewego.domain.pin.PinCreateCommand;
+import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
@@ -19,6 +20,7 @@ public final class PinV1Dto {
             Long id,
             Long groupId,
             Long createdBy,
+            String createdByNickname,
             String placeName,
             String address,
             BigDecimal latitude,
@@ -34,6 +36,7 @@ public final class PinV1Dto {
                     s.id(),
                     s.groupId(),
                     s.createdBy(),
+                    s.createdByNickname(),
                     s.placeName(),
                     s.address(),
                     s.latitude(),
@@ -47,9 +50,23 @@ public final class PinV1Dto {
         }
     }
 
-    public record PinListResponse(List<PinSummaryResponse> items) {
+    public record PinListResponse(
+            List<PinSummaryResponse> items,
+            Long totalCount,
+            Boolean hasNext
+    ) {
         public static PinListResponse from(List<PinSummary> list) {
-            return new PinListResponse(list.stream().map(PinSummaryResponse::from).toList());
+            return new PinListResponse(
+                    list.stream().map(PinSummaryResponse::from).toList(),
+                    null,
+                    null);
+        }
+
+        public static PinListResponse fromPaged(PinListResult result) {
+            return new PinListResponse(
+                    result.items().stream().map(PinSummaryResponse::from).toList(),
+                    result.totalCount(),
+                    result.hasNext());
         }
     }
 
@@ -126,8 +143,16 @@ public final class PinV1Dto {
 
     /**
      * 부분 수정 요청. {@link JsonNode} 로 "키 없음 vs JSON null vs 빈 문자열" 을 구분한다 (Q2).
+     *
+     * <p>Phase 2.8: placeName/address 부분 수정 지원. address 의 빈 문자열은 "안전 무시"(미변경)으로
+     * 정규화하여 클라이언트가 의도치 않은 입력을 보냈을 때도 안전하게 처리한다 (Q5).</p>
+     *
+     * <p>Phase 2.10: 좌표(latitude/longitude) 부분 수정 지원. JsonNode 대신 BigDecimal 직접 매핑
+     * (CreatePinRequest 대칭). 한 쪽만 전달 시 PIN_COORDINATE_INVALID.</p>
      */
-    public record UpdatePinRequest(JsonNode memo, JsonNode tag) {
+    public record UpdatePinRequest(JsonNode memo, JsonNode tag,
+                                   JsonNode placeName, JsonNode address,
+                                   BigDecimal latitude, BigDecimal longitude) {
 
         public PinUpdateCommand toCommand() {
             boolean memoProvided = memo != null && !memo.isNull();
@@ -150,7 +175,44 @@ public final class PinV1Dto {
                     throw new CoreException(ErrorType.PIN_TAG_INVALID);
                 }
             }
-            return PinUpdateCommand.of(memoProvided, memoValue, tagProvided, tagValue);
+
+            boolean placeNameProvided = placeName != null && !placeName.isNull();
+            String placeNameValue = null;
+            if (placeNameProvided) {
+                if (!placeName.isTextual()) {
+                    throw new CoreException(ErrorType.PIN_PLACE_NAME_INVALID);
+                }
+                placeNameValue = placeName.asText().trim();
+            }
+
+            boolean addressProvided = address != null && !address.isNull();
+            String addressValue = null;
+            if (addressProvided) {
+                if (!address.isTextual()) {
+                    throw new CoreException(ErrorType.PIN_ADDRESS_INVALID);
+                }
+                String trimmed = address.asText().trim();
+                if (trimmed.isEmpty()) {
+                    // Q5: 빈 문자열은 미변경으로 안전 무시
+                    addressProvided = false;
+                } else {
+                    addressValue = trimmed;
+                }
+            }
+
+            // Phase 2.10: 좌표 단일 플래그 처리
+            boolean coordinateProvided;
+            if (latitude == null && longitude == null) {
+                coordinateProvided = false;
+            } else if (latitude != null && longitude != null) {
+                coordinateProvided = true;
+            } else {
+                throw new CoreException(ErrorType.PIN_COORDINATE_INVALID);
+            }
+
+            return PinUpdateCommand.of(memoProvided, memoValue, tagProvided, tagValue,
+                    placeNameProvided, placeNameValue, addressProvided, addressValue,
+                    coordinateProvided, latitude, longitude);
         }
     }
 

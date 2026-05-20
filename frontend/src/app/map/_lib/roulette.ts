@@ -11,7 +11,7 @@ export interface LatLng {
   lng: number;
 }
 
-export const ROULETTE_RADIUS_STEPS_KM = [1, 5, 10] as const;
+export const ROULETTE_RADIUS_STEPS_KM = [10] as const;
 export type RouletteRadiusKm = (typeof ROULETTE_RADIUS_STEPS_KM)[number];
 
 /**
@@ -121,15 +121,21 @@ export function pickRandomWithExpansion(
  * "다시" 동작 (FR-REC-6).
  *
  * 마지막 성공한 후보 풀에서 같은 radius로 무작위 재선택.
- * 직전 핀 제외 옵션은 PRD 제외 범위라 적용하지 않음 (이전 핀이 다시 나올 수 있음).
+ * prevPinId가 주어지고 후보가 2개 이상이면 직전 핀을 제외하여 같은 곳만 반복되는 것을 방지.
+ * 후보가 1개면 그대로 같은 핀 반환 (선택지 없음).
  */
 export function reRollFromSamePool(
   center: LatLng,
   candidates: PinSummaryResponse[],
   radiusKm: RouletteRadiusKm,
+  prevPinId?: number,
 ): RouletteOutcome {
   if (candidates.length === 0) return { kind: "exhausted" };
-  const picked = candidates[Math.floor(Math.random() * candidates.length)];
+  const pool =
+    prevPinId !== undefined && candidates.length > 1
+      ? candidates.filter((p) => p.id !== prevPinId)
+      : candidates;
+  const picked = pool[Math.floor(Math.random() * pool.length)];
   const distanceKm = haversineKm(center, {
     lat: Number(picked.latitude),
     lng: Number(picked.longitude),

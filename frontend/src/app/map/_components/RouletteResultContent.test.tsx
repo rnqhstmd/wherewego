@@ -1,0 +1,58 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import RouletteResultContent from "./RouletteResultContent";
+import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
+
+function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryResponse {
+  return {
+    id: 1,
+    groupId: 1,
+    createdBy: 1,
+    placeName: "테스트 장소",
+    address: "서울 강남구",
+    latitude: 37.5,
+    longitude: 127.0,
+    instagramUrl: null,
+    memo: null,
+    memoSource: null,
+    tag: "PLACE" as PinTag,
+    createdAt: "2025-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("RouletteResultContent", () => {
+  it("(AC-17) MEMORY 토글 클릭 시 onIncludeMemoryChange(true) 호출", async () => {
+    const onChange = vi.fn();
+    render(
+      <RouletteResultContent
+        pin={makePin()}
+        distanceKm={1.5}
+        includeMemory={false}
+        onIncludeMemoryChange={onChange}
+        onShowOnMap={vi.fn()}
+        onReRoll={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("추억 핀도 포함"));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("(AC-18) distanceKm=0.8 → '800m', 1.5 → '1.5km' 렌더", () => {
+    const pin = makePin();
+    const baseProps = {
+      pin,
+      includeMemory: false,
+      onIncludeMemoryChange: vi.fn(),
+      onShowOnMap: vi.fn(),
+      onReRoll: vi.fn(),
+    };
+    const { rerender } = render(
+      <RouletteResultContent {...baseProps} distanceKm={0.8} />,
+    );
+    expect(screen.getByText(/800\s*m/)).toBeInTheDocument();
+    rerender(<RouletteResultContent {...baseProps} distanceKm={1.5} />);
+    expect(screen.getByText(/1\.5\s*km/)).toBeInTheDocument();
+  });
+});

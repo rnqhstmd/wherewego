@@ -23,18 +23,27 @@ public final class ChatbotV1Dto {
     public record SkillResponse(String version, Template template, Boolean useCallback) {
 
         public static SkillResponse simple(String text) {
+            return simple(text, null);
+        }
+
+        public static SkillResponse simple(String text, List<QuickReply> quickReplies) {
             Map<String, Object> output = Map.of(
                     "simpleText", Map.of("text", text)
             );
-            return new SkillResponse("2.0", new Template(List.of(output)), null);
+            return new SkillResponse("2.0", new Template(List.of(output), quickReplies), null);
         }
 
         public static SkillResponse cards(List<Map<String, Object>> outputs) {
-            return new SkillResponse("2.0", new Template(outputs), null);
+            return cards(outputs, null);
+        }
+
+        public static SkillResponse cards(List<Map<String, Object>> outputs,
+                                          List<QuickReply> quickReplies) {
+            return new SkillResponse("2.0", new Template(outputs, quickReplies), null);
         }
 
         public static SkillResponse empty() {
-            return new SkillResponse("2.0", new Template(List.of()), null);
+            return new SkillResponse("2.0", new Template(List.of(), null), null);
         }
 
         public static SkillResponse useCallback(String waitText) {
@@ -43,11 +52,28 @@ public final class ChatbotV1Dto {
             Map<String, Object> output = Map.of(
                     "simpleText", Map.of("text", waitText)
             );
-            return new SkillResponse("2.0", new Template(List.of(output)), Boolean.TRUE);
+            return new SkillResponse("2.0", new Template(List.of(output), null), Boolean.TRUE);
         }
     }
 
-    public record Template(List<Map<String, Object>> outputs) { }
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Template(List<Map<String, Object>> outputs, List<QuickReply> quickReplies) { }
+
+    /**
+     * 카카오 i 오픈빌더 QuickReply (응답 하단 빠른 답장 버튼).
+     * action="block"이면 blockId 사용, action="message"이면 messageText 사용.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record QuickReply(String label, String action, String blockId, String messageText) {
+
+        public static QuickReply block(String label, String blockId) {
+            return new QuickReply(label, "block", blockId, null);
+        }
+
+        public static QuickReply message(String label, String messageText) {
+            return new QuickReply(label, "message", null, messageText);
+        }
+    }
 
     /**
      * 카카오 i 오픈빌더 BasicCard 컴포넌트. 직렬화 결과는 기존 Map.of 구조와 동일해야 한다.

@@ -38,15 +38,64 @@
   --color-hairline: #e8e4de;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 앱 전체 light 디자인이므로 다크 모드 자동 감지는 사용하지 않는다.
+   prefers-color-scheme로 body가 검정이 되면 좁은 화면 양쪽이 어둡게 보이는 문제 발생. */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* mapbox-gl 기본 위치 도트/정확도 원을 모두 숨기고, MapboxView가 자체 마커로 그린다.
+   기본 도트는 색·크기·위치를 정확히 맞추기 어려워 직접 div 마커로 대체. */
+.mapboxgl-user-location-dot,
+.mapboxgl-user-location-accuracy-circle {
+  display: none !important;
+}
+
+/* 자체 사용자 위치 마커: 진한 회색 작은 도트 + 부드러운 회색 펄스 */
+.user-location-marker {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.user-location-marker__dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: #555555;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+}
+.user-location-marker__pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(85, 85, 85, 0.35);
+  transform: translate(-50%, -50%) scale(0.6);
+  animation: user-location-pulse 2.4s ease-out infinite;
+}
+@keyframes user-location-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
 }

@@ -93,20 +93,37 @@ export function useGeolocation(): UseGeolocationResult {
       return;
     }
     setState({ status: "prompting" });
+
+    const handleSuccess = (pos: GeolocationPosition) => {
+      setState({
+        status: "granted",
+        coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+      });
+    };
+
+    // 1차 실패 → 다른 옵션으로 2차 시도. macOS CoreLocation의 일시적
+    // kCLErrorLocationUnknown (code=2)은 enableHighAccuracy true + 긴 timeout으로
+    // 재시도하면 성공하는 경우가 많다.
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        setState({
-          status: "granted",
-          coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-        }),
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
+      handleSuccess,
+      (firstErr) => {
+        if (firstErr.code === firstErr.PERMISSION_DENIED) {
           setState({ status: "denied" });
-        } else if (err.code === err.TIMEOUT) {
-          setState({ status: "timeout" });
-        } else {
-          setState({ status: "unavailable" });
+          return;
         }
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          (finalErr) => {
+            if (finalErr.code === finalErr.PERMISSION_DENIED) {
+              setState({ status: "denied" });
+            } else if (finalErr.code === finalErr.TIMEOUT) {
+              setState({ status: "timeout" });
+            } else {
+              setState({ status: "unavailable" });
+            }
+          },
+          { timeout: 15000, enableHighAccuracy: true, maximumAge: 60000 },
+        );
       },
       { timeout: 8000, enableHighAccuracy: false },
     );

@@ -27,4 +27,9 @@ public class BotUserMappingRepositoryImpl implements BotUserMappingRepository {
     public Optional<BotUserMapping> findByUserId(Long userId) {
         return jpaRepository.findByUserId(userId);
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        jpaRepository.deleteByUserId(userId);
+    }
 }

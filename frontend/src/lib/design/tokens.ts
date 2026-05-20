@@ -28,7 +28,7 @@ export const colors = {
 export const fonts = {
   serif: "var(--font-serif)", // Noto Serif KR
   emo: "var(--font-emo)", // Gowun Batang
-  sans: "var(--font-sans)", // Pretendard (CDN)
+  sans: "var(--font-sans)", // Pretendard (self-host)
   mono: "var(--font-mono)", // JetBrains Mono
 } as const;
 

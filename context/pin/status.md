@@ -14,14 +14,17 @@
 | FR-PIN-1 | 핀 등록 (그룹 스코프, tag 필수) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — 챗봇 자동 등록 경로 (`PinService.registerFromInstagram/registerFromSelection`, tag=PLACE 고정) |
 | FR-PIN-2 | 동일 group_id + instagram_url 중복 방지 (UNIQUE) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — DB `uq_pin_group_instagram` + `DataIntegrityViolationException` catch + `PLC_DUPLICATE_PIN` 응답 |
 | FR-PIN-3 | 핀 목록 조회 (그룹별, tag 필터 옵션) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.listGroupPins` + `GET /api/v1/groups/{groupId}/pins?tag=` + Next.js `/pins` UI |
-| FR-PIN-4 | 핀 수정 (memo, tag 변경 가능) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.updatePin` + `PATCH .../pins/{pinId}` (JsonNode 부분 수정, 빈 메모 잠금 해제, PESSIMISTIC_WRITE) |
+| FR-PIN-4 | 핀 수정 (memo, tag, placeName, address 변경 가능) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9), [#21](https://github.com/rnqhstmd/wherewego/pull/21) — `PinService.updatePin` + `PATCH .../pins/{pinId}` (JsonNode 부분 수정, 빈 메모 잠금 해제, PESSIMISTIC_WRITE). Phase 2.8에서 `PinUpdateCommand` 4→8 필드 확장 + placeName(1~200자 필수)/address(≤500자, 빈 문자열은 미변경 정규화) 분기 추가 |
 | FR-PIN-5 | 핀 삭제 (활성 GroupMember만) | ✅ | [#9](https://github.com/rnqhstmd/wherewego/pull/9) — `PinService.softDeletePin` + `DELETE .../pins/{pinId}` (204, BaseEntity.delete 멱등, 등록자 무관) |
 | FR-PIN-6 | 핀 직접 등록 웹 API (검색 결과 또는 십자선 좌표 + tag 선택 + 메모) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `POST /api/v1/groups/{groupId}/pins` (`PinService.addPin` + `Pin.createFromUser` + `PinCreateCommand`). `@Valid` Bean Validation + `toCommand()` 이중 검증, UNIQUE 충돌 → `PLC_DUPLICATE_PIN` 변환, `requireActiveMembership` 권한 검증 |
+| FR-PIN-7 | 핀 장소 좌표 수정 (백엔드 API) | ✅ | [#24](https://github.com/rnqhstmd/wherewego/pull/24) — `PATCH .../pins/{pinId}` 에 `latitude/longitude` BigDecimal 직접 필드 + `PinUpdateCommand.coordinateProvided` 단일 플래그, 범위 검증, 한쪽만 전달 시 `PIN_COORDINATE_INVALID`(400) |
+| FR-PIN-8 | 핀 장소 좌표 수정 (지도 picker UX) | ✅ | [#24](https://github.com/rnqhstmd/wherewego/pull/24) — `PinPopup` ⋮ "좌표 수정" 진입점 → `PinCoordinateEditPicker` 시트 → `useOptimistic patch` 즉시 갱신 + 실패 시 자동 롤백 + 인라인 에러 |
 | ~~FR-PIN-X~~ | ~~방문 인증 토글~~ — **제거됨** | — | |
 
 ## 후속 작업
 
-- 장소 정보(`place_name`, `address`, 좌표) 수정 — 후속 미정
-- 삭제된 핀 복원 — 후속 미정
-- 페이지네이션 — 핀 1k+ 도달 시 검토 (현재 MVP 200건 규모로 미적용)
-- 핀 추가 시 `instagramUrl` 명시 입력 UI — 현재 웹 등록은 `instagramUrl=null`이라 UNIQUE 중복 차단 미발동. 사용자가 인스타 URL을 직접 첨부할 수 있는 UI 추가 검토
+- **Phase 2.8 완료**: 웹 등록 시 `instagramUrl` 명시 입력 UI (`MemoTagPanelContent` 공통, 검색·picker 양 경로 자동 커버). 클라이언트 `https://` 시작 검증 + 백엔드 `Pin.validateInstagramUrl` 양방향 보안 검증 + `PinCard.tsx` 조건부 href — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
+- **Phase 2.8 완료**: 핀 장소 정보(`place_name`, `address`) 텍스트 수정 — `PinUpdateCommand` 확장 + `PinEditDialog` 장소명/주소 편집 필드 (순서: 장소명 → 주소 → 태그 → 메모) + `PinListClient.applyPatch` 낙관적 반영 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
+- **Phase 2.8 완료**: map ⋮ 메뉴 삭제 액션 — `PinPopup` footer에 HLine + 우측 정렬 텍스트 버튼, `PinDeleteConfirm` 재사용, `useOptimistic` reducer 일반화(`patch|remove`)로 마커 즉시 제거 + 실패 시 자동 롤백 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
+- **Phase 2.10 완료**: 핀 장소 좌표 수정 — `PinUpdateCommand` 단일 `coordinateProvided` 플래그 + `latitude/longitude` BigDecimal 2필드 추가(8→11), `Pin.changeCoordinate` 도메인 메서드 신설, `PinV1Dto.UpdatePinRequest` 좌표를 BigDecimal 직접 매핑(CreatePinRequest 와 대칭), `PinPopup` ⋮ "좌표 수정" 진입점 + 신규 `PinCoordinateEditPicker` 시트(기존 picker 흐름 무영향), `useOptimistic patch` 좌표 반영(reducer 변경 없음), 진입 시 `flyTo` 로 마커 깜빡임 최소화. 삭제 핀 복원 기능은 제외(사용자 결정) — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
+- **Phase 2.9 완료**: 핀 목록 API 페이지네이션 계약 — `GET /api/v1/groups/{groupId}/pins?page=&size=` + `totalCount`/`hasNext` 선택 응답 필드, 하위 호환 유지(파라미터 미전달 시 `{items}` 그대로). 부분 전달은 `PIN_PAGE_PARAM_INVALID`(400), `size>100`은 `PIN_PAGE_SIZE_EXCEEDED`(400), 비숫자 입력도 동일 매핑. `PinService.listGroupPinsPaged` 신규 + `PinRepository` 포트에 paged/count 메서드 4개 추가(Spring 의존 미노출). `/pins` UI 페이지네이션 컨트롤은 MVP 단계 ROI 낮아 본 Phase 제외(필요 시점에 별도 작업) — [#22](https://github.com/rnqhstmd/wherewego/pull/22)

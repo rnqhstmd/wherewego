@@ -27,6 +27,7 @@ import ActionBar from "./_components/ActionBar";
 import DesktopSidebar from "./_components/DesktopSidebar";
 import SearchPanelContent from "./_components/SearchPanelContent";
 import AddPinPickerContent from "./_components/AddPinPickerContent";
+import PinCoordinateEditPicker from "./_components/PinCoordinateEditPicker";
 import CrosshairOverlay from "./_components/CrosshairOverlay";
 import MemoTagPanelContent from "./_components/MemoTagPanelContent";
 import RouletteSpinContent from "./_components/RouletteSpinContent";
@@ -43,7 +44,14 @@ import {
   reRollFromSamePool,
   type RouletteRadiusKm,
 } from "./_lib/roulette";
-import { updatePinTagAction } from "./actions";
+import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
+import {
+  deletePinAction,
+  updatePinCoordinateAction,
+  updatePinMemoAction,
+  updatePinPlaceNameAction,
+  updatePinTagAction,
+} from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
 
 /**
@@ -63,9 +71,27 @@ interface MapClientProps {
   groupName: string;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  myNickname: string;
 }
 
-type ActiveSheet = "search" | "add" | "memo" | "roulette" | null;
+type ActiveSheet =
+  | "search"
+  | "add"
+  | "memo"
+  | "roulette"
+  | "coordinate-edit"
+  | null;
+
+/**
+ * useOptimistic reducer 액션 (Phase 2.8 FR-7).
+ *
+ * `patch`: 태그/메모 등 필드 부분 머지 (MUST-5).
+ * `remove`: 삭제 흐름의 낙관적 제거. 실패 시 transition 종료로 자동 롤백되어
+ * 마커가 복원되고 PinPopup 재mount → 인라인 에러 표시 (AC-16).
+ */
+type OptimisticAction =
+  | { kind: "patch"; pinId: number; patch: Partial<PinSummaryResponse> }
+  | { kind: "remove"; pinId: number };
 
 /** 룰렛 시트 내부 상태 머신 (설계 §10). */
 type RouletteUIState =
@@ -78,6 +104,11 @@ type RouletteUIState =
       radiusKm: RouletteRadiusKm;
       candidates: PinSummaryResponse[];
       center: LatLng;
+      /**
+       * 추첨 당시의 MEMORY 토글 상태. 다음 "다시" 클릭 시 현재 토글과 비교하여
+       * 풀 재구성(toggle 변경) vs 동일 풀 재추첨을 분기한다 (FR-REC-6).
+       */
+      includeMemoryAtPick: boolean;
     }
   | { status: "exhausted" }
   | { status: "geo-error"; message: string };
@@ -106,17 +137,23 @@ export default function MapClient({
   groupName,
   mapboxToken,
   mapboxStyleUrl,
+  myNickname,
 }: MapClientProps) {
   const [pins, setPins] = useState<PinSummaryResponse[]>(initialPins);
-  // MUST-5: 태그 토글의 마커 모양 즉시 갱신용. pins 가 바뀌면 자동 동기화.
+  // MUST-5: 태그/메모 등 부분 갱신을 마커/팝업에 즉시 반영하기 위한 useOptimistic.
+  // Phase 2.8: reducer 를 `patch | remove` 액션으로 일반화하여 삭제 흐름(FR-7)도 포괄.
+  // transition 종료 시 자동 롤백되어 실패 시 마커가 복원된다 (AC-16).
   const [optimisticPins, applyOptimistic] = useOptimistic<
     PinSummaryResponse[],
-    { pinId: number; tag: PinTag }
-  >(pins, (current, action) =>
-    current.map((p) =>
-      p.id === action.pinId ? { ...p, tag: action.tag } : p,
-    ),
-  );
+    OptimisticAction
+  >(pins, (current, action) => {
+    if (action.kind === "remove") {
+      return current.filter((p) => p.id !== action.pinId);
+    }
+    return current.map((p) =>
+      p.id === action.pinId ? { ...p, ...action.patch } : p,
+    );
+  });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
@@ -136,6 +173,8 @@ export default function MapClient({
   const [rouletteState, setRouletteState] = useState<RouletteUIState>({
     status: "idle",
   });
+  // FR-REC-6: 룰렛 풀에 MEMORY 핀 포함 여부 (세션 단위, 새로고침 시 OFF 로 복귀, BR-5).
+  const [includeMemory, setIncludeMemory] = useState(false);
   // MUST-4: 핀 목록 fetch 시각. initialPins는 page.tsx에서 방금 받은 값.
   // Date.now()는 렌더 중 호출 금지(react-hooks/purity) → mount effect에서 초기화.
   // null 상태에서는 캐시 검사 자체를 skip(=stale로 간주)하여 첫 룰렛은 항상 await 재조회.
@@ -174,7 +213,9 @@ export default function MapClient({
 
   const handleClustersChange = useCallback(
     ({ hasCluster: hc }: { hasCluster: boolean }) => {
-      setHasCluster(hc);
+      // 동일 값일 때 React가 리렌더를 skip하도록 functional setState로 안전화.
+      // (renderClusters가 매 viewport 변경마다 호출되어 set-state 폭주 방지)
+      setHasCluster((prev) => (prev === hc ? prev : hc));
     },
     [],
   );
@@ -195,7 +236,7 @@ export default function MapClient({
       // await 동안 transition이 유지되어 useOptimistic 상태도 보존됨 → 즉시 롤백 깜빡임 방지.
       return new Promise((resolve) => {
         startOptimisticTransition(async () => {
-          applyOptimistic({ pinId, tag: nextTag });
+          applyOptimistic({ kind: "patch", pinId, patch: { tag: nextTag } });
           const result = await updatePinTagAction(groupId, pinId, nextTag);
           if (result.ok) {
             setPins((prev) =>
@@ -216,11 +257,253 @@ export default function MapClient({
   );
 
   /**
+   * FR-MMO-2: PinPopup ⋮ 펼침 "메모" 탭에서 메모 저장 콜백.
+   * useOptimistic 으로 팝업 메모 본문을 즉시 갱신 → updatePinMemoAction 호출 →
+   * 성공 시 서버 응답으로 pins state 갱신 + 캐시 fetchedAt 갱신.
+   * 실패 시 PinPopupMemoEditor 의 내부 입력 state 가 보존되고 에러 박스만 노출된다.
+   */
+  const handleMemoChange = useCallback(
+    (
+      pinId: number,
+      nextMemo: string,
+    ): Promise<{ ok: boolean; message?: string }> => {
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          applyOptimistic({ kind: "patch", pinId, patch: { memo: nextMemo } });
+          const result = await updatePinMemoAction(groupId, pinId, nextMemo);
+          if (result.ok) {
+            setPins((prev) =>
+              prev.map((p) => (p.id === pinId ? result.data : p)),
+            );
+            if (pinsCacheRef.current) {
+              pinsCacheRef.current.fetchedAt = Date.now();
+            }
+            resolve({ ok: true });
+            return;
+          }
+          const message =
+            result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_MEMO_TOO_LONG"
+                ? "메모는 500자까지 입력할 수 있어요"
+                : result.code === "PIN_MEMO_INVALID"
+                  ? "메모 값이 유효하지 않아요"
+                  : result.code === "PIN_NOT_FOUND"
+                    ? "이 핀을 찾을 수 없어요"
+                    : result.message;
+          resolve({ ok: false, message });
+        });
+      });
+    },
+    [applyOptimistic, groupId],
+  );
+
+  /** 핀 장소 이름 변경. useOptimistic + updatePinPlaceNameAction. */
+  const handlePlaceNameChange = useCallback(
+    (
+      pinId: number,
+      nextPlaceName: string,
+    ): Promise<{ ok: boolean; message?: string }> => {
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          applyOptimistic({
+            kind: "patch",
+            pinId,
+            patch: { placeName: nextPlaceName },
+          });
+          const result = await updatePinPlaceNameAction(
+            groupId,
+            pinId,
+            nextPlaceName,
+          );
+          if (result.ok) {
+            setPins((prev) =>
+              prev.map((p) => (p.id === pinId ? result.data : p)),
+            );
+            if (pinsCacheRef.current) {
+              pinsCacheRef.current.fetchedAt = Date.now();
+            }
+            resolve({ ok: true });
+            return;
+          }
+          const message =
+            result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_NOT_FOUND"
+                ? "이 핀을 찾을 수 없어요"
+                : result.message;
+          resolve({ ok: false, message });
+        });
+      });
+    },
+    [applyOptimistic, groupId],
+  );
+
+  // Phase 2.8 FR-7: 삭제 흐름 상태.
+  // - deleteCandidate: 모달 표시 대상 핀 (null 이면 모달 닫힘).
+  // - deleteErrorByPinId: 핀별 직전 실패 메시지 (AC-16). 자동 롤백 후
+  //   재선택된 PinPopup 의 deleteError prop 으로 전달되어 인라인 노출.
+  const [deleteCandidate, setDeleteCandidate] =
+    useState<PinSummaryResponse | null>(null);
+  const [deleteErrorByPinId, setDeleteErrorByPinId] = useState<
+    Record<number, string>
+  >({});
+
+  // Phase 2.10 B4b: 좌표 수정 흐름 상태.
+  // - coordinateEditTarget: 좌표 수정 picker 대상 핀.
+  // - coordinateErrorByPinId: 핀별 직전 좌표 변경 실패 메시지 (자동 롤백 후 인라인 표시).
+  const [coordinateEditTarget, setCoordinateEditTarget] =
+    useState<PinSummaryResponse | null>(null);
+  const [coordinateErrorByPinId, setCoordinateErrorByPinId] = useState<
+    Record<number, string>
+  >({});
+
+  /**
+   * AC-15/16/17: 모달 확인 → optimistic remove → server action.
+   * 1) 모달 닫기 (낙관적 흐름 시작 전)
+   * 2) startOptimisticTransition 안에서 remove 액션 + deletePinAction 호출
+   * 3) 성공: 실제 pins state 에서 제거 + selectedPinId 해제
+   * 4) 실패: 핀별 에러 저장 + 동일 핀 재선택 → transition 종료 시 자동 롤백 →
+   *    마커 복원 + PinPopup 재mount → deleteError 인라인 표시
+   */
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteCandidate) return;
+    const pinId = deleteCandidate.id;
+    setDeleteCandidate(null);
+
+    startOptimisticTransition(async () => {
+      applyOptimistic({ kind: "remove", pinId });
+      const result = await deletePinAction(groupId, pinId);
+      if (result.ok) {
+        setPins((prev) => prev.filter((p) => p.id !== pinId));
+        setSelectedPinId(null);
+        // 직전 실패가 남긴 orphan 에러 키를 정리한다.
+        // 키가 없으면 동일 참조를 유지하여 불필요한 렌더를 방지.
+        setDeleteErrorByPinId((prev) => {
+          if (!(pinId in prev)) return prev;
+          const { [pinId]: _omit, ...rest } = prev;
+          return rest;
+        });
+        return;
+      }
+      const message =
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : result.code === "PIN_NOT_FOUND"
+            ? "이 핀을 찾을 수 없어요"
+            : result.message;
+      setDeleteErrorByPinId((prev) => ({ ...prev, [pinId]: message }));
+      setSelectedPinId(pinId);
+    });
+  }, [deleteCandidate, groupId, applyOptimistic]);
+
+  /**
+   * Phase 2.10 B4b: 좌표 수정 진입 핸들러.
+   * - 해당 pin 의 기존 에러 클리어
+   * - popup 닫고 (M5) picker 시트 오픈
+   * - 깜빡임 완화를 위해 지도 중심을 핀 위치로 flyTo (M4)
+   */
+  const handleRequestCoordinateEdit = useCallback(
+    (pin: PinSummaryResponse) => {
+      setCoordinateErrorByPinId((prev) => {
+        if (!(pin.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[pin.id];
+        return next;
+      });
+      setSelectedPinId(null);
+      setCoordinateEditTarget(pin);
+      setActiveSheet("coordinate-edit");
+      if (map) {
+        map.flyTo({
+          center: [Number(pin.longitude), Number(pin.latitude)],
+          zoom: 16,
+        });
+      }
+    },
+    [map],
+  );
+
+  /**
+   * 좌표 수정 완료: optimistic patch + server action.
+   * 성공 시 pins state 갱신 + 캐시 fetchedAt 갱신.
+   * 실패 시 핀별 에러 저장 + 동일 핀 재선택 → 자동 롤백 + 인라인 에러.
+   */
+  const handleConfirmCoordinateEdit = useCallback(
+    ({ lat, lng }: { lat: number; lng: number }) => {
+      const target = coordinateEditTarget;
+      if (!target) return;
+      const pinId = target.id;
+      setActiveSheet(null);
+      setCoordinateEditTarget(null);
+
+      // 백엔드 검증: lat/lng scale ≤ 7. Mapbox center는 15+자리라 그대로 보내면 INVALID.
+      const roundedLat = Number(lat.toFixed(7));
+      const roundedLng = Number(lng.toFixed(7));
+      startOptimisticTransition(async () => {
+        applyOptimistic({
+          kind: "patch",
+          pinId,
+          patch: { latitude: roundedLat, longitude: roundedLng },
+        });
+        setSelectedPinId(pinId);
+        const result = await updatePinCoordinateAction(
+          groupId,
+          pinId,
+          roundedLat,
+          roundedLng,
+        );
+        if (result.ok) {
+          setPins((prev) =>
+            prev.map((p) => (p.id === pinId ? result.data : p)),
+          );
+          if (pinsCacheRef.current) {
+            pinsCacheRef.current.fetchedAt = Date.now();
+          }
+          // 직전 실패가 남긴 orphan 에러 키 정리.
+          setCoordinateErrorByPinId((prev) => {
+            if (!(pinId in prev)) return prev;
+            const { [pinId]: _omit, ...rest } = prev;
+            return rest;
+          });
+          return;
+        }
+        const message =
+          result.code === "PIN_COORDINATE_INVALID"
+            ? "좌표가 유효한 범위를 벗어났어요"
+            : result.code === "GROUP_NOT_MEMBER"
+              ? "권한이 없어요"
+              : result.code === "PIN_NOT_FOUND"
+                ? "이 핀을 찾을 수 없어요"
+                : result.message;
+        setCoordinateErrorByPinId((prev) => ({ ...prev, [pinId]: message }));
+        setSelectedPinId(pinId);
+      });
+    },
+    [coordinateEditTarget, groupId, applyOptimistic],
+  );
+
+  /**
+   * 좌표 수정 취소: picker 닫고 원래 popup 복귀.
+   */
+  const handleCancelCoordinateEdit = useCallback(() => {
+    const pinId = coordinateEditTarget?.id ?? null;
+    setActiveSheet(null);
+    setCoordinateEditTarget(null);
+    if (pinId !== null) {
+      setSelectedPinId(pinId);
+    }
+  }, [coordinateEditTarget]);
+
+  /**
    * 좌표 + 핀 목록을 받아 추첨을 수행하고 결과를 상태에 반영.
    * 추첨 직전 5분 캐시 정책으로 stale이면 await 재조회 (MUST-4).
+   *
+   * `tagsAllowed`로 풀 필터를 외부에서 제어한다. MEMORY 토글 ON 이면
+   * `["PLACE", "MEMORY"]`를, OFF 이면 `["PLACE"]`를 전달한다 (FR-REC-6).
    */
   const runRoulette = useCallback(
-    async (center: LatLng) => {
+    async (center: LatLng, tagsAllowed: PinTag[]) => {
       // 최신 핀 풀: stale이면 재조회 후 결과 사용.
       let pool = pins;
       const cache = pinsCacheRef.current;
@@ -240,12 +523,14 @@ export default function MapClient({
         }
       }
 
-      const result = pickRandomWithExpansion(center, pool, ["PLACE"]);
+      const result = pickRandomWithExpansion(center, pool, tagsAllowed);
       if (result.kind === "exhausted") {
         setRouletteState({ status: "exhausted" });
         return;
       }
       // 짧은 spin 연출 후 picked 전이 (M-6 → M-6c).
+      // 추첨 당시의 토글 상태를 stash 하여 다음 "다시" 클릭 시 풀 재구성 여부를 분기한다.
+      const includeMemoryAtPick = tagsAllowed.includes("MEMORY");
       setRouletteState({
         status: "spinning",
         radiusKm: result.radiusKm,
@@ -263,6 +548,7 @@ export default function MapClient({
           radiusKm: result.radiusKm,
           candidates: result.candidates,
           center,
+          includeMemoryAtPick,
         });
       }, SPIN_DURATION_MS);
     },
@@ -287,10 +573,13 @@ export default function MapClient({
     if (geoState.status === "granted") {
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
-      void runRoulette(geoState.coords);
+      void runRoulette(
+        geoState.coords,
+        ["PLACE", "MEMORY"],
+      );
       return;
     }
     if (geoState.status === "unavailable") {
@@ -306,7 +595,7 @@ export default function MapClient({
       geoRequest();
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       return;
@@ -317,14 +606,14 @@ export default function MapClient({
       geoRequest();
       setRouletteState({
         status: "spinning",
-        radiusKm: 1,
+        radiusKm: 10,
         candidateCount: 0,
       });
       return;
     }
     // idle 또는 prompting + permission이 prompt/unknown: 사전 다이얼로그 안내.
     setShowPermDialog(true);
-  }, [geoState, permissionState, geoRequest, runRoulette]);
+  }, [geoState, permissionState, geoRequest, runRoulette, includeMemory]);
 
   // geoState 전이 감지: pendingRouletteRef가 true면 진행.
   //
@@ -339,7 +628,10 @@ export default function MapClient({
     const status = geoState.status;
     const handle = window.setTimeout(() => {
       if (status === "granted") {
-        void runRoulette(geoState.coords);
+        void runRoulette(
+          geoState.coords,
+          ["PLACE", "MEMORY"],
+        );
       } else if (status === "denied") {
         setShowPermDialog(true);
         setRouletteState({ status: "idle" });
@@ -350,7 +642,8 @@ export default function MapClient({
       } else if (status === "unavailable") {
         setRouletteState({
           status: "geo-error",
-          message: "이 브라우저에서는 위치를 사용할 수 없어요.",
+          message:
+            "위치 정보를 받지 못했어요. macOS는 시스템 설정 > 개인정보 보호 > 위치 서비스에서 브라우저 항목이 켜져 있어야 해요. WiFi가 꺼져 있어도 실패할 수 있어요.",
         });
       } else if (status === "timeout") {
         setRouletteState({
@@ -360,7 +653,7 @@ export default function MapClient({
       }
     }, 0);
     return () => window.clearTimeout(handle);
-  }, [geoState, runRoulette]);
+  }, [geoState, runRoulette, includeMemory]);
 
   // 액션바/사이드바 탭 변경: 같은 탭 재클릭 시 닫기 토글.
   const handleTabChange = useCallback(
@@ -388,22 +681,57 @@ export default function MapClient({
       });
       if (tab === "add") {
         setAddPinOrigin(null);
+        // + 탭 진입 시 너무 줌아웃되어 있으면 현재 위치 기준으로 줌인 이동.
+        // 좌표 picker UX 개선 — 사용자가 핀 위치를 정확히 찍기 쉽도록.
+        if (map && map.getZoom() < 13) {
+          if (geoState.status === "granted") {
+            map.flyTo({
+              center: [geoState.coords.lng, geoState.coords.lat],
+              zoom: 15,
+            });
+          } else if (typeof navigator !== "undefined" && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                map.flyTo({
+                  center: [pos.coords.longitude, pos.coords.latitude],
+                  zoom: 15,
+                });
+              },
+              () => {
+                // 위치 잡기 실패 시 현재 지도 중심을 유지하면서 줌만 살짝 올림.
+                map.flyTo({ zoom: 14 });
+              },
+              { timeout: 5000, maximumAge: 60000 },
+            );
+          } else {
+            map.flyTo({ zoom: 14 });
+          }
+        }
       }
     },
-    [activeSheet, handleRouletteTap],
+    [activeSheet, handleRouletteTap, map, geoState],
   );
 
-  // 검색에서 장소 선택 → MemoTag 단계로 전이
-  const handleSelectPlace = useCallback((place: PlaceSearchItem) => {
-    setAddPinOrigin({
-      placeName: place.placeName,
-      address: place.address,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      editable: false,
-    });
-    setActiveSheet("memo");
-  }, []);
+  // 검색에서 장소 선택 → MemoTag 단계로 전이 + 해당 좌표로 카메라 이동
+  const handleSelectPlace = useCallback(
+    (place: PlaceSearchItem) => {
+      setAddPinOrigin({
+        placeName: place.placeName,
+        address: place.address,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        editable: false,
+      });
+      setActiveSheet("memo");
+      if (map) {
+        map.flyTo({
+          center: [Number(place.longitude), Number(place.latitude)],
+          zoom: 15,
+        });
+      }
+    },
+    [map],
+  );
 
   // Crosshair에서 좌표 확정 → MemoTag 단계로 전이.
   // reverse geocoding 으로 채워진 placeName/address 를 초기값으로 사용하되,
@@ -432,28 +760,42 @@ export default function MapClient({
     setAddPinOrigin(null);
   }, []);
 
-  // 저장 성공 → 클라 state 에 직접 추가 (revalidate 없음, MUST-1)
-  const handlePinCreated = useCallback((newPin: PinSummaryResponse) => {
-    setPins((prev) => [...prev, newPin]);
-    // 캐시 fetchedAt도 갱신: 방금 만든 핀까지 포함하는 fresh 상태.
-    if (pinsCacheRef.current) {
-      pinsCacheRef.current.fetchedAt = Date.now();
+  // 저장 성공 → 클라 state 에 직접 추가 (revalidate 없음, MUST-1) + 새 핀 위치로 카메라 이동.
+  const handlePinCreated = useCallback(
+    (newPin: PinSummaryResponse) => {
+      setPins((prev) => [...prev, newPin]);
+      // 캐시 fetchedAt도 갱신: 방금 만든 핀까지 포함하는 fresh 상태.
+      if (pinsCacheRef.current) {
+        pinsCacheRef.current.fetchedAt = Date.now();
+      }
+      setActiveSheet(null);
+      setAddPinOrigin(null);
+      setSelectedPinId(newPin.id);
+      if (map) {
+        map.flyTo({
+          center: [Number(newPin.longitude), Number(newPin.latitude)],
+          zoom: 15,
+        });
+      }
+    },
+    [map],
+  );
+
+  const handleSheetClose = useCallback(() => {
+    // coordinate-edit 시트를 × 로 닫으면 취소와 동일하게 처리
+    if (activeSheet === "coordinate-edit" && coordinateEditTarget) {
+      setSelectedPinId(coordinateEditTarget.id);
     }
     setActiveSheet(null);
     setAddPinOrigin(null);
-    setSelectedPinId(newPin.id);
-  }, []);
-
-  const handleSheetClose = useCallback(() => {
-    setActiveSheet(null);
-    setAddPinOrigin(null);
+    setCoordinateEditTarget(null);
     setRouletteState({ status: "idle" });
     pendingRouletteRef.current = false;
     if (spinTimerRef.current !== null) {
       window.clearTimeout(spinTimerRef.current);
       spinTimerRef.current = null;
     }
-  }, []);
+  }, [activeSheet, coordinateEditTarget]);
 
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
   const handleShowOnMap = useCallback(
@@ -475,10 +817,30 @@ export default function MapClient({
     [map],
   );
 
-  // 룰렛: "다시" — 같은 풀에서 재추첨 (FR-REC-6).
+  // 룰렛: "다시" — 같은 풀에서 재추첨 또는 토글이 바뀌었으면 풀 재구성 (FR-REC-6).
   const handleReRoll = useCallback(() => {
     if (rouletteState.status !== "picked") return;
-    const { candidates, radiusKm, center } = rouletteState;
+    const { candidates, radiusKm, center, includeMemoryAtPick, pin: prevPin } =
+      rouletteState;
+
+    if (includeMemory !== includeMemoryAtPick) {
+      // 토글 상태가 변했으므로 풀을 재구성하여 새로 추첨.
+      setRouletteState({
+        status: "spinning",
+        radiusKm: 10,
+        candidateCount: 0,
+      });
+      if (spinTimerRef.current !== null) {
+        window.clearTimeout(spinTimerRef.current);
+      }
+      void runRoulette(
+        center,
+        ["PLACE", "MEMORY"],
+      );
+      return;
+    }
+
+    // 동일 풀에서 재추첨.
     setRouletteState({
       status: "spinning",
       radiusKm,
@@ -489,7 +851,7 @@ export default function MapClient({
     }
     spinTimerRef.current = window.setTimeout(() => {
       spinTimerRef.current = null;
-      const next = reRollFromSamePool(center, candidates, radiusKm);
+      const next = reRollFromSamePool(center, candidates, radiusKm, prevPin.id);
       if (next.kind === "exhausted") {
         setRouletteState({ status: "exhausted" });
         return;
@@ -501,9 +863,10 @@ export default function MapClient({
         radiusKm: next.radiusKm,
         candidates: next.candidates,
         center,
+        includeMemoryAtPick,
       });
     }, SPIN_DURATION_MS);
-  }, [rouletteState]);
+  }, [rouletteState, includeMemory, runRoulette]);
 
   // 태그 변경 즉시 popup 도 갱신되도록 optimisticPins 에서 찾는다 (MUST-5).
   const selectedPin =
@@ -603,10 +966,26 @@ export default function MapClient({
               lineHeight: 1.5,
             }}
           >
-            10km 이내에서 추첨할 만한 장소를
-            <br />
-            먼저 추가해 보세요.
+            10km 이내에 추첨할 만한 장소가 없어요.
           </div>
+          <button
+            type="button"
+            onClick={handleRouletteTap}
+            style={{
+              marginTop: 8,
+              padding: "8px 18px",
+              borderRadius: 999,
+              border: "none",
+              background: colors.cta,
+              color: "#ffffff",
+              fontFamily: fonts.sans,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            다시 시도
+          </button>
         </div>
       );
     }
@@ -643,6 +1022,24 @@ export default function MapClient({
           >
             {rouletteState.message}
           </div>
+          <button
+            type="button"
+            onClick={handleRouletteTap}
+            style={{
+              marginTop: 8,
+              padding: "8px 18px",
+              borderRadius: 999,
+              border: "none",
+              background: colors.cta,
+              color: "#ffffff",
+              fontFamily: fonts.sans,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            다시 시도
+          </button>
         </div>
       );
     }
@@ -690,6 +1087,17 @@ export default function MapClient({
     );
   } else if (activeSheet === "roulette") {
     activePanel = renderPanel("오늘 어디 갈까?", renderRouletteContent());
+  } else if (activeSheet === "coordinate-edit" && coordinateEditTarget) {
+    activePanel = renderPanel(
+      "좌표 수정",
+      <PinCoordinateEditPicker
+        map={map}
+        mapboxToken={mapboxToken}
+        initialPin={coordinateEditTarget}
+        onCancel={handleCancelCoordinateEdit}
+        onConfirm={handleConfirmCoordinateEdit}
+      />,
+    );
   }
 
   return (
@@ -706,6 +1114,7 @@ export default function MapClient({
         token={mapboxToken}
         styleUrl={mapboxStyleUrl}
         onMarkerClick={handleMarkerClick}
+        onMapBackgroundClick={() => setSelectedPinId(null)}
         onMapReady={handleMapReady}
         onClustersChange={handleClustersChange}
         onMapError={setMapError}
@@ -718,12 +1127,38 @@ export default function MapClient({
           onAddPin={() => handleTabChange("add")}
         />
       )}
-      {activeSheet === "add" && <CrosshairOverlay />}
+      {(activeSheet === "add" || activeSheet === "coordinate-edit") && (
+        <CrosshairOverlay />
+      )}
       {selectedPin && (
         <PinPopup
           pin={selectedPin}
           map={map}
+          authorLabel={
+            selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`
+          }
           onTagChange={handleTagChange}
+          onMemoChange={handleMemoChange}
+          onPlaceNameChange={handlePlaceNameChange}
+          onRequestDelete={(pin) => {
+            setDeleteErrorByPinId((prev) => {
+              if (!(pin.id in prev)) return prev;
+              const next = { ...prev };
+              delete next[pin.id];
+              return next;
+            });
+            setDeleteCandidate(pin);
+          }}
+          deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
+          onRequestCoordinateEdit={handleRequestCoordinateEdit}
+          coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
+        />
+      )}
+      {deleteCandidate && (
+        <PinDeleteConfirm
+          pin={deleteCandidate}
+          onCancel={() => setDeleteCandidate(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
       {activePanel}
@@ -736,6 +1171,7 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          myNickname={myNickname}
         />
       ) : (
         <ActionBar
@@ -746,6 +1182,7 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          myNickname={myNickname}
         />
       )}
       {showPermDialog && (
@@ -762,7 +1199,7 @@ export default function MapClient({
             pendingRouletteRef.current = true;
             setRouletteState({
               status: "spinning",
-              radiusKm: 1,
+              radiusKm: 10,
               candidateCount: 0,
             });
             geoRequest();
@@ -795,5 +1232,6 @@ function activeSheetToTab(sheet: ActiveSheet): ActionBarTab {
   if (sheet === "search") return "search";
   if (sheet === "add" || sheet === "memo") return "add";
   if (sheet === "roulette") return "roulette";
+  // "coordinate-edit"는 액션바 비강조 (Phase 2.10 B4b): null fallback.
   return null;
 }
