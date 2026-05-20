@@ -1118,6 +1118,14 @@ export default function MapClient({
         onMapReady={handleMapReady}
         onClustersChange={handleClustersChange}
         onMapError={setMapError}
+        previewMarker={
+          activeSheet === "memo" && addPinOrigin
+            ? {
+                lat: Number(addPinOrigin.latitude),
+                lng: Number(addPinOrigin.longitude),
+              }
+            : null
+        }
       />
       {mapError && <MapLoadError reason={mapError} />}
       <ClusterBanner visible={hasCluster} />

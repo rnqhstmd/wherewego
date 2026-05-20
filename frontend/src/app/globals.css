@@ -99,3 +99,19 @@ body {
     opacity: 0;
   }
 }
+
+/* 검색/메모 단계 미리보기 마커 드롭 애니메이션. anchor:bottom 기준 살짝 위에서 떨어진다. */
+@keyframes maygo-preview-pin-drop {
+  0% {
+    transform: translateY(-18px) scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(2px) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
