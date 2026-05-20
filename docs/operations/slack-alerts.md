@@ -164,7 +164,7 @@ PR-B의 `ThresholdMonitorScheduler`(FR-OBS-10)는 단계별(`google_places.80`, 
 - **자동 트리거**: 어디서든 `log.error(...)` 호출하면 자동으로 Slack에 발송됨.
 - **임계값**: `ThresholdFilter level=ERROR` — WARN 이하는 발송 안 함.
 - **비동기**: `AsyncAppender`로 감싸서 application 스레드 차단 없음.
-- **MDC 키**: `method`, `requestUri`, `traceId`, `spanId`, `clientIp` — Spring Cloud Sleuth/Micrometer Tracing 컨벤션 (현재 코드에 자동 주입 안 됨, 빈 값으로 표시될 수 있음).
+- **MDC 키**: `requestId`(PR-A 도입), `traceId`/`spanId`(`micrometer-tracing-bridge-brave`로 자동 주입), `method`/`requestUri`/`clientIp`(현재 자동 주입 필터 없어 빈 값 가능)
 - **dev/prod에서만 활성**. local/test에는 등록 안 됨.
 
 ### Properties 파일
@@ -232,9 +232,14 @@ dev/prod 각각 별도 properties 파일이 있어 채널/사용자 구분 가�
 
 너무 중복되면 호출자가 `log.error()` 대신 `log.warn()`을 쓰면 Logback 경로는 차단되고 SlackNotifier만 발송.
 
-### MDC `traceId`/`spanId`가 빈 값으로 와요
+### MDC `traceId`/`spanId`가 비어 보여요
 
-현재 코드베이스에 Spring Cloud Sleuth/Micrometer Tracing이 활성화되지 않았기 때문입니다. PR-A는 `requestId`만 도입했고, 분산 추적(W3C Trace Context)은 별도 작업입니다. 운영 추적은 `requestId`로 충분합니다.
+`backend/supports/logging/build.gradle.kts`에 `micrometer-tracing-bridge-brave` 의존성이 있어 **W3C Trace Context로 자동 주입됩니다**. 비어 있다면 다음을 확인:
+1. application의 actuator/observability 설정이 비활성화되지 않았는지 (`management.tracing.sampling.probability` 기본 0.1)
+2. 로그 라인이 servlet 컨텍스트 안에서 생성된 라인인지 (외부 컨텍스트에서는 빈 값 가능)
+3. `method`/`requestUri`/`clientIp`는 별도 필터 미주입이라 항상 빈 값 — 기능 영향 없음
+
+`requestId`(PR-A)와 `traceId`(Brave) 둘 다 추적용. **`requestId`는 단일 요청 추적**, **`traceId`는 분산/마이크로서비스 추적**에 사용.
 
 ---
 

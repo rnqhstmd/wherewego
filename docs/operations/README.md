@@ -57,8 +57,12 @@ docker compose -f backend/docker/monitoring-compose.yml up -d
 # Spring Boot 앱 (Actuator port 8081)
 ./gradlew :apps:wherewego-api:bootRun
 
-# 검증 스크립트 (Prometheus target up + JVM heap 조회)
+# 검증 스크립트 (Prometheus target up + JVM heap + X-Request-Id 헤더 + 연속 요청 격리)
 bash backend/docker/verify-observability.sh
+# 확장 검증 항목 (PR-A 이후):
+#   AC-1: X-Request-Id 응답 헤더가 UUID 형식
+#   AC-2: 연속 2회 호출의 UUID가 서로 다름 (MDC 오염 차단)
+# 환경 변수: APPLICATION_URL (기본 http://localhost:8080), PROMETHEUS_URL (기본 http://localhost:9090)
 
 # 브라우저로 Grafana 접속
 # http://localhost:3000 (admin/admin)
