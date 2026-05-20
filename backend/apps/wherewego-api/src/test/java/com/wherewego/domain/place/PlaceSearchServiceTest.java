@@ -44,7 +44,7 @@ class PlaceSearchServiceTest {
     void setUp() {
         PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5, 1_700L);
         when(placeProperties.search()).thenReturn(search);
-        placeSearchService = new PlaceSearchService(kakaoLocalClient, googlePlacesClient, placeProperties);
+        placeSearchService = new PlaceSearchService(googlePlacesClient, placeProperties);
     }
 
     private static PlaceSearchHit hit(String id, String name) {

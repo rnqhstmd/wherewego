@@ -20,6 +20,14 @@ public class InstagramScraperClient {
 
     private static final Logger log = LoggerFactory.getLogger(InstagramScraperClient.class);
 
+    private static final String API_NAME = "instagram";
+    private static final String OP_FETCH_HTML = "fetchHtml";
+    private static final String OUTCOME_SUCCESS = "success";
+    private static final String OUTCOME_BLOCKED = "blocked";
+    private static final String OUTCOME_TIMEOUT = "timeout";
+    private static final String OUTCOME_ERROR = "error";
+    private static final String CACHE_NA = "n/a";
+
     private final HtmlFetcher htmlFetcher;
     private final PlaceProperties placeProperties;
 
@@ -34,33 +42,52 @@ public class InstagramScraperClient {
      */
     public Optional<String> fetchHtml(String url, ChatbotContext ctx) {
         int timeoutMs = placeProperties.scraper().instagram().timeoutMs();
+        String safeUrl = safeForLog(url);
 
-        for (HtmlFetcher.Strategy strategy : HtmlFetcher.Strategy.values()) {
-            long remaining = ctx.remaining();
-            if (remaining <= 0) {
-                log.warn("Instagram scrape cutoff before strategy={} (deadline exceeded)", strategy);
-                return Optional.empty();
+        long start = System.currentTimeMillis();
+        String outcome = OUTCOME_ERROR;
+        try {
+            for (HtmlFetcher.Strategy strategy : HtmlFetcher.Strategy.values()) {
+                long remaining = ctx.remaining();
+                if (remaining <= 0) {
+                    log.warn("Instagram scrape cutoff before strategy={} (deadline exceeded)", strategy);
+                    outcome = OUTCOME_TIMEOUT;
+                    return Optional.empty();
+                }
+
+                long effectiveMs = Math.min(remaining, timeoutMs);
+                Duration timeout = Duration.ofMillis(effectiveMs);
+
+                HtmlFetcher.FetchResult result = htmlFetcher.fetch(url, strategy, timeout);
+                if (!result.blocked) {
+                    log.info("Instagram scrape ok url={} strategy={} elapsed={}ms", safeUrl, strategy, result.elapsedMs);
+                    outcome = OUTCOME_SUCCESS;
+                    return Optional.of(result.body);
+                }
+
+                log.debug("Instagram scrape blocked url={} strategy={} status={} elapsed={}ms",
+                        safeUrl, strategy, result.statusCode, result.elapsedMs);
+
+                if (result.elapsedMs > effectiveMs) {
+                    log.warn("Instagram scrape stage exceeded timeout url={} strategy={} elapsed={}ms timeoutMs={}",
+                            safeUrl, strategy, result.elapsedMs, effectiveMs);
+                }
             }
 
-            long effectiveMs = Math.min(remaining, timeoutMs);
-            Duration timeout = Duration.ofMillis(effectiveMs);
-
-            HtmlFetcher.FetchResult result = htmlFetcher.fetch(url, strategy, timeout);
-            if (!result.blocked) {
-                log.info("Instagram scrape ok url={} strategy={} elapsed={}ms", url, strategy, result.elapsedMs);
-                return Optional.of(result.body);
-            }
-
-            log.debug("Instagram scrape blocked url={} strategy={} status={} elapsed={}ms",
-                    url, strategy, result.statusCode, result.elapsedMs);
-
-            if (result.elapsedMs > effectiveMs) {
-                log.warn("Instagram scrape stage exceeded timeout url={} strategy={} elapsed={}ms timeoutMs={}",
-                        url, strategy, result.elapsedMs, effectiveMs);
-            }
+            log.warn("Instagram scrape all stages blocked url={}", safeUrl);
+            outcome = OUTCOME_BLOCKED;
+            return Optional.empty();
+        } finally {
+            long elapsed = System.currentTimeMillis() - start;
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    API_NAME, OP_FETCH_HTML, elapsed, outcome, CACHE_NA);
         }
+    }
 
-        log.warn("Instagram scrape all stages blocked url={}", url);
-        return Optional.empty();
+    /**
+     * 로그 인젝션 방지: 외부 입력(URL 등) 내 CRLF를 무력화하여 로그 라인 위변조를 차단한다.
+     */
+    private static String safeForLog(String value) {
+        return value == null ? null : value.replace('\r', '_').replace('\n', '_');
     }
 }

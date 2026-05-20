@@ -54,7 +54,7 @@ class PlaceSearchServiceWebOverloadTest {
     void setUp() {
         when(placeProperties.search()).thenReturn(searchProperties);
         when(searchProperties.kakaoLocalSize()).thenReturn(5);
-        service = new PlaceSearchService(kakaoLocalClient, googlePlacesClient, placeProperties);
+        service = new PlaceSearchService(googlePlacesClient, placeProperties);
     }
 
     private static PlaceSearchHit hit(String id, String name) {

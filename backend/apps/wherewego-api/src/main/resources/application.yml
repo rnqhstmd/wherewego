@@ -88,6 +88,9 @@ chatbot:
     capacity: 10
     refill-seconds: 60
     max-keys: 10000
+  instagram:
+    # 인스타 링크 받은 후 메모 입력 대기 TTL. 만료 시 자동으로 메모 없이 저장.
+    pending-ttl-seconds: ${CHATBOT_INSTAGRAM_PENDING_TTL_SECONDS:60}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
@@ -126,6 +129,11 @@ web-security:
   cors:
     allowed-origins:
       - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+chatbot:
+  instagram:
+    # 로컬/테스트도 운영과 동일한 1분 TTL 사용.
+    pending-ttl-seconds: 60
 
 ---
 spring:

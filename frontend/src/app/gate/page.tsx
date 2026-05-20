@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BtnKakao } from "@/components/ui/BtnKakao";
 import { GlobeBg } from "@/components/ui/GlobeBg";
@@ -19,7 +19,7 @@ import { colors, fonts } from "@/lib/design/tokens";
  *
  * 통과 전엔 모든 라우트가 middleware에 의해 이 페이지로 강제 redirect된다.
  */
-export default function GatePage() {
+function GatePageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const returnUrl = params.get("returnUrl") ?? "/";
@@ -308,5 +308,13 @@ export default function GatePage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function GatePage() {
+  return (
+    <Suspense fallback={null}>
+      <GatePageInner />
+    </Suspense>
   );
 }

@@ -32,6 +32,12 @@ public class KakaoCallbackClient {
 
     private static final Logger log = LoggerFactory.getLogger(KakaoCallbackClient.class);
 
+    private static final String API_NAME = "kakao_callback";
+    private static final String OP_PUSH = "push";
+    private static final String OUTCOME_SUCCESS = "success";
+    private static final String OUTCOME_ERROR = "error";
+    private static final String CACHE_NA = "n/a";
+
     private final RestClient restClient;
     private final boolean strictHostCheck;
     private final SlackNotifier slackNotifier;
@@ -73,6 +79,8 @@ public class KakaoCallbackClient {
             log.warn("kakao callback push skipped: disallowed url scheme or host");
             return;
         }
+        long start = System.currentTimeMillis();
+        String outcome = OUTCOME_ERROR;
         try {
             restClient.post()
                     .uri(URI.create(callbackUrl))
@@ -81,12 +89,17 @@ public class KakaoCallbackClient {
                     .retrieve()
                     .toBodilessEntity();
             log.debug("kakao callback push ok host={}", safeHost(callbackUrl));
+            outcome = OUTCOME_SUCCESS;
         } catch (RestClientException e) {
             log.warn("kakao callback push failed cause={}", e.getMessage());
             slackNotifier.notifyFailure("카카오 콜백 푸시 실패", Map.of(
                     "host", safeHost(callbackUrl),
                     "cause", e.getMessage() == null ? "unknown" : e.getMessage()
             ));
+        } finally {
+            long elapsed = System.currentTimeMillis() - start;
+            log.info("api={} op={} duration_ms={} outcome={} cache={}",
+                    API_NAME, OP_PUSH, elapsed, outcome, CACHE_NA);
         }
     }
 

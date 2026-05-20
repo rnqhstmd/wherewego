@@ -1,8 +1,10 @@
 package com.wherewego.infrastructure.notify.slack;
 
 import com.wherewego.config.env.SlackProperties;
+import com.wherewego.config.security.RequestIdFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -106,12 +108,18 @@ public class SlackNotifier {
             header.put("text", headerText);
             blocks.add(header);
 
-            // 컨텍스트 필드 (2열 그리드)
-            if (context != null && !context.isEmpty()) {
+            // 컨텍스트 필드 (2열 그리드) — MDC requestId를 본문 첫 키로 자동 동봉 (FR-OBS-12).
+            Map<String, Object> enriched = new LinkedHashMap<>();
+            String mdcRequestId = MDC.get(RequestIdFilter.MDC_KEY);
+            enriched.put("requestId", mdcRequestId != null ? mdcRequestId : "n/a");
+            if (context != null) {
+                enriched.putAll(context);
+            }
+            if (!enriched.isEmpty()) {
                 Map<String, Object> fieldsSection = new LinkedHashMap<>();
                 fieldsSection.put("type", "section");
                 List<Map<String, Object>> fields = new ArrayList<>();
-                for (Map.Entry<String, Object> e : context.entrySet()) {
+                for (Map.Entry<String, Object> e : enriched.entrySet()) {
                     Map<String, Object> field = new LinkedHashMap<>();
                     field.put("type", "mrkdwn");
                     field.put("text", "*" + e.getKey() + "*\n" + e.getValue());

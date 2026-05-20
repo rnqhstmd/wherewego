@@ -27,3 +27,4 @@
 - **Phase 2.6 PR-B 완료**: Bucket4j 챗봇 Webhook 레이트 리밋(botUserKey 분당 10회), 그룹 탈퇴 시 BotUserMapping cascade, `@RefreshScope` + Actuator `/refresh` — [#18](https://github.com/rnqhstmd/wherewego/pull/18)
 - **Phase 2.10 완료**: 카카오 i 오픈빌더 PLACE_SELECTION 시나리오 설정(빌더 콘솔 운영 작업, 코드 변경 없음) + 카카오톡 실기기 1회 수동 E2E 검증(PR 본문 절차/결과 기록) + Phase 2.7 IT 5케이스 회귀 통과 — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
 - **Phase 2.7 완료**: PLACE_SELECTION E2E IT 5케이스 보강 (정상/만료/미연동/그룹 미가입/중복 핀) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
+- **Phase 2.11 계획**: 챗봇 흐름이 의존하는 외부 API의 관제는 [[observability]] 도메인에서 통합 — Instagram scraper 차단 감지(FR-OBS-11), Google Places 일일 한도 사전 경고(FR-OBS-10), `KakaoCallbackClient` 재시도 보강(FR-OBS-14). 챗봇 응답 SLA(5초)와 핀 자동 등록 70% 성공률을 사후 발견에서 사전 감지로 전환
