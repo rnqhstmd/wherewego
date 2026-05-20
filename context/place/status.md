@@ -19,8 +19,8 @@
 | FR-PLC-6 | 좌표 정규화 (lat/lng 통일) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) |
 | FR-PLC-7 | Gemini 2.0 Flash 장소명 추출 (regex 대체) | ✅ | [#15](https://github.com/rnqhstmd/wherewego/pull/15) — `GeminiPlaceClient` + `CaptionCleaner` 신규, `PlaceNameExtractor` 삭제. `x-goog-api-key` 헤더 인증 + 캡션 500자 가드 + Gemini 호출 직전 데드라인 가드 |
 | FR-PLC-8 | `INSTAGRAM_SCRAPING_ENABLED` feature flag (즉시 무력화) | ✅ | [#18](https://github.com/rnqhstmd/wherewego/pull/18) — Phase 2.6 PR-B: `PlaceProperties` `@RefreshScope` + Actuator `/refresh` (localhost 제한). record→class 전환으로 CGLIB 호환. `GeminiPlaceClient` sub-record 캡처 제거로 매 호출 재평가 |
-| FR-PLC-9 | Google Places 메트릭+캐시+호출량 가시화 (Gemini 패턴 복제: outcome별 Counter/Timer + Caffeine 24h 응답 캐시) | ⬜ | — Phase 2.11 계획. [[observability]] FR-OBS-8/9 연동 |
-| FR-PLC-10 | Instagram scraper 3-stage 최종 실패율 추적 + 차단 감지 알림 (1h 윈도우, 50% 임계값 → `SlackNotifier.notifyFailure`) | ⬜ | — Phase 2.11 계획. [[observability]] FR-OBS-11 연동. `InstagramScraperClient` NO_UA→CHROME_UA→FULL_HEADERS 단계별 카운터 |
+| FR-PLC-9 | Google Places 메트릭+캐시+호출량 가시화 (Gemini 패턴 복제: outcome별 Counter/Timer + Caffeine 24h 응답 캐시) | ✅ | [#29](https://github.com/rnqhstmd/wherewego/pull/29) — Phase 2.11 PR-B. `GooglePlacesMetrics`/`GooglePlacesResponseCacheService` 신규. SHA-256(keyword) 24h Caffeine + outcome별 Counter/Timer. [[observability]] FR-OBS-8/9 동시 충족 |
+| FR-PLC-10 | Instagram scraper 3-stage 최종 실패율 추적 + 차단 감지 알림 (1h 윈도우, 50% 임계값 + 5분 쿨다운 → `SlackNotifier.notifyFailure`) | ✅ | [#29](https://github.com/rnqhstmd/wherewego/pull/29) — Phase 2.11 PR-B. `InstagramBlockedRateTracker`(synchronized 단일 락) + `ThresholdMonitorScheduler` 통합. BLOCKED 확정 시 `recordBlocked(url)`, finally에서 `recordAttempt()`. [[observability]] FR-OBS-11 동시 충족 |
 
 ## 후속 작업
 

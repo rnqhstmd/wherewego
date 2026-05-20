@@ -121,6 +121,7 @@ public class GeminiPlaceClient {
     private static final String OUTCOME_RATE_LIMITED = "rate_limited";
     private static final String OUTCOME_TIMEOUT = "timeout";
     private static final String OUTCOME_ERROR = "error";
+    private static final String OUTCOME_SERVER_ERROR = "server_error";
 
     private final PlaceProperties placeProperties;
     private final RestClient restClient;
@@ -202,6 +203,7 @@ public class GeminiPlaceClient {
         String outcome = OUTCOME_ERROR;
         boolean cachePut = false;
         try {
+            // 429 핸들러를 가장 먼저 등록 (RestClient는 첫 매칭 핸들러만 실행). 이후 4xx 비-429, 5xx 순.
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
                     .header("x-goog-api-key", placeProperties.scraper().gemini().apiKey())
@@ -212,8 +214,12 @@ public class GeminiPlaceClient {
                         log.warn("Gemini API rate limited (429)");
                         throw new GeminiRateLimitException();
                     })
-                    .onStatus(HttpStatusCode::isError, (req, res) -> {
-                        log.warn("Gemini API error status={}", res.getStatusCode());
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        log.warn("Gemini API client error status={}", res.getStatusCode());
+                        throw new GeminiClientErrorException();
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        log.warn("Gemini API server error status={}", res.getStatusCode());
                         throw new GeminiResponseException();
                     })
                     .body(GeminiGenerateContentResponse.class);
@@ -229,6 +235,9 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_RATE_LIMITED;
             return Optional.empty();
         } catch (GeminiResponseException e) {
+            outcome = OUTCOME_SERVER_ERROR;
+            return Optional.empty();
+        } catch (GeminiClientErrorException e) {
             outcome = OUTCOME_ERROR;
             return Optional.empty();
         } catch (ResourceAccessException e) {
@@ -309,6 +318,7 @@ public class GeminiPlaceClient {
         long start = System.currentTimeMillis();
         String outcome = OUTCOME_ERROR;
         try {
+            // 429 핸들러를 가장 먼저 등록 (RestClient는 첫 매칭 핸들러만 실행). 이후 4xx 비-429, 5xx 순.
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
                     .header("x-goog-api-key", placeProperties.scraper().gemini().apiKey())
@@ -318,8 +328,12 @@ public class GeminiPlaceClient {
                     .onStatus(status -> status.value() == 429, (req, res) -> {
                         throw new GeminiRateLimitException();
                     })
-                    .onStatus(HttpStatusCode::isError, (req, res) -> {
-                        log.warn("Gemini API error (candidates) status={}", res.getStatusCode());
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        log.warn("Gemini API client error (candidates) status={}", res.getStatusCode());
+                        throw new GeminiClientErrorException();
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        log.warn("Gemini API server error (candidates) status={}", res.getStatusCode());
                         throw new GeminiResponseException();
                     })
                     .body(GeminiGenerateContentResponse.class);
@@ -339,6 +353,9 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_RATE_LIMITED;
             return List.of();
         } catch (GeminiResponseException e) {
+            outcome = OUTCOME_SERVER_ERROR;
+            return List.of();
+        } catch (GeminiClientErrorException e) {
             outcome = OUTCOME_ERROR;
             return List.of();
         } catch (ResourceAccessException e) {
@@ -449,6 +466,7 @@ public class GeminiPlaceClient {
         long start = System.currentTimeMillis();
         String outcome = OUTCOME_ERROR;
         try {
+            // 429 핸들러를 가장 먼저 등록 (RestClient는 첫 매칭 핸들러만 실행). 이후 4xx 비-429, 5xx 순.
             GeminiGenerateContentResponse response = restClient.post()
                     .uri(uriBuilder -> uriBuilder.path(GENERATE_CONTENT_PATH).build())
                     .header("x-goog-api-key", placeProperties.scraper().gemini().apiKey())
@@ -459,8 +477,12 @@ public class GeminiPlaceClient {
                         log.warn("Gemini API rate limited (429, multi)");
                         throw new GeminiRateLimitException();
                     })
-                    .onStatus(HttpStatusCode::isError, (req, res) -> {
-                        log.warn("Gemini API error (multi) status={}", res.getStatusCode());
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        log.warn("Gemini API client error (multi) status={}", res.getStatusCode());
+                        throw new GeminiClientErrorException();
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        log.warn("Gemini API server error (multi) status={}", res.getStatusCode());
                         throw new GeminiResponseException();
                     })
                     .body(GeminiGenerateContentResponse.class);
@@ -481,6 +503,9 @@ public class GeminiPlaceClient {
             outcome = OUTCOME_RATE_LIMITED;
             return List.of();
         } catch (GeminiResponseException e) {
+            outcome = OUTCOME_SERVER_ERROR;
+            return List.of();
+        } catch (GeminiClientErrorException e) {
             outcome = OUTCOME_ERROR;
             return List.of();
         } catch (ResourceAccessException e) {
@@ -642,5 +667,9 @@ public class GeminiPlaceClient {
     }
 
     private static final class GeminiResponseException extends RuntimeException {
+    }
+
+    /** 429 제외 4xx 응답. BR-1: 5xx 만 server_error 로 분류하기 위해 별도 예외로 분리. */
+    private static final class GeminiClientErrorException extends RuntimeException {
     }
 }

@@ -20,6 +20,7 @@ public class CacheConfig {
     public static final String PLACE_SELECTION_CANDIDATE = "placeSelectionCandidate";
     public static final String GEMINI_USER_QUOTA = "geminiUserQuota";
     public static final String GEMINI_RESPONSE_CACHE = "geminiResponseCache";
+    public static final String GOOGLE_PLACES_RESPONSE_CACHE = "googlePlacesResponseCache";
 
     @Bean
     public CacheManager cacheManager(
@@ -57,6 +58,11 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(Duration.ofHours(24))
                         .maximumSize(2_000)
+                        .build());
+        manager.registerCustomCache(GOOGLE_PLACES_RESPONSE_CACHE,
+                Caffeine.newBuilder()
+                        .expireAfterWrite(Duration.ofHours(24))
+                        .maximumSize(1_000)
                         .build());
         return manager;
     }
