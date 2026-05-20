@@ -10,9 +10,10 @@ interface SheetProps {
 }
 
 /**
- * Bottom sheet — 모바일 전용. ActionBar(높이 64px)를 가리지 않도록
- * 기본 bottom 오프셋을 두어 항상 액션바가 노출되도록 한다.
- * 컨테이너 역할만 담당. 콘텐츠는 children 으로 주입.
+ * Bottom sheet — 모바일 전용 floating 카드.
+ *
+ * 하단 ActionBar(bottom:12, height:68) 위로 8px 간격을 두고 떠 있는 형태.
+ * 좌우 12px 여백 + 전 모서리 둥근 라운드 + 부드러운 그림자로 ActionBar 와 통일된 floating 룩.
  */
 export function Sheet({ children, padTop = 6, className, style }: SheetProps) {
   return (
@@ -20,20 +21,21 @@ export function Sheet({ children, padTop = 6, className, style }: SheetProps) {
       className={className}
       style={{
         position: "absolute",
-        bottom: 64,
-        left: 0,
-        right: 0,
+        bottom: 88,
+        left: 12,
+        right: 12,
         background: colors.panel,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        boxShadow: `0 -4px 24px ${colors.shadowMd}`,
+        borderRadius: 20,
+        border: `1px solid ${colors.hairline}`,
+        boxShadow: `0 10px 28px ${colors.shadowMd}`,
         zIndex: 20,
         paddingTop: padTop,
+        overflow: "hidden",
         ...style,
       }}
     >
       <DragHandle />
-      <div style={{ padding: "14px 20px 20px" }}>{children}</div>
+      <div style={{ padding: "12px 18px 18px" }}>{children}</div>
     </div>
   );
 }

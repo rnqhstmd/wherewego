@@ -28,6 +28,11 @@ interface MapboxViewProps {
    * MapLoadError 오버레이를 노출하여 사용자에게 안내한다.
    */
   onMapError?: (reason: MapLoadErrorReason) => void;
+  /**
+   * 검색 결과 선택 / 메모 입력 단계에서 표시할 임시 미리보기 마커 좌표.
+   * null 이면 마커 비표시. cta(rust) 색상으로 일반 핀과 시각적으로 구분된다.
+   */
+  previewMarker?: { lat: number; lng: number } | null;
 }
 
 /**
@@ -169,6 +174,7 @@ export default function MapboxView({
   onMapReady,
   onClustersChange,
   onMapError,
+  previewMarker,
 }: MapboxViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -185,6 +191,8 @@ export default function MapboxView({
   // 자체 사용자 위치 마커 — geolocate 이벤트마다 좌표만 갱신.
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerAddedRef = useRef(false);
+  // 검색/메모 단계의 임시 미리보기 마커 — pins와 별도 캐시로 관리.
+  const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   // 최신 prop을 ref로 유지 → marker element 이벤트 리스너 재바인딩 회피.
   useEffect(() => {
@@ -340,7 +348,14 @@ export default function MapboxView({
       center: initialCenter,
       zoom: initialZoom,
       projection: { name: "globe" },
+      // 기본 attribution(bottom-right) 비활성. bottom-left 에서 compact 모드로 다시 추가하여
+      // GeolocateControl 과 시각적으로 겹치지 않게 분리한다 (Mapbox ToS 충족 — 화면에 노출됨).
+      attributionControl: false,
     });
+    map.addControl(
+      new mapboxgl.AttributionControl({ compact: true }),
+      "bottom-left",
+    );
 
     map.on("style.load", () => {
       // 3D 지구본 fog (설계 §9)
@@ -508,6 +523,51 @@ export default function MapboxView({
       renderClusters();
     }
   }, [pins, renderClusters]);
+
+  // 3) 검색/메모 단계 미리보기 마커 — previewMarker prop 변화에 따라 추가/이동/제거.
+  //    cta 색상 드롭핀 + 살짝 떨어지는 애니메이션으로 사용자 시선을 유도한다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!previewMarker) {
+      if (previewMarkerRef.current) {
+        previewMarkerRef.current.remove();
+        previewMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const lngLat: [number, number] = [previewMarker.lng, previewMarker.lat];
+    if (previewMarkerRef.current) {
+      previewMarkerRef.current.setLngLat(lngLat);
+      return;
+    }
+    // 외부 div: Mapbox가 transform 으로 위치 제어 → animation/transform 사용 금지.
+    // 내부 div: 우리 애니메이션. translate/scale 은 이 안에서만 안전하다.
+    const el = document.createElement("div");
+    el.style.cssText = "width:28px;height:36px;pointer-events:none;";
+    el.innerHTML =
+      `<div style="width:100%;height:100%;animation:maygo-preview-pin-drop 360ms cubic-bezier(0.2,0.8,0.2,1) both;transform-origin:50% 100%;">` +
+      `<svg width="28" height="36" viewBox="0 0 28 36" style="display:block;filter:drop-shadow(0 3px 6px ${colors.cta}66);" aria-hidden="true">` +
+      `<path d="M14 0C6.27 0 0 6.27 0 14c0 9.4 14 22 14 22s14-12.6 14-22C28 6.27 21.73 0 14 0z" fill="${colors.cta}"/>` +
+      `<circle cx="14" cy="14" r="5" fill="#FFFFFF"/></svg></div>`;
+    const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat(lngLat)
+      .addTo(map);
+    previewMarkerRef.current = marker;
+  }, [previewMarker]);
+
+  // 미리보기 마커 cleanup — 컴포넌트 unmount 또는 map 인스턴스 재생성 시.
+  useEffect(
+    () => () => {
+      if (previewMarkerRef.current) {
+        previewMarkerRef.current.remove();
+        previewMarkerRef.current = null;
+      }
+    },
+    [],
+  );
 
   return (
     <div

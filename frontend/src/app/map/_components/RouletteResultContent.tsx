@@ -5,6 +5,7 @@ import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
 import { PinDot } from "@/components/ui/PinDot";
 import { IconShuffle, IconLocation } from "@/components/icons";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import type { PinSummaryResponse } from "@/lib/api/types";
 
 interface RouletteResultContentProps {
@@ -33,6 +34,12 @@ export default function RouletteResultContent({
       ? `${Math.round(distanceKm * 1000)}m`
       : `${distanceKm.toFixed(1)}km`;
   const isMemory = pin.tag === "MEMORY";
+  // 모바일에서는 버튼이 컨테이너를 넘어 양옆이 잘려 보이는 문제 회피.
+  // flex item 기본 min-width: auto + whiteSpace: nowrap 조합이 강제 오버플로를 만들기 때문에
+  // min-width 를 0 으로 풀고 가로 패딩도 약간 회복하여 시각적 여백을 준다.
+  const isCompact = useMediaQuery("(max-width: 480px)");
+  const primaryPadding = isCompact ? "11px 12px" : "12px 0";
+  const subPadding = isCompact ? "11px 12px" : "12px 0";
 
   return (
     <div>
@@ -119,7 +126,7 @@ export default function RouletteResultContent({
       <div style={{ display: "flex", gap: 8 }}>
         <BtnPrimary
           onClick={onShowOnMap}
-          style={{ flex: 1.6, padding: "12px 0" }}
+          style={{ flex: 1.6, padding: primaryPadding, minWidth: 0 }}
         >
           지도에서 보기
         </BtnPrimary>
@@ -127,7 +134,8 @@ export default function RouletteResultContent({
           onClick={onReRoll}
           style={{
             flex: 1,
-            padding: "12px 0",
+            padding: subPadding,
+            minWidth: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
