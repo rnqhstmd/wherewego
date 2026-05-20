@@ -30,10 +30,14 @@ public class InstagramScraperClient {
 
     private final HtmlFetcher htmlFetcher;
     private final PlaceProperties placeProperties;
+    private final InstagramBlockedRateTracker tracker;
 
-    public InstagramScraperClient(PlaceProperties placeProperties, HtmlFetcher htmlFetcher) {
+    public InstagramScraperClient(PlaceProperties placeProperties,
+                                  HtmlFetcher htmlFetcher,
+                                  InstagramBlockedRateTracker tracker) {
         this.htmlFetcher = htmlFetcher;
         this.placeProperties = placeProperties;
+        this.tracker = tracker;
     }
 
     /**
@@ -78,6 +82,20 @@ public class InstagramScraperClient {
             outcome = OUTCOME_BLOCKED;
             return Optional.empty();
         } finally {
+            // 순서: recordAttempt → recordBlocked. attempts 가 항상 blocked 이상이도록 보장.
+            try {
+                tracker.recordAttempt();
+            } catch (RuntimeException ex) {
+                log.warn("Tracker recordAttempt failed: {}", ex.getMessage());
+            }
+            if (OUTCOME_BLOCKED.equals(outcome)) {
+                try {
+                    // tracker 내부에서 safeForLog 적용 — 이중 sanitize 방지를 위해 원본 url 전달.
+                    tracker.recordBlocked(url);
+                } catch (RuntimeException ex) {
+                    log.warn("Tracker recordBlocked failed: {}", ex.getMessage());
+                }
+            }
             long elapsed = System.currentTimeMillis() - start;
             log.info("api={} op={} duration_ms={} outcome={} cache={}",
                     API_NAME, OP_FETCH_HTML, elapsed, outcome, CACHE_NA);

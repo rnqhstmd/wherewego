@@ -24,6 +24,12 @@ spring:
       - jpa.yml
       - logging.yml
       - monitoring.yml
+  task:
+    scheduling:
+      pool:
+        # ThresholdMonitorScheduler가 previousGeminiSnapshot clear/putAll를 안전하게 수행하려면 단일 스레드 필요.
+        # Spring Boot 기본값이지만 동작이 스케줄러 정합성에 의존하므로 명시한다.
+        size: 1
 
 springdoc:
   use-fqn: true
@@ -114,6 +120,15 @@ slack:
   username: ${SLACK_USERNAME:wherewego-dev}
   channel: ${SLACK_CHANNEL:#wherewego-alerts}
   webhook-uri: ${SLACK_WEBHOOK_URI:}
+
+monitoring:
+  threshold:
+    gemini:
+      server-error-rate: 0.10
+      cooldown-minutes: 5
+    instagram:
+      blocked-rate: 0.50
+      cooldown-minutes: 5
 
 ---
 spring:
