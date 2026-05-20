@@ -101,12 +101,9 @@ spring.config.activate.on-profile: prod
 datasource:
   postgres-jpa:
     main:
-      # Supabase Session Pooler 사용 (port 5432, Flyway pg_advisory_lock 호환).
-      # 정책 변경 (2024+): Direct connection (db.<ref>.supabase.co)은 IPv6 only가 되어 IPv4 환경에서
-      #   connection refused. IPv4 호환을 위해 Session Pooler 사용 (또는 유료 IPv4 add-on 구매).
-      # Transaction Pooler (port 6543) 사용 금지: Flyway pg_advisory_lock 비호환.
-      # POSTGRES_HOST: aws-<n>-<region>.pooler.supabase.com 형식
-      # POSTGRES_USER: postgres.<project-ref> 형식 (pooler 전용 사용자명)
+      # Neon Pooler 사용 (port 5432, Flyway pg_advisory_lock 호환).
+      # POSTGRES_HOST: ep-<name>-pooler.c-2.ap-southeast-1.aws.neon.tech 형식
+      # POSTGRES_USER: neondb_owner
       jdbc-url: jdbc:postgresql://${POSTGRES_HOST}:5432/${POSTGRES_DB}
       username: ${POSTGRES_USER}
       password: "${POSTGRES_PASSWORD}"
@@ -116,3 +113,4 @@ datasource:
         reWriteBatchedInserts: true
         ssl: true
         sslmode: require
+        channel_binding: require
