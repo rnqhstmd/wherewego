@@ -34,8 +34,9 @@ const MAPBOX_TIMEOUT_MS = 8000;
 // BR-6 폴백 단색 (warm sand)
 const FALLBACK_BACKGROUND_COLOR = "#EAE4D4";
 
-// 콘텐츠 시작 y좌표(설계 §"자연 흐름 배치" 메모 시작)
-const CONTENT_START_Y = 400;
+// 콘텐츠 시작 y좌표 — 메모가 카드 세로 중앙에 가깝게 위치하도록 540 설정.
+// (CARD_HEIGHT 1350 기준 ~40% 지점, 워터마크 영역 제외 시 시각 중앙)
+const CONTENT_START_Y = 540;
 
 // 색상 토큰
 const COLOR_MEMO = "rgba(26, 26, 46, 0.95)";
@@ -44,13 +45,13 @@ const COLOR_META = "rgba(26, 26, 46, 0.6)";
 const COLOR_WATERMARK = "rgba(26, 26, 46, 0.55)";
 
 // 폰트 사이즈
-const FONT_MEMO_PX = 44;
+const FONT_MEMO_PX = 60;
 const FONT_PLACE_PX = 36;
 const FONT_META_PX = 22;
 const FONT_WATERMARK_PX = 24;
 
 // 줄 높이
-const LINE_HEIGHT_MEMO = 62; // 44 * 1.4 ≈ 61.6
+const LINE_HEIGHT_MEMO = 84; // 60 * 1.4 = 84
 const LINE_HEIGHT_PLACE = 43; // 36 * 1.2 ≈ 43.2
 const LINE_HEIGHT_META = 28;
 
@@ -385,52 +386,30 @@ export async function renderPinCard(
 
   throwIfAborted(signal);
 
-  // Step 7-0 — 태그 글리프 + 라벨 (콘텐츠 영역 위에 핀 카테고리 표시)
-  // SVG string → Blob URL → Image → drawImage. 실패 시 조용히 skip하고 카드 진행.
+  // Step 7-0 — 태그 글리프 Image 로드 (장소명 좌측에 작은 글리프로 합성). 실패 시 skip.
+  const TAG_GLYPH_SIZE = 28;
+  let tagGlyphImg: HTMLImageElement | null = null;
+  let tagGlyphSvgUrl: string | null = null;
   {
     const tag = input.pin.tag;
-    const GLYPH_SIZE = 44;
-    const GLYPH_Y = CONTENT_START_Y - 72;
     let glyphSvg = "";
-    let tagLabel = "";
-    let tagColor = "";
-    if (tag === "REEL") {
-      glyphSvg = getReelSvgString(GLYPH_SIZE);
-      tagLabel = "발견";
-      tagColor = PIN_COLORS.reel;
-    } else if (tag === "WISH") {
-      glyphSvg = getWishSvgString(GLYPH_SIZE);
-      tagLabel = "위시";
-      tagColor = PIN_COLORS.wish;
-    } else if (tag === "MEMORY") {
-      glyphSvg = getMemorySvgString(GLYPH_SIZE, GLYPH_SIZE);
-      tagLabel = "추억";
-      tagColor = PIN_COLORS.memory;
-    }
+    if (tag === "REEL") glyphSvg = getReelSvgString(TAG_GLYPH_SIZE);
+    else if (tag === "WISH") glyphSvg = getWishSvgString(TAG_GLYPH_SIZE);
+    else if (tag === "MEMORY")
+      glyphSvg = getMemorySvgString(TAG_GLYPH_SIZE, TAG_GLYPH_SIZE);
     if (glyphSvg) {
       const svgBlob = new Blob([glyphSvg], { type: "image/svg+xml" });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      const glyphImg = new Image();
-      glyphImg.src = svgUrl;
+      tagGlyphSvgUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.src = tagGlyphSvgUrl;
       try {
         await new Promise<void>((resolve, reject) => {
-          glyphImg.onload = () => resolve();
-          glyphImg.onerror = () => reject();
+          img.onload = () => resolve();
+          img.onerror = () => reject();
         });
-        ctx.drawImage(glyphImg, PADDING_X, GLYPH_Y, GLYPH_SIZE, GLYPH_SIZE);
-        ctx.font = `bold 26px ${fontFamily}`;
-        ctx.fillStyle = tagColor;
-        ctx.textBaseline = "middle";
-        ctx.fillText(
-          tagLabel,
-          PADDING_X + GLYPH_SIZE + 14,
-          GLYPH_Y + GLYPH_SIZE / 2,
-        );
+        tagGlyphImg = img;
       } catch {
-        // SVG 로드 실패 시에도 카드 텍스트는 계속 그림
-      } finally {
-        URL.revokeObjectURL(svgUrl);
-        glyphImg.src = "";
+        // 로드 실패 → 글리프 없이 카드 진행
       }
     }
   }
@@ -456,18 +435,37 @@ export async function renderPinCard(
     cursorY += memoLines.length * LINE_HEIGHT_MEMO + GAP_AFTER_MEMO;
   }
 
-  // 장소명 (BR-3)
+  // 장소명 (BR-3) — 첫 줄 좌측에 핀 태그 글리프(28×28) 합성. 라벨 없이 글리프만.
   ctx.font = fontStr(`bold ${FONT_PLACE_PX}px`, fontFamily);
   ctx.fillStyle = COLOR_PLACE_NAME;
+  const GLYPH_TEXT_GAP = 10;
+  const placeFirstLineX =
+    PADDING_X + (tagGlyphImg ? TAG_GLYPH_SIZE + GLYPH_TEXT_GAP : 0);
+  const placeMaxWidthFirstLine = tagGlyphImg
+    ? CONTENT_MAX_WIDTH - TAG_GLYPH_SIZE - GLYPH_TEXT_GAP
+    : CONTENT_MAX_WIDTH;
   const placeLines = wrapAndEllipsize(
     input.pin.placeName,
-    CONTENT_MAX_WIDTH,
+    placeMaxWidthFirstLine,
     2,
     (s) => ctx.measureText(s).width,
   );
   placeLines.forEach((line, idx) => {
-    ctx.fillText(line, PADDING_X, cursorY + (idx + 1) * LINE_HEIGHT_PLACE);
+    const lineX = idx === 0 ? placeFirstLineX : PADDING_X;
+    ctx.fillText(line, lineX, cursorY + (idx + 1) * LINE_HEIGHT_PLACE);
   });
+  // 글리프는 장소명 첫 줄과 시각 중앙 정렬 (cap height 중앙 ≈ baseline - 13)
+  if (tagGlyphImg) {
+    const firstBaseline = cursorY + LINE_HEIGHT_PLACE;
+    const glyphY = firstBaseline - 13 - TAG_GLYPH_SIZE / 2;
+    ctx.drawImage(
+      tagGlyphImg,
+      PADDING_X,
+      glyphY,
+      TAG_GLYPH_SIZE,
+      TAG_GLYPH_SIZE,
+    );
+  }
   cursorY += placeLines.length * LINE_HEIGHT_PLACE + GAP_AFTER_PLACE;
 
   // 날짜 · 주소 (BR-9)
@@ -515,6 +513,11 @@ export async function renderPinCard(
   // 메인 캔버스 메모리 즉시 해제
   main.width = 0;
   main.height = 0;
+  // 태그 글리프 SVG URL 해제 (Step 7-0에서 생성한 Blob URL)
+  if (tagGlyphSvgUrl) {
+    URL.revokeObjectURL(tagGlyphSvgUrl);
+    if (tagGlyphImg) tagGlyphImg.src = "";
+  }
 
   const previewDataUrl = URL.createObjectURL(blob);
   return { blob, previewDataUrl };
