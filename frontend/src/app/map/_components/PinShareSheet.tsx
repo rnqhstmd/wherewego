@@ -58,6 +58,8 @@ export default function PinShareSheet({
   );
   const [notice, setNotice] = useState<InlineNotice>(null);
   const [justCopied, setJustCopied] = useState(false);
+  // mount slide-up 전환: 초기 false → 다음 프레임에서 true로 토글
+  const [enter, setEnter] = useState(false);
 
   // PinPopup 109L 패턴 재사용 — BR-10 YYYY.MM.DD 포맷
   const formattedDate = new Date(pin.createdAt)
@@ -75,10 +77,27 @@ export default function PinShareSheet({
     phaseRef.current = phase;
   }, [phase]);
 
+  // mount slide-up 전환: 초기 translateY(100%) → 다음 프레임 translateY(0)
+  useEffect(() => {
+    const raf = window.requestAnimationFrame(() => {
+      setEnter(true);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+
   // 카드 렌더 useEffect
   useEffect(() => {
     // Canvas 미지원: 초기 lazy state init이 이미 "unsupported"로 설정 — 추가 작업 없음
     if (!isCanvasSupported()) return;
+
+    // AC-3 정량 측정 (dev only) — mount 시점 mark
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        performance.mark("pin-share-card:render-start");
+      } catch {
+        // performance.mark 미지원 환경 무시
+      }
+    }
 
     const ac = new AbortController();
     let cancelled = false;
@@ -104,6 +123,23 @@ export default function PinShareSheet({
           blob: result.blob,
           previewUrl: result.previewDataUrl,
         });
+        // AC-3 정량 측정 (dev only) — ready 전환 직후 mark + measure
+        if (process.env.NODE_ENV !== "production") {
+          try {
+            performance.mark("pin-share-card:render-ready");
+            const measure = performance.measure(
+              "pin-share-card:render-duration",
+              "pin-share-card:render-start",
+              "pin-share-card:render-ready",
+            );
+            console.info("[Phase 9 card render]", {
+              pinId: pin.id,
+              durationMs: measure.duration,
+            });
+          } catch {
+            // performance.measure 미지원 환경 무시
+          }
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof Error && err.message === "CANVAS_UNSUPPORTED") {
@@ -208,6 +244,8 @@ export default function PinShareSheet({
           position: "fixed",
           inset: 0,
           background: "rgba(26, 26, 46, 0.55)",
+          opacity: enter ? 1 : 0,
+          transition: "opacity 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           zIndex: 50,
         }}
       />
@@ -220,7 +258,10 @@ export default function PinShareSheet({
           position: "fixed",
           left: "50%",
           bottom: 0,
-          transform: "translateX(-50%)",
+          transform: enter
+            ? "translateX(-50%) translateY(0)"
+            : "translateX(-50%) translateY(100%)",
+          transition: "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           width: "100%",
           maxWidth: 420,
           background: colors.panel,
