@@ -131,14 +131,19 @@ export default function MemoTagPanelContent({
       <PanelLabel>태그</PanelLabel>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <PinTag
+          type="MEMORY"
+          active={tag === "MEMORY"}
+          onClick={() => setTag("MEMORY")}
+        />
+        <PinTag
           type="WISH"
           active={tag === "WISH"}
           onClick={() => setTag("WISH")}
         />
         <PinTag
-          type="MEMORY"
-          active={tag === "MEMORY"}
-          onClick={() => setTag("MEMORY")}
+          type="REEL"
+          active={tag === "REEL"}
+          onClick={() => setTag("REEL")}
         />
       </div>
 

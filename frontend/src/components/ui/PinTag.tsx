@@ -25,7 +25,7 @@ const TAG_META: Record<PinTagValue, TagMeta> = {
     Glyph: ({ size }) => <ReelGlyph size={size} />,
   },
   WISH: {
-    label: "설렘",
+    label: "위시",
     Glyph: ({ size }) => <WishGlyph size={size} />,
   },
   MEMORY: {

@@ -15,14 +15,22 @@ import type { JSX } from "react";
 export type PinKind = "reel" | "wish" | "memory";
 
 /**
- * 핀 종류별 기본 색상 — Tailwind v4 @theme 토큰 참조.
- * globals.css의 `--color-pin-reel/wish/memory`와 동기화.
+ * 핀 종류별 기본 색상 — context/tag/README.md 정의대로 hex로 직접 박는다.
+ *
+ * SVG의 `fill` 속성은 CSS 변수(`var(--color-pin-*)`)를 일관되게 인식하지 못해
+ * 브라우저가 default(검정)로 폴백되는 회귀가 있었다. globals.css의 `--color-pin-*`
+ * 토큰과 동일한 hex를 직접 사용해 모든 환경에서 정확한 파스텔 톤이 노출되도록 한다.
+ *
+ * - REEL: 연보라 #C5B4E3 (인스타 릴스에서 발견한 곳)
+ * - WISH: 파스텔 민트 #A8E6CF (가보고 싶은 곳)
+ * - MEMORY: 파스텔 핑크 #FFB3C6 (다녀온 곳)
  */
 export const PIN_COLORS: Record<PinKind, string> = {
-  reel: "var(--color-pin-reel)",
-  wish: "var(--color-pin-wish)",
-  memory: "var(--color-pin-memory)",
+  reel: "#7BB3E8",   // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
+  wish: "#F4C842",   // 진한 파스텔 노랑 (머스타드 hint) — 흰 지도 배경에서 별이 또렷
+  memory: "#FFB3C6", // 파스텔 핑크 하트 — 그대로
 };
+
 
 // 16진수 80 = ~50% alpha. CSS 변수와도 호환되도록 color8 형태로 합성.
 function shadowFilter(color: string): string {
@@ -39,7 +47,7 @@ function shadowFilter(color: string): string {
  */
 export function getReelSvgString(size: number, color?: string): string {
   const c = color ?? PIN_COLORS.reel;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" data-testid="pin-glyph-reel" style="filter:${shadowFilter(c)};flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="${c}" stroke-width="2.2"/><circle cx="12" cy="12" r="4" fill="none" stroke="${c}" stroke-width="2.2"/><circle cx="17.5" cy="6.5" r="1.2" fill="${c}"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" aria-hidden="true" data-testid="pin-glyph-reel" style="filter:${shadowFilter(c)};flex-shrink:0;"><circle cx="5" cy="5" r="4" fill="${c}"/></svg>`;
 }
 
 /**
@@ -48,7 +56,7 @@ export function getReelSvgString(size: number, color?: string): string {
  */
 export function getWishSvgString(size: number, color?: string): string {
   const c = color ?? PIN_COLORS.wish;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" aria-hidden="true" data-testid="pin-glyph-wish" style="filter:${shadowFilter(c)};flex-shrink:0;"><circle cx="5" cy="5" r="5" fill="${c}"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" aria-hidden="true" data-testid="pin-glyph-wish" style="filter:${shadowFilter(c)};flex-shrink:0;"><path d="M 5 0.1 L 6.18 3.38 L 9.66 3.49 L 6.90 5.62 L 7.88 8.96 L 5 7.0 L 2.12 8.96 L 3.10 5.62 L 0.34 3.49 L 3.82 3.38 Z" fill="${c}"/></svg>`;
 }
 
 /**
@@ -57,7 +65,7 @@ export function getWishSvgString(size: number, color?: string): string {
  */
 export function getMemorySvgString(w: number, h: number, color?: string): string {
   const c = color ?? PIN_COLORS.memory;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="-8 -6 16 12" aria-hidden="true" data-testid="pin-glyph-memory" style="filter:${shadowFilter(c)};flex-shrink:0;"><path d="M 0 4.5 C -7 0 -8 -5 -3.5 -5 C -1.5 -5 0 -3 0 -3 C 0 -3 1.5 -5 3.5 -5 C 8 -5 7 0 0 4.5 Z" fill="${c}"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 24 24" aria-hidden="true" data-testid="pin-glyph-memory" style="filter:${shadowFilter(c)};flex-shrink:0;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="${c}"/></svg>`;
 }
 
 // =====================================================================
@@ -77,24 +85,12 @@ export function ReelGlyph({
       xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0 0 10 10"
       aria-hidden="true"
       data-testid="pin-glyph-reel"
       style={{ filter: shadowFilter(c), flexShrink: 0 }}
     >
-      <rect
-        x="3"
-        y="3"
-        width="18"
-        height="18"
-        rx="5"
-        ry="5"
-        fill="none"
-        stroke={c}
-        strokeWidth="2.2"
-      />
-      <circle cx="12" cy="12" r="4" fill="none" stroke={c} strokeWidth="2.2" />
-      <circle cx="17.5" cy="6.5" r="1.2" fill={c} />
+      <circle cx="5" cy="5" r="4" fill={c} />
     </svg>
   );
 }
@@ -107,6 +103,8 @@ export function WishGlyph({
   color?: string;
 }): JSX.Element {
   const c = color ?? PIN_COLORS.wish;
+  // 5각 별 — 외부 반지름 4.6, 내부 반지름 1.9, 중심 (5,5).
+  // 위시리스트의 "반짝임" 의미 + 노랑 파스텔과 합성하여 따뜻한 톤.
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -117,7 +115,10 @@ export function WishGlyph({
       data-testid="pin-glyph-wish"
       style={{ filter: shadowFilter(c), flexShrink: 0 }}
     >
-      <circle cx="5" cy="5" r="5" fill={c} />
+      <path
+        d="M 5 0.1 L 6.18 3.38 L 9.66 3.49 L 6.90 5.62 L 7.88 8.96 L 5 7.0 L 2.12 8.96 L 3.10 5.62 L 0.34 3.49 L 3.82 3.38 Z"
+        fill={c}
+      />
     </svg>
   );
 }
@@ -132,18 +133,19 @@ export function MemoryGlyph({
   color?: string;
 }): JSX.Element {
   const c = color ?? PIN_COLORS.memory;
+  // main의 material standard 하트 SVG (viewBox 0 0 24 24 정사각). 정사각 호출에서 종횡비 깨지지 않음.
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={w}
       height={h}
-      viewBox="-8 -6 16 12"
+      viewBox="0 0 24 24"
       aria-hidden="true"
       data-testid="pin-glyph-memory"
       style={{ filter: shadowFilter(c), flexShrink: 0 }}
     >
       <path
-        d="M 0 4.5 C -7 0 -8 -5 -3.5 -5 C -1.5 -5 0 -3 0 -3 C 0 -3 1.5 -5 3.5 -5 C 8 -5 7 0 0 4.5 Z"
+        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
         fill={c}
       />
     </svg>

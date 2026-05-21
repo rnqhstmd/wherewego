@@ -14,7 +14,7 @@ interface TagFilterProps {
 const OPTIONS: { value: TagFilterValue; label: string }[] = [
   { value: "ALL", label: "전체" },
   { value: "REEL", label: "발견" },
-  { value: "WISH", label: "설렘" },
+  { value: "WISH", label: "위시" },
   { value: "MEMORY", label: "추억" },
 ];
 
