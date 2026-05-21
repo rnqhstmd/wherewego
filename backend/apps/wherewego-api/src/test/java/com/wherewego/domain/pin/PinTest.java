@@ -29,14 +29,14 @@ class PinTest {
     @Nested
     class AutoFromInstagram {
 
-        @DisplayName("tag=PLACE 이고 memoSource=null 로 생성된다 (AC-9, BR-5).")
+        @DisplayName("tag=REEL 이고 memoSource=null 로 생성된다 (AC-9, BR-5).")
         @Test
-        void autoFromInstagram_setsPlaceTagAndNullMemoSource() {
+        void autoFromInstagram_setsReelTagAndNullMemoSource() {
             // act
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
 
             // assert
-            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+            assertThat(pin.getTag()).isEqualTo(PinTag.REEL);
             assertThat(pin.getMemoSource()).isNull();
             assertThat(pin.getGroupId()).isEqualTo(10L);
             assertThat(pin.getCreatedBy()).isEqualTo(7L);
@@ -53,14 +53,14 @@ class PinTest {
     @Nested
     class FromSelection {
 
-        @DisplayName("tag=PLACE 이고 memoSource=null 로 생성된다 (BR-5).")
+        @DisplayName("tag=REEL 이고 memoSource=null 로 생성된다 (BR-5).")
         @Test
-        void fromSelection_setsPlaceTagAndNullMemoSource() {
+        void fromSelection_setsReelTagAndNullMemoSource() {
             // act
             Pin pin = Pin.fromSelection(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
 
             // assert
-            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+            assertThat(pin.getTag()).isEqualTo(PinTag.REEL);
             assertThat(pin.getMemoSource()).isNull();
             assertThat(pin.getMemo()).isNull();
         }
@@ -153,12 +153,12 @@ class PinTest {
     @Nested
     class ChangeTag {
 
-        @DisplayName("PLACE → MEMORY 로 변경된다.")
+        @DisplayName("REEL → MEMORY 로 변경된다.")
         @Test
-        void changeTag_placeToMemory() {
+        void changeTag_reelToMemory() {
             // arrange
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
-            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+            assertThat(pin.getTag()).isEqualTo(PinTag.REEL);
 
             // act
             pin.changeTag(PinTag.MEMORY);
@@ -167,18 +167,18 @@ class PinTest {
             assertThat(pin.getTag()).isEqualTo(PinTag.MEMORY);
         }
 
-        @DisplayName("MEMORY → PLACE 로 변경된다.")
+        @DisplayName("MEMORY → REEL 로 변경된다.")
         @Test
-        void changeTag_memoryToPlace() {
+        void changeTag_memoryToReel() {
             // arrange
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
             pin.changeTag(PinTag.MEMORY);
 
             // act
-            pin.changeTag(PinTag.PLACE);
+            pin.changeTag(PinTag.REEL);
 
             // assert
-            assertThat(pin.getTag()).isEqualTo(PinTag.PLACE);
+            assertThat(pin.getTag()).isEqualTo(PinTag.REEL);
         }
     }
 

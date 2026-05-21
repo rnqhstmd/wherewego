@@ -93,8 +93,12 @@ export function PinListClient({
     return optimisticPins.filter((pin) => pin.tag === filter);
   }, [optimisticPins, filter]);
 
-  const placeCount = useMemo(
-    () => optimisticPins.filter((pin) => pin.tag === "PLACE").length,
+  const reelCount = useMemo(
+    () => optimisticPins.filter((pin) => pin.tag === "REEL").length,
+    [optimisticPins],
+  );
+  const wishCount = useMemo(
+    () => optimisticPins.filter((pin) => pin.tag === "WISH").length,
     [optimisticPins],
   );
   const memoryCount = useMemo(
@@ -156,7 +160,8 @@ export function PinListClient({
           value={filter}
           onChange={setFilter}
           totalCount={optimisticPins.length}
-          placeCount={placeCount}
+          reelCount={reelCount}
+          wishCount={wishCount}
           memoryCount={memoryCount}
         />
         {isPending ? (

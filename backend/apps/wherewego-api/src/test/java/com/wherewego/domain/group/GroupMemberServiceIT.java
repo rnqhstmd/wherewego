@@ -294,7 +294,7 @@ class GroupMemberServiceIT {
                 "INSERT INTO pins (group_id, created_by, place_name, latitude, longitude, tag) "
                         + "VALUES (?, ?, ?, ?, ?, ?)",
                 group.groupId(), userA, "TestCafe",
-                new BigDecimal("37.5000000"), new BigDecimal("127.0000000"), "PLACE");
+                new BigDecimal("37.5000000"), new BigDecimal("127.0000000"), "REEL");
 
         // act : userA 탈퇴 (남은 활성 멤버 userB 존재)
         groupMemberService.leaveGroup(userA, group.groupId());

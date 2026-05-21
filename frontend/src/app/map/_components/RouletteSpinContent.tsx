@@ -35,7 +35,7 @@ export default function RouletteSpinContent({
           alignItems: "center",
         }}
       >
-        <PinDot type="place" size={14} style={{ opacity: 0.4 }} />
+        <PinDot type="wish" size={14} style={{ opacity: 0.4 }} />
         <PinDot type="memory" size={16} />
         <div
           style={{
@@ -47,7 +47,7 @@ export default function RouletteSpinContent({
             animation: "roulette-spin 1s linear infinite",
           }}
         />
-        <PinDot type="place" size={14} />
+        <PinDot type="wish" size={14} />
         <PinDot type="memory" size={12} style={{ opacity: 0.4 }} />
       </div>
       <div

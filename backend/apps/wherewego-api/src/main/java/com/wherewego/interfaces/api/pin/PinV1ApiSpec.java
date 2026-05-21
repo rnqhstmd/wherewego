@@ -11,7 +11,7 @@ public interface PinV1ApiSpec {
     @Operation(
             summary = "그룹 핀 목록 조회",
             description = "활성 그룹원이 자신의 그룹에 속한 핀 목록을 created_at 내림차순으로 반환합니다 (FR-1, BR-10). " +
-                    "tag 쿼리 파라미터로 PLACE/MEMORY 필터링이 가능합니다 (FR-5). " +
+                    "tag 쿼리 파라미터로 REEL/WISH/MEMORY 필터링이 가능합니다 (FR-5). " +
                     "잘못된 tag 값은 PIN_TAG_INVALID (400) 으로 거부됩니다 (AC-2 일관성). " +
                     "deleted_at IS NULL 인 행만 반환합니다 (BR-2). " +
                     "page/size 둘 다 미전달 시 전체 목록(legacy 모드, items 만 반환). " +
@@ -30,6 +30,7 @@ public interface PinV1ApiSpec {
             summary = "핀 직접 등록",
             description = "활성 그룹원이 그룹에 핀을 직접 등록합니다 (Phase 6 FR-API-1, BR-1). " +
                     "검색 결과 선택 또는 좌표 picker 흐름 모두에서 사용됩니다. " +
+                    "tag 허용 값은 REEL/WISH/MEMORY 이며, 그 외 값은 PIN_TAG_INVALID (400) 으로 거부됩니다. " +
                     "memo 가 비어있지 않으면 memoSource=MANUAL 로 마킹됩니다 (BR-3). " +
                     "instagramUrl 이 있을 때만 그룹 내 UNIQUE 제약(uq_pins_group_instagram) 에 따라 " +
                     "중복은 PLC_DUPLICATE_PIN (409) 으로 거부됩니다."
@@ -43,6 +44,7 @@ public interface PinV1ApiSpec {
     @Operation(
             summary = "핀 부분 수정",
             description = "활성 그룹원이 핀의 memo/tag 를 부분 수정합니다 (FR-2, BR-7). " +
+                    "tag 허용 값은 REEL/WISH/MEMORY 이며, 그 외 값은 PIN_TAG_INVALID (400) 으로 거부됩니다. " +
                     "memo 가 빈 문자열이면 잠금 해제(BR-8), 비어있지 않으면 MANUAL 마킹(BR-3, FR-4). " +
                     "키 없음 vs JSON null vs 빈 문자열을 구분하기 위해 본문은 JsonNode 로 받습니다. " +
                     "Phase 2.10: 좌표 수정 지원 — latitude/longitude 는 함께 전달해야 하며 한 쪽만 전달 시 " +

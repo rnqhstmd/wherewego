@@ -28,7 +28,7 @@ function pin(id: number): PinSummaryResponse {
     instagramUrl: null,
     memo: null,
     memoSource: null,
-    tag: "PLACE",
+    tag: "WISH",
     createdAt: "2026-05-21T00:00:00Z",
   };
 }

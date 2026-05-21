@@ -141,7 +141,7 @@ class PinCreateIT {
                 + "\"latitude\":37.5443,"
                 + "\"longitude\":127.0557,"
                 + "\"memo\":\"분위기 좋음\","
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act
@@ -152,7 +152,7 @@ class PinCreateIT {
         JsonNode data = response.getBody().get("data");
         assertThat(data.get("placeName").asText()).isEqualTo("성수동 카페");
         assertThat(data.get("address").asText()).isEqualTo("서울 성동구 성수동");
-        assertThat(data.get("tag").asText()).isEqualTo("PLACE");
+        assertThat(data.get("tag").asText()).isEqualTo("WISH");
         assertThat(data.get("memo").asText()).isEqualTo("분위기 좋음");
         assertThat(data.get("memoSource").asText()).isEqualTo("MANUAL");
         assertThat(data.get("createdBy").asLong()).isEqualTo(userAId);
@@ -167,7 +167,7 @@ class PinCreateIT {
                 + "\"placeName\":\"P\","
                 + "\"latitude\":37.5,"
                 + "\"longitude\":127.0,"
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act : userC 는 비멤버
@@ -206,7 +206,7 @@ class PinCreateIT {
                 + "\"placeName\":\"   \","
                 + "\"latitude\":37.5,"
                 + "\"longitude\":127.0,"
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act
@@ -226,7 +226,7 @@ class PinCreateIT {
                 + "\"placeName\":\"P\","
                 + "\"latitude\":91.0,"
                 + "\"longitude\":127.0,"
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act
@@ -248,7 +248,7 @@ class PinCreateIT {
                 + "\"latitude\":37.5,"
                 + "\"longitude\":127.0,"
                 + "\"memo\":\"" + tooLong + "\","
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act
@@ -269,7 +269,7 @@ class PinCreateIT {
                 + "\"latitude\":37.5,"
                 + "\"longitude\":127.0,"
                 + "\"instagramUrl\":\"https://www.instagram.com/p/DUP/\","
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
         assertThat(createPin(tokenA, groupId, first).getStatusCode())
                 .isEqualTo(HttpStatus.CREATED);
@@ -280,7 +280,7 @@ class PinCreateIT {
                 + "\"latitude\":37.6,"
                 + "\"longitude\":127.1,"
                 + "\"instagramUrl\":\"https://www.instagram.com/p/DUP/\","
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
         ResponseEntity<JsonNode> response = createPin(tokenA, groupId, second);
 
@@ -298,7 +298,7 @@ class PinCreateIT {
                 + "\"placeName\":\"P\","
                 + "\"latitude\":37.5,"
                 + "\"longitude\":127.0,"
-                + "\"tag\":\"PLACE\""
+                + "\"tag\":\"WISH\""
                 + "}";
 
         // act : 동일 입력 2회 등록

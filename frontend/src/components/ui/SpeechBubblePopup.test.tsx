@@ -9,7 +9,7 @@ const baseProps = {
   addr: "서울 강남구",
   author: "tester",
   date: "2025-01-01",
-  pinType: "place" as const,
+  pinType: "wish" as const,
 };
 
 describe("SpeechBubblePopup", () => {
