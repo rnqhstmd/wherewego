@@ -357,7 +357,7 @@ export async function renderPinCard(
     img.src = "";
   }
 
-  // Step 5 — Off-canvas B에 blur(8px) 합성
+  // Step 5 — Off-canvas B에 blur(4px) 합성 — 동네 식별 가능 수준의 약한 흐림
   const canvasB = document.createElement("canvas");
   canvasB.width = CARD_WIDTH;
   canvasB.height = CARD_HEIGHT;
@@ -365,7 +365,7 @@ export async function renderPinCard(
   if (!ctxB) {
     throw new Error("CANVAS_UNSUPPORTED");
   }
-  ctxB.filter = "blur(8px)";
+  ctxB.filter = "blur(4px)";
   ctxB.drawImage(canvasA, 0, 0);
   ctxB.filter = "none";
   // A 메모리 즉시 해제

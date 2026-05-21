@@ -238,6 +238,37 @@ export default function MapClient({
     }
   }, [activeSheet, notifications]);
 
+  // Deep link: URL `?pinId=X` 진입 시 해당 핀 자동 선택 + flyTo. 그룹 멤버만 적용됨.
+  const deepLinkAppliedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    if (!map || optimisticPins.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const pinIdStr = params.get("pinId");
+    if (!pinIdStr) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const pinId = Number(pinIdStr);
+    if (Number.isNaN(pinId)) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const target = optimisticPins.find((p) => p.id === pinId);
+    if (!target) {
+      // 핀 없거나 다른 그룹 → 무시 (사용자 안내 없이 일반 진입)
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    setSelectedPinId(pinId);
+    map.flyTo({
+      center: [target.longitude, target.latitude],
+      zoom: 15,
+      duration: 700,
+    });
+    deepLinkAppliedRef.current = true;
+  }, [map, optimisticPins]);
+
   // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
   // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
   // 다른 사용자의 수정/삭제는 새로고침 전까지 미반영(후속 PR에서 충돌 정책과 함께 다룸).

@@ -32,6 +32,8 @@ type InlineNotice =
   | { kind: "copy-success" }
   | { kind: "copy-failed" }
   | { kind: "save-success" }
+  | { kind: "link-copy-success" }
+  | { kind: "link-copy-failed" }
   | null;
 
 /**
@@ -228,6 +230,21 @@ export default function PinShareSheet({
     setNotice({ kind: "save-success" });
   }, []);
 
+  // 그룹 멤버용 deep link 복사 — /map?pinId=X. 비그룹 사용자는 일반 진입.
+  const handleCopyLink = useCallback(async () => {
+    const url = `${window.location.origin}/map?pinId=${pin.id}`;
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setNotice({ kind: "link-copy-failed" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice({ kind: "link-copy-success" });
+    } catch {
+      setNotice({ kind: "link-copy-failed" });
+    }
+  }, [pin.id]);
+
   const isReady = phase.kind === "ready";
   const primaryBg = isReady ? colors.ink : colors.hairline;
   const primaryColor = isReady ? "#ffffff" : colors.inkSoft;
@@ -419,7 +436,7 @@ export default function PinShareSheet({
           </div>
         </div>
 
-        {/* 두 액션 버튼 */}
+        {/* 액션 버튼 — 이미지 복사 / 이미지 저장 / 링크 복사 */}
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="button"
@@ -440,7 +457,7 @@ export default function PinShareSheet({
               fontFamily: fonts.sans,
             }}
           >
-            {justCopied ? "복사됨 ✓" : "복사하기"}
+            {justCopied ? "복사됨 ✓" : "이미지 복사"}
           </button>
           <button
             type="button"
@@ -467,6 +484,27 @@ export default function PinShareSheet({
           </button>
         </div>
 
+        {/* 링크 공유 — 그룹 멤버용 deep link 클립보드 복사 (별도 row, 두 액션과 시각 분리) */}
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          style={{
+            marginTop: 8,
+            width: "100%",
+            padding: "10px 0",
+            borderRadius: 10,
+            border: `1px solid ${colors.hairline}`,
+            background: "transparent",
+            color: colors.inkSoft,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+            fontFamily: fonts.sans,
+          }}
+        >
+          🔗 핀 링크 복사
+        </button>
+
         {/* 인라인 안내 */}
         {notice !== null && (
           <div
@@ -487,6 +525,10 @@ export default function PinShareSheet({
             {notice.kind === "copy-failed" &&
               "이 브라우저는 이미지 복사를 지원하지 않아요. 이미지 저장을 이용해주세요"}
             {notice.kind === "save-success" && "이미지를 저장했어요"}
+            {notice.kind === "link-copy-success" &&
+              "핀 링크가 복사되었어요. 그룹 멤버에게 보내면 바로 이 핀이 열려요"}
+            {notice.kind === "link-copy-failed" &&
+              "이 브라우저는 링크 복사를 지원하지 않아요"}
           </div>
         )}
       </div>
