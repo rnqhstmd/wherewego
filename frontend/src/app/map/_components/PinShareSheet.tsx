@@ -255,22 +255,27 @@ export default function PinShareSheet({
         aria-modal="true"
         aria-label="핀 공유 카드"
         style={{
+          // 화면 가운데 중앙 정렬 모달 — 모바일·데스크탑 공통.
+          // 진입 transition은 opacity + translateY 미세 슬라이드(시각 부드러움)로 보강.
           position: "fixed",
+          top: "50%",
           left: "50%",
-          bottom: 0,
           transform: enter
-            ? "translateX(-50%) translateY(0)"
-            : "translateX(-50%) translateY(100%)",
-          transition: "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
-          width: "100%",
+            ? "translate(-50%, -50%)"
+            : "translate(-50%, calc(-50% + 12px))",
+          opacity: enter ? 1 : 0,
+          transition:
+            "transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+          width: "calc(100% - 32px)",
           maxWidth: 420,
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
           background: colors.panel,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderRadius: 20,
           padding: 20,
           paddingBottom: 24,
           zIndex: 51,
-          boxShadow: "0 -8px 32px rgba(0,0,0,0.18)",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.22)",
           fontFamily: fonts.sans,
           boxSizing: "border-box",
         }}

@@ -313,6 +313,9 @@ export async function renderPinCard(
   throwIfAborted(signal);
 
   // Step 3 — Mapbox Static 이미지 로드
+  // 카드 배경용은 표준 streets-v12 스타일 강제. 사용자 커스텀 스타일(MapClient의 main 지도용)은
+  // zoom 14에서 데이터가 비어있어 거의 단색 PNG를 반환하는 케이스가 발견됨(2025-05-22).
+  // 카드의 BG-6 폴백을 회피하고 시각 일관성을 위해 표준 스타일로 통일.
   const staticUrl = buildMapboxStaticUrl({
     lat: input.pin.latitude,
     lng: input.pin.longitude,
@@ -320,7 +323,7 @@ export async function renderPinCard(
     height: MAPBOX_API_HEIGHT,
     zoom: MAPBOX_ZOOM,
     token: input.mapboxToken,
-    styleId: extractStyleId(input.mapboxStyleUrl),
+    styleId: "mapbox/streets-v12",
   });
   const img = await loadImageWithTimeout(
     staticUrl,
