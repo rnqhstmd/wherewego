@@ -55,6 +55,7 @@ public class NotificationSseRegistry {
         } catch (IOException e) {
             log.debug("SSE initial connected failed user={} cause={}", userId, e.getMessage());
             remove.run();
+            try { emitter.completeWithError(e); } catch (Exception ignore) { /* noop */ }
         }
         return emitter;
     }
