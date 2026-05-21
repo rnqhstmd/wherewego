@@ -408,14 +408,14 @@ class PinUpdateCommandTest {
         @Test
         void bothProvided_buildsCommand() {
             // act
-            PinUpdateCommand cmd = PinUpdateCommand.of(true, "memo", true, PinTag.PLACE,
+            PinUpdateCommand cmd = PinUpdateCommand.of(true, "memo", true, PinTag.WISH,
                     false, null, false, null, false, null, null);
 
             // assert
             assertThat(cmd.memoProvided()).isTrue();
             assertThat(cmd.memo()).isEqualTo("memo");
             assertThat(cmd.tagProvided()).isTrue();
-            assertThat(cmd.tag()).isEqualTo(PinTag.PLACE);
+            assertThat(cmd.tag()).isEqualTo(PinTag.WISH);
         }
 
         @DisplayName("placeName 만 제공되면 placeName 만 갱신 대상이 된다 (Phase 2.8 AC-6).")

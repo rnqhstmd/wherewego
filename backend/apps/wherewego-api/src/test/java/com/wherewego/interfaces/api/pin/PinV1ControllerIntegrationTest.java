@@ -175,9 +175,9 @@ class PinV1ControllerIntegrationTest {
     @DisplayName("GET /api/v1/groups/{groupId}/pins - 활성 멤버는 200 과 items 배열을 받는다 (AC-1).")
     @Test
     void listPins_activeMember_returns200WithItems() {
-        // arrange : 2개 핀 (둘 다 PLACE)
-        insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/I1/", null, null, "PLACE");
-        insertPin(groupId, userAId, "P2", "https://www.instagram.com/p/I2/", null, null, "PLACE");
+        // arrange : 2개 핀 (둘 다 REEL)
+        insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/I1/", null, null, "REEL");
+        insertPin(groupId, userAId, "P2", "https://www.instagram.com/p/I2/", null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = listPins(tokenA, groupId, null);
@@ -192,21 +192,21 @@ class PinV1ControllerIntegrationTest {
         assertThat(items).hasSize(2);
     }
 
-    @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=PLACE - tag 필터가 동작한다 (AC-2).")
+    @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=REEL - tag 필터가 동작한다 (AC-2).")
     @Test
     void listPins_withTagFilter_returnsFiltered() {
-        // arrange : PLACE 1 + MEMORY 1
-        insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/T1/", null, null, "PLACE");
+        // arrange : REEL 1 + MEMORY 1
+        insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/T1/", null, null, "REEL");
         insertPin(groupId, userAId, "M1", "https://www.instagram.com/p/T2/", null, null, "MEMORY");
 
         // act
-        ResponseEntity<JsonNode> response = listPins(tokenA, groupId, "PLACE");
+        ResponseEntity<JsonNode> response = listPins(tokenA, groupId, "REEL");
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode items = response.getBody().get("data").get("items");
         assertThat(items).hasSize(1);
-        assertThat(items.get(0).get("tag").asText()).isEqualTo("PLACE");
+        assertThat(items.get(0).get("tag").asText()).isEqualTo("REEL");
     }
 
     @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=INVALID - 400 PIN_TAG_INVALID 를 반환한다 (AC-2 일관성).")
@@ -241,7 +241,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_memoAndTag_returns200() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/P1/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -260,7 +260,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_emptyBody_returns400() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/P2/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId, "{}");
@@ -276,7 +276,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_memoTooLong_returns400() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/P3/",
-                null, null, "PLACE");
+                null, null, "REEL");
         String tooLong = "a".repeat(501);
 
         // act
@@ -294,7 +294,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_invalidTag_returns400() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/P4/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -311,7 +311,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_emptyMemo_clearsLockInDb() {
         // arrange : MANUAL 메모를 가진 핀 직접 INSERT
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/E1/",
-                "manual memo before clear", "MANUAL", "PLACE");
+                "manual memo before clear", "MANUAL", "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId, "{\"memo\": \"\"}");
@@ -331,7 +331,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_placeNameOnly_returns200WithUpdatedPlaceName() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN1/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -348,7 +348,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_emptyPlaceName_returnsPinPlaceNameInvalid() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN2/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -365,7 +365,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_emptyAddress_returns200WithUnchangedAddress() {
         // arrange : 기존 address = "서울 강남구"
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN3/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : 빈 address + non-empty memo 조합 → address 미변경, memo 반영
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -383,7 +383,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_addressOnlyEmpty_returns400PinUpdateEmpty() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN6/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : 빈 address 단독 → addressProvided=false 로 정규화되어 수정 필드 없음
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -400,7 +400,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_placeNameAndMemo_returns200WithBothApplied() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN4/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -419,7 +419,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_addressTooLong_returnsPinAddressInvalid() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/PN5/",
-                null, null, "PLACE");
+                null, null, "REEL");
         String tooLong = "a".repeat(501);
 
         // act
@@ -435,9 +435,9 @@ class PinV1ControllerIntegrationTest {
     @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 좌표 변경 시 200 + 좌표 갱신 + 다른 필드 불변 (Phase 2.10 AC-1, AC-5).")
     @Test
     void updatePin_withCoordinates_changesLocationAndKeepsOtherFields() {
-        // arrange : 초기 lat=37.5, lng=127.0, placeName="P1", address="서울 강남구", memo="m0", tag=PLACE
+        // arrange : 초기 lat=37.5, lng=127.0, placeName="P1", address="서울 강남구", memo="m0", tag=REEL
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR1/",
-                "m0", "MANUAL", "PLACE");
+                "m0", "MANUAL", "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -455,7 +455,7 @@ class PinV1ControllerIntegrationTest {
         assertThat(data.get("placeName").asText()).isEqualTo("P1");
         assertThat(data.get("address").asText()).isEqualTo("서울 강남구");
         assertThat(data.get("memo").asText()).isEqualTo("m0");
-        assertThat(data.get("tag").asText()).isEqualTo("PLACE");
+        assertThat(data.get("tag").asText()).isEqualTo("REEL");
     }
 
     @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 좌표 범위 초과는 400 PIN_COORDINATE_INVALID (Phase 2.10 AC-2).")
@@ -463,7 +463,7 @@ class PinV1ControllerIntegrationTest {
     void updatePin_coordinateOutOfRange_returns400() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR2/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : latitude=91 (범위 초과)
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -480,7 +480,7 @@ class PinV1ControllerIntegrationTest {
     void updatePin_byNonMember_returns403() {
         // arrange : userC 는 그룹 비멤버
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR3/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = patchPin(tokenC, groupId, pinId,
@@ -497,7 +497,7 @@ class PinV1ControllerIntegrationTest {
     void updatePin_withoutCoordinates_keepsCoordinates() {
         // arrange : 초기 lat=37.5, lng=127.0
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR4/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : memo 만 변경 (좌표 미포함)
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -517,7 +517,7 @@ class PinV1ControllerIntegrationTest {
     void updatePin_latitudeOnly_returns400() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/CR5/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : latitude 만 전달 (longitude 누락)
         ResponseEntity<JsonNode> response = patchPin(tokenA, groupId, pinId,
@@ -534,7 +534,7 @@ class PinV1ControllerIntegrationTest {
     void patchPin_deletedPin_returns404() {
         // arrange : 핀 INSERT 직후 직접 soft delete
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/P5/",
-                null, null, "PLACE");
+                null, null, "REEL");
         jdbcTemplate.update("UPDATE pins SET deleted_at = now() WHERE id = ?", pinId);
 
         // act
@@ -552,7 +552,7 @@ class PinV1ControllerIntegrationTest {
     void deletePin_returns204AndRemovesFromListing() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/D1/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act
         ResponseEntity<JsonNode> response = deletePin(tokenA, groupId, pinId);
@@ -570,7 +570,7 @@ class PinV1ControllerIntegrationTest {
     void deletePin_doubleDelete_returns404() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/D2/",
-                null, null, "PLACE");
+                null, null, "REEL");
         deletePin(tokenA, groupId, pinId);
 
         // act
@@ -587,7 +587,7 @@ class PinV1ControllerIntegrationTest {
     void deletePin_nonMember_returns403() {
         // arrange
         Long pinId = insertPin(groupId, userAId, "P1", "https://www.instagram.com/p/D3/",
-                null, null, "PLACE");
+                null, null, "REEL");
 
         // act : userC 는 비멤버
         ResponseEntity<JsonNode> response = deletePin(tokenC, groupId, pinId);
@@ -599,13 +599,13 @@ class PinV1ControllerIntegrationTest {
     }
 
     /**
-     * 페이지네이션 테스트용 25핀(PLACE 15 + MEMORY 10) 일괄 적재.
+     * 페이지네이션 테스트용 25핀(REEL 15 + MEMORY 10) 일괄 적재.
      * createdAt 순서를 보장하기 위해 INSERT 사이에 짧은 sleep 을 둔다.
      */
     private void seedTwentyFivePins() throws InterruptedException {
         for (int i = 0; i < 15; i++) {
             insertPin(groupId, userAId, "P" + i,
-                    "https://www.instagram.com/p/PG" + i + "/", null, null, "PLACE");
+                    "https://www.instagram.com/p/PG" + i + "/", null, null, "REEL");
             Thread.sleep(1);
         }
         for (int i = 0; i < 10; i++) {
@@ -622,7 +622,7 @@ class PinV1ControllerIntegrationTest {
     private void seedTwentyFivePinsWithoutSleep() {
         for (int i = 0; i < 25; i++) {
             insertPin(groupId, userAId, "T" + i,
-                    "https://www.instagram.com/p/TB" + i + "/", null, null, "PLACE");
+                    "https://www.instagram.com/p/TB" + i + "/", null, null, "REEL");
         }
     }
 
@@ -775,14 +775,14 @@ class PinV1ControllerIntegrationTest {
                 .isEqualTo("PIN_PAGE_PARAM_INVALID");
     }
 
-    @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=PLACE&page=0&size=10 - totalCount 는 PLACE 전체 수, items ≤ 10 (AC-5).")
+    @DisplayName("GET /api/v1/groups/{groupId}/pins?tag=REEL&page=0&size=10 - totalCount 는 REEL 전체 수, items ≤ 10 (AC-5).")
     @Test
     void listPins_pageMode_withTagFilter_AC5() throws InterruptedException {
         // arrange
         seedTwentyFivePins();
 
         // act
-        ResponseEntity<JsonNode> response = listPinsRaw(tokenA, groupId, "tag=PLACE&page=0&size=10");
+        ResponseEntity<JsonNode> response = listPinsRaw(tokenA, groupId, "tag=REEL&page=0&size=10");
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -790,9 +790,9 @@ class PinV1ControllerIntegrationTest {
         assertThat(data.get("totalCount").asLong()).isEqualTo(15L);
         JsonNode items = data.get("items");
         assertThat(items.size()).isLessThanOrEqualTo(10);
-        // 모두 PLACE 태그
+        // 모두 REEL 태그
         for (JsonNode item : items) {
-            assertThat(item.get("tag").asText()).isEqualTo("PLACE");
+            assertThat(item.get("tag").asText()).isEqualTo("REEL");
         }
     }
 
@@ -859,5 +859,30 @@ class PinV1ControllerIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().get("meta").get("errorCode").asText())
                 .isEqualTo("PIN_PAGE_PARAM_INVALID");
+    }
+
+    @DisplayName("POST /api/v1/groups/{groupId}/pins - tag=REEL 직접 등록도 201 Created 를 반환한다 (Phase 7 D3: 백엔드는 enum 검증만, 등록 경로 제한 없음).")
+    @Test
+    void createPin_directReelTag_returns201() {
+        // arrange
+        String body = "{"
+                + "\"placeName\":\"릴 카페\","
+                + "\"latitude\":37.5,"
+                + "\"longitude\":127.0,"
+                + "\"tag\":\"REEL\""
+                + "}";
+
+        // act
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "/api/v1/groups/" + groupId + "/pins",
+                HttpMethod.POST,
+                new HttpEntity<>(body, authHeaders(tokenA)),
+                JsonNode.class);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("tag").asText()).isEqualTo("REEL");
+        assertThat(data.get("placeName").asText()).isEqualTo("릴 카페");
     }
 }

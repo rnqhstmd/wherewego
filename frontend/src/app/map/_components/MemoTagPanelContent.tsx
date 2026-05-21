@@ -83,6 +83,10 @@ export default function MemoTagPanelContent({
         setError("장소 이름은 1~200자여야 합니다");
       } else if (result.code === "PIN_MEMO_TOO_LONG") {
         setError("메모는 500자까지 입력할 수 있어요");
+      } else if (result.code === "PIN_INSTAGRAM_URL_INVALID") {
+        setError(
+          "인스타그램 URL이 올바르지 않습니다. https://www.instagram.com/... 형식으로 입력해주세요.",
+        );
       } else {
         setError(result.message);
       }
@@ -127,12 +131,12 @@ export default function MemoTagPanelContent({
       <PanelLabel>태그</PanelLabel>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <PinTag
-          type="place"
-          active={tag === "PLACE"}
-          onClick={() => setTag("PLACE")}
+          type="WISH"
+          active={tag === "WISH"}
+          onClick={() => setTag("WISH")}
         />
         <PinTag
-          type="memory"
+          type="MEMORY"
           active={tag === "MEMORY"}
           onClick={() => setTag("MEMORY")}
         />

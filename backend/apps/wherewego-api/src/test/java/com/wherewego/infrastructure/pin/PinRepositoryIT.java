@@ -150,12 +150,12 @@ class PinRepositoryIT {
     @DisplayName("findActiveByGroupIdAndTagOrderByCreatedAtDesc - tag 필터를 적용해 반환한다 (AC-2).")
     @Test
     void findActiveByGroupIdAndTagOrderByCreatedAtDesc_filtersByTag() {
-        // arrange : PLACE 2 개, MEMORY 1 개
-        Pin place1 = pinJpaRepository.saveAndFlush(
+        // arrange : REEL 2 개, MEMORY 1 개
+        Pin reel1 = pinJpaRepository.saveAndFlush(
                 Pin.autoFromInstagram(groupId, userId,
                         new PlaceSearchHit("k-1", "P1", "A1", 37.5, 127.0),
                         "https://www.instagram.com/p/D1/"));
-        Pin place2 = pinJpaRepository.saveAndFlush(
+        Pin reel2 = pinJpaRepository.saveAndFlush(
                 Pin.autoFromInstagram(groupId, userId,
                         new PlaceSearchHit("k-2", "P2", "A2", 37.5, 127.0),
                         "https://www.instagram.com/p/D2/"));
@@ -167,14 +167,14 @@ class PinRepositoryIT {
         pinJpaRepository.saveAndFlush(memory1);
 
         // act
-        List<Pin> placeOnly = pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(
-                groupId, PinTag.PLACE);
+        List<Pin> reelOnly = pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(
+                groupId, PinTag.REEL);
 
-        // assert : PLACE 2 개
-        assertThat(placeOnly).hasSize(2);
-        assertThat(placeOnly).extracting(Pin::getId).containsExactlyInAnyOrder(place1.getId(), place2.getId());
-        assertThat(placeOnly).allSatisfy(p ->
-                assertThat(p.getTag()).isEqualTo(PinTag.PLACE));
+        // assert : REEL 2 개
+        assertThat(reelOnly).hasSize(2);
+        assertThat(reelOnly).extracting(Pin::getId).containsExactlyInAnyOrder(reel1.getId(), reel2.getId());
+        assertThat(reelOnly).allSatisfy(p ->
+                assertThat(p.getTag()).isEqualTo(PinTag.REEL));
     }
 
     @DisplayName("findActiveByIdAndGroupIdForUpdate - 이미 deleted_at IS NOT NULL 인 핀은 빈 결과를 반환한다 (AC-14, AC-17).")

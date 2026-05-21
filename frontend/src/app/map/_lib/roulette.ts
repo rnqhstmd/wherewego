@@ -1,7 +1,9 @@
 // 위치 기반 룰렛 계산 로직 (설계 §10).
 //
 // - Haversine 거리(km) + bbox 1차 필터 + 정확 원 필터.
-// - 1km → 5km → 10km 자동 확장 후보 추첨.
+// - 10km 단일 반경 추첨 (ROULETTE_RADIUS_STEPS_KM = [10]).
+//   `pickRandomWithExpansion` 함수명/로직은 미래 다단계 확장 가능성을 위해 유지하지만,
+//   현재는 한 단계만 순회한다.
 // - "다시" 동작은 마지막 성공 풀에서 재추첨 (같은 radius, 같은 후보 set).
 
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
@@ -84,16 +86,18 @@ export type RouletteOutcome =
   | { kind: "exhausted" };
 
 /**
- * 자동 확장 추첨 (1km → 5km → 10km, 설계 §10 FR-REC-5).
+ * 10km 단일 반경 추첨 (설계 §10 FR-REC-5, ROULETTE_RADIUS_STEPS_KM = [10]).
  *
- * 1) tagsAllowed로 후보 풀 필터 (기본 ["PLACE"])
- * 2) 가장 좁은 반경부터 시도, 후보가 1건이라도 있으면 그 반경에서 무작위 선택
- * 3) 10km까지 모두 0건이면 exhausted
+ * 1) tagsAllowed로 후보 풀 필터 (기본 ["REEL", "WISH"] — MEMORY 제외)
+ * 2) 10km 반경 안에 후보가 1건이라도 있으면 그 안에서 무작위 선택
+ * 3) 10km 안에 0건이면 exhausted
+ *
+ * 함수명/순회 루프 구조는 미래 다단계 확장(예: 1km → 5km → 10km) 가능성을 위해 유지한다.
  */
 export function pickRandomWithExpansion(
   center: LatLng,
   pins: PinSummaryResponse[],
-  tagsAllowed: PinTag[] = ["PLACE"],
+  tagsAllowed: PinTag[] = ["REEL", "WISH"],
 ): RouletteOutcome {
   const eligible = pins.filter((p) => tagsAllowed.includes(p.tag));
   for (const radiusKm of ROULETTE_RADIUS_STEPS_KM) {

@@ -9,15 +9,16 @@ interface PinCardProps {
   disabled?: boolean;
 }
 
+// Tailwind v4 정적 매핑 — 동적 템플릿 금지.
 const TAG_STYLES: Record<PinTag, string> = {
-  PLACE:
-    "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
-  MEMORY:
-    "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300",
+  REEL: "bg-pin-reel/10 text-pin-reel border border-pin-reel/30",
+  WISH: "bg-pin-wish/10 text-pin-wish border border-pin-wish/30",
+  MEMORY: "bg-pin-memory/10 text-pin-memory border border-pin-memory/30",
 };
 
 const TAG_LABEL: Record<PinTag, string> = {
-  PLACE: "장소",
+  REEL: "발견",
+  WISH: "설렘",
   MEMORY: "추억",
 };
 
@@ -32,6 +33,17 @@ function formatCreatedAt(value: string): string {
 }
 
 export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
+  // M1 fallback (사용자 확인): 활성 세션에서 알 수 없는 enum 이 도착해도 일시적
+  // 일관성을 위해 WISH 스타일/라벨로 표시한다.
+  // Phase 7 사용자 확인된 안전장치 — 운영 관찰 목적
+  const tagStyle = TAG_STYLES[pin.tag];
+  const tagLabel = TAG_LABEL[pin.tag];
+  if (!tagStyle || !tagLabel) {
+    console.warn("[PinCard] Unknown PinTag, falling back to WISH:", pin.tag);
+  }
+  const resolvedTagStyle = tagStyle ?? TAG_STYLES.WISH;
+  const resolvedTagLabel = tagLabel ?? TAG_LABEL.WISH;
+
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <header className="flex items-start justify-between gap-3">
@@ -46,9 +58,9 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
           ) : null}
         </div>
         <span
-          className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-medium ${TAG_STYLES[pin.tag]}`}
+          className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-medium ${resolvedTagStyle}`}
         >
-          {TAG_LABEL[pin.tag]}
+          {resolvedTagLabel}
         </span>
       </header>
 

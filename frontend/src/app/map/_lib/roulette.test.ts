@@ -13,12 +13,13 @@ function makePin(
   id: number,
   lat: number,
   lng: number,
-  tag: PinTag = "PLACE",
+  tag: PinTag = "REEL",
 ): PinSummaryResponse {
   return {
     id,
     groupId: 1,
     createdBy: 1,
+    createdByNickname: null,
     placeName: `pin-${id}`,
     address: null,
     latitude: lat,
@@ -81,13 +82,13 @@ describe("withinRadius", () => {
 });
 
 describe("pickRandomWithExpansion", () => {
-  it("1km에 후보가 있으면 1km에서 픽", () => {
+  it("후보가 있으면 10km 반경에서 픽", () => {
     const center = { lat: 37.5, lng: 127.0 };
-    const pins = [makePin(1, 37.505, 127.005)]; // ~0.7km
+    const pins = [makePin(1, 37.505, 127.005)]; // ~0.7km, REEL
     const result = pickRandomWithExpansion(center, pins);
     expect(result.kind).toBe("picked");
     if (result.kind === "picked") {
-      expect(result.radiusKm).toBe(1);
+      expect(result.radiusKm).toBe(10);
       expect(result.pin.id).toBe(1);
       expect(result.distanceKm).toBeGreaterThan(0);
       expect(result.distanceKm).toBeLessThan(1);
@@ -95,36 +96,62 @@ describe("pickRandomWithExpansion", () => {
     }
   });
 
-  it("1km 0건, 5km 1건 → 5km에서 픽", () => {
-    const center = { lat: 37.5, lng: 127.0 };
-    const pins = [makePin(2, 37.53, 127.03)]; // ~4km
-    const result = pickRandomWithExpansion(center, pins);
-    expect(result.kind).toBe("picked");
-    if (result.kind === "picked") {
-      expect(result.radiusKm).toBe(5);
-      expect(result.pin.id).toBe(2);
-    }
-  });
-
-  it("모두 0건 → exhausted", () => {
+  it("모두 반경 밖이면 exhausted", () => {
     const center = { lat: 37.5, lng: 127.0 };
     const pins = [makePin(3, 35.0, 130.0)]; // 매우 멀리
     const result = pickRandomWithExpansion(center, pins);
     expect(result.kind).toBe("exhausted");
   });
 
-  it("MEMORY는 기본 후보(PLACE only)에서 제외", () => {
+  // (AC-6) 기본 풀(REEL+WISH)에서 REEL/WISH 핀은 후보, MEMORY 핀은 제외.
+  it("(AC-6) 기본 풀은 REEL+WISH만 포함, MEMORY는 제외", () => {
     const center = { lat: 37.5, lng: 127.0 };
-    const pins = [makePin(4, 37.505, 127.005, "MEMORY")];
-    const result = pickRandomWithExpansion(center, pins);
-    expect(result.kind).toBe("exhausted");
+    const reelPin = makePin(1, 37.501, 127.001, "REEL");
+    const wishPin = makePin(2, 37.502, 127.002, "WISH");
+    const memoryPin = makePin(3, 37.503, 127.003, "MEMORY");
+    const result = pickRandomWithExpansion(center, [reelPin, wishPin, memoryPin]);
+    expect(result.kind).toBe("picked");
+    if (result.kind === "picked") {
+      const ids = result.candidates.map((p) => p.id).sort();
+      expect(ids).toEqual([1, 2]);
+      expect(result.candidates.find((p) => p.tag === "MEMORY")).toBeUndefined();
+    }
   });
 
-  it("tagsAllowed에 MEMORY 추가하면 통과", () => {
+  // (FR-7-8) WISH 단독 핀도 기본 풀에서 통과.
+  it("(FR-7-8) WISH 단독 핀도 기본 풀 통과", () => {
     const center = { lat: 37.5, lng: 127.0 };
-    const pins = [makePin(5, 37.505, 127.005, "MEMORY")];
-    const result = pickRandomWithExpansion(center, pins, ["PLACE", "MEMORY"]);
+    const pins = [makePin(10, 37.505, 127.005, "WISH")];
+    const result = pickRandomWithExpansion(center, pins);
     expect(result.kind).toBe("picked");
+    if (result.kind === "picked") {
+      expect(result.pin.id).toBe(10);
+      expect(result.pin.tag).toBe("WISH");
+    }
+  });
+
+  // (AC-7) tagsAllowed에 MEMORY 추가하면 MEMORY 핀도 후보 통과.
+  it("(AC-7) tagsAllowed=['REEL','WISH','MEMORY']이면 MEMORY 핀도 통과", () => {
+    const center = { lat: 37.5, lng: 127.0 };
+    const memoryPin = makePin(5, 37.505, 127.005, "MEMORY");
+    const result = pickRandomWithExpansion(center, [memoryPin], [
+      "REEL",
+      "WISH",
+      "MEMORY",
+    ]);
+    expect(result.kind).toBe("picked");
+    if (result.kind === "picked") {
+      expect(result.pin.tag).toBe("MEMORY");
+    }
+  });
+
+  // (AC-8) 허용 태그 범위에서 매칭 0건이면 exhausted.
+  it("(AC-8) tagsAllowed 범위에서 0건이면 exhausted", () => {
+    const center = { lat: 37.5, lng: 127.0 };
+    const memoryPin = makePin(6, 37.505, 127.005, "MEMORY");
+    // 기본 풀은 REEL+WISH 이므로 MEMORY 단독은 통과 후보 0건.
+    const result = pickRandomWithExpansion(center, [memoryPin]);
+    expect(result.kind).toBe("exhausted");
   });
 });
 
@@ -132,17 +159,17 @@ describe("reRollFromSamePool", () => {
   it("후보 풀에서 무작위 선택, distanceKm 재계산", () => {
     const center = { lat: 37.5, lng: 127.0 };
     const candidates = [makePin(10, 37.503, 127.003)];
-    const result = reRollFromSamePool(center, candidates, 1);
+    const result = reRollFromSamePool(center, candidates, 10);
     expect(result.kind).toBe("picked");
     if (result.kind === "picked") {
       expect(result.pin.id).toBe(10);
-      expect(result.radiusKm).toBe(1);
+      expect(result.radiusKm).toBe(10);
       expect(result.distanceKm).toBeGreaterThan(0);
     }
   });
 
   it("빈 풀이면 exhausted", () => {
-    const result = reRollFromSamePool({ lat: 37.5, lng: 127.0 }, [], 1);
+    const result = reRollFromSamePool({ lat: 37.5, lng: 127.0 }, [], 10);
     expect(result.kind).toBe("exhausted");
   });
 });

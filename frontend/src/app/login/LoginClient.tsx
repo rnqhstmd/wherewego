@@ -131,9 +131,9 @@ export function LoginClient() {
             alignItems: "center",
           }}
         >
-          <PinDot type="place" size={8} />
+          <PinDot type="reel" size={8} />
           <PinDot type="memory" size={11} />
-          <PinDot type="place" size={8} />
+          <PinDot type="reel" size={8} />
         </div>
 
         {/* Error message */}
@@ -198,7 +198,7 @@ export function LoginClient() {
           opacity: 0.5,
         }}
       >
-        {[colors.pinPlace, colors.pinMemory, colors.inkFaint].map((c, i) => (
+        {[colors.pinReel, colors.pinMemory, colors.inkFaint].map((c, i) => (
           <div
             key={i}
             style={{

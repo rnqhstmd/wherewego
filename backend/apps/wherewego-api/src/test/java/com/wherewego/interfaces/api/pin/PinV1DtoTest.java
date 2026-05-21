@@ -103,11 +103,11 @@ class PinV1DtoTest {
     @Nested
     class TagOnly {
 
-        @DisplayName("tagProvided=true, tag=PLACE 로 커맨드가 생성된다 (AC-8).")
+        @DisplayName("tagProvided=true, tag=REEL 로 커맨드가 생성된다 (AC-8).")
         @Test
         void tagOnly_buildsCommand() throws Exception {
             // arrange
-            PinV1Dto.UpdatePinRequest req = parse("{\"tag\": \"PLACE\"}");
+            PinV1Dto.UpdatePinRequest req = parse("{\"tag\": \"REEL\"}");
 
             // act
             PinUpdateCommand cmd = req.toCommand();
@@ -115,7 +115,7 @@ class PinV1DtoTest {
             // assert
             assertThat(cmd.memoProvided()).isFalse();
             assertThat(cmd.tagProvided()).isTrue();
-            assertThat(cmd.tag()).isEqualTo(PinTag.PLACE);
+            assertThat(cmd.tag()).isEqualTo(PinTag.REEL);
         }
     }
 

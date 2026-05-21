@@ -520,7 +520,8 @@ export default function MapClient({
    * 추첨 직전 5분 캐시 정책으로 stale이면 await 재조회 (MUST-4).
    *
    * `tagsAllowed`로 풀 필터를 외부에서 제어한다. MEMORY 토글 ON 이면
-   * `["PLACE", "MEMORY"]`를, OFF 이면 `["PLACE"]`를 전달한다 (FR-REC-6).
+   * `["REEL", "WISH", "MEMORY"]`를, OFF 이면 `["REEL", "WISH"]`를 전달한다 (FR-REC-6).
+   * 호출처에서는 `computeTagsAllowed(includeMemory)` 헬퍼로 일관성을 보장한다.
    */
   const runRoulette = useCallback(
     async (center: LatLng, tagsAllowed: PinTag[]) => {
@@ -598,7 +599,7 @@ export default function MapClient({
       });
       void runRoulette(
         geoState.coords,
-        ["PLACE", "MEMORY"],
+        computeTagsAllowed(includeMemory),
       );
       return;
     }
@@ -650,7 +651,7 @@ export default function MapClient({
       if (status === "granted") {
         void runRoulette(
           geoState.coords,
-          ["PLACE", "MEMORY"],
+          computeTagsAllowed(includeMemory),
         );
       } else if (status === "denied") {
         setShowPermDialog(true);
@@ -899,7 +900,7 @@ export default function MapClient({
       }
       void runRoulette(
         center,
-        ["PLACE", "MEMORY"],
+        computeTagsAllowed(includeMemory),
       );
       return;
     }
@@ -1331,4 +1332,19 @@ function activeSheetToTab(sheet: ActiveSheet): ActionBarTab {
   if (sheet === "roulette") return "roulette";
   // "coordinate-edit"는 액션바 비강조 (Phase 2.10 B4b): null fallback.
   return null;
+}
+
+/**
+ * 룰렛 풀 필터링을 위한 `tagsAllowed` 배열 산출 헬퍼 (Phase 7 D4 정합화).
+ *
+ * Phase 2.6 PR-A 도입 시 `runRoulette(tagsAllowed)` 시그니처는 MEMORY 토글을
+ * 받을 수 있게 설계됐지만 호출처가 `["PLACE", "MEMORY"]` 하드코딩으로 토글을
+ * 무시하던 부분 버그가 있었다. Phase 7 에서 PinTag 가 REEL/WISH/MEMORY 로
+ * 리뉴얼되면서 이 헬퍼로 호출처를 일관화한다.
+ *
+ * - includeMemory=true  → ["REEL", "WISH", "MEMORY"]
+ * - includeMemory=false → ["REEL", "WISH"]
+ */
+function computeTagsAllowed(includeMemory: boolean): PinTag[] {
+  return includeMemory ? ["REEL", "WISH", "MEMORY"] : ["REEL", "WISH"];
 }

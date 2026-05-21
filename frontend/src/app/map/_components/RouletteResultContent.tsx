@@ -3,7 +3,7 @@
 import { colors, fonts } from "@/lib/design/tokens";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
-import { PinDot } from "@/components/ui/PinDot";
+import { PinDot, type PinDotType } from "@/components/ui/PinDot";
 import { IconShuffle, IconLocation } from "@/components/icons";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import type { PinSummaryResponse } from "@/lib/api/types";
@@ -33,6 +33,9 @@ export default function RouletteResultContent({
     distanceKm < 1
       ? `${Math.round(distanceKm * 1000)}m`
       : `${distanceKm.toFixed(1)}km`;
+  // M1 fallback: 알 수 없는 enum → WISH.
+  const dotType: PinDotType =
+    pin.tag === "MEMORY" ? "memory" : pin.tag === "REEL" ? "reel" : "wish";
   const isMemory = pin.tag === "MEMORY";
   // 모바일에서는 버튼이 컨테이너를 넘어 양옆이 잘려 보이는 문제 회피.
   // flex item 기본 min-width: auto + whiteSpace: nowrap 조합이 강제 오버플로를 만들기 때문에
@@ -83,7 +86,7 @@ export default function RouletteResultContent({
           }}
         >
           <PinDot
-            type={isMemory ? "memory" : "place"}
+            type={dotType}
             size={isMemory ? 11 : 9}
           />
           <span

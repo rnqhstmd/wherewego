@@ -17,8 +17,8 @@
 | FR-TAG-4 | 핀 상세에서 태그 변경 | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `SpeechBubblePopup` ⋮ 인라인 `PinTag` 칩 + `useOptimistic` 즉시 마커 갱신 (`map` 도메인 FR-MAP-2 참조) |
 | FR-TAG-5 | 지도 마커 시각 구분 (파란 동그라미 vs 핑크 하트) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `renderPinDotInto` + `PinDot` (`#7BB3E8` PLACE / `#F4A8B0` MEMORY) (`map` 도메인 FR-MAP-2 참조) |
 | FR-TAG-6 | 태그별 필터 토글 (옵션, MVP 후반) | ✅ | [#17](https://github.com/rnqhstmd/wherewego/pull/17) — Phase 2.6 PR-A 룰렛 "추억 핀도 포함" 토글(`MapClient.includeMemory`) + Phase 2.7 RouletteResultContent Vitest 검증 — [#20](https://github.com/rnqhstmd/wherewego/pull/20). 지도 일반 마커는 항상 PLACE+MEMORY 동시 렌더(별도 필터 미적용). |
-| FR-TAG-7 | enum 3종 확장 — PLACE→REEL+WISH 분리, MEMORY 유지. Flyway 마이그레이션(기존 PLACE 핀 → REEL 일괄 변환), `chk_pins_tag` 제약 갱신 | ⬜ | Phase 7 |
-| FR-TAG-8 | 챗봇 자동 등록 기본값 PLACE→REEL 변경 (`Pin.autoFromInstagram()` / `Pin.fromSelection()`) | ⬜ | Phase 7 |
-| FR-TAG-9 | 웹 직접 등록 UI — REEL 제외, WISH/MEMORY 2종 선택 (REEL은 챗봇 전용) | ⬜ | Phase 7 |
-| FR-TAG-10 | 지도 마커 3종 시각 구분 — REEL(연보라 `#C5B4E3` 인스타 스타일 아이콘) / WISH(민트 `#A8E6CF` 동그라미) / MEMORY(핑크 `#FFB3C6` 하트) | ⬜ | Phase 7 |
-| FR-TAG-11 | 룰렛 후보 풀 갱신 — PLACE→REEL+WISH 포함, MEMORY 제외 기본 (기존 `includeMemory` 토글 로직 연동) | ⬜ | Phase 7 |
+| FR-TAG-7 | enum 3종 확장 — PLACE→REEL+WISH 분리, MEMORY 유지. Flyway 마이그레이션(기존 PLACE 핀 → REEL 일괄 변환), `chk_pins_tag` 제약 갱신 | ✅ | Phase 7 (V006 단일 합본) |
+| FR-TAG-8 | 챗봇 자동 등록 기본값 PLACE→REEL 변경 (`Pin.autoFromInstagram()` / `Pin.fromSelection()`) | ✅ | Phase 7 |
+| FR-TAG-9 | 웹 직접 등록 UI — REEL 제외, WISH/MEMORY 2종 선택 (REEL은 챗봇 전용). 핀 편집 다이얼로그는 3종 모두 허용 (소급 수정 가능) | ✅ | Phase 7 |
+| FR-TAG-10 | 지도 마커 3종 시각 구분 — REEL(연보라 `#C5B4E3` 인스타 아이콘) / WISH(민트 `#A8E6CF` 동그라미) / MEMORY(핑크 `#FFB3C6` 하트) | ✅ | Phase 7 |
+| FR-TAG-11 | 룰렛 후보 풀 갱신 — PLACE→REEL+WISH 포함, MEMORY 제외 기본 (기존 `includeMemory` 토글 로직 연동). MapClient 토글 부분버그(Phase 2.6 PR #17 잔존) 정합화 | ✅ | Phase 7 |

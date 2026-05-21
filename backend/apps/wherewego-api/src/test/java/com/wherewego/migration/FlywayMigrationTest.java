@@ -83,6 +83,22 @@ class FlywayMigrationTest {
     }
 
     @Test
+    void pinsTagCheckConstraintDefinitionMatchesPhase7Tags() {
+        // Phase 7: chk_pins_tag 가 REEL/WISH/MEMORY 만 허용하고 PLACE 는 거부함을 정의 본문 수준에서 검증.
+        String definition = jdbcTemplate.queryForObject(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                        + "WHERE conrelid = 'pins'::regclass AND conname = 'chk_pins_tag'",
+                String.class
+        );
+
+        assertThat(definition).isNotNull();
+        assertThat(definition).contains("'REEL'");
+        assertThat(definition).contains("'WISH'");
+        assertThat(definition).contains("'MEMORY'");
+        assertThat(definition).doesNotContain("'PLACE'");
+    }
+
+    @Test
     void pinsUniqueConstraintsExist() {
         // 기본 UNIQUE 제약 존재만 검증한다. NULL 중복 허용 여부(NULLS DISTINCT)는
         // pinsNullInstagramUrlAllowsMultiple (AC-05)에서 실제 INSERT로 검증.
@@ -108,6 +124,19 @@ class FlywayMigrationTest {
     }
 
     @Test
+    void pinsTagCheckConstraintRejectsPlaceValue() {
+        // Phase 7: 레거시 PLACE 태그는 더 이상 허용되지 않는다 (REEL/WISH/MEMORY 만 허용).
+        long userId = insertUser();
+        long groupId = insertGroup();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)",
+                groupId, "test", 37.0, 127.0, "PLACE", userId
+        )).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void pinsUniqueConstraintRejectsDuplicateNonNull() {
         long userId = insertUser();
         long groupId = insertGroup();
@@ -115,13 +144,13 @@ class FlywayMigrationTest {
         jdbcTemplate.update(
                 "INSERT INTO pins (group_id, place_name, latitude, longitude, instagram_url, tag, created_by) "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                groupId, "place1", 37.0, 127.0, "https://instagram.com/p/abc", "PLACE", userId
+                groupId, "place1", 37.0, 127.0, "https://instagram.com/p/abc", "REEL", userId
         );
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO pins (group_id, place_name, latitude, longitude, instagram_url, tag, created_by) "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                groupId, "place2", 37.0, 127.0, "https://instagram.com/p/abc", "PLACE", userId
+                groupId, "place2", 37.0, 127.0, "https://instagram.com/p/abc", "REEL", userId
         )).isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -133,12 +162,12 @@ class FlywayMigrationTest {
         jdbcTemplate.update(
                 "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
                         + "VALUES (?, ?, ?, ?, ?, ?)",
-                groupId, "place1", 37.0, 127.0, "PLACE", userId
+                groupId, "place1", 37.0, 127.0, "REEL", userId
         );
         jdbcTemplate.update(
                 "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
                         + "VALUES (?, ?, ?, ?, ?, ?)",
-                groupId, "place2", 37.1, 127.1, "PLACE", userId
+                groupId, "place2", 37.1, 127.1, "REEL", userId
         );
 
         Integer count = jdbcTemplate.queryForObject(

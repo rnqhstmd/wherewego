@@ -121,24 +121,24 @@ class PinServiceIT {
         assertThat(result).extracting(PinSummary::id).containsExactly(third.getId(), first.getId());
     }
 
-    @DisplayName("listGroupPins - tag 필터를 적용해 PLACE/MEMORY 만 반환한다 (AC-2).")
+    @DisplayName("listGroupPins - tag 필터를 적용해 REEL/MEMORY 만 반환한다 (AC-2).")
     @Test
     void listGroupPins_withTagFilter_returnsFiltered() {
-        // arrange : PLACE 2 + MEMORY 1
-        Pin place1 = savePin(userAId, "https://www.instagram.com/p/F1/");
-        Pin place2 = savePin(userAId, "https://www.instagram.com/p/F2/");
+        // arrange : REEL 2 + MEMORY 1
+        Pin reel1 = savePin(userAId, "https://www.instagram.com/p/F1/");
+        Pin reel2 = savePin(userAId, "https://www.instagram.com/p/F2/");
         Pin memory1 = savePin(userBId, "https://www.instagram.com/p/F3/");
         memory1.changeTag(PinTag.MEMORY);
         pinJpaRepository.saveAndFlush(memory1);
 
         // act
-        List<PinSummary> placeOnly = pinService.listGroupPins(userAId, groupId, PinTag.PLACE);
+        List<PinSummary> reelOnly = pinService.listGroupPins(userAId, groupId, PinTag.REEL);
         List<PinSummary> memoryOnly = pinService.listGroupPins(userAId, groupId, PinTag.MEMORY);
 
         // assert
-        assertThat(placeOnly).hasSize(2);
-        assertThat(placeOnly).extracting(PinSummary::id)
-                .containsExactlyInAnyOrder(place1.getId(), place2.getId());
+        assertThat(reelOnly).hasSize(2);
+        assertThat(reelOnly).extracting(PinSummary::id)
+                .containsExactlyInAnyOrder(reel1.getId(), reel2.getId());
         assertThat(memoryOnly).hasSize(1);
         assertThat(memoryOnly).extracting(PinSummary::id).containsExactly(memory1.getId());
     }
@@ -460,7 +460,7 @@ class PinServiceIT {
     @DisplayName("listGroupPinsPaged - tag 필터는 count 와 items 모두 반영된다.")
     @Test
     void listGroupPinsPaged_withTagFilter() {
-        // arrange : PLACE 15 + MEMORY 10
+        // arrange : REEL 15 + MEMORY 10
         for (int i = 0; i < 15; i++) {
             savePin(userAId, "https://www.instagram.com/p/TPF" + i + "/");
         }
@@ -471,14 +471,14 @@ class PinServiceIT {
         }
 
         // act
-        PinListResult placeOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.PLACE, 0, 10);
+        PinListResult reelOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.REEL, 0, 10);
         PinListResult memoryOnly = pinService.listGroupPinsPaged(userAId, groupId, PinTag.MEMORY, 0, 10);
 
         // assert : count 가 태그 필터를 반영
-        assertThat(placeOnly.totalCount()).isEqualTo(15L);
-        assertThat(placeOnly.items()).hasSize(10);
-        assertThat(placeOnly.hasNext()).isTrue();
-        assertThat(placeOnly.items()).allMatch(s -> s.tag() == PinTag.PLACE);
+        assertThat(reelOnly.totalCount()).isEqualTo(15L);
+        assertThat(reelOnly.items()).hasSize(10);
+        assertThat(reelOnly.hasNext()).isTrue();
+        assertThat(reelOnly.items()).allMatch(s -> s.tag() == PinTag.REEL);
 
         assertThat(memoryOnly.totalCount()).isEqualTo(10L);
         assertThat(memoryOnly.items()).hasSize(10);
