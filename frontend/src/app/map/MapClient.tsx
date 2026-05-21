@@ -1248,6 +1248,8 @@ export default function MapClient({
           authorLabel={
             selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`
           }
+          mapboxToken={mapboxToken}
+          mapboxStyleUrl={mapboxStyleUrl}
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
           onPlaceNameChange={handlePlaceNameChange}
