@@ -4,8 +4,8 @@ import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.group.GroupMemberService;
-import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.domain.place.PlaceSelectionCandidateStore;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
@@ -64,12 +64,21 @@ public class PlaceSelectionHandler implements MessageHandler {
         Long groupId = groupIdOpt.get();
 
         try {
-            Pin saved = pinService.registerFromSelection(userId, groupId, entry.hit(), entry.instagramUrl());
-            twoSecondMemoSession.put(botUserKey, saved.getId());
-            return ChatbotV1Dto.SkillResponse.simple("장소가 저장되었어요: " + saved.getPlaceName());
+            RegisterPinResult result = pinService.registerFromSelectionWithDedup(
+                    userId, groupId, entry.hit(), entry.instagramUrl());
+            if (result.alreadyExisted()) {
+                log.info("Duplicate pin (dedup) groupId={} placeId={}", groupId, placeId);
+                return ChatbotV1Dto.SkillResponse.simple(
+                        "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
+            }
+            twoSecondMemoSession.put(botUserKey, result.pin().getId());
+            return ChatbotV1Dto.SkillResponse.simple(
+                    "장소가 저장되었어요: " + result.pin().getPlaceName());
         } catch (DataIntegrityViolationException e) {
-            log.info("Duplicate pin groupId={} placeId={}", groupId, placeId);
-            return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
+            // dedup 사전 검사를 통과했지만 (group_id, instagram_url, place_name) UNIQUE 충돌이 일어난 매우 드문 경합.
+            log.info("Duplicate pin (race) groupId={} placeId={}", groupId, placeId);
+            return ChatbotV1Dto.SkillResponse.simple(
+                    "📌 이미 저장된 장소\n• " + entry.hit().placeName());
         }
     }
 

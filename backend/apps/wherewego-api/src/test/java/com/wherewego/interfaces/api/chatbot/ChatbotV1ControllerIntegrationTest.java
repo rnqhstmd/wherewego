@@ -505,11 +505,11 @@ class ChatbotV1ControllerIntegrationTest {
             assertThat(simpleText(response.getBody())).contains("그룹에 먼저 참여해주세요");
         }
 
-        @DisplayName("(AC-5) 이미 저장된 장소와 동일한 후보 → HTTP 200 + '이미 저장된 장소입니다'")
+        @DisplayName("(AC-5) 이미 저장된 장소와 동일한 후보 → HTTP 200 + '📌 이미 저장된 장소' 통합 포맷")
         @Test
         void placeSelection_duplicatePin_returnsAlreadySavedMessage() {
-            // given : 매핑 + 활성 group_members(BeforeEach) + 동일 (group_id, instagram_url) 사전 INSERT + store 적재
-            // 중복 검증은 uq_pins_group_instagram 제약(group_id, instagram_url)을 트리거하여 발생.
+            // given : 매핑 + 활성 group_members(BeforeEach) + 동일 (group_id, instagram_url, place_name) 사전 INSERT + store 적재
+            // 중복 검증은 uq_pins_group_instagram_place 제약(group_id, instagram_url, place_name)을 트리거하여 발생.
             botUserMappingJpaRepository.save(BotUserMapping.link(BOT_USER_KEY, userId, Instant.now()));
             jdbcTemplate.update(
                     "INSERT INTO pins (group_id, created_by, place_name, latitude, longitude, instagram_url, tag) "
@@ -524,7 +524,8 @@ class ChatbotV1ControllerIntegrationTest {
 
             // then
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(simpleText(response.getBody())).contains("이미 저장된 장소입니다");
+            assertThat(simpleText(response.getBody())).contains("📌 이미 저장된 장소");
+            assertThat(simpleText(response.getBody())).contains("테스트장소");
         }
     }
 

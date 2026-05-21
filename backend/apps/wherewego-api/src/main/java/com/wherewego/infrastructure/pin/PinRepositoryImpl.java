@@ -8,12 +8,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 @RequiredArgsConstructor
 @Component
 public class PinRepositoryImpl implements PinRepository {
+
+    /** 좌표 근접 판정 허용 오차 — 위/경도 각 ±0.0001도 (약 10m bounding box). */
+    private static final BigDecimal COORDINATE_TOLERANCE = new BigDecimal("0.0001");
 
     private final PinJpaRepository jpaRepository;
 
@@ -80,5 +84,18 @@ public class PinRepositoryImpl implements PinRepository {
     @Override
     public Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId) {
         return jpaRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId);
+    }
+
+    @Override
+    public Optional<Pin> findActiveByGroupPlaceNear(Long groupId, String placeName,
+                                                    BigDecimal latitude, BigDecimal longitude) {
+        BigDecimal latMin = latitude.subtract(COORDINATE_TOLERANCE);
+        BigDecimal latMax = latitude.add(COORDINATE_TOLERANCE);
+        BigDecimal lngMin = longitude.subtract(COORDINATE_TOLERANCE);
+        BigDecimal lngMax = longitude.add(COORDINATE_TOLERANCE);
+        return jpaRepository.findActiveByGroupPlaceNear(
+                        groupId, placeName, latMin, latMax, lngMin, lngMax,
+                        PageRequest.of(0, 1))
+                .stream().findFirst();
     }
 }
