@@ -42,4 +42,18 @@ PRD §3-B의 `visited` UI는 tag 도입과 함께 **제거**되었고, REEL→WI
 
 ## 현재 상태
 
-Phase 2.14 예정 — PLACE→REEL+WISH 분리, DB enum 마이그레이션 + 마커 3종 신설
+Phase 7 예정 — PLACE→REEL+WISH 분리, Expand-Contract DB 마이그레이션 + 마커 3종 신설
+
+## 배포 중 마이그레이션 전략 (Expand-Contract)
+
+서비스가 이미 운영 중이므로 한 번에 enum을 바꾸면 CHECK 제약 위반으로 서비스 다운 위험. 3단계로 분리한다.
+
+| 단계 | Flyway | 내용 | 코드 배포 |
+|------|--------|------|-----------|
+| **1단계 Expand** | V00X | `chk_pins_tag` CHECK에 `REEL`, `WISH` 추가 (PLACE 유지) | 기존 코드 그대로 |
+| **2단계 Migrate** | V00Y | `UPDATE pins SET tag='REEL' WHERE tag='PLACE'` 일괄 변환 | 새 코드(REEL/WISH/MEMORY) 동시 배포 |
+| **3단계 Contract** | V00Z | CHECK에서 `PLACE` 제거 (안정 확인 후 별도 배포) | 변경 없음 |
+
+- 1·2단계 사이 롤백 가능 (`PLACE` 여전히 유효한 값)
+- 2단계 실패 시 데이터 변환 전 상태로 복구 가능
+- ~2,500핀 규모에서 V00Y 실행 시간 < 1초 예상
