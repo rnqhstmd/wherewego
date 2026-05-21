@@ -16,21 +16,21 @@ interface PinTagProps {
 
 interface TagMeta {
   label: string;
-  Glyph: (props: { size: number }) => JSX.Element;
+  Glyph: (props: { size: number; color?: string }) => JSX.Element;
 }
 
 const TAG_META: Record<PinTagValue, TagMeta> = {
   REEL: {
     label: "발견",
-    Glyph: ({ size }) => <ReelGlyph size={size} />,
+    Glyph: ({ size, color }) => <ReelGlyph size={size} color={color} />,
   },
   WISH: {
     label: "위시",
-    Glyph: ({ size }) => <WishGlyph size={size} />,
+    Glyph: ({ size, color }) => <WishGlyph size={size} color={color} />,
   },
   MEMORY: {
     label: "추억",
-    Glyph: ({ size }) => <MemoryGlyph w={size} h={size} />,
+    Glyph: ({ size, color }) => <MemoryGlyph w={size} h={size} color={color} />,
   },
 };
 
@@ -39,19 +39,22 @@ const TAG_META: Record<PinTagValue, TagMeta> = {
  *
  * 동적 문자열 보간(`bg-pin-${k}/10`)은 Tailwind JIT가 인식하지 못하므로
  * 타입별 클래스 문자열을 정적으로 풀어서 매핑한다.
+ *
+ * 색상 식별성을 위해 inactive에서도 자기 색을 100% 알파로 사용한다
+ * (옅은 채도의 WISH/REEL이 30% 투명도에서 흰 배경에 사라지는 문제 해결).
  */
 const TAG_CLASSES: Record<PinTagValue, { active: string; inactive: string }> = {
   REEL: {
     active: "bg-pin-reel text-white border-pin-reel",
-    inactive: "text-pin-reel border-pin-reel/30 bg-transparent",
+    inactive: "text-pin-reel border-pin-reel bg-transparent",
   },
   WISH: {
     active: "bg-pin-wish text-white border-pin-wish",
-    inactive: "text-pin-wish border-pin-wish/30 bg-transparent",
+    inactive: "text-pin-wish border-pin-wish bg-transparent",
   },
   MEMORY: {
     active: "bg-pin-memory text-white border-pin-memory",
-    inactive: "text-pin-memory border-pin-memory/30 bg-transparent",
+    inactive: "text-pin-memory border-pin-memory bg-transparent",
   },
 };
 
@@ -112,7 +115,7 @@ export function PinTag({
         ...style,
       }}
     >
-      <Glyph size={10} />
+      <Glyph size={10} color={active ? "white" : undefined} />
       {resolvedMeta.label}
     </button>
   );

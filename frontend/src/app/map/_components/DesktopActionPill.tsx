@@ -13,6 +13,8 @@ interface DesktopActionPillProps {
   rouletteDisabled?: boolean;
   /** 사이드바 하단 프로필 아바타에 노출할 닉네임 첫 글자. */
   myNickname?: string;
+  /** 하단 프로필 위에 노출할 알림 벨 (desktop variant, 36x36). */
+  notificationBell?: React.ReactNode;
 }
 
 const TABS: Array<{
@@ -38,6 +40,7 @@ export default function DesktopActionPill({
   onChange,
   rouletteDisabled = false,
   myNickname,
+  notificationBell,
 }: DesktopActionPillProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const initial = myNickname?.trim().charAt(0) ?? "";
@@ -139,7 +142,21 @@ export default function DesktopActionPill({
         );
       })}
 
-      {/* 프로필 — 액션 아이콘과 동일 gap으로 이어 배치 (사이드바 자동 높이) */}
+      {/* 알림 벨 (선택, develop 합류) — 액션 아이콘·프로필과 동일 gap 자연 흐름.
+          사이드바가 자동 높이이므로 marginTop:auto로 밀어낼 필요 없음. */}
+      {notificationBell && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {notificationBell}
+        </div>
+      )}
+
+      {/* 프로필 — 액션 아이콘·벨과 동일 gap으로 이어 배치 (사이드바 자동 높이) */}
       <div
         style={{ position: "relative" }}
         onMouseEnter={() => setHoveredId("profile")}

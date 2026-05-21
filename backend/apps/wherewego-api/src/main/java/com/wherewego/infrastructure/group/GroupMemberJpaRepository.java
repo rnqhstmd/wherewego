@@ -30,4 +30,9 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Lon
     @Query("SELECT COUNT(gm) FROM GroupMember gm "
             + "WHERE gm.groupId = :gid AND gm.leftAt IS NULL")
     long countActiveByGroupId(@Param("gid") Long groupId);
+
+    @Query("SELECT gm.userId FROM GroupMember gm "
+            + "WHERE gm.groupId = :groupId AND gm.userId <> :excludeUserId AND gm.leftAt IS NULL")
+    List<Long> findOtherActiveMemberIds(@Param("groupId") Long groupId,
+                                        @Param("excludeUserId") Long excludeUserId);
 }
