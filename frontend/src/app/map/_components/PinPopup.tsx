@@ -49,7 +49,7 @@ export default function PinPopup({
     null,
   );
   const [mode, setMode] = useState<PopupMode>("view");
-  const [editTab, setEditTab] = useState<EditTab>("tag");
+  const [editTab, setEditTab] = useState<EditTab>("place");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [memoPending, setMemoPending] = useState(false);
@@ -77,7 +77,7 @@ export default function PinPopup({
   if (trackedPinId !== pin.id) {
     setTrackedPinId(pin.id);
     setMode("view");
-    setEditTab("tag");
+    setEditTab("place");
     setError(null);
     setMemoPending(false);
     setMemoError(null);
@@ -349,7 +349,8 @@ export default function PinPopup({
           onClick={(e) => {
             e.stopPropagation();
             setMode("edit");
-            setEditTab(pin.memo && pin.memo.length > 0 ? "tag" : "memo");
+            // 수정 진입 시 항상 장소 탭을 먼저 노출 (사용자 UX 결정).
+            setEditTab("place");
           }}
           style={dropdownItemStyle()}
         >

@@ -156,7 +156,9 @@ export default function MemoTagPanelContent({
           fontSize: 14,
           color: colors.ink,
           marginBottom: 16,
-          resize: "vertical",
+          // Sheet 내부 스크롤(maxHeight 모드)과 충돌하지 않도록 사용자 리사이즈 핸들을 비활성화.
+          // 모바일 환경에서는 리사이즈 핸들이 UX 가치가 낮고 데스크탑 SidePanel 에서도 동일 정책.
+          resize: "none",
           outline: "none",
         }}
       />

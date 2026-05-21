@@ -10,8 +10,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -67,12 +69,77 @@ public class PinService {
     }
 
     /**
+     * 인스타그램 링크 자동 등록 + 좌표/이름 기반 중복 사전 검사.
+     *
+     * <p>URL이 달라도 같은 그룹 + 동일 placeName + 좌표 근접(±0.0001도, 약 10m)이면
+     * 이미 저장된 핀으로 간주하여 {@link RegisterPinResult#alreadyExisted()}{@code =true} 로 반환한다.
+     * 이 경우 새 INSERT 없이 기존 핀을 그대로 돌려준다 (memo 갱신도 하지 않는다).</p>
+     *
+     * <p>{@link DataIntegrityViolationException} (동일 URL+이름 재시도 등 UNIQUE 충돌) 도
+     * 이미 저장된 것으로 간주하여 동일 분기로 처리한다.</p>
+     */
+    @Transactional
+    public RegisterPinResult registerFromInstagramWithDedup(Long userId, Long groupId,
+                                                            PlaceSearchHit hit,
+                                                            String instagramUrl, String memo) {
+        BigDecimal lat = BigDecimal.valueOf(hit.latitude());
+        BigDecimal lng = BigDecimal.valueOf(hit.longitude());
+        Optional<Pin> existing = pinRepository.findActiveByGroupPlaceNear(
+                groupId, hit.placeName(), lat, lng);
+        if (existing.isPresent()) {
+            return new RegisterPinResult(existing.get(), true);
+        }
+        try {
+            Pin pin = Pin.autoFromInstagram(groupId, userId, hit, instagramUrl);
+            if (memo != null && !memo.isBlank()) {
+                pin.applyManualMemo(memo);
+            }
+            Pin saved = pinRepository.saveAndFlush(pin);
+            return new RegisterPinResult(saved, false);
+        } catch (DataIntegrityViolationException e) {
+            // 좌표/이름 매칭으로 못 잡았지만 (group_id, instagram_url, place_name) UNIQUE 에 걸린 경우.
+            // 동일 URL+이름 재시도 등. 이미 저장된 것으로 간주.
+            Optional<Pin> retried = pinRepository.findActiveByGroupPlaceNear(
+                    groupId, hit.placeName(), lat, lng);
+            return retried.map(p -> new RegisterPinResult(p, true))
+                    .orElseThrow(() -> e);
+        }
+    }
+
+    /**
      * 후보 카드 선택 기반 등록. UNIQUE 충돌 시 동일하게 propagate.
      */
     @Transactional
     public Pin registerFromSelection(Long userId, Long groupId, PlaceSearchHit hit, String instagramUrl) {
         Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
         return pinRepository.save(pin);
+    }
+
+    /**
+     * 후보 카드 선택 기반 등록 + 좌표/이름 기반 중복 사전 검사.
+     * URL이 달라도 같은 그룹 + 동일 placeName + 좌표 근접(±0.0001도) 이면 이미 저장된 핀으로 간주한다.
+     * {@link #registerFromInstagramWithDedup} 와 동일 정책. 다만 도메인 팩토리는 {@link Pin#fromSelection} 을 사용한다.
+     */
+    @Transactional
+    public RegisterPinResult registerFromSelectionWithDedup(Long userId, Long groupId,
+                                                            PlaceSearchHit hit, String instagramUrl) {
+        BigDecimal lat = BigDecimal.valueOf(hit.latitude());
+        BigDecimal lng = BigDecimal.valueOf(hit.longitude());
+        Optional<Pin> existing = pinRepository.findActiveByGroupPlaceNear(
+                groupId, hit.placeName(), lat, lng);
+        if (existing.isPresent()) {
+            return new RegisterPinResult(existing.get(), true);
+        }
+        try {
+            Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
+            Pin saved = pinRepository.saveAndFlush(pin);
+            return new RegisterPinResult(saved, false);
+        } catch (DataIntegrityViolationException e) {
+            Optional<Pin> retried = pinRepository.findActiveByGroupPlaceNear(
+                    groupId, hit.placeName(), lat, lng);
+            return retried.map(p -> new RegisterPinResult(p, true))
+                    .orElseThrow(() -> e);
+        }
     }
 
     /**

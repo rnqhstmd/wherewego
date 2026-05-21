@@ -1,5 +1,6 @@
 package com.wherewego.domain.pin;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,4 +58,11 @@ public interface PinRepository {
      * PATCH/DELETE 단일 행 잠금 조회. {@code PESSIMISTIC_WRITE} 로 동시성을 직렬화한다 (Q4).
      */
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId);
+
+    /**
+     * 같은 그룹 내에서 placeName 동일 + 좌표가 약 10m 이내(±0.0001도 bounding box)인
+     * 활성 핀을 1건 조회한다. URL이 달라도 같은 장소로 간주하기 위한 사전 중복 검사용.
+     */
+    Optional<Pin> findActiveByGroupPlaceNear(Long groupId, String placeName,
+                                             BigDecimal latitude, BigDecimal longitude);
 }

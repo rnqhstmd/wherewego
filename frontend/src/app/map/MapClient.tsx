@@ -39,7 +39,9 @@ import MapLoadError, {
   type MapLoadErrorReason,
 } from "./_components/MapLoadError";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useKeyboardInsets } from "@/lib/hooks/useKeyboardInsets";
 import { useGeolocation, type LatLng } from "./_hooks/useGeolocation";
+import { useGroupPinSync } from "./_hooks/useGroupPinSync";
 import {
   pickRandomWithExpansion,
   reRollFromSamePool,
@@ -203,6 +205,23 @@ export default function MapClient({
   );
 
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  // 모바일 키보드 등장 시 root container 높이를 줄여 ActionBar/Sheet 가
+  // 키보드 위에 정확히 정렬되도록 한다. 데스크탑(>=768px)에서는 SidePanel 경로라 무영향.
+  const { keyboardHeight, keyboardOpen } = useKeyboardInsets();
+
+  // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
+  // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
+  // 다른 사용자의 수정/삭제는 새로고침 전까지 미반영(후속 PR에서 충돌 정책과 함께 다룸).
+  useGroupPinSync({
+    groupId,
+    onTick: (serverPins) => {
+      setPins((prev) => {
+        const localIds = new Set(prev.map((p) => p.id));
+        const newOnly = serverPins.filter((p) => !localIds.has(p.id));
+        return newOnly.length === 0 ? prev : [...prev, ...newOnly];
+      });
+    },
+  });
 
   const handleMarkerClick = useCallback((pinId: number) => {
     setSelectedPinId(pinId);
@@ -957,7 +976,23 @@ export default function MapClient({
         </SidePanel>
       );
     }
-    return <Sheet>{content}</Sheet>;
+    // 모바일 시트: 키보드 등장 시 ActionBar 가 unmount 되므로 bottomOffset 을 12 로 낮춰
+    // ActionBar 자리까지 시트가 확장되도록 하고, maxHeight 로 내부 스크롤을 활성화한다.
+    const bottomOffset = keyboardOpen ? 12 : 88;
+    // 사용 가능한 높이 = 컨테이너(키보드 차감 후) - bottomOffset - 상단 여유(16px).
+    // landscape 키보드 케이스에서 음수가 되지 않도록 최소 200px 보장.
+    const viewportHeight =
+      (typeof window !== "undefined" && window.visualViewport
+        ? window.visualViewport.height
+        : typeof window !== "undefined"
+          ? window.innerHeight
+          : 800) - keyboardHeight;
+    const maxHeight = Math.max(200, viewportHeight - bottomOffset - 16);
+    return (
+      <Sheet bottomOffset={bottomOffset} maxHeight={maxHeight}>
+        {content}
+      </Sheet>
+    );
   };
 
   // 룰렛 시트 콘텐츠 렌더.
@@ -1149,9 +1184,16 @@ export default function MapClient({
     <div
       style={{
         position: "absolute",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        // 모바일 키보드 인셋만큼 컨테이너 하단을 줄여, 내부 absolute bottom 기준이
+        // visualViewport 하단과 일치하도록 한다. mapbox v3 ResizeObserver 가
+        // 컨테이너 크기 변화를 자동 감지하여 캔버스를 재조정한다.
+        bottom: keyboardHeight,
         background: colors.bg,
         overflow: "hidden",
+        transition: "bottom 150ms ease",
       }}
     >
       <MapboxView
@@ -1227,7 +1269,9 @@ export default function MapClient({
           }
           myNickname={myNickname}
         />
-      ) : (
+      ) : keyboardOpen ? null : (
+        // 모바일 키보드 등장 시 ActionBar 를 unmount 하여 입력 공간을 확보한다.
+        // 키보드가 닫히면 다시 마운트되어 기본 상태(검색/추가/어디갈까?)가 복원된다.
         <ActionBar
           active={activeSheetToTab(activeSheet)}
           onChange={handleTabChange}

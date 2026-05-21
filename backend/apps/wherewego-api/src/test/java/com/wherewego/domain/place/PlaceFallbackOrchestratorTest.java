@@ -4,6 +4,7 @@ import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.infrastructure.chatbot.callback.KakaoCallbackClient;
 import com.wherewego.infrastructure.notify.slack.SlackNotifier;
@@ -20,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -66,6 +67,9 @@ class PlaceFallbackOrchestratorTest {
 
     @Mock
     private Pin savedPin;
+
+    @Mock
+    private Pin existingPin;
 
     private PlaceFallbackOrchestrator orchestrator;
 
@@ -177,8 +181,9 @@ class PlaceFallbackOrchestratorTest {
             PlaceSearchHit h = hit("g1", "도쿄라멘본점");
             when(googlePlacesClient.searchByKeyword(anyString(), anyInt(), any(ChatbotContext.class)))
                     .thenReturn(List.of(h));
-            when(pinService.registerFromInstagram(anyLong(), anyLong(), any(PlaceSearchHit.class), anyString()))
-                    .thenReturn(savedPin);
+            when(pinService.registerFromInstagramWithDedup(
+                    anyLong(), anyLong(), any(PlaceSearchHit.class), anyString(), isNull()))
+                    .thenReturn(new RegisterPinResult(savedPin, false));
             when(savedPin.getId()).thenReturn(42L);
             when(savedPin.getPlaceName()).thenReturn("도쿄라멘본점");
 
@@ -187,29 +192,32 @@ class PlaceFallbackOrchestratorTest {
 
             // assert
             verify(pinService, timeout(ASYNC_TIMEOUT_MS))
-                    .registerFromInstagram(eq(1L), eq(2L), eq(h), eq(INSTAGRAM_URL));
+                    .registerFromInstagramWithDedup(eq(1L), eq(2L), eq(h), eq(INSTAGRAM_URL), isNull());
             verify(twoSecondMemoSession, timeout(ASYNC_TIMEOUT_MS))
                     .put(eq(BOT_USER_KEY), eq(42L));
             verify(kakaoCallbackClient, timeout(ASYNC_TIMEOUT_MS))
                     .pushText(eq(CALLBACK_URL), eq("장소가 저장되었어요: 도쿄라멘본점"));
         }
 
-        @DisplayName("DataIntegrityViolationException 발생 시, 콜백으로 '이미 저장된 장소' 메시지를 push 한다 (Slack 미알림).")
+        @DisplayName("이미 저장된 핀이면, 콜백으로 '📌 이미 저장된 장소' 메시지를 push 한다 (Slack 미알림).")
         @Test
         void runAsync_duplicatePin_pushesAlreadySavedTextAndNoSlack() {
             // arrange
             PlaceSearchHit h = hit("g1", "중복장소");
             when(googlePlacesClient.searchByKeyword(anyString(), anyInt(), any(ChatbotContext.class)))
                     .thenReturn(List.of(h));
-            when(pinService.registerFromInstagram(anyLong(), anyLong(), any(PlaceSearchHit.class), anyString()))
-                    .thenThrow(new DataIntegrityViolationException("dup"));
+            when(existingPin.getPlaceName()).thenReturn("중복장소");
+            when(pinService.registerFromInstagramWithDedup(
+                    anyLong(), anyLong(), any(PlaceSearchHit.class), anyString(), isNull()))
+                    .thenReturn(new RegisterPinResult(existingPin, true));
 
             // act
             orchestrator.runAsync(KEYWORD, jobCtx());
 
             // assert
             verify(kakaoCallbackClient, timeout(ASYNC_TIMEOUT_MS))
-                    .pushText(eq(CALLBACK_URL), eq("이미 저장된 장소예요."));
+                    .pushText(eq(CALLBACK_URL), eq("📌 이미 저장된 장소\n• 중복장소"));
+            verify(twoSecondMemoSession, never()).put(anyString(), anyLong());
             verify(slackNotifier, never()).notifyFailure(anyString(), any(Map.class));
         }
 

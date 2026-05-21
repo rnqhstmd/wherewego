@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,4 +44,23 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Pin p WHERE p.id = :pinId AND p.groupId = :groupId AND p.deletedAt IS NULL")
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(@Param("pinId") Long pinId, @Param("groupId") Long groupId);
+
+    /**
+     * placeName 동일 + 위/경도 bounding box 내 활성 핀 조회.
+     * {@code idx_pins_group_location} 인덱스가 활용된다. 호출자({@link com.wherewego.infrastructure.pin.PinRepositoryImpl})
+     * 가 {@code PageRequest.of(0, 1)} 로 1건만 가져온다.
+     */
+    @Query("SELECT p FROM Pin p WHERE p.groupId = :groupId "
+            + "AND p.placeName = :placeName "
+            + "AND p.latitude BETWEEN :latMin AND :latMax "
+            + "AND p.longitude BETWEEN :lngMin AND :lngMax "
+            + "AND p.deletedAt IS NULL "
+            + "ORDER BY p.id ASC")
+    List<Pin> findActiveByGroupPlaceNear(@Param("groupId") Long groupId,
+                                         @Param("placeName") String placeName,
+                                         @Param("latMin") BigDecimal latMin,
+                                         @Param("latMax") BigDecimal latMax,
+                                         @Param("lngMin") BigDecimal lngMin,
+                                         @Param("lngMax") BigDecimal lngMax,
+                                         Pageable pageable);
 }

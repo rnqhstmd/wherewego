@@ -12,7 +12,7 @@
 | place | 외부 장소 API 연동 + 인스타 메타 파싱 | [상세](place/README.md) |
 | pin | 핀 CRUD + 중복 방지 (visited 제거, tag 도입) | [상세](pin/README.md) |
 | memo | 메모 (2초 룰, 수동 우선) | [상세](memo/README.md) |
-| **tag** | **MVP 핵심**: PLACE(파란 동그라미) / MEMORY(핑크 하트) 카테고리 | [상세](tag/README.md) |
+| **tag** | **Phase 7 갱신**: REEL·발견(연보라 인스타아이콘) / WISH·설렘(민트 동그라미) / MEMORY·추억(핑크 하트) 3종 카테고리 | [상세](tag/README.md) |
 | map | Mapbox 3D 지도 + 파스텔 핀 UI | [상세](map/README.md) |
 | recommendation | 위치 기반 룰렛 (Haversine 거리) | [상세](recommendation/README.md) |
 | observability | 외부 API 사각지대 가시화 + 임계값 기반 Slack 알림 (횡단) | [상세](observability/README.md) |
@@ -53,9 +53,19 @@
 | Phase 2.10 | **잔여 후속 통합**(MVP 운영 잔여): ① 핀 좌표 수정(지도 picker 재사용) + 삭제 핀 복원 UI([pin](pin/status.md)), ② 카카오 i 오픈빌더 PLACE_SELECTION 버튼 `action="message"` + `extra.placeId` 동작 검증([chatbot](chatbot/status.md) — Phase 2.6 PR-C 이월), ③ Pretendard 폰트 self-host 전환 + Mapbox 토큰 회전 SOP 운영자 가이드([map](map/status.md)) | ✅ 완료 | [#24](https://github.com/rnqhstmd/wherewego/pull/24) |
 | **Phase 2.11 PR-A** | **observability foundation**: MDC RequestId 필터, 외부 API 공통 구조화 로그(`api/op/duration_ms/outcome/cache`), 일별 로그 회전+90일 보관(Logback `TimeBasedRollingPolicy`, gzip 압축, Docker volume mount + json-file 이중 적재 150MB 상한), Slack 본문 RequestId 동봉. [observability](observability/README.md) | ✅ 완료 | [#28](https://github.com/rnqhstmd/wherewego/pull/28) |
 | **Phase 2.11 PR-B** | **외부 API 관제 자산**: Google Places Micrometer 메트릭 + 24h Caffeine 캐시(SHA-256(keyword), maximumSize 1000), Gemini onStatus 4xx/5xx 분리(`server_error` outcome), `ThresholdMonitorScheduler` 1h 윈도우(Gemini server_error 10%/Instagram 차단율 50%) + 5분 쿨다운, `InstagramBlockedRateTracker`(synchronized 단일 락 원자 스왑). 관측 코드 장애 격리 NFR-1~6 | ✅ 완료 | [#29](https://github.com/rnqhstmd/wherewego/pull/29) |
-| Phase 3.0 | **MVP 후 확장**(비즈니스 정책, 도메인별 별도 PRD): Group N인 확장(1인 1활성 제약 해제), 재가입 허용 정책(`uq_group_members_pair` 변경), BotUserMapping 회원 탈퇴 cascade(회원 탈퇴 PRD 선행) | ⬜ 장기 | — |
+| **Phase 7** | **태그 3종 리뉴얼**: PLACE→REEL(발견/연보라 `#C5B4E3`/인스타아이콘)·WISH(설렘/민트 `#A8E6CF`/동그라미) 분리, MEMORY(추억/핑크 `#FFB3C6`/하트) 유지. Flyway 마이그레이션(기존 PLACE→REEL 일괄), `chk_pins_tag` 제약 갱신, 챗봇 기본값 REEL, 웹 등록 UI WISH/MEMORY 2종 선택(REEL 챗봇 전용), 지도 마커 3종 신설, 룰렛 후보 풀 REEL+WISH | ⬜ 예정 | — |
+| **Phase 8** | **인앱 알림함**: 그룹원 핀 등록 시 상대방 알림 생성. 릴스 1건 = 알림 1건(N개 핀 묶음). 알림 유형: `CHATBOT_PINS`(릴스 기반, 복수 핀) / `MANUAL_PIN`(웹 직접 등록, 단건). **실시간(SSE)**: `SseEmitter` 기반 서버→클라이언트 푸시, 추가 인프라 없음. **프론트 UX**: ① 벨 아이콘 우상단 빨간 점(미읽음, 알림함 열어 읽을 때까지 유지) ② 새 알림 수신 시 벨 아이콘 옆에 기존 `SpeechBubblePopup` 스타일 말풍선 1회 노출(알림당 딱 1번, 외부 탭 시 자동 닫힘) ③ 벨 클릭 → 알림 목록 패널 → 상세(장소 N개 리스트) → 클릭 시 지도 `flyTo` + 핀 팝업. 백엔드: `notifications` 테이블 + `notification_pins` 조인 + `GET /api/v1/notifications/stream` SSE 엔드포인트 | ⬜ 예정 | — |
+| **Phase 9** | **핀 공유 카드**: 지도 말풍선 팝업 ⋮ 메뉴에 "공유하기" 버튼 추가 → Canvas 기반 카드 이미지 클라이언트 생성 → PNG 다운로드/기기 공유. 카드 구성: Mapbox Static API 지도 이미지(흐림 처리 backdrop-filter) 배경 + 메모 + 장소명 + 핀 등록일 + `written by {작성자 닉네임}` + 좌측 하단 "우리가갈지도" 워터마크. S3 불필요, 서버리스 완전 클라이언트 처리 | ⬜ 예정 | — |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
+
+## 고도화 로드맵
+
+서비스 안정화 이후 별도 PRD 기반으로 진행하는 대규모 확장 작업.
+
+| 고도화 | 범위 | 상태 |
+|--------|------|------|
+| **고도화 1.0** | **그룹 확장**: Group N인 확장(1인 1활성 제약 해제), 재가입 허용 정책(`uq_group_members_pair` 변경), BotUserMapping 회원 탈퇴 cascade(회원 탈퇴 PRD 선행) | ⬜ 장기 |
 
 ## 주요 ADR
 
