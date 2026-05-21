@@ -15,6 +15,32 @@ interface InputProps {
   type?: "text" | "search";
   name?: string;
   id?: string;
+  /**
+   * iOS Safari 자동완성 chip(🔑/💳/📍) 차단을 위한 속성들.
+   * 검색처럼 자동완성이 무의미한 input은 "off" 풀 조합으로 차단한다.
+   * 메모처럼 자유 텍스트는 미지정(undefined) 유지.
+   */
+  autoComplete?: string;
+  inputMode?:
+    | "none"
+    | "text"
+    | "decimal"
+    | "numeric"
+    | "tel"
+    | "search"
+    | "email"
+    | "url";
+  enterKeyHint?:
+    | "enter"
+    | "done"
+    | "go"
+    | "next"
+    | "previous"
+    | "search"
+    | "send";
+  autoCorrect?: "on" | "off";
+  autoCapitalize?: "on" | "off" | "sentences" | "words" | "characters" | "none";
+  spellCheck?: boolean;
 }
 
 /**
@@ -34,6 +60,12 @@ export function Input({
   type = "text",
   name,
   id,
+  autoComplete,
+  inputMode,
+  enterKeyHint,
+  autoCorrect,
+  autoCapitalize,
+  spellCheck,
 }: InputProps) {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange?.(event.target.value);
@@ -79,6 +111,12 @@ export function Input({
         onKeyDown={onKeyDown}
         autoFocus={autoFocus}
         disabled={disabled}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        enterKeyHint={enterKeyHint}
+        autoCorrect={autoCorrect}
+        autoCapitalize={autoCapitalize}
+        spellCheck={spellCheck}
         style={{
           flex: 1,
           border: "none",

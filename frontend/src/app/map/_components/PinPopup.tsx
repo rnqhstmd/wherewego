@@ -251,10 +251,10 @@ export default function PinPopup({
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: error ? 8 : 0, flexWrap: "wrap" }}>
         <PinTagChip
-          type="REEL"
-          active={pin.tag === "REEL"}
+          type="MEMORY"
+          active={pin.tag === "MEMORY"}
           disabled={pending}
-          onClick={() => handleTagToggle("REEL")}
+          onClick={() => handleTagToggle("MEMORY")}
         />
         <PinTagChip
           type="WISH"
@@ -263,10 +263,10 @@ export default function PinPopup({
           onClick={() => handleTagToggle("WISH")}
         />
         <PinTagChip
-          type="MEMORY"
-          active={pin.tag === "MEMORY"}
+          type="REEL"
+          active={pin.tag === "REEL"}
           disabled={pending}
-          onClick={() => handleTagToggle("MEMORY")}
+          onClick={() => handleTagToggle("REEL")}
         />
         {pending && (
           <span style={hintTextStyle}>저장 중...</span>

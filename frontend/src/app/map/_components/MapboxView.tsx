@@ -122,8 +122,8 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
     case "MEMORY":
       el.style.width = "22px";
       el.style.height = "22px";
-      // 1.5 : 1.3 비율 근사 (PinDot React 글리프와 동일한 viewBox 종횡비).
-      el.innerHTML = getMemorySvgString(22, 19);
+      // material standard 하트 viewBox 0 0 24 24 정사각이라 22x22 동일 비율로 호출.
+      el.innerHTML = getMemorySvgString(22, 22);
       break;
     default:
       // M1 fallback: 알 수 없는 enum → WISH 글리프.

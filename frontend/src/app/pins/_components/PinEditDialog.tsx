@@ -28,7 +28,7 @@ const TAG_RADIO_CLASSES: Record<PinTag, string> = {
 
 const TAG_RADIO_OPTIONS: { value: PinTag; label: string }[] = [
   { value: "REEL", label: "발견" },
-  { value: "WISH", label: "설렘" },
+  { value: "WISH", label: "위시" },
   { value: "MEMORY", label: "추억" },
 ];
 

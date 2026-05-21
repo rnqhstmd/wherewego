@@ -52,6 +52,8 @@ export default function ActionBar({
         alignItems: "stretch",
         zIndex: 25,
         overflow: "hidden",
+        // 키보드 닫힘 후 ActionBar 재mount 시 부드럽게 등장. 첫 페이지 로드도 동일하게 fade-in.
+        animation: "kbd-fadein 100ms ease-out",
       }}
     >
       {TABS.map((tab) => {

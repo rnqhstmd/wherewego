@@ -34,7 +34,7 @@ export function PinDot({
       glyph = <ReelGlyph size={size} />;
       break;
     case "memory":
-      glyph = <MemoryGlyph w={size * 1.5} h={size * 1.3} />;
+      glyph = <MemoryGlyph w={size} h={size} />;
       break;
     case "wish":
       glyph = <WishGlyph size={size} />;
