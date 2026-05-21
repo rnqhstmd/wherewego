@@ -1,6 +1,7 @@
 package com.wherewego.interfaces.api.pin;
 
 import com.wherewego.config.security.AuthUser;
+import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinSummary;
@@ -11,6 +12,8 @@ import com.wherewego.support.error.ErrorType;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,9 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PinV1Controller implements PinV1ApiSpec {
 
+    private static final Logger log = LoggerFactory.getLogger(PinV1Controller.class);
+
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PinService pinService;
+    private final NotificationService notificationService;
 
     @PostMapping("/{groupId}/pins")
     @ResponseStatus(HttpStatus.CREATED)
@@ -40,9 +46,13 @@ public class PinV1Controller implements PinV1ApiSpec {
             @PathVariable Long groupId,
             @RequestBody PinV1Dto.CreatePinRequest request
     ) {
-        return ApiResponse.success(
-                PinV1Dto.PinSummaryResponse.from(
-                        pinService.addPin(userId, groupId, request.toCommand())));
+        PinSummary saved = pinService.addPin(userId, groupId, request.toCommand());
+        try {
+            notificationService.createForManualPin(groupId, userId, saved.id());
+        } catch (RuntimeException e) {
+            log.warn("notification (manual) failed groupId={} pinId={}", groupId, saved.id(), e);
+        }
+        return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(saved));
     }
 
     @GetMapping("/{groupId}/pins")

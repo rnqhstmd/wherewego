@@ -9,6 +9,7 @@ import com.wherewego.domain.chatbot.PendingNotificationSession;
 import com.wherewego.domain.chatbot.RecentlyAutoSaved;
 import com.wherewego.domain.chatbot.RecentlyAutoSavedSession;
 import com.wherewego.domain.group.GroupMemberService;
+import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.RegisterPinResult;
@@ -88,6 +89,7 @@ class InstagramLinkHandlerBatchDedupTest {
     @Mock private PendingInstagramAutoSaveScheduler autoSaveScheduler;
     @Mock private PendingNotificationSession pendingNotificationSession;
     @Mock private RecentlyAutoSavedSession recentlyAutoSavedSession;
+    @Mock private NotificationService notificationService;
     @Mock private ContentParser parser;
 
     private InstagramLinkHandler handler;
@@ -99,7 +101,8 @@ class InstagramLinkHandlerBatchDedupTest {
                 placeSearchService, pinService, placeSelectionCandidateStore,
                 twoSecondMemoSession, placeFallbackOrchestrator, placeProperties,
                 kakaoCallbackClient, pendingInstagramSession, autoSaveScheduler,
-                pendingNotificationSession, recentlyAutoSavedSession, 60L);
+                pendingNotificationSession, recentlyAutoSavedSession,
+                notificationService, 60L);
     }
 
     // ============================== DUP-1 ==============================
