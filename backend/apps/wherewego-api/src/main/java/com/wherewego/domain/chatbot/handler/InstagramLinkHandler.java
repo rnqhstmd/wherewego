@@ -9,6 +9,7 @@ import com.wherewego.domain.chatbot.PendingInstagramAutoSaveScheduler;
 import com.wherewego.domain.chatbot.PendingInstagramSession;
 import com.wherewego.domain.chatbot.PendingNotificationSession;
 import com.wherewego.domain.group.GroupMemberService;
+import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
@@ -76,6 +77,7 @@ public class InstagramLinkHandler implements MessageHandler {
     private final PendingInstagramSession pendingInstagramSession;
     private final PendingInstagramAutoSaveScheduler autoSaveScheduler;
     private final PendingNotificationSession pendingNotificationSession;
+    private final NotificationService notificationService;
     private final long pendingTtlMs;
 
     /** N개 candidates 비동기 처리용 풀. D 시나리오의 즉시 백그라운드 처리에도 재사용. */
@@ -99,6 +101,7 @@ public class InstagramLinkHandler implements MessageHandler {
                                 PendingInstagramSession pendingInstagramSession,
                                 PendingInstagramAutoSaveScheduler autoSaveScheduler,
                                 PendingNotificationSession pendingNotificationSession,
+                                NotificationService notificationService,
                                 @Value("${chatbot.instagram.pending-ttl-seconds:60}") long pendingTtlSeconds) {
         this.botUserMappingService = botUserMappingService;
         this.groupMemberService = groupMemberService;
@@ -113,6 +116,7 @@ public class InstagramLinkHandler implements MessageHandler {
         this.pendingInstagramSession = pendingInstagramSession;
         this.autoSaveScheduler = autoSaveScheduler;
         this.pendingNotificationSession = pendingNotificationSession;
+        this.notificationService = notificationService;
         this.pendingTtlMs = pendingTtlSeconds * 1000L;
     }
 
@@ -347,6 +351,7 @@ public class InstagramLinkHandler implements MessageHandler {
         List<String> autoRegistered = new ArrayList<>();
         List<String> alreadySaved = new ArrayList<>();
         List<String> manualNeeded = new ArrayList<>();
+        List<Long> savedPinIds = new ArrayList<>();
 
         Long lastSavedPinId = null;
 
@@ -376,19 +381,29 @@ public class InstagramLinkHandler implements MessageHandler {
 
             if (outcome instanceof PlaceSearchOutcome.Single single) {
                 Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl, memo,
-                        autoRegistered, alreadySaved, manualNeeded);
+                        autoRegistered, alreadySaved, manualNeeded, savedPinIds);
                 if (savedId != null) lastSavedPinId = savedId;
                 continue;
             }
 
             List<PlaceSearchHit> hits = ((PlaceSearchOutcome.Multiple) outcome).hits();
             Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl, memo,
-                    autoRegistered, alreadySaved, manualNeeded);
+                    autoRegistered, alreadySaved, manualNeeded, savedPinIds);
             if (savedId != null) lastSavedPinId = savedId;
         }
 
         if (lastSavedPinId != null) {
             twoSecondMemoSession.put(botUserKey, lastSavedPinId);
+        }
+
+        // Phase 8: 그룹원에게 알림 (자동 저장 성공한 핀들만, BR-5: 빈 리스트는 NotificationService가 자동 no-op)
+        if (!savedPinIds.isEmpty()) {
+            try {
+                notificationService.createForChatbotBatch(groupId, userId, savedPinIds);
+            } catch (RuntimeException e) {
+                log.warn("notification (chatbot candidates) failed groupId={} pinCount={}",
+                        groupId, savedPinIds.size(), e);
+            }
         }
 
         return composeResponse(autoRegistered, alreadySaved, manualNeeded, memo);
@@ -401,7 +416,8 @@ public class InstagramLinkHandler implements MessageHandler {
                              String memo,
                              List<String> autoRegistered,
                              List<String> alreadySaved,
-                             List<String> manualNeeded) {
+                             List<String> manualNeeded,
+                             List<Long> savedPinIds) {
         try {
             RegisterPinResult result = pinService.registerFromInstagramWithDedup(
                     userId, groupId, hit, instagramUrl, memo);
@@ -410,6 +426,7 @@ public class InstagramLinkHandler implements MessageHandler {
                 return null;  // 메모 2초룰 lastSavedPinId 대상에서 제외
             }
             autoRegistered.add(result.pin().getPlaceName());
+            savedPinIds.add(result.pin().getId());
             return result.pin().getId();
         } catch (DataIntegrityViolationException e) {
             // 매우 드문 경합. 이미 저장된 것으로 안전하게 분류.
@@ -475,6 +492,12 @@ public class InstagramLinkHandler implements MessageHandler {
                             "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
                 }
                 twoSecondMemoSession.put(botUserKey, result.pin().getId());
+                // Phase 8: 그룹원에게 알림
+                try {
+                    notificationService.createForChatbotBatch(groupId, userId, List.of(result.pin().getId()));
+                } catch (RuntimeException e) {
+                    log.warn("notification (chatbot legacy single) failed pinId={}", result.pin().getId(), e);
+                }
                 String msg = "장소가 저장되었어요: " + result.pin().getPlaceName();
                 if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
                 return ChatbotV1Dto.SkillResponse.simple(msg);
@@ -509,6 +532,12 @@ public class InstagramLinkHandler implements MessageHandler {
                                 "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
                     }
                     twoSecondMemoSession.put(botUserKey, result.pin().getId());
+                    // Phase 8: 그룹원에게 알림
+                    try {
+                        notificationService.createForChatbotBatch(groupId, userId, List.of(result.pin().getId()));
+                    } catch (RuntimeException e) {
+                        log.warn("notification (chatbot google fallback) failed pinId={}", result.pin().getId(), e);
+                    }
                     String msg = "장소가 저장되었어요: " + result.pin().getPlaceName();
                     if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
                     return ChatbotV1Dto.SkillResponse.simple(msg);

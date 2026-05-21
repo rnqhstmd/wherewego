@@ -42,4 +42,9 @@ public class GroupMemberRepositoryImpl implements GroupMemberRepository {
     public long countActiveByGroupId(Long groupId) {
         return jpaRepository.countActiveByGroupId(groupId);
     }
+
+    @Override
+    public List<Long> findOtherActiveMemberIds(Long groupId, Long excludeUserId) {
+        return jpaRepository.findOtherActiveMemberIds(groupId, excludeUserId);
+    }
 }

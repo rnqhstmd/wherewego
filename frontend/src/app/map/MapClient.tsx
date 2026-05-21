@@ -56,6 +56,11 @@ import {
   updatePinTagAction,
 } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
+import { useNotifications } from "@/lib/notifications/useNotifications";
+import { NotificationBell } from "./_components/notifications/NotificationBell";
+import { NotificationToast } from "./_components/notifications/NotificationToast";
+import { NotificationPanel } from "./_components/notifications/NotificationPanel";
+import type { NotificationPinItem } from "@/lib/notifications/types";
 
 /**
  * MapboxView는 mapbox-gl이 window 의존이므로 ssr:false로 동적 로드.
@@ -208,6 +213,17 @@ export default function MapClient({
   // 모바일 키보드 등장 시 root container 높이를 줄여 ActionBar/Sheet 가
   // 키보드 위에 정확히 정렬되도록 한다. 데스크탑(>=768px)에서는 SidePanel 경로라 무영향.
   const { keyboardHeight, keyboardOpen } = useKeyboardInsets();
+
+  // Phase 8: 알림 시스템 통합. MapClient 한 곳에서만 호출하여 SSE 중복 구독을 방지한다.
+  const notifications = useNotifications();
+
+  // 동시 1개 패널 정책: 다른 액션 시트가 열리면 알림 패널을 닫는다.
+  // (역방향 — 알림 패널 열림 시 다른 시트 닫기 — 은 mobileBell/desktopBell onClick에서 처리.)
+  useEffect(() => {
+    if (activeSheet && notifications.isPanelOpen) {
+      notifications.closePanel();
+    }
+  }, [activeSheet, notifications]);
 
   // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
   // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
@@ -862,6 +878,31 @@ export default function MapClient({
     resetMapPadding();
   }, [activeSheet, coordinateEditTarget, resetMapPadding]);
 
+  /**
+   * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
+   *
+   * <p>패널 자체는 `NotificationPanel` 내부에서 onSelectPin 직후 onClose로 닫힌다.
+   * 삭제된 핀(deleted=true) 또는 좌표 없음(null)이면 no-op.
+   * 클라이언트 state에 존재하는 핀이면 setSelectedPinId로 PinPopup 자동 표시 —
+   * 룰렛 "지도에서 보기" 패턴과 동일.</p>
+   */
+  const handleSelectPinFromNotification = useCallback(
+    (pin: NotificationPinItem) => {
+      if (pin.deleted || pin.latitude == null || pin.longitude == null) return;
+      if (map) {
+        map.flyTo({
+          center: [Number(pin.longitude), Number(pin.latitude)],
+          zoom: 14,
+        });
+      }
+      const exists = pins.some((p) => p.id === pin.pinId);
+      if (exists) {
+        setSelectedPinId(pin.pinId);
+      }
+    },
+    [map, pins],
+  );
+
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
   const handleShowOnMap = useCallback(
     (pin: PinSummaryResponse) => {
@@ -1182,6 +1223,32 @@ export default function MapClient({
     );
   }
 
+  // Phase 8: 알림 벨 — 모바일은 우상단 프로필 좌측, 데스크탑은 사이드바 하단.
+  // onClick에서 활성 시트를 닫고(동시 1개 패널 정책) 알림 패널을 연다.
+  const mobileBell = (
+    <NotificationBell
+      variant="mobile"
+      unreadCount={notifications.unreadCount}
+      connectionState={notifications.connectionState}
+      onClick={() => {
+        setActiveSheet(null);
+        void notifications.openPanel();
+      }}
+    />
+  );
+
+  const desktopBell = (
+    <NotificationBell
+      variant="desktop"
+      unreadCount={notifications.unreadCount}
+      connectionState={notifications.connectionState}
+      onClick={() => {
+        setActiveSheet(null);
+        void notifications.openPanel();
+      }}
+    />
+  );
+
   return (
     <div
       style={{
@@ -1217,7 +1284,11 @@ export default function MapClient({
         }
       />
       {mapError && <MapLoadError reason={mapError} />}
-      <MobileTopNav myNickname={myNickname} showProfile={!isDesktop} />
+      <MobileTopNav
+        myNickname={myNickname}
+        showProfile={!isDesktop}
+        notificationBell={!isDesktop ? mobileBell : undefined}
+      />
       <ClusterBanner visible={hasCluster} />
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -1270,6 +1341,7 @@ export default function MapClient({
             geoState.status === "denied"
           }
           myNickname={myNickname}
+          notificationBell={desktopBell}
         />
       ) : keyboardOpen ? null : (
         // 모바일 키보드 등장 시 ActionBar 를 unmount 하여 입력 공간을 확보한다.
@@ -1284,6 +1356,22 @@ export default function MapClient({
           }
         />
       )}
+      {notifications.toast && (
+        <NotificationToast
+          key={notifications.toast.id}
+          payload={notifications.toast.payload}
+          onDismiss={notifications.dismissToast}
+          anchorVariant={isDesktop ? "desktop" : "mobile"}
+        />
+      )}
+      <NotificationPanel
+        items={notifications.items}
+        isOpen={notifications.isPanelOpen}
+        onClose={notifications.closePanel}
+        onSelectPin={handleSelectPinFromNotification}
+        loadDetail={notifications.loadDetail}
+        variant={isDesktop ? "desktop" : "mobile"}
+      />
       {showPermDialog && (
         <PermissionDialog
           title="위치를 알려주세요"
