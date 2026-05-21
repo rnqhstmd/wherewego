@@ -1217,6 +1217,7 @@ export default function MapClient({
       <MemoTagPanelContent
         origin={addPinOrigin}
         groupId={groupId}
+        mapboxToken={mapboxToken}
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
       />,
@@ -1236,27 +1237,22 @@ export default function MapClient({
     );
   }
 
-  // Phase 8: 알림 벨 — 모바일은 우상단 프로필 좌측, 데스크탑은 사이드바 하단.
-  // onClick에서 활성 시트를 닫고(동시 1개 패널 정책) 알림 패널을 연다.
-  const mobileBell = (
-    <NotificationBell
-      variant="mobile"
-      unreadCount={notifications.unreadCount}
-      onClick={() => {
-        setActiveSheet(null);
-        void notifications.openPanel();
-      }}
-    />
-  );
+  // Phase 8: 알림 벨 — 모바일은 하단 ActionBar 4번째 탭, 데스크탑은 사이드바 하단.
+  // 클릭 시 패널 토글. 열려 있으면 닫고, 닫혀 있으면 활성 시트를 닫고 패널을 연다(동시 1개 패널 정책).
+  const handleBellClick = () => {
+    if (notifications.isPanelOpen) {
+      notifications.closePanel();
+      return;
+    }
+    setActiveSheet(null);
+    void notifications.openPanel();
+  };
 
   const desktopBell = (
     <NotificationBell
       variant="desktop"
       unreadCount={notifications.unreadCount}
-      onClick={() => {
-        setActiveSheet(null);
-        void notifications.openPanel();
-      }}
+      onClick={handleBellClick}
     />
   );
 
@@ -1298,7 +1294,6 @@ export default function MapClient({
       <MobileTopNav
         myNickname={myNickname}
         showProfile={!isDesktop}
-        notificationBell={!isDesktop ? mobileBell : undefined}
       />
       <ClusterBanner visible={hasCluster} />
       {pins.length === 0 && !activeSheet && (
@@ -1368,6 +1363,9 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          notificationActive={notifications.isPanelOpen}
+          notificationUnreadCount={notifications.unreadCount}
+          onNotificationClick={handleBellClick}
         />
       )}
       {notifications.toast && (

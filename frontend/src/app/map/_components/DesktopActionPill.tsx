@@ -50,7 +50,7 @@ export default function DesktopActionPill({
       style={{
         position: "absolute",
         top: 72,
-        // BR: 콘텐츠(아이콘 3 + 프로필 1)에 맞춰 자동 높이 — viewport 전체로 늘리지 않음.
+        // 콘텐츠(아이콘 3 + 벨 + 프로필)에 맞춰 자동 높이 — viewport 전체로 늘리지 않음.
         left: 14,
         width: 44,
         background: colors.panel,
@@ -142,8 +142,7 @@ export default function DesktopActionPill({
         );
       })}
 
-      {/* 알림 벨 (선택, develop 합류) — 액션 아이콘·프로필과 동일 gap 자연 흐름.
-          사이드바가 자동 높이이므로 marginTop:auto로 밀어낼 필요 없음. */}
+      {/* 알림 벨 (선택) — 액션 아이콘과 동일 gap 자연 흐름. 사이드바 자동 높이라 marginTop:auto 불필요. */}
       {notificationBell && (
         <div
           style={{
@@ -156,9 +155,11 @@ export default function DesktopActionPill({
         </div>
       )}
 
-      {/* 프로필 — 액션 아이콘·벨과 동일 gap으로 이어 배치 (사이드바 자동 높이) */}
+      {/* 프로필 — 액션·벨과 동일 gap으로 이어 배치 */}
       <div
-        style={{ position: "relative" }}
+        style={{
+          position: "relative",
+        }}
         onMouseEnter={() => setHoveredId("profile")}
         onMouseLeave={() => setHoveredId(null)}
       >

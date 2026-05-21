@@ -28,8 +28,11 @@ export function SidePanel({
       style={{
         position: "absolute",
         top: 12,
-        // BR: 컨텐츠 길이에 따라 자동 fit. 긴 결과는 maxHeight 안에서 본문 스크롤.
+        // 컨텐츠 길이에 따라 자동 fit. 긴 결과는 maxHeight 안에서 본문 스크롤.
         maxHeight: "calc(100% - 24px)",
+        // 사이드바(DesktopActionPill, top:72 + ~228 콘텐츠)와 시각 정렬되도록 최소 높이 확보.
+        // 짧은 컨텐츠(위치 선택, 알림 0건)에서도 사이드바와 어색하지 않게 정렬.
+        minHeight: 288,
         width,
         background: colors.panel,
         borderRadius: 20,
@@ -61,8 +64,9 @@ export function SidePanel({
       ) : null}
       <div
         style={{
-          // flex:1 제거 — 컨텐츠 짧을 때 빈 공간 강제 채움 방지. 길면 maxHeight 안에서 스크롤.
-          flex: "0 1 auto",
+          // 본문은 위에서부터 자연 흐름. 검색 입력·list·폼 모두 일관된 위치 정렬.
+          // minHeight으로 짧은 컨텐츠 패널도 사이드바와 시각 정렬되며, 본문은 위에 정착.
+          flex: 1,
           overflowY: "auto",
           padding: "16px 22px 22px",
         }}

@@ -68,7 +68,10 @@ export function NotificationPanel({
           position: 'fixed',
           top: 14,
           left: 66,
-          bottom: 14,
+          // 알림함은 사용자 정보량이 많은 영역이라 화면 절반 정도의 길이를 기본으로 확보.
+          // 최대 50개 fetch + 본문 자체 스크롤. 알림 0건 빈 상태에서도 50vh 유지하여 시각 안정.
+          maxHeight: 'calc(100% - 28px)',
+          minHeight: '50vh',
           width: 360,
           background: colors.panel,
           borderRadius: 20,

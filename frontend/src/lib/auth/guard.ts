@@ -70,8 +70,10 @@ export async function redirectIfAuthed(target: string = "/map"): Promise<void> {
       redirect(target);
     }
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) {
-      return; // 미인증 사용자는 진입 허용
+    // 401 미인증 또는 404(만료 토큰/매핑 변경 등 클라이언트가 복구 불가능한 4xx)는
+    // 로그인 페이지 진입 허용으로 grace fully 처리한다. 5xx 등 서버 측 장애만 상위로 throw.
+    if (e instanceof ApiError && (e.status === 401 || e.status === 404)) {
+      return;
     }
     throw e;
   }
