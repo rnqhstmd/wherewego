@@ -17,6 +17,7 @@ public class CacheConfig {
     public static final String TWO_SECOND_MEMO = "twoSecondMemo";
     public static final String INSTAGRAM_PENDING = "instagramPending";
     public static final String INSTAGRAM_PENDING_NOTIFICATION = "instagramPendingNotification";
+    public static final String INSTAGRAM_RECENTLY_SAVED = "instagramRecentlySaved";
     public static final String PLACE_SELECTION_CANDIDATE = "placeSelectionCandidate";
     public static final String GEMINI_USER_QUOTA = "geminiUserQuota";
     public static final String GEMINI_RESPONSE_CACHE = "geminiResponseCache";
@@ -24,7 +25,8 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager(
-            @Value("${chatbot.instagram.pending-ttl-seconds:60}") long instagramPendingTtlSeconds) {
+            @Value("${chatbot.instagram.pending-ttl-seconds:60}") long instagramPendingTtlSeconds,
+            @Value("${chatbot.instagram.recently-saved-ttl-seconds:600}") long instagramRecentlySavedTtlSeconds) {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.registerCustomCache(TWO_SECOND_MEMO,
                 Caffeine.newBuilder()
@@ -43,6 +45,13 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(Duration.ofDays(7))
                         .maximumSize(10_000)
+                        .build());
+        // RESEND-1 가드용. key = botUserKey + "|" + sha256Hex(url), value = RecentlyAutoSaved record.
+        // 자동/메모 흐름으로 저장 완료된 URL을 짧은 윈도우 안에 재전송하면 "이미 저장됨" 안내.
+        manager.registerCustomCache(INSTAGRAM_RECENTLY_SAVED,
+                Caffeine.newBuilder()
+                        .expireAfterWrite(Duration.ofSeconds(instagramRecentlySavedTtlSeconds))
+                        .maximumSize(2_000)
                         .build());
         manager.registerCustomCache(PLACE_SELECTION_CANDIDATE,
                 Caffeine.newBuilder()

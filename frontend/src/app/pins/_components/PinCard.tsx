@@ -18,7 +18,7 @@ const TAG_STYLES: Record<PinTag, string> = {
 
 const TAG_LABEL: Record<PinTag, string> = {
   REEL: "발견",
-  WISH: "설렘",
+  WISH: "위시",
   MEMORY: "추억",
 };
 

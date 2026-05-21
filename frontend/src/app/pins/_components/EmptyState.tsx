@@ -7,7 +7,7 @@ interface EmptyStateProps {
 
 const FILTER_LABEL: Record<Exclude<TagFilterValue, "ALL">, string> = {
   REEL: "발견",
-  WISH: "설렘",
+  WISH: "위시",
   MEMORY: "추억",
 };
 
