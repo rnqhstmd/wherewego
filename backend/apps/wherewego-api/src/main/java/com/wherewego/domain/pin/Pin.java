@@ -30,8 +30,8 @@ import java.math.BigDecimal;
 @Table(
         name = "pins",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_pins_group_instagram",
-                columnNames = {"group_id", "instagram_url"}
+                name = "uq_pins_group_instagram_place",
+                columnNames = {"group_id", "instagram_url", "place_name"}
         )
 )
 public class Pin extends BaseEntity {

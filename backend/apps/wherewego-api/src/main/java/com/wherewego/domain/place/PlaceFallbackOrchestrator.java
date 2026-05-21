@@ -3,8 +3,8 @@ package com.wherewego.domain.place;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.chatbot.handler.PlaceCardBuilder;
-import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.infrastructure.chatbot.callback.KakaoCallbackClient;
 import com.wherewego.infrastructure.notify.slack.SlackNotifier;
@@ -154,11 +154,17 @@ public class PlaceFallbackOrchestrator {
     private void handleAsyncOutcome(FallbackJobContext jobCtx, PlaceSearchOutcome outcome) {
         if (outcome instanceof PlaceSearchOutcome.Single single) {
             try {
-                Pin saved = pinService.registerFromInstagram(
-                        jobCtx.userId(), jobCtx.groupId(), single.hit(), jobCtx.instagramUrl());
-                twoSecondMemoSession.put(jobCtx.botUserKey(), saved.getId());
+                RegisterPinResult result = pinService.registerFromInstagramWithDedup(
+                        jobCtx.userId(), jobCtx.groupId(), single.hit(), jobCtx.instagramUrl(), null);
+                if (result.alreadyExisted()) {
+                    log.debug("async duplicate pin groupId={}", jobCtx.groupId());
+                    kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
+                            "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
+                    return;
+                }
+                twoSecondMemoSession.put(jobCtx.botUserKey(), result.pin().getId());
                 kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
-                        "장소가 저장되었어요: " + saved.getPlaceName());
+                        "장소가 저장되었어요: " + result.pin().getPlaceName());
                 int count = pinSaveCount.incrementAndGet();
                 if (count % PIN_SAVE_ALERT_THRESHOLD == 0) {
                     slackNotifier.notify("핀 저장 " + count + "건 달성", Map.of(
@@ -168,7 +174,8 @@ public class PlaceFallbackOrchestrator {
                 }
             } catch (DataIntegrityViolationException dup) {
                 log.debug("async duplicate pin groupId={}", jobCtx.groupId());
-                kakaoCallbackClient.pushText(jobCtx.callbackUrl(), "이미 저장된 장소예요.");
+                kakaoCallbackClient.pushText(jobCtx.callbackUrl(),
+                        "📌 이미 저장된 장소\n• " + single.hit().placeName());
             } catch (RuntimeException pinFail) {
                 log.error("async pin register failed keyword={} cause={}",
                         jobCtx.keyword(), pinFail.getClass().getSimpleName());

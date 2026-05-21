@@ -28,3 +28,4 @@
 - **Phase 2.10 완료**: 카카오 i 오픈빌더 PLACE_SELECTION 시나리오 설정(빌더 콘솔 운영 작업, 코드 변경 없음) + 카카오톡 실기기 1회 수동 E2E 검증(PR 본문 절차/결과 기록) + Phase 2.7 IT 5케이스 회귀 통과 — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
 - **Phase 2.7 완료**: PLACE_SELECTION E2E IT 5케이스 보강 (정상/만료/미연동/그룹 미가입/중복 핀) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
 - **Phase 2.11 계획**: 챗봇 흐름이 의존하는 외부 API의 관제는 [[observability]] 도메인에서 통합 — Instagram scraper 차단 감지(FR-OBS-11), Google Places 일일 한도 사전 경고(FR-OBS-10), `KakaoCallbackClient` 재시도 보강(FR-OBS-14). 챗봇 응답 SLA(5초)와 핀 자동 등록 70% 성공률을 사후 발견에서 사전 감지로 전환
+- **Phase 8 예정**: 인앱 알림 트리거 — 챗봇으로 릴스 처리 완료 후(핀 N개 등록) `NotificationService.createChatbotNotification(groupId, registeredBy, pinIds)` 호출. 릴스 1건 = 알림 1건으로 묶어 상대방 알림 생성. 카카오톡 푸시 없이 앱 내 알림함으로 대체

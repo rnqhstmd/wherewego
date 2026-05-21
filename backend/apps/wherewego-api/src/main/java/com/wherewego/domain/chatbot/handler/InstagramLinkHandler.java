@@ -4,14 +4,13 @@ import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.ChatbotErrorMessages;
-import com.wherewego.domain.chatbot.FallbackJobContext;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.chatbot.PendingInstagramAutoSaveScheduler;
 import com.wherewego.domain.chatbot.PendingInstagramSession;
 import com.wherewego.domain.chatbot.PendingNotificationSession;
 import com.wherewego.domain.group.GroupMemberService;
-import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.domain.place.PlaceCandidate;
 import com.wherewego.domain.place.PlaceFallbackOrchestrator;
@@ -346,6 +345,7 @@ public class InstagramLinkHandler implements MessageHandler {
                                                        String memo,
                                                        ChatbotContext ctx) {
         List<String> autoRegistered = new ArrayList<>();
+        List<String> alreadySaved = new ArrayList<>();
         List<String> manualNeeded = new ArrayList<>();
 
         Long lastSavedPinId = null;
@@ -376,14 +376,14 @@ public class InstagramLinkHandler implements MessageHandler {
 
             if (outcome instanceof PlaceSearchOutcome.Single single) {
                 Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl, memo,
-                        autoRegistered, manualNeeded);
+                        autoRegistered, alreadySaved, manualNeeded);
                 if (savedId != null) lastSavedPinId = savedId;
                 continue;
             }
 
             List<PlaceSearchHit> hits = ((PlaceSearchOutcome.Multiple) outcome).hits();
             Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl, memo,
-                    autoRegistered, manualNeeded);
+                    autoRegistered, alreadySaved, manualNeeded);
             if (savedId != null) lastSavedPinId = savedId;
         }
 
@@ -391,7 +391,7 @@ public class InstagramLinkHandler implements MessageHandler {
             twoSecondMemoSession.put(botUserKey, lastSavedPinId);
         }
 
-        return composeResponse(autoRegistered, manualNeeded, memo);
+        return composeResponse(autoRegistered, alreadySaved, manualNeeded, memo);
     }
 
     private Long tryRegister(Long userId,
@@ -400,12 +400,20 @@ public class InstagramLinkHandler implements MessageHandler {
                              String instagramUrl,
                              String memo,
                              List<String> autoRegistered,
+                             List<String> alreadySaved,
                              List<String> manualNeeded) {
         try {
-            Pin saved = pinService.registerFromInstagram(userId, groupId, hit, instagramUrl, memo);
-            autoRegistered.add(saved.getPlaceName());
-            return saved.getId();
+            RegisterPinResult result = pinService.registerFromInstagramWithDedup(
+                    userId, groupId, hit, instagramUrl, memo);
+            if (result.alreadyExisted()) {
+                alreadySaved.add(result.pin().getPlaceName());
+                return null;  // 메모 2초룰 lastSavedPinId 대상에서 제외
+            }
+            autoRegistered.add(result.pin().getPlaceName());
+            return result.pin().getId();
         } catch (DataIntegrityViolationException e) {
+            // 매우 드문 경합. 이미 저장된 것으로 안전하게 분류.
+            alreadySaved.add(hit.placeName());
             return null;
         } catch (RuntimeException e) {
             log.warn("registerFromInstagram failed name={} cause={}", hit.placeName(), e.getMessage());
@@ -415,6 +423,7 @@ public class InstagramLinkHandler implements MessageHandler {
     }
 
     private ChatbotV1Dto.SkillResponse composeResponse(List<String> autoRegistered,
+                                                      List<String> alreadySaved,
                                                       List<String> manualNeeded,
                                                       String memo) {
         StringBuilder sb = new StringBuilder();
@@ -425,6 +434,12 @@ public class InstagramLinkHandler implements MessageHandler {
             if (memo != null && !memo.isBlank()) {
                 sb.append("📝 메모: ").append(memo).append('\n');
             }
+        }
+
+        if (!alreadySaved.isEmpty()) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append("📌 이미 저장된 장소\n");
+            for (String n : alreadySaved) sb.append("• ").append(n).append('\n');
         }
 
         if (!manualNeeded.isEmpty()) {
@@ -453,13 +468,19 @@ public class InstagramLinkHandler implements MessageHandler {
         PlaceSearchOutcome outcome = placeSearchService.searchByKeyword(keyword, ctx);
         if (outcome instanceof PlaceSearchOutcome.Single single) {
             try {
-                Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl, memo);
-                twoSecondMemoSession.put(botUserKey, saved.getId());
-                String msg = "장소가 저장되었어요: " + saved.getPlaceName();
+                RegisterPinResult result = pinService.registerFromInstagramWithDedup(
+                        userId, groupId, single.hit(), instagramUrl, memo);
+                if (result.alreadyExisted()) {
+                    return ChatbotV1Dto.SkillResponse.simple(
+                            "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
+                }
+                twoSecondMemoSession.put(botUserKey, result.pin().getId());
+                String msg = "장소가 저장되었어요: " + result.pin().getPlaceName();
                 if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
                 return ChatbotV1Dto.SkillResponse.simple(msg);
             } catch (DataIntegrityViolationException e) {
-                return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
+                return ChatbotV1Dto.SkillResponse.simple(
+                        "📌 이미 저장된 장소\n• " + single.hit().placeName());
             }
         }
         if (outcome instanceof PlaceSearchOutcome.Multiple multiple) {
@@ -481,13 +502,19 @@ public class InstagramLinkHandler implements MessageHandler {
             PlaceSearchOutcome syncOutcome = placeFallbackOrchestrator.runSync(keyword, ctx);
             if (syncOutcome instanceof PlaceSearchOutcome.Single single) {
                 try {
-                    Pin saved = pinService.registerFromInstagram(userId, groupId, single.hit(), instagramUrl, memo);
-                    twoSecondMemoSession.put(botUserKey, saved.getId());
-                    String msg = "장소가 저장되었어요: " + saved.getPlaceName();
+                    RegisterPinResult result = pinService.registerFromInstagramWithDedup(
+                            userId, groupId, single.hit(), instagramUrl, memo);
+                    if (result.alreadyExisted()) {
+                        return ChatbotV1Dto.SkillResponse.simple(
+                                "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
+                    }
+                    twoSecondMemoSession.put(botUserKey, result.pin().getId());
+                    String msg = "장소가 저장되었어요: " + result.pin().getPlaceName();
                     if (memo != null && !memo.isBlank()) msg += "\n📝 메모: " + memo;
                     return ChatbotV1Dto.SkillResponse.simple(msg);
                 } catch (DataIntegrityViolationException e) {
-                    return ChatbotV1Dto.SkillResponse.simple("이미 저장된 장소입니다.");
+                    return ChatbotV1Dto.SkillResponse.simple(
+                            "📌 이미 저장된 장소\n• " + single.hit().placeName());
                 }
             }
             if (syncOutcome instanceof PlaceSearchOutcome.Multiple multiple) {
@@ -496,14 +523,10 @@ public class InstagramLinkHandler implements MessageHandler {
             }
             return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
         }
-        FallbackJobContext jobCtx = new FallbackJobContext(
-                botUserKey, userId, groupId, /*callbackUrl*/"", instagramUrl, keyword);
-        try {
-            placeFallbackOrchestrator.runSync(keyword, ctx);
-            return ChatbotV1Dto.SkillResponse.simple("장소를 찾을 수 없습니다.");
-        } finally {
-            assert jobCtx != null;
-        }
+        // deadline 부족 + callbackUrl 없는 경로 — 동기 폴백을 시도할 시간이 없고 비동기 콜백도 불가능하므로
+        // 즉시 사용자에게 안내 메시지를 반환한다.
+        return ChatbotV1Dto.SkillResponse.simple(
+                "장소를 찾지 못했어요. 앱에서 직접 등록해 주세요.");
     }
 
     /** SkillResponse(simpleText)에서 본문 텍스트 추출. cards 등 다른 형태면 빈 문자열. */
