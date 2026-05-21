@@ -50,6 +50,10 @@ export function useNotifications(): UseNotificationsState & UseNotificationsActi
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef<boolean>(true);
   const isFirstFetchRef = useRef<boolean>(true);
+  // mount/visibilitychange/focus 트리거가 동시 fetch를 발생시킬 수 있어
+  // out-of-order 응답을 폐기하기 위한 시퀀스. 가장 최근에 발사된 요청만
+  // state와 lastSeenMaxIdRef를 갱신한다.
+  const requestSeqRef = useRef<number>(0);
 
   useEffect(() => {
     isPanelOpenRef.current = isPanelOpen;
@@ -101,9 +105,13 @@ export function useNotifications(): UseNotificationsState & UseNotificationsActi
    * 최상위 신규 알림 1건을 토스트로 노출한다.
    */
   const refreshList = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     try {
       const res = await fetchNotifications();
       if (!isMountedRef.current) return;
+      // 더 새로운 요청이 이미 발사되었으면 stale 응답이므로 폐기.
+      // lastSeenMaxIdRef를 stale 값으로 갱신하면 신규 알림 토스트가 손실될 수 있음.
+      if (seq !== requestSeqRef.current) return;
 
       const next = res.items.slice(0, MAX_ITEMS);
       setItems(next);
