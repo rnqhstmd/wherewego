@@ -8,6 +8,8 @@ import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.chatbot.PendingInstagramAutoSaveScheduler;
 import com.wherewego.domain.chatbot.PendingInstagramSession;
 import com.wherewego.domain.chatbot.PendingNotificationSession;
+import com.wherewego.domain.chatbot.RecentlyAutoSaved;
+import com.wherewego.domain.chatbot.RecentlyAutoSavedSession;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.RegisterPinResult;
@@ -30,10 +32,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -76,6 +82,7 @@ public class InstagramLinkHandler implements MessageHandler {
     private final PendingInstagramSession pendingInstagramSession;
     private final PendingInstagramAutoSaveScheduler autoSaveScheduler;
     private final PendingNotificationSession pendingNotificationSession;
+    private final RecentlyAutoSavedSession recentlyAutoSavedSession;
     private final long pendingTtlMs;
 
     /** N개 candidates 비동기 처리용 풀. D 시나리오의 즉시 백그라운드 처리에도 재사용. */
@@ -99,6 +106,7 @@ public class InstagramLinkHandler implements MessageHandler {
                                 PendingInstagramSession pendingInstagramSession,
                                 PendingInstagramAutoSaveScheduler autoSaveScheduler,
                                 PendingNotificationSession pendingNotificationSession,
+                                RecentlyAutoSavedSession recentlyAutoSavedSession,
                                 @Value("${chatbot.instagram.pending-ttl-seconds:60}") long pendingTtlSeconds) {
         this.botUserMappingService = botUserMappingService;
         this.groupMemberService = groupMemberService;
@@ -113,6 +121,7 @@ public class InstagramLinkHandler implements MessageHandler {
         this.pendingInstagramSession = pendingInstagramSession;
         this.autoSaveScheduler = autoSaveScheduler;
         this.pendingNotificationSession = pendingNotificationSession;
+        this.recentlyAutoSavedSession = recentlyAutoSavedSession;
         this.pendingTtlMs = pendingTtlSeconds * 1000L;
     }
 
@@ -153,6 +162,24 @@ public class InstagramLinkHandler implements MessageHandler {
         Optional<ContentParser> parserOpt = contentParserRegistry.resolve(url);
         if (parserOpt.isEmpty()) {
             return ChatbotV1Dto.SkillResponse.simple("지원하지 않는 링크입니다.");
+        }
+
+        // RESEND-1 가드: 직전 자동/메모 흐름으로 같은 URL이 이미 저장되었으면 안내 후 early return.
+        // D 시나리오보다 우선이며, pending 등록/scheduler 등록을 건너뛰어 현재 pending 흐름에 영향 없음.
+        Optional<RecentlyAutoSaved> recentOpt = recentlyAutoSavedSession.peek(botUserKey, url);
+        if (recentOpt.isPresent()) {
+            String body = recentOpt.get().responseBody();
+            // prefix 중첩 방지: PendingNotificationSession이 다음 발화에 prepend할 알림을 같이 날린다.
+            // RESEND 응답 본문이 동등한 "저장됨" 안내를 포함하므로 사용자 손해 없음.
+            pendingNotificationSession.invalidate(botUserKey);
+            log.info("RESEND-1 hit botUserKey={} urlHash={}", botUserKey, Integer.toHexString(url.hashCode()));
+            String bodyPart = (body != null && !body.isBlank())
+                    ? body
+                    : "(저장 본문을 다시 표시할 수 없어요)";
+            return ChatbotV1Dto.SkillResponse.simple(
+                    "📌 이 링크는 이미 다음 장소로 자동 저장되었어요\n"
+                            + bodyPart
+                            + "\nℹ️ 앱에서 메모와 태그를 직접 추가·수정할 수 있어요");
         }
 
         // D 시나리오 — 이전 pending이 있고 URL이 다르면 즉시 백그라운드 자동 저장 위임.
@@ -210,8 +237,11 @@ public class InstagramLinkHandler implements MessageHandler {
             String body = runBackgroundAutoSave(botUserKey, instagramUrl);
             if (body != null && !body.isBlank()) {
                 pendingNotificationSession.put(botUserKey, AUTO_SAVE_NOTICE_PREFIX + body);
+                recentlyAutoSavedSession.put(botUserKey, instagramUrl, body);
                 log.info("autoSaveOnExpiry notification stored botUserKey={} bodyLen={}", botUserKey, body.length());
             } else {
+                // 빈 body여도 RESEND-1 가드는 발동시켜 사용자가 또 prompt 받지 않도록 함.
+                recentlyAutoSavedSession.put(botUserKey, instagramUrl, "");
                 log.warn("autoSaveOnExpiry produced empty body botUserKey={} url={}", botUserKey, instagramUrl);
             }
             pendingInstagramSession.invalidate(botUserKey);
@@ -226,15 +256,22 @@ public class InstagramLinkHandler implements MessageHandler {
      */
     void autoSavePreviousImmediately(String botUserKey, String previousUrl) {
         log.info("autoSavePreviousImmediately triggered botUserKey={} url={}", botUserKey, previousUrl);
+        // race window 차단: 사용자가 새 URL prompt 응답을 받자마자 prevUrl을 다시 보낼 수 있다.
+        // 본 thread는 별도 executor이므로 runBackgroundAutoSave 진입 전에 placeholder를 미리 적재해
+        // RESEND-1 가드가 가능하도록 만든다. 실제 body는 완료 후 갱신한다.
+        recentlyAutoSavedSession.put(botUserKey, previousUrl, "");
         try {
             String body = runBackgroundAutoSave(botUserKey, previousUrl);
             if (body != null && !body.isBlank()) {
                 pendingNotificationSession.put(botUserKey, AUTO_SAVE_NOTICE_PREFIX + body);
+                recentlyAutoSavedSession.put(botUserKey, previousUrl, body);
                 log.info("autoSavePreviousImmediately notification stored botUserKey={} bodyLen={}", botUserKey, body.length());
             } else {
                 log.warn("autoSavePreviousImmediately produced empty body botUserKey={} url={}", botUserKey, previousUrl);
             }
         } catch (RuntimeException e) {
+            // 실패 시 가드를 풀어 사용자가 정상 재전송할 수 있도록 한다.
+            recentlyAutoSavedSession.invalidate(botUserKey, previousUrl);
             log.error("autoSavePreviousImmediately failed url={} cause={}", previousUrl, e.getMessage(), e);
         }
     }
@@ -285,6 +322,8 @@ public class InstagramLinkHandler implements MessageHandler {
                         asyncCtx.setUserId(userId);
                         ChatbotV1Dto.SkillResponse result = runParseAndCandidates(
                                 parser, botUserKey, userId, groupId, instagramUrl, memo, asyncCtx);
+                        // 정상 메모 흐름의 RESEND-1 가드 적재 (push 직전). body는 prefix-free.
+                        recentlyAutoSavedSession.put(botUserKey, instagramUrl, extractSimpleText(result));
                         kakaoCallbackClient.push(callbackUrl, result);
                     } catch (RuntimeException e) {
                         log.error("Async candidates processing failed url={} cause={}",
@@ -299,16 +338,20 @@ public class InstagramLinkHandler implements MessageHandler {
                 log.warn("Async candidates queue full, falling through to sync url={}", instagramUrl);
                 ChatbotContext syncCtx = ChatbotContext.start(3_500L);
                 syncCtx.setUserId(userId);
-                return runParseAndCandidates(
+                ChatbotV1Dto.SkillResponse result = runParseAndCandidates(
                         parserOpt.get(), botUserKey, userId, groupId, instagramUrl, memo, syncCtx);
+                recentlyAutoSavedSession.put(botUserKey, instagramUrl, extractSimpleText(result));
+                return result;
             }
         }
 
         // callback 없는 환경 (테스트/시뮬레이터): 동기 처리.
         ChatbotContext syncCtx = ChatbotContext.start(ASYNC_CANDIDATES_DEADLINE_MS);
         syncCtx.setUserId(userId);
-        return runParseAndCandidates(
+        ChatbotV1Dto.SkillResponse result = runParseAndCandidates(
                 parserOpt.get(), botUserKey, userId, groupId, instagramUrl, memo, syncCtx);
+        recentlyAutoSavedSession.put(botUserKey, instagramUrl, extractSimpleText(result));
+        return result;
     }
 
     /** 인스타 parse → candidates 처리 → 응답 조립. */
@@ -348,6 +391,11 @@ public class InstagramLinkHandler implements MessageHandler {
         List<String> alreadySaved = new ArrayList<>();
         List<String> manualNeeded = new ArrayList<>();
 
+        // in-batch dedup: 1차는 cand.name() 기준 (manualNeeded / confident=false 분기 포괄),
+        // 2차는 tryRegister 안에서 placeName+좌표 기준 (Kakao Local hit 중복 차단).
+        Set<String> seenName = new HashSet<>();
+        Set<String> seenHitKey = new HashSet<>();
+
         Long lastSavedPinId = null;
 
         for (int i = 0; i < candidates.size(); i++) {
@@ -355,11 +403,20 @@ public class InstagramLinkHandler implements MessageHandler {
 
             if (ctx.expired()) {
                 for (int j = i; j < candidates.size(); j++) {
-                    manualNeeded.add(candidates.get(j).name());
+                    String tailName = candidates.get(j).name();
+                    if (seenName.add(tailName.trim().toLowerCase())) {
+                        manualNeeded.add(tailName);
+                    }
                 }
                 log.warn("Chatbot deadline hit, {} remaining → manualNeeded",
                         candidates.size() - i);
                 break;
+            }
+
+            String nameKey = cand.name().trim().toLowerCase();
+            if (!seenName.add(nameKey)) {
+                log.info("in-batch dedup hit name={} stage=1", cand.name());
+                continue;
             }
 
             if (!cand.confident()) {
@@ -376,14 +433,14 @@ public class InstagramLinkHandler implements MessageHandler {
 
             if (outcome instanceof PlaceSearchOutcome.Single single) {
                 Long savedId = tryRegister(userId, groupId, single.hit(), instagramUrl, memo,
-                        autoRegistered, alreadySaved, manualNeeded);
+                        seenHitKey, autoRegistered, alreadySaved, manualNeeded);
                 if (savedId != null) lastSavedPinId = savedId;
                 continue;
             }
 
             List<PlaceSearchHit> hits = ((PlaceSearchOutcome.Multiple) outcome).hits();
             Long savedId = tryRegister(userId, groupId, hits.get(0), instagramUrl, memo,
-                    autoRegistered, alreadySaved, manualNeeded);
+                    seenHitKey, autoRegistered, alreadySaved, manualNeeded);
             if (savedId != null) lastSavedPinId = savedId;
         }
 
@@ -399,9 +456,19 @@ public class InstagramLinkHandler implements MessageHandler {
                              PlaceSearchHit hit,
                              String instagramUrl,
                              String memo,
+                             Set<String> seenHitKey,
                              List<String> autoRegistered,
                              List<String> alreadySaved,
                              List<String> manualNeeded) {
+        // 2차 dedup: placeName + 좌표(소수점 6자리, 약 11cm). Kakao Local Multiple은 hits.get(0)만 쓰므로
+        // 같은 가게는 항상 동일 좌표가 들어온다 — 정확 매칭으로 충분하다.
+        String hitKey = hit.placeName().trim().toLowerCase() + "|"
+                + BigDecimal.valueOf(hit.latitude()).setScale(6, RoundingMode.HALF_UP) + "|"
+                + BigDecimal.valueOf(hit.longitude()).setScale(6, RoundingMode.HALF_UP);
+        if (!seenHitKey.add(hitKey)) {
+            log.info("in-batch dedup hit name={} stage=2", hit.placeName());
+            return null;
+        }
         try {
             RegisterPinResult result = pinService.registerFromInstagramWithDedup(
                     userId, groupId, hit, instagramUrl, memo);
@@ -431,9 +498,6 @@ public class InstagramLinkHandler implements MessageHandler {
         if (!autoRegistered.isEmpty()) {
             sb.append("✅ 장소 ").append(autoRegistered.size()).append("개가 저장되었어요\n");
             for (String n : autoRegistered) sb.append("• ").append(n).append('\n');
-            if (memo != null && !memo.isBlank()) {
-                sb.append("📝 메모: ").append(memo).append('\n');
-            }
         }
 
         if (!alreadySaved.isEmpty()) {
@@ -447,6 +511,15 @@ public class InstagramLinkHandler implements MessageHandler {
             sb.append("❓ 다음 장소는 정확하게 찾기 어려워 자동 저장하지 못했어요.\n");
             sb.append("앱에서 직접 등록해주세요:\n");
             for (String n : manualNeeded) sb.append("• ").append(n).append('\n');
+        }
+
+        // 메모 출력은 어느 분기와도 독립. alreadySaved-only 케이스에서도 사용자 입력이 silent drop되지 않도록.
+        if (memo != null && !memo.isBlank()) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append("📝 메모: ").append(memo).append('\n');
+            if (autoRegistered.isEmpty() && !alreadySaved.isEmpty()) {
+                sb.append("ℹ️ 앱에서 이 장소들의 메모를 직접 추가·수정할 수 있어요\n");
+            }
         }
 
         if (sb.length() == 0) {

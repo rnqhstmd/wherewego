@@ -97,6 +97,9 @@ chatbot:
   instagram:
     # 인스타 링크 받은 후 메모 입력 대기 TTL. 만료 시 자동으로 메모 없이 저장.
     pending-ttl-seconds: ${CHATBOT_INSTAGRAM_PENDING_TTL_SECONDS:60}
+    # 자동/메모 흐름으로 저장된 URL을 같은 사용자가 재전송했을 때 RESEND 안내를 띄울 윈도우.
+    # 너무 길면 같은 인스타 게시물에 새 장소를 추가하려는 의도까지 차단된다.
+    recently-saved-ttl-seconds: ${CHATBOT_INSTAGRAM_RECENTLY_SAVED_TTL_SECONDS:600}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
@@ -149,6 +152,8 @@ chatbot:
   instagram:
     # 로컬/테스트도 운영과 동일한 1분 TTL 사용.
     pending-ttl-seconds: 60
+    # 로컬/테스트는 빠른 검증을 위해 짧게 (60초).
+    recently-saved-ttl-seconds: 60
 
 ---
 spring:
