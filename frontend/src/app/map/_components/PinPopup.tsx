@@ -6,13 +6,17 @@ import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { SpeechBubblePopup } from "@/components/ui/SpeechBubblePopup";
 import { PinTag as PinTagChip } from "@/components/ui/PinTag";
 import type { PinDotType } from "@/components/ui/PinDot";
+import { IconShare } from "@/components/icons";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
+import PinShareSheet from "./PinShareSheet";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
   map: mapboxgl.Map | null;
   authorLabel?: string;
+  mapboxToken: string;
+  mapboxStyleUrl: string | null;
   onTagChange: (
     pinId: number,
     nextTag: PinTag,
@@ -38,6 +42,8 @@ export default function PinPopup({
   pin,
   map,
   authorLabel,
+  mapboxToken,
+  mapboxStyleUrl,
   onTagChange,
   onMemoChange,
   onPlaceNameChange,
@@ -58,6 +64,8 @@ export default function PinPopup({
   const [placeDraft, setPlaceDraft] = useState(pin.placeName);
   const [placePending, setPlacePending] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // Phase 9: 공유 카드 시트 표시 여부.
+  const [shareOpen, setShareOpen] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -85,6 +93,7 @@ export default function PinPopup({
     setPlaceDraft(pin.placeName);
     setPlacePending(false);
     setPlaceError(null);
+    setShareOpen(false);
   }
 
   useEffect(() => {
@@ -385,6 +394,31 @@ export default function PinPopup({
       </div>
     ) : null;
 
+  // Phase 9 FR-1: ⋮ 좌측 sibling 공유 버튼.
+  // SpeechBubblePopup이 menuBtnSize(28/24)와 동일 컨테이너로 정렬하므로 동일 크기로 맞춤.
+  const shareButton = (
+    <button
+      type="button"
+      onClick={() => setShareOpen(true)}
+      aria-label="공유"
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        color: colors.inkSoft,
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <IconShare size={16} color={colors.inkSoft} />
+    </button>
+  );
+
   return (
     <>
       <SpeechBubblePopup
@@ -405,10 +439,19 @@ export default function PinPopup({
         instagramUrl={pin.instagramUrl}
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
+        shareAction={shareButton}
         footerContent={footer}
       >
         {menuPopover}
       </SpeechBubblePopup>
+      {shareOpen && (
+        <PinShareSheet
+          pin={pin}
+          mapboxToken={mapboxToken}
+          mapboxStyleUrl={mapboxStyleUrl}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </>
   );
 }

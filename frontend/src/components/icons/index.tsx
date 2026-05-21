@@ -195,4 +195,31 @@ export function IconBack({
   );
 }
 
+/** 공유 — iOS 스타일 박스 + 위쪽 화살표 (IconLocation 톤) */
+export function IconShare({
+  size = 18,
+  color = "currentColor",
+  className,
+  style,
+}: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      style={style}
+      aria-hidden="true"
+    >
+      <path d="M 12 4 L 12 15 M 8 8 L 12 4 L 16 8" />
+      <path d="M 6 12 V 19 H 18 V 12" />
+    </svg>
+  );
+}
+
 export { IconBell } from "./IconBell";
