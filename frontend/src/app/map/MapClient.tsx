@@ -1036,7 +1036,7 @@ export default function MapClient({
               color: colors.ink,
             }}
           >
-            이 지도에 아직 핀이 없어요
+            현재 조건에 맞는 핀이 없어요
           </div>
           <div
             style={{
@@ -1047,7 +1047,8 @@ export default function MapClient({
               lineHeight: 1.5,
             }}
           >
-            10km 이내에 추첨할 만한 장소가 없어요.
+            10km 이내에 추첨 후보가 없어요.
+            {!includeMemory && " 추억 핀도 포함해 다시 시도해 보세요."}
           </div>
           <button
             type="button"

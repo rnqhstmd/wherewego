@@ -31,7 +31,7 @@
 | 항목 | 확인 SQL/명령 | 기대값 | 관련 AC |
 |------|---------------|--------|---------|
 | PLACE 잔존 | `SELECT count(*) FROM pins WHERE tag='PLACE'` | 0 | AC-3 |
-| CHECK 정의 | `\d+ pins` 또는 `pg_get_constraintdef('chk_pins_tag'::regclass)` | `IN ('REEL','WISH','MEMORY')` | AC-4 |
+| CHECK 정의 | `\d+ pins` 또는 `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='chk_pins_tag' AND conrelid='pins'::regclass;` | `IN ('REEL','WISH','MEMORY')` | AC-4 |
 | 챗봇 신규 등록 | 카카오톡으로 인스타 URL 1건 공유 → DB 조회 | tag='REEL' | AC-1 |
 | 웹 등록 패널 | `/map` → "새 핀 추가" 클릭 | "설렘"/"추억" 2종만 노출 | AC-2 |
 | 지도 마커 | 그룹에 REEL/WISH/MEMORY 각 핀 1건 이상 → /map 확인 | 3종 시각 구분 | AC-5 |

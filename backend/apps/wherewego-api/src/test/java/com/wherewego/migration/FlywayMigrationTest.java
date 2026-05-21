@@ -1,6 +1,7 @@
 package com.wherewego.migration;
 
 import com.wherewego.testcontainers.PostgresTestContainersConfig;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -134,6 +135,109 @@ class FlywayMigrationTest {
                         + "VALUES (?, ?, ?, ?, ?, ?)",
                 groupId, "test", 37.0, 127.0, "PLACE", userId
         )).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void migrationV006_convertsPlaceToReel() {
+        // Phase 7 회귀 보호: V005 시점의 PLACE 행이 V006 마이그레이션을 통해
+        // 실제 REEL 로 변환되는 업그레이드 경로를 end-to-end 로 검증한다.
+        //
+        // 격리: 기본 public 스키마는 다른 테스트들이 V006 까지 마이그레이션된 상태이므로,
+        // 별도 schema 를 만들고 그 schema 만 대상으로 별도 Flyway 인스턴스를 실행한다.
+        // (Testcontainers 컨테이너는 공유하되 schema 격리로 데이터/제약 충돌 회피.)
+        String schema = "migration_v006_test_" + Math.abs(ThreadLocalRandom.current().nextInt());
+        String jdbcUrl = System.getProperty("datasource.postgres-jpa.main.jdbc-url");
+        String username = System.getProperty("datasource.postgres-jpa.main.username");
+        String password = System.getProperty("datasource.postgres-jpa.main.password");
+
+        try {
+            // 1) V005 상태까지 마이그레이션 (PLACE/MEMORY CHECK).
+            Flyway flywayV5 = Flyway.configure()
+                    .dataSource(jdbcUrl, username, password)
+                    .schemas(schema)
+                    .createSchemas(true)
+                    .locations("classpath:db/migration")
+                    .target("5")
+                    .cleanDisabled(false)
+                    .load();
+            flywayV5.clean();
+            flywayV5.migrate();
+
+            // 2) V005 상태의 schema 에 PLACE 행 2건과 MEMORY 행 1건 seed.
+            JdbcTemplate isolated = new JdbcTemplate(
+                    new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                            jdbcUrl, username, password));
+            isolated.execute("SET search_path TO " + schema);
+
+            long userId = isolated.queryForObject(
+                    "INSERT INTO users (kakao_user_id, nickname) VALUES (?, ?) RETURNING id",
+                    Long.class,
+                    ThreadLocalRandom.current().nextLong(1_000_000_000L, Long.MAX_VALUE),
+                    "v006-tester"
+            );
+            long groupId = isolated.queryForObject(
+                    "INSERT INTO groups (name) VALUES (?) RETURNING id",
+                    Long.class, "v006-test-group"
+            );
+            isolated.update(
+                    "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
+                            + "VALUES (?, ?, ?, ?, ?, ?)",
+                    groupId, "legacy-place-1", 37.0, 127.0, "PLACE", userId
+            );
+            isolated.update(
+                    "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
+                            + "VALUES (?, ?, ?, ?, ?, ?)",
+                    groupId, "legacy-place-2", 37.1, 127.1, "PLACE", userId
+            );
+            isolated.update(
+                    "INSERT INTO pins (group_id, place_name, latitude, longitude, tag, created_by) "
+                            + "VALUES (?, ?, ?, ?, ?, ?)",
+                    groupId, "legacy-memory", 37.2, 127.2, "MEMORY", userId
+            );
+
+            Integer pre = isolated.queryForObject(
+                    "SELECT COUNT(*) FROM pins WHERE tag = 'PLACE'", Integer.class);
+            assertThat(pre).isEqualTo(2);
+
+            // 3) V006 까지 마이그레이션 (PLACE → REEL 변환 + CHECK 축소).
+            Flyway flywayV6 = Flyway.configure()
+                    .dataSource(jdbcUrl, username, password)
+                    .schemas(schema)
+                    .locations("classpath:db/migration")
+                    .load();
+            flywayV6.migrate();
+
+            // 4) PLACE 잔존 0, REEL ≥ 2, MEMORY 보존 단언.
+            Integer placeCount = isolated.queryForObject(
+                    "SELECT COUNT(*) FROM pins WHERE tag = 'PLACE'", Integer.class);
+            Integer reelCount = isolated.queryForObject(
+                    "SELECT COUNT(*) FROM pins WHERE tag = 'REEL'", Integer.class);
+            Integer memoryCount = isolated.queryForObject(
+                    "SELECT COUNT(*) FROM pins WHERE tag = 'MEMORY'", Integer.class);
+
+            assertThat(placeCount).isZero();
+            assertThat(reelCount).isGreaterThanOrEqualTo(2);
+            assertThat(memoryCount).isEqualTo(1);
+
+            // 5) CHECK 정의가 최종 형태(REEL/WISH/MEMORY)로 축소되었는지 정의 본문 검증.
+            String definition = isolated.queryForObject(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                            + "WHERE conrelid = (?::regclass) AND conname = 'chk_pins_tag'",
+                    String.class, schema + ".pins"
+            );
+            assertThat(definition).isNotNull();
+            assertThat(definition).contains("'REEL'");
+            assertThat(definition).contains("'WISH'");
+            assertThat(definition).contains("'MEMORY'");
+            assertThat(definition).doesNotContain("'PLACE'");
+        } finally {
+            // 격리 schema cleanup. 실패해도 컨테이너 종료 시 정리되므로 best-effort.
+            try {
+                jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+            } catch (Exception ignored) {
+                // best-effort cleanup
+            }
+        }
     }
 
     @Test
