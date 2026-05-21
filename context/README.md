@@ -16,6 +16,7 @@
 | map | Mapbox 3D 지도 + 파스텔 핀 UI | [상세](map/README.md) |
 | recommendation | 위치 기반 룰렛 (Haversine 거리) | [상세](recommendation/README.md) |
 | observability | 외부 API 사각지대 가시화 + 임계값 기반 Slack 알림 (횡단) | [상세](observability/README.md) |
+| **notification** | **Phase 8 신설**: 그룹원 핀 등록 시 상대방 인앱 알림 (SSE 실시간 + 벨/말풍선/패널 UI, MANUAL_PIN/CHATBOT_PINS) | [상세](notification/README.md) |
 
 ## 공통
 
