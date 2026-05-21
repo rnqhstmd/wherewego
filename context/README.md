@@ -12,7 +12,7 @@
 | place | 외부 장소 API 연동 + 인스타 메타 파싱 | [상세](place/README.md) |
 | pin | 핀 CRUD + 중복 방지 (visited 제거, tag 도입) | [상세](pin/README.md) |
 | memo | 메모 (2초 룰, 수동 우선) | [상세](memo/README.md) |
-| **tag** | **Phase 2.14 갱신**: REEL·발견(연보라 인스타아이콘) / WISH·설렘(민트 동그라미) / MEMORY·추억(핑크 하트) 3종 카테고리 | [상세](tag/README.md) |
+| **tag** | **Phase 7 갱신**: REEL·발견(연보라 인스타아이콘) / WISH·설렘(민트 동그라미) / MEMORY·추억(핑크 하트) 3종 카테고리 | [상세](tag/README.md) |
 | map | Mapbox 3D 지도 + 파스텔 핀 UI | [상세](map/README.md) |
 | recommendation | 위치 기반 룰렛 (Haversine 거리) | [상세](recommendation/README.md) |
 | observability | 외부 API 사각지대 가시화 + 임계값 기반 Slack 알림 (횡단) | [상세](observability/README.md) |
