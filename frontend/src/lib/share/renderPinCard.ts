@@ -63,6 +63,14 @@ const GAP_AFTER_DATE = 8;
 // 워터마크 위치
 const WATERMARK_BOTTOM_OFFSET = 64;
 
+/** 카드 배경 지도에 함께 표시할 다른 핀 마커 정보 (자기 핀 제외). 자기 핀은 중앙에 자동 표시. */
+export interface CardGroupPinMarker {
+  id: number;
+  latitude: number;
+  longitude: number;
+  tag: "REEL" | "WISH" | "MEMORY";
+}
+
 export interface RenderPinCardInput {
   pin: PinSummaryResponse;
   /** BR-1: 호출처가 미리 처리한 표시명 ("익명" 포함) */
@@ -71,6 +79,8 @@ export interface RenderPinCardInput {
   formattedDate: string;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  /** 카드 배경 지도에 함께 표시할 그룹 내 다른 핀들. 자기 핀은 자동 제외됨. */
+  groupPins?: CardGroupPinMarker[];
 }
 
 export interface RenderPinCardResult {
@@ -319,9 +329,28 @@ export async function renderPinCard(
   throwIfAborted(signal);
 
   // Step 3 — Mapbox Static 이미지 로드
-  // 카드 배경용은 mapbox/light-v11 강제 — 옅고 깨끗한 톤이 카드 디자인(콘텐츠 가독성)과 어울림.
-  // 사용자 커스텀 스타일(MapClient의 main 지도용)은 Static API에서 빈 이미지를 반환하므로 사용 안 함.
-  // streets-v12 대비 light-v11이 정보량 적고 콘텐츠 텍스트 가독성 우수.
+  // 카드 배경용은 streets-v12 — 사용자 main 지도와 유사한 베이지·도로·건물 톤.
+  // 마커 overlay: 자기 핀(large, 태그 색) + 그룹 다른 핀들(small, 태그 색). URL 한계로 최대 28개.
+  const TAG_HEX: Record<"REEL" | "WISH" | "MEMORY", string> = {
+    REEL: "7BB3E8",
+    WISH: "F4C842",
+    MEMORY: "FFB3C6",
+  };
+  const selfMarker = {
+    lat: input.pin.latitude,
+    lng: input.pin.longitude,
+    color: TAG_HEX[input.pin.tag as "REEL" | "WISH" | "MEMORY"] ?? "E05A5A",
+    size: "large" as const,
+  };
+  const otherMarkers = (input.groupPins ?? [])
+    .filter((p) => p.id !== input.pin.id)
+    .slice(0, 28)
+    .map((p) => ({
+      lat: p.latitude,
+      lng: p.longitude,
+      color: TAG_HEX[p.tag] ?? "8B8B9E",
+      size: "small" as const,
+    }));
   const staticUrl = buildMapboxStaticUrl({
     lat: input.pin.latitude,
     lng: input.pin.longitude,
@@ -329,7 +358,8 @@ export async function renderPinCard(
     height: MAPBOX_API_HEIGHT,
     zoom: MAPBOX_ZOOM,
     token: input.mapboxToken,
-    styleId: "mapbox/light-v11",
+    styleId: "mapbox/streets-v12",
+    markers: [selfMarker, ...otherMarkers],
   });
   const img = await loadImageWithTimeout(
     staticUrl,
@@ -365,7 +395,7 @@ export async function renderPinCard(
   if (!ctxB) {
     throw new Error("CANVAS_UNSUPPORTED");
   }
-  ctxB.filter = "blur(4px)";
+  ctxB.filter = "blur(2px)";
   ctxB.drawImage(canvasA, 0, 0);
   ctxB.filter = "none";
   // A 메모리 즉시 해제
@@ -381,6 +411,9 @@ export async function renderPinCard(
     throw new Error("CANVAS_UNSUPPORTED");
   }
   ctx.drawImage(canvasB, 0, 0);
+  // 콘텐츠 가독성 확보용 따뜻한 베이지 톤 overlay (40%). 도로·건물 음영은 살짝 비치도록.
+  ctx.fillStyle = "rgba(234, 228, 212, 0.42)";
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   canvasB.width = 0;
   canvasB.height = 0;
 

@@ -1345,6 +1345,7 @@ export default function MapClient({
           }
           mapboxToken={mapboxToken}
           mapboxStyleUrl={mapboxStyleUrl}
+          groupPins={optimisticPins}
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
           onPlaceNameChange={handlePlaceNameChange}

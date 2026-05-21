@@ -19,6 +19,8 @@ interface PinShareSheetProps {
   pin: PinSummaryResponse;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  /** 카드 배경 지도에 함께 표시할 그룹 내 다른 핀들 (자기 핀은 자동 제외). */
+  groupPins?: PinSummaryResponse[];
   onClose: () => void;
 }
 
@@ -50,6 +52,7 @@ export default function PinShareSheet({
   pin,
   mapboxToken,
   mapboxStyleUrl,
+  groupPins,
   onClose,
 }: PinShareSheetProps): JSX.Element {
   // BR-1: 카드의 작성자 라벨은 닉네임 null → "익명". 팝업의 라벨(`사용자 #N` 등)과 별개로 카드 표기를 위해 직접 계산.
@@ -112,6 +115,12 @@ export default function PinShareSheet({
             formattedDate,
             mapboxToken,
             mapboxStyleUrl,
+            groupPins: groupPins?.map((p) => ({
+              id: p.id,
+              latitude: p.latitude,
+              longitude: p.longitude,
+              tag: p.tag,
+            })),
           },
           ac.signal,
         );
@@ -500,9 +509,27 @@ export default function PinShareSheet({
             fontWeight: 500,
             cursor: "pointer",
             fontFamily: fonts.sans,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
           }}
         >
-          🔗 핀 링크 복사
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+          링크 복사
         </button>
 
         {/* 인라인 안내 */}

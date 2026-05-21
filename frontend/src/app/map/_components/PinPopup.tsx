@@ -17,6 +17,8 @@ interface PinPopupProps {
   authorLabel?: string;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  /** 카드 배경 지도에 함께 표시할 그룹 내 다른 핀들 (선택, PinShareSheet로 전달). */
+  groupPins?: PinSummaryResponse[];
   onTagChange: (
     pinId: number,
     nextTag: PinTag,
@@ -44,6 +46,7 @@ export default function PinPopup({
   authorLabel,
   mapboxToken,
   mapboxStyleUrl,
+  groupPins,
   onTagChange,
   onMemoChange,
   onPlaceNameChange,
@@ -449,6 +452,7 @@ export default function PinPopup({
           pin={pin}
           mapboxToken={mapboxToken}
           mapboxStyleUrl={mapboxStyleUrl}
+          groupPins={groupPins}
           onClose={() => setShareOpen(false)}
         />
       )}
