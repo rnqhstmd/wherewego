@@ -103,8 +103,8 @@ export function GlobeBg({
 
       {/* pin dots on globe */}
       <circle cx="295" cy="230" r="5" fill={colors.pinMemory} opacity=".8" />
-      <circle cx="335" cy="260" r="4" fill={colors.pinPlace} opacity=".8" />
-      <circle cx="265" cy="355" r="4" fill={colors.pinPlace} opacity=".7" />
+      <circle cx="335" cy="260" r="4" fill={colors.pinWish} opacity=".8" />
+      <circle cx="265" cy="355" r="4" fill={colors.pinReel} opacity=".7" />
     </svg>
   );
 }

@@ -1,69 +1,58 @@
 import type { CSSProperties } from "react";
-import { colors } from "@/lib/design/tokens";
+import { ReelGlyph, WishGlyph, MemoryGlyph } from "@/lib/pin/markers";
 
-export type PinDotType = "place" | "memory" | "new";
+export type PinDotType = "reel" | "wish" | "memory";
 
 interface PinDotProps {
   type?: PinDotType;
   size?: number;
-  ring?: boolean;
   className?: string;
   style?: CSSProperties;
 }
 
 /**
- * Map pin marker — tokens.jsx::PinDot 1:1 변환.
- * place/new: 동그라미 div. memory: 분홍 하트 SVG (viewBox="-8 -6 16 12").
+ * Map pin marker — Phase 7 태그 3종(REEL/WISH/MEMORY) 글리프.
+ *
+ * `@/lib/pin/markers`의 React 글리프(ReelGlyph/WishGlyph/MemoryGlyph)에
+ * 1:1로 위임한다. MapboxView의 vanilla DOM 마커(`getXxxSvgString`)와
+ * 동일한 SVG markup을 공유한다.
+ *
+ * M1 fallback: 알 수 없는 타입은 WishGlyph로 폴백.
  */
 export function PinDot({
-  type = "place",
+  type = "wish",
   size = 10,
-  ring = false,
   className,
   style,
 }: PinDotProps) {
-  if (type === "memory") {
-    const w = size * 1.5;
-    const h = size * 1.3;
-    return (
-      <svg
-        width={w}
-        height={h}
-        viewBox="-8 -6 16 12"
-        className={className}
-        data-testid="pin-dot-memory"
-        data-tag="memory"
-        style={{
-          flexShrink: 0,
-          filter: `drop-shadow(0 1px 3px ${colors.pinMemory}80)`,
-          ...style,
-        }}
-      >
-        <path
-          d="M 0 4.5 C -7 0 -8 -5 -3.5 -5 C -1.5 -5 0 -3 0 -3 C 0 -3 1.5 -5 3.5 -5 C 8 -5 7 0 0 4.5 Z"
-          fill={colors.pinMemory}
-        />
-      </svg>
-    );
+  const wrapperStyle: CSSProperties | undefined =
+    className || style ? { display: "inline-flex", flexShrink: 0, ...style } : undefined;
+
+  let glyph;
+  switch (type) {
+    case "reel":
+      glyph = <ReelGlyph size={size} />;
+      break;
+    case "memory":
+      glyph = <MemoryGlyph w={size * 1.5} h={size * 1.3} />;
+      break;
+    case "wish":
+      glyph = <WishGlyph size={size} />;
+      break;
+    default:
+      // M1 fallback: 알 수 없는 enum → WISH 글리프
+      // Phase 7 사용자 확인된 안전장치 — 운영 관찰 목적
+      console.warn("[PinDot] Unknown PinDotType, falling back to wish:", type);
+      glyph = <WishGlyph size={size} />;
+      break;
   }
 
-  const color = type === "new" ? colors.pinNew : colors.pinPlace;
+  if (!className && !style) {
+    return glyph;
+  }
   return (
-    <div
-      className={className}
-      data-testid={type === "new" ? "pin-dot-new" : "pin-dot-place"}
-      data-tag={type}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: color,
-        boxShadow: ring
-          ? `0 0 0 3px ${color}40, 0 2px 6px ${color}60`
-          : `0 1px 4px ${color}80`,
-        flexShrink: 0,
-        ...style,
-      }}
-    />
+    <span className={className} style={wrapperStyle} data-tag={type}>
+      {glyph}
+    </span>
   );
 }

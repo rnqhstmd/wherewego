@@ -17,6 +17,21 @@ export interface PinEditPatch {
   // Phase 2.8 범위 외: instagramUrl 수정 (별도 Phase)
 }
 
+// Tailwind v4 정적 매핑 — 동적 템플릿(`has-[:checked]:bg-pin-${tag}/10`)은 빌드 시점에
+// 인식되지 않으므로 PinTag 별 클래스를 풀어둔다.
+const TAG_RADIO_CLASSES: Record<PinTag, string> = {
+  REEL: "has-[:checked]:border-pin-reel has-[:checked]:bg-pin-reel/10 has-[:checked]:text-pin-reel",
+  WISH: "has-[:checked]:border-pin-wish has-[:checked]:bg-pin-wish/10 has-[:checked]:text-pin-wish",
+  MEMORY:
+    "has-[:checked]:border-pin-memory has-[:checked]:bg-pin-memory/10 has-[:checked]:text-pin-memory",
+};
+
+const TAG_RADIO_OPTIONS: { value: PinTag; label: string }[] = [
+  { value: "REEL", label: "발견" },
+  { value: "WISH", label: "설렘" },
+  { value: "MEMORY", label: "추억" },
+];
+
 interface PinEditDialogProps {
   pin: PinSummaryResponse;
   onClose: () => void;
@@ -203,6 +218,11 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
             <p className="text-xs text-red-600 dark:text-red-400">
               주소는 최대 {ADDRESS_MAX_LENGTH}자까지 입력할 수 있습니다.
             </p>
+          ) : trimmedAddress.length === 0 && initialAddress.length > 0 ? (
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              <span aria-hidden="true">ⓘ</span> 빈 값으로 저장해도 기존 주소(
+              {initialAddress})는 유지됩니다.
+            </p>
           ) : (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               빈 값으로 저장해도 기존 주소는 유지됩니다.
@@ -213,28 +233,22 @@ export function PinEditDialog({ pin, onClose, onSave }: PinEditDialogProps) {
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium">태그</legend>
           <div className="flex items-center gap-2">
-            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700 dark:border-zinc-700 dark:has-[:checked]:border-blue-400 dark:has-[:checked]:bg-blue-950/40 dark:has-[:checked]:text-blue-300">
-              <input
-                type="radio"
-                name="tag"
-                value="PLACE"
-                checked={tag === "PLACE"}
-                onChange={() => setTag("PLACE")}
-                className="sr-only"
-              />
-              장소
-            </label>
-            <label className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium has-[:checked]:border-pink-500 has-[:checked]:bg-pink-50 has-[:checked]:text-pink-700 dark:border-zinc-700 dark:has-[:checked]:border-pink-400 dark:has-[:checked]:bg-pink-950/40 dark:has-[:checked]:text-pink-300">
-              <input
-                type="radio"
-                name="tag"
-                value="MEMORY"
-                checked={tag === "MEMORY"}
-                onChange={() => setTag("MEMORY")}
-                className="sr-only"
-              />
-              추억
-            </label>
+            {TAG_RADIO_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium dark:border-zinc-700 ${TAG_RADIO_CLASSES[option.value]}`}
+              >
+                <input
+                  type="radio"
+                  name="tag"
+                  value={option.value}
+                  checked={tag === option.value}
+                  onChange={() => setTag(option.value)}
+                  className="sr-only"
+                />
+                {option.label}
+              </label>
+            ))}
           </div>
         </fieldset>
 

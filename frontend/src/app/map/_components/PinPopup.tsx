@@ -5,6 +5,7 @@ import type mapboxgl from "mapbox-gl";
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { SpeechBubblePopup } from "@/components/ui/SpeechBubblePopup";
 import { PinTag as PinTagChip } from "@/components/ui/PinTag";
+import type { PinDotType } from "@/components/ui/PinDot";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 
@@ -248,15 +249,21 @@ export default function PinPopup({
 
   const tagPanel = (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: error ? 8 : 0 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: error ? 8 : 0, flexWrap: "wrap" }}>
         <PinTagChip
-          type="place"
-          active={pin.tag === "PLACE"}
+          type="REEL"
+          active={pin.tag === "REEL"}
           disabled={pending}
-          onClick={() => handleTagToggle("PLACE")}
+          onClick={() => handleTagToggle("REEL")}
         />
         <PinTagChip
-          type="memory"
+          type="WISH"
+          active={pin.tag === "WISH"}
+          disabled={pending}
+          onClick={() => handleTagToggle("WISH")}
+        />
+        <PinTagChip
+          type="MEMORY"
           active={pin.tag === "MEMORY"}
           disabled={pending}
           onClick={() => handleTagToggle("MEMORY")}
@@ -388,7 +395,13 @@ export default function PinPopup({
         addr={pin.address ?? ""}
         author={authorLabel ?? String(pin.createdBy)}
         date={formattedDate}
-        pinType={pin.tag === "MEMORY" ? "memory" : "place"}
+        pinType={
+          (pin.tag === "MEMORY"
+            ? "memory"
+            : pin.tag === "REEL"
+              ? "reel"
+              : "wish") satisfies PinDotType
+        }
         instagramUrl={pin.instagramUrl}
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}

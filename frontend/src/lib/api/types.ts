@@ -2,7 +2,7 @@
  * 백엔드 ApiResponse 공통 래퍼 (`com.wherewego.interfaces.api.ApiResponse`)와 1:1 대응.
  */
 
-export type PinTag = "PLACE" | "MEMORY";
+export type PinTag = "REEL" | "WISH" | "MEMORY";
 
 export type MemoSource = "AUTO" | "MANUAL";
 

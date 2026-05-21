@@ -112,7 +112,7 @@ export function GroupsClient({ user, activeGroup }: GroupsClientProps) {
               width: 32,
               height: 32,
               borderRadius: "50%",
-              background: `linear-gradient(135deg, ${colors.pinMemory}, ${colors.pinPlace})`,
+              background: `linear-gradient(135deg, ${colors.pinMemory}, ${colors.pinWish})`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
