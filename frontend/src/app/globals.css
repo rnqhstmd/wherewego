@@ -173,3 +173,10 @@ body {
     opacity: 1;
   }
 }
+
+/* 키보드 닫힘 후 ActionBar mount 시 fade-in. Sheet/컨테이너 transition(150ms) 종료 후 mount되어
+   합쳐서 ~250ms 안에 안정화된다. */
+@keyframes kbd-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

@@ -208,6 +208,19 @@ export default function MapClient({
   // 모바일 키보드 등장 시 root container 높이를 줄여 ActionBar/Sheet 가
   // 키보드 위에 정확히 정렬되도록 한다. 데스크탑(>=768px)에서는 SidePanel 경로라 무영향.
   const { keyboardHeight, keyboardOpen } = useKeyboardInsets();
+  // KBD-2 한 프레임 깜빡임 회피: 키보드 닫힘 전환은 Sheet/컨테이너 transition(150ms) 종료 후
+  // ActionBar를 mount하도록 keyboardOpen을 150ms 지연 반영한 파생값을 사용한다.
+  // open 전환은 즉시 — 키보드가 올라오자마자 ActionBar unmount하여 입력 공간 확보.
+  const [keyboardOpenForLayout, setKeyboardOpenForLayout] =
+    useState(keyboardOpen);
+  useEffect(() => {
+    if (keyboardOpen) {
+      setKeyboardOpenForLayout(true);
+      return;
+    }
+    const t = window.setTimeout(() => setKeyboardOpenForLayout(false), 150);
+    return () => window.clearTimeout(t);
+  }, [keyboardOpen]);
 
   // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
   // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
@@ -1269,9 +1282,10 @@ export default function MapClient({
           }
           myNickname={myNickname}
         />
-      ) : keyboardOpen ? null : (
+      ) : keyboardOpenForLayout ? null : (
         // 모바일 키보드 등장 시 ActionBar 를 unmount 하여 입력 공간을 확보한다.
-        // 키보드가 닫히면 다시 마운트되어 기본 상태(검색/추가/어디갈까?)가 복원된다.
+        // 닫힘은 keyboardOpenForLayout 으로 150ms 지연하여 Sheet/컨테이너 transition 후 mount.
+        // ActionBar 자체에 kbd-fadein 100ms animation 이 있어 자연스럽게 등장한다.
         <ActionBar
           active={activeSheetToTab(activeSheet)}
           onChange={handleTabChange}
