@@ -41,6 +41,7 @@ import MapLoadError, {
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useKeyboardInsets } from "@/lib/hooks/useKeyboardInsets";
 import { useGeolocation, type LatLng } from "./_hooks/useGeolocation";
+import { useGroupPinSync } from "./_hooks/useGroupPinSync";
 import {
   pickRandomWithExpansion,
   reRollFromSamePool,
@@ -207,6 +208,20 @@ export default function MapClient({
   // 모바일 키보드 등장 시 root container 높이를 줄여 ActionBar/Sheet 가
   // 키보드 위에 정확히 정렬되도록 한다. 데스크탑(>=768px)에서는 SidePanel 경로라 무영향.
   const { keyboardHeight, keyboardOpen } = useKeyboardInsets();
+
+  // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
+  // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
+  // 다른 사용자의 수정/삭제는 새로고침 전까지 미반영(후속 PR에서 충돌 정책과 함께 다룸).
+  useGroupPinSync({
+    groupId,
+    onTick: (serverPins) => {
+      setPins((prev) => {
+        const localIds = new Set(prev.map((p) => p.id));
+        const newOnly = serverPins.filter((p) => !localIds.has(p.id));
+        return newOnly.length === 0 ? prev : [...prev, ...newOnly];
+      });
+    },
+  });
 
   const handleMarkerClick = useCallback((pinId: number) => {
     setSelectedPinId(pinId);
