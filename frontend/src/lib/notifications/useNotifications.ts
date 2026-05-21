@@ -5,14 +5,11 @@ import {
   fetchNotifications,
   fetchNotificationDetail,
   markAllNotificationsRead,
-  NOTIFICATION_SSE_URL,
 } from './api';
-import { createNotificationSseClient } from './sseClient';
 import type {
-  ConnectionState,
   NotificationDetail,
   NotificationItem,
-  NotificationStreamEvent,
+  NotificationToastPayload,
 } from './types';
 
 const MAX_ITEMS = 50;
@@ -21,8 +18,7 @@ const TOAST_DURATION_MS = 5_000;
 export interface UseNotificationsState {
   items: NotificationItem[];
   unreadCount: number;
-  connectionState: ConnectionState;
-  toast: { id: number; payload: NotificationStreamEvent } | null;
+  toast: { id: number; payload: NotificationToastPayload } | null;
   isPanelOpen: boolean;
 }
 
@@ -35,44 +31,106 @@ export interface UseNotificationsActions {
   loadDetail: (notificationId: number) => Promise<NotificationDetail>;
 }
 
+/**
+ * 인앱 알림함 상태/액션 훅 (옵션 B, 2026-05-21).
+ *
+ * <p>실시간 push(SSE) 없이 mount + Page Visibility(`visibilitychange` hidden→visible)
+ * + window `focus` 이벤트에서 최근 알림 목록을 재조회한다. 직전 max id를 초과한
+ * 최상위 신규 알림 1건만 토스트로 노출한다 (FR-15 변형, AC-16 dedup 유지).</p>
+ */
 export function useNotifications(): UseNotificationsState & UseNotificationsActions {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
-  const [toast, setToast] = useState<{ id: number; payload: NotificationStreamEvent } | null>(null);
+  const [toast, setToast] = useState<{ id: number; payload: NotificationToastPayload } | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
 
-  const shownToastIds = useRef<Set<number>>(new Set());
+  const lastSeenMaxIdRef = useRef<number>(0);
+  const shownToastIdsRef = useRef<Set<number>>(new Set());
   const isPanelOpenRef = useRef<boolean>(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const isFirstFetchRef = useRef<boolean>(true);
 
-  // Sync ref with state for use in SSE callback
   useEffect(() => {
     isPanelOpenRef.current = isPanelOpen;
   }, [isPanelOpen]);
 
-  // 초기 fetch
-  const refreshList = useCallback(async () => {
-    try {
-      const res = await fetchNotifications();
-      setItems(res.items.slice(0, MAX_ITEMS));
-      setUnreadCount(res.unreadCount);
-    } catch (e) {
-      // silent fail (네트워크 일시 끊김 등)
-    }
-  }, []);
-
   const markAllRead = useCallback(async () => {
     try {
       await markAllNotificationsRead();
+      if (!isMountedRef.current) return;
       setUnreadCount(0);
       setItems((prev) =>
         prev.map((it) => (it.readAt ? it : { ...it, readAt: new Date().toISOString() })),
       );
-    } catch (e) {
+    } catch {
       // silent fail
     }
   }, []);
+
+  const showToast = useCallback((item: NotificationItem) => {
+    if (shownToastIdsRef.current.has(item.id)) return;
+    shownToastIdsRef.current.add(item.id);
+
+    if (isPanelOpenRef.current) {
+      // 패널 열림: 토스트 미노출, 읽음 처리 갱신 (AC-17 유사 — 트리거가 fetch 결과로 변경됨)
+      markAllRead();
+      return;
+    }
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    const payload: NotificationToastPayload = {
+      id: item.id,
+      type: item.type,
+      registeredByNickname: item.registeredByNickname,
+      firstPlaceName: item.firstPlaceName,
+      totalPinCount: item.totalPinCount,
+      createdAt: item.createdAt,
+    };
+    setToast({ id: item.id, payload });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, TOAST_DURATION_MS);
+  }, [markAllRead]);
+
+  /**
+   * 최근 알림 목록을 재조회한다. 첫 fetch가 아니면 직전 max id를 초과한
+   * 최상위 신규 알림 1건을 토스트로 노출한다.
+   */
+  const refreshList = useCallback(async () => {
+    try {
+      const res = await fetchNotifications();
+      if (!isMountedRef.current) return;
+
+      const next = res.items.slice(0, MAX_ITEMS);
+      setItems(next);
+      setUnreadCount(res.unreadCount);
+
+      const newMaxId = next.length > 0 ? next[0].id : 0;
+      const prevMaxId = lastSeenMaxIdRef.current;
+
+      if (isFirstFetchRef.current) {
+        // 마운트 첫 fetch: 초기화만, 토스트 노출 없음.
+        lastSeenMaxIdRef.current = newMaxId;
+        isFirstFetchRef.current = false;
+        return;
+      }
+
+      if (newMaxId > prevMaxId) {
+        // 직전 max id를 초과한 최상위 신규 알림 1건만 토스트 (간소화).
+        const topNew = next[0];
+        if (topNew) {
+          showToast(topNew);
+        }
+      }
+      lastSeenMaxIdRef.current = Math.max(prevMaxId, newMaxId);
+    } catch {
+      // silent fail (네트워크 일시 끊김 등)
+    }
+  }, [showToast]);
 
   const openPanel = useCallback(async () => {
     setIsPanelOpen(true);
@@ -95,83 +153,41 @@ export function useNotifications(): UseNotificationsState & UseNotificationsActi
     return fetchNotificationDetail(notificationId);
   }, []);
 
-  // 마운트 시 초기 로드
-  useEffect(() => {
-    refreshList();
-  }, [refreshList]);
-
-  // SSE 구독
+  // 마운트 + visibility/focus 트리거 fetch
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const client = createNotificationSseClient({
-      url: NOTIFICATION_SSE_URL,
-      onStateChange: setConnectionState,
-      onNotification: (payload) => {
-        // items prepend (50건 cap)
-        setItems((prev) => {
-          const newItem: NotificationItem = {
-            id: payload.id,
-            type: payload.type,
-            registeredBy: null, // SSE payload에는 없음. detail에서 채워짐
-            registeredByNickname: payload.registeredByNickname,
-            firstPlaceName: payload.firstPlaceName,
-            totalPinCount: payload.totalPinCount,
-            createdAt: payload.createdAt,
-            readAt: null,
-          };
-          // 중복 id 차단 (재연결 시 동일 알림 재수신 가능)
-          if (prev.some((it) => it.id === payload.id)) {
-            return prev;
-          }
-          return [newItem, ...prev].slice(0, MAX_ITEMS);
-        });
-        setUnreadCount((prev) => prev + 1);
+    isMountedRef.current = true;
+    // mount 시 초기 fetch — refreshList는 setState를 호출하지만 부수효과(API call) 동기화 목적이므로 의도된 패턴.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refreshList();
 
-        // AC-16: 동일 알림은 어떤 경로로든 한 번만 toast 노출 대상으로 등록한다.
-        //        패널 열림 상태에서도 shownToastIds 에 기록하여, 재연결로 동일 알림이
-        //        다시 수신되었을 때 패널 닫힌 경로에서 toast 가 재노출되는 것을 차단한다.
-        if (shownToastIds.current.has(payload.id)) {
-          // 이미 처리된 알림: toast 미노출. 단 패널 열림이면 read-all 재호출 (AC-17).
-          if (isPanelOpenRef.current) {
-            markAllRead();
-          }
-          return;
-        }
-        shownToastIds.current.add(payload.id);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshList();
+      }
+    };
+    const onFocus = () => {
+      refreshList();
+    };
 
-        if (isPanelOpenRef.current) {
-          // 패널 열림: toast 미노출, 즉시 read-all 재호출 (AC-17)
-          markAllRead();
-        } else {
-          // 패널 닫힘: toast 노출 + 5초 자동 닫힘 (FR-15)
-          if (toastTimerRef.current) {
-            clearTimeout(toastTimerRef.current);
-          }
-          setToast({ id: payload.id, payload });
-          toastTimerRef.current = setTimeout(() => {
-            setToast(null);
-            toastTimerRef.current = null;
-          }, TOAST_DURATION_MS);
-        }
-      },
-    });
-
-    client.start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onFocus);
 
     return () => {
-      client.stop();
+      isMountedRef.current = false;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onFocus);
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
         toastTimerRef.current = null;
       }
     };
-  }, [markAllRead]);
+  }, [refreshList]);
 
   return {
     items,
     unreadCount,
-    connectionState,
     toast,
     isPanelOpen,
     openPanel,

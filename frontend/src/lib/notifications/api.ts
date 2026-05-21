@@ -32,9 +32,3 @@ export async function fetchNotificationDetail(
 ): Promise<NotificationDetail> {
   return apiFetch<NotificationDetail>(`${BASE}/${id}`, { signal });
 }
-
-/**
- * SSE 구독 URL. EventSource 생성 시 same-origin이라 별도 인증 헤더가 필요 없으며
- * BFF 프록시가 백엔드 `/api/v1/notifications/stream` 으로 전달한다.
- */
-export const NOTIFICATION_SSE_URL = "/api/v1/notifications/stream";

@@ -16,26 +16,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -135,39 +128,6 @@ class NotificationV1ControllerIntegrationTest {
         }
         notificationRepository.saveAllPins(links);
         return n.getId();
-    }
-
-    // ============================================================
-    // SSE 스트림
-    // ============================================================
-
-    @DisplayName("GET /api/v1/notifications/stream - 미인증 요청은 401 을 반환한다 (AC-7).")
-    @Test
-    void streamWithoutAuth_returns401() throws Exception {
-        mockMvc.perform(get("/api/v1/notifications/stream"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @DisplayName("GET /api/v1/notifications/stream - 인증 시 X-Accel-Buffering=no + Cache-Control=no-cache 헤더와 text/event-stream 컨텐츠 타입을 반환한다.")
-    @Test
-    void streamAuthenticated_returnsHeaders() throws Exception {
-        // act : SseEmitter 반환은 비동기 처리되므로 async 시작 후 dispatch
-        MvcResult mvcResult = mockMvc.perform(get("/api/v1/notifications/stream").cookie(authCookieA))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        // assert : async dispatch 직후 헤더/상태/컨텐츠 타입 검증
-        // SSE 는 long-lived 이므로 emitter 를 즉시 complete 하여 응답을 마감한다.
-        Object asyncResult = mvcResult.getAsyncResult();
-        if (asyncResult instanceof SseEmitter emitter) {
-            emitter.complete();
-        }
-
-        mockMvc.perform(asyncDispatch(mvcResult))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Accel-Buffering", "no"))
-                .andExpect(header().string("Cache-Control", "no-cache"))
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
     }
 
     // ============================================================

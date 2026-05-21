@@ -1,19 +1,15 @@
 "use client";
 
 // NotificationBell — 우상단/사이드바용 알림 벨 버튼.
-// 미읽음 개수와 SSE 연결 상태에 따라 우상단 점(빨강/회색) 노출.
+// 미읽음 개수에 따라 우상단 빨간 점 노출 (옵션 B, 2026-05-21).
 
 import { useState, type CSSProperties } from "react";
 import { colors, fonts } from "@/lib/design/tokens";
 import { IconBell } from "@/components/icons/IconBell";
 
-type ConnectionState = "connecting" | "open" | "closed" | "failed";
-
 interface NotificationBellProps {
   /** 미읽음 개수. 0 이상. */
   unreadCount: number;
-  /** SSE 연결 상태. failed 시 회색 점으로 끊김 표시. */
-  connectionState: ConnectionState;
   /** mobile(44x44) / desktop(36x36 + tooltip). 기본 mobile. */
   variant?: "mobile" | "desktop";
   onClick: () => void;
@@ -25,12 +21,10 @@ interface NotificationBellProps {
  *
  * - 모바일: 44x44 원형 (MobileTopNav 프로필 톤 차용 — panel 배경 + hairline + shadow)
  * - 데스크탑: 36x36 원형 (DesktopActionPill 아이콘 톤 차용 — transparent 배경 + hover tooltip)
- * - 우상단 점(8x8): 미읽음 > 0 → pinNew(빨강), 연결 failed → 회색
- * - 정상 연결 + 미읽음 0 → 점 미표시
+ * - 우상단 점(8x8): 미읽음 > 0 → pinNew(빨강), 미읽음 0 → 점 미표시
  */
 export function NotificationBell({
   unreadCount,
-  connectionState,
   variant = "mobile",
   onClick,
   className,
@@ -38,14 +32,8 @@ export function NotificationBell({
   const [hoveredTooltip, setHoveredTooltip] = useState(false);
 
   const isDesktop = variant === "desktop";
-  const isFailed = connectionState === "failed";
   const hasUnread = unreadCount > 0;
-  // 빨강은 unread > 0 AND failed 아닐 때만. failed 시 회색 우선.
-  const showDot = isFailed || hasUnread;
-  const dotColor = isFailed ? "rgba(120,120,120,0.9)" : colors.pinNew;
-  const tooltipText = isFailed
-    ? "알림 연결이 끊겼어요. 새로고침해 주세요"
-    : "알림";
+  const tooltipText = "알림";
 
   const size = isDesktop ? 36 : 44;
   const iconSize = isDesktop ? 20 : 22;
@@ -91,7 +79,7 @@ export function NotificationBell({
     width: 8,
     height: 8,
     borderRadius: "50%",
-    background: dotColor,
+    background: colors.pinNew,
     border: `1.5px solid ${colors.panel}`,
     pointerEvents: "none",
   };
@@ -120,7 +108,7 @@ export function NotificationBell({
       }}
     >
       <IconBell size={iconSize} color="currentColor" />
-      {showDot && <span style={dotStyle} aria-hidden="true" />}
+      {hasUnread && <span style={dotStyle} aria-hidden="true" />}
 
       {isDesktop && hoveredTooltip && (
         <span

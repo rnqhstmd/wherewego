@@ -8,7 +8,6 @@ import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,8 +28,8 @@ import java.util.stream.Collectors;
  * {@link PinRepository}, {@link UserRepository}를 조합하여 알림 fan-out / 조회 / 읽음 처리를 담당한다.
  *
  * <p>쓰기 메서드({@link #createForManualPin}, {@link #createForChatbotBatch})는 REQUIRED(기본)
- * 트랜잭션으로 자체 커밋한다. 커밋 후 {@code NotificationSsePushListener}가
- * AFTER_COMMIT 단계에서 SSE push를 수행한다.</p>
+ * 트랜잭션으로 자체 커밋한다. 클라이언트는 mount / visibilitychange / focus 시점에
+ * REST 조회로 신규 알림을 감지한다 (옵션 B 다운그레이드, 2026-05-21).</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -45,17 +44,15 @@ public class NotificationService {
     private final GroupMemberRepository groupMemberRepository;
     private final PinRepository pinRepository;
     private final UserRepository userRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 웹/모바일 직접 등록 트리거 (PinV1Controller.createPin에서 트랜잭션 밖에서 호출).
      * 호출자에 트랜잭션이 없으므로 REQUIRED(기본)로 자체 트랜잭션을 시작·커밋한다.
-     * AFTER_COMMIT 리스너가 SSE push.
      * BR-3: 호출자는 try-catch로 본 메서드의 실패를 격리한다.
      */
     @Transactional
     public void createForManualPin(Long groupId, Long registeredBy, Long pinId) {
-        fanOutAndPublish(groupId, registeredBy, List.of(pinId), NotificationType.MANUAL_PIN);
+        fanOut(groupId, registeredBy, List.of(pinId), NotificationType.MANUAL_PIN);
     }
 
     /**
@@ -65,24 +62,16 @@ public class NotificationService {
     @Transactional
     public void createForChatbotBatch(Long groupId, Long registeredBy, List<Long> pinIds) {
         if (pinIds == null || pinIds.isEmpty()) return;
-        fanOutAndPublish(groupId, registeredBy, pinIds, NotificationType.CHATBOT_PINS);
+        fanOut(groupId, registeredBy, pinIds, NotificationType.CHATBOT_PINS);
     }
 
     /**
      * 공통 fan-out 로직. 활성 멤버 중 등록자 본인을 제외한 수신자별로
-     * {@link Notification} + {@link NotificationPin} 링크를 저장하고
-     * {@link NotificationCreatedEvent}를 발행한다.
+     * {@link Notification} + {@link NotificationPin} 링크를 저장한다.
      */
-    private void fanOutAndPublish(Long groupId, Long registeredBy, List<Long> pinIds, NotificationType type) {
+    private void fanOut(Long groupId, Long registeredBy, List<Long> pinIds, NotificationType type) {
         List<Long> receiverIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
         if (receiverIds.isEmpty()) return;  // 엣지 7: 다른 활성 멤버 없음
-
-        String registeredByNickname = userRepository.findById(registeredBy)
-                .map(UserModel::getNickname)
-                .orElse(FALLBACK_NICKNAME);
-        String firstPlaceName = pinRepository.findById(pinIds.get(0))
-                .map(Pin::getPlaceName)
-                .orElse(FALLBACK_PLACE_NAME);
 
         for (Long receiverId : receiverIds) {
             Notification n = repository.save(
@@ -92,16 +81,6 @@ public class NotificationService {
                 links.add(NotificationPin.link(n.getId(), pinIds.get(i), i));
             }
             repository.saveAllPins(links);
-            eventPublisher.publishEvent(new NotificationCreatedEvent(
-                    receiverId,
-                    n.getId(),
-                    n.getType(),
-                    registeredBy,
-                    registeredByNickname,
-                    firstPlaceName,
-                    pinIds.size(),
-                    toInstant(n.getCreatedAt())
-            ));
         }
     }
 

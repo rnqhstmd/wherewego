@@ -4,23 +4,10 @@ import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-@Tag(name = "Notification V1 API", description = "Phase 8 알림 SSE 스트림/목록/상세/읽음 처리 API.")
+@Tag(name = "Notification V1 API", description = "Phase 8 알림 목록/상세/읽음 처리 API. " +
+        "클라이언트는 mount / visibilitychange / focus 시점에 목록을 재조회한다 (옵션 B 다운그레이드, 2026-05-21).")
 public interface NotificationV1ApiSpec {
-
-    @Operation(
-            summary = "알림 SSE 스트림 구독",
-            description = "현재 사용자의 알림 SSE 스트림을 구독합니다 (FR-9). " +
-                    "응답 Content-Type 은 text/event-stream 이며 5분 타임아웃 후 클라이언트가 재연결합니다 (BR-6). " +
-                    "프록시 응답 버퍼링 방지를 위해 X-Accel-Buffering: no, Cache-Control: no-cache 헤더를 추가합니다. " +
-                    "다중 탭/디바이스 동시 구독을 지원합니다."
-    )
-    SseEmitter stream(
-            @Parameter(hidden = true) Long userId,
-            @Parameter(hidden = true) HttpServletResponse response
-    );
 
     @Operation(
             summary = "알림 목록 조회",

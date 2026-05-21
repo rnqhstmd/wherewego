@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, type CSSProperties } from "react";
-import type { NotificationStreamEvent } from "@/lib/notifications/types";
+import type { NotificationToastPayload } from "@/lib/notifications/types";
 
 interface NotificationToastProps {
-  payload: NotificationStreamEvent;
+  payload: NotificationToastPayload;
   onDismiss: () => void;
   /** 모바일은 벨(우상단) 아래, 데스크탑은 사이드바 우측 위치. 기본 mobile. */
   anchorVariant?: "mobile" | "desktop";
 }
 
 /**
- * SSE로 도착한 신규 알림을 짧게 보여주는 토스트.
+ * 신규 알림 도착 시 짧게 보여주는 토스트 (옵션 B, 2026-05-21).
  *
  * <p>자동 닫힘 타이머는 부모(`useNotifications`)가 관리하며,
  * 본 컴포넌트는 외부 mousedown/touchstart 감지만 담당한다.</p>

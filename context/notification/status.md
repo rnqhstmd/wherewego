@@ -53,26 +53,34 @@
 - ⬜ `NotificationPanel.loadDetail` 실패 시 에러 UI 표시
 - ⬜ `NotificationPanel` 빠른 연속 클릭 시 detail fetch race condition (AbortController)
 
-## 옵션 B 다운그레이드 잔여 작업 (코드)
+## 옵션 B 다운그레이드 코드 반영 (2026-05-21)
 
-PR #40을 다운그레이드한 후 머지하기 위한 코드 변경 항목:
+PR #40 다운그레이드 후속 커밋으로 반영 완료:
 
-**Backend 제거**:
-- `NotificationSseRegistry`, `NotificationHeartbeatScheduler`, `NotificationSsePushListener`, `NotificationCreatedEvent`
-- `GET /api/v1/notifications/stream` 엔드포인트 + `NotificationV1ApiSpec` 해당 메서드
-- `application.yml`의 `spring.task.scheduling.pool.size` 항목 (heartbeat 스케줄러 전용이었다면)
+**Backend 제거** ✅
+- `NotificationSseRegistry`, `NotificationHeartbeatScheduler`, `NotificationSsePushListener`, `NotificationCreatedEvent` 삭제
+- `NotificationSseRegistryTest` 삭제
+- `NotificationV1Controller.stream()` + `NotificationV1ApiSpec.stream()` 시그니처 제거
+- `NotificationService`에서 `ApplicationEventPublisher` 의존성 제거 (fan-out 후 이벤트 발행 제거)
+- `NotificationV1ControllerIntegrationTest`에서 SSE 테스트 2건 제거
+- `application.yml`의 `spring.task.scheduling.pool.size` 는 `ThresholdMonitorScheduler`도 사용하므로 유지
 
-**Frontend 제거**:
-- BFF SSE 라우트 `frontend/src/app/api/v1/notifications/stream/route.ts`
-- `frontend/src/lib/notifications/sseClient.ts`
+**Frontend 제거** ✅
+- BFF SSE 라우트 `frontend/src/app/api/v1/notifications/stream/` 디렉토리 삭제
+- `frontend/src/lib/notifications/sseClient.ts` + `sseClient.test.ts` 삭제
+- `NOTIFICATION_SSE_URL` 상수 제거
+- `ConnectionState` 타입 제거, `NotificationStreamEvent` → `NotificationToastPayload`로 명칭 갱신
 
-**Frontend 변형**:
-- `useNotifications` 훅: SSE 구독 제거, `visibilitychange`/`focus` 이벤트 리스너로 fetch 트리거
-- `NotificationToast` 노출 조건: SSE 이벤트 수신 → fetch 결과 직전 max id 비교로 변경
-- 회색 점(연결 끊김) 시각 상태 제거
+**Frontend 변형** ✅
+- `useNotifications` 훅: mount + `visibilitychange`(hidden→visible) + window `focus` 이벤트에서 fetch 트리거
+- 토스트 노출: 직전 `lastSeenMaxIdRef` 초과한 **최상위 신규 알림 1건만** 토스트 (FR-15 변형)
+- `shownToastIdsRef`로 동일 알림 중복 노출 차단 유지 (AC-16)
+- 패널 열림 중 신규 알림 감지 → 토스트 미노출 + `markAllRead` 재호출 (AC-17 유사 동작 유지)
+- `NotificationBell`: `connectionState` prop 제거, 회색 점(연결 끊김) 시각 상태 제거
+- `MapClient`: 벨 컴포넌트에 `connectionState` 전달 제거
 
-**문서**:
-- `docs/ops/phase-8-notifications.md` 옵션 B 반영 (의문점 1·2 항목 제거, V007 FK는 유지)
+**잔여**
+- `docs/ops/phase-8-notifications.md` 옵션 B 반영 (의문점 1·2 항목 제거, V007 FK는 유지) — 별도 작업
 
 ## SSE 재도입 트리거 (보류)
 

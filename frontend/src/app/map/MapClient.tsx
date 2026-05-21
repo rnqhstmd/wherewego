@@ -1242,7 +1242,6 @@ export default function MapClient({
     <NotificationBell
       variant="mobile"
       unreadCount={notifications.unreadCount}
-      connectionState={notifications.connectionState}
       onClick={() => {
         setActiveSheet(null);
         void notifications.openPanel();
@@ -1254,7 +1253,6 @@ export default function MapClient({
     <NotificationBell
       variant="desktop"
       unreadCount={notifications.unreadCount}
-      connectionState={notifications.connectionState}
       onClick={() => {
         setActiveSheet(null);
         void notifications.openPanel();
