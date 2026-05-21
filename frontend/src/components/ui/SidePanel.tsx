@@ -28,7 +28,8 @@ export function SidePanel({
       style={{
         position: "absolute",
         top: 12,
-        bottom: 12,
+        // BR: 컨텐츠 길이에 따라 자동 fit. 긴 결과는 maxHeight 안에서 본문 스크롤.
+        maxHeight: "calc(100% - 24px)",
         width,
         background: colors.panel,
         borderRadius: 20,
@@ -58,7 +59,14 @@ export function SidePanel({
           {title}
         </header>
       ) : null}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px 22px" }}>
+      <div
+        style={{
+          // flex:1 제거 — 컨텐츠 짧을 때 빈 공간 강제 채움 방지. 길면 maxHeight 안에서 스크롤.
+          flex: "0 1 auto",
+          overflowY: "auto",
+          padding: "16px 22px 22px",
+        }}
+      >
         {children}
       </div>
     </aside>

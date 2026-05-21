@@ -47,7 +47,7 @@ export default function DesktopActionPill({
       style={{
         position: "absolute",
         top: 72,
-        bottom: 14,
+        // BR: 콘텐츠(아이콘 3 + 프로필 1)에 맞춰 자동 높이 — viewport 전체로 늘리지 않음.
         left: 14,
         width: 44,
         background: colors.panel,
@@ -58,7 +58,7 @@ export default function DesktopActionPill({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 6,
+        gap: 8,
         zIndex: 24,
       }}
     >
@@ -139,9 +139,9 @@ export default function DesktopActionPill({
         );
       })}
 
-      {/* 하단 프로필 — 담백한 사람 아이콘. */}
+      {/* 프로필 — 액션 아이콘과 동일 gap으로 이어 배치 (사이드바 자동 높이) */}
       <div
-        style={{ marginTop: "auto", position: "relative" }}
+        style={{ position: "relative" }}
         onMouseEnter={() => setHoveredId("profile")}
         onMouseLeave={() => setHoveredId(null)}
       >
