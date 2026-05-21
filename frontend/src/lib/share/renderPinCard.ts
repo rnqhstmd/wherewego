@@ -9,8 +9,13 @@
 import type { PinSummaryResponse } from "@/lib/api/types";
 import {
   buildMapboxStaticUrl,
-  extractStyleId,
 } from "@/lib/share/mapboxStaticUrl";
+import {
+  getReelSvgString,
+  getWishSvgString,
+  getMemorySvgString,
+  PIN_COLORS,
+} from "@/lib/pin/markers";
 
 // 카드 픽셀 사이즈(4:5)
 const CARD_WIDTH = 1080;
@@ -313,9 +318,9 @@ export async function renderPinCard(
   throwIfAborted(signal);
 
   // Step 3 — Mapbox Static 이미지 로드
-  // 카드 배경용은 표준 streets-v12 스타일 강제. 사용자 커스텀 스타일(MapClient의 main 지도용)은
-  // zoom 14에서 데이터가 비어있어 거의 단색 PNG를 반환하는 케이스가 발견됨(2025-05-22).
-  // 카드의 BG-6 폴백을 회피하고 시각 일관성을 위해 표준 스타일로 통일.
+  // 카드 배경용은 mapbox/light-v11 강제 — 옅고 깨끗한 톤이 카드 디자인(콘텐츠 가독성)과 어울림.
+  // 사용자 커스텀 스타일(MapClient의 main 지도용)은 Static API에서 빈 이미지를 반환하므로 사용 안 함.
+  // streets-v12 대비 light-v11이 정보량 적고 콘텐츠 텍스트 가독성 우수.
   const staticUrl = buildMapboxStaticUrl({
     lat: input.pin.latitude,
     lng: input.pin.longitude,
@@ -323,7 +328,7 @@ export async function renderPinCard(
     height: MAPBOX_API_HEIGHT,
     zoom: MAPBOX_ZOOM,
     token: input.mapboxToken,
-    styleId: "mapbox/streets-v12",
+    styleId: "mapbox/light-v11",
   });
   const img = await loadImageWithTimeout(
     staticUrl,
@@ -379,6 +384,56 @@ export async function renderPinCard(
   canvasB.height = 0;
 
   throwIfAborted(signal);
+
+  // Step 7-0 — 태그 글리프 + 라벨 (콘텐츠 영역 위에 핀 카테고리 표시)
+  // SVG string → Blob URL → Image → drawImage. 실패 시 조용히 skip하고 카드 진행.
+  {
+    const tag = input.pin.tag;
+    const GLYPH_SIZE = 44;
+    const GLYPH_Y = CONTENT_START_Y - 72;
+    let glyphSvg = "";
+    let tagLabel = "";
+    let tagColor = "";
+    if (tag === "REEL") {
+      glyphSvg = getReelSvgString(GLYPH_SIZE);
+      tagLabel = "발견";
+      tagColor = PIN_COLORS.reel;
+    } else if (tag === "WISH") {
+      glyphSvg = getWishSvgString(GLYPH_SIZE);
+      tagLabel = "위시";
+      tagColor = PIN_COLORS.wish;
+    } else if (tag === "MEMORY") {
+      glyphSvg = getMemorySvgString(GLYPH_SIZE, GLYPH_SIZE);
+      tagLabel = "추억";
+      tagColor = PIN_COLORS.memory;
+    }
+    if (glyphSvg) {
+      const svgBlob = new Blob([glyphSvg], { type: "image/svg+xml" });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const glyphImg = new Image();
+      glyphImg.src = svgUrl;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          glyphImg.onload = () => resolve();
+          glyphImg.onerror = () => reject();
+        });
+        ctx.drawImage(glyphImg, PADDING_X, GLYPH_Y, GLYPH_SIZE, GLYPH_SIZE);
+        ctx.font = `bold 26px ${fontFamily}`;
+        ctx.fillStyle = tagColor;
+        ctx.textBaseline = "middle";
+        ctx.fillText(
+          tagLabel,
+          PADDING_X + GLYPH_SIZE + 14,
+          GLYPH_Y + GLYPH_SIZE / 2,
+        );
+      } catch {
+        // SVG 로드 실패 시에도 카드 텍스트는 계속 그림
+      } finally {
+        URL.revokeObjectURL(svgUrl);
+        glyphImg.src = "";
+      }
+    }
+  }
 
   // Step 7 — 콘텐츠 텍스트 그리기 (FR-6, BR-1/2/3/4/9)
   ctx.textBaseline = "alphabetic";
