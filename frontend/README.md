@@ -49,6 +49,7 @@ GATE_COOKIE_SECRET=                # 게이트 쿠키 HMAC 시크릿
 | `/groups` | 그룹 선택 | ✅ |
 | `/map` | 메인 Mapbox 3D 지도 (핀 · 룰렛 · 알림) | ✅ |
 | `/pins` | 핀 목록 | ✅ |
+| `/invite/[token]` | 초대 수락 | ✅ |
 
 ## 디렉토리 구조
 
