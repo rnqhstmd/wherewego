@@ -77,7 +77,7 @@ wherewego/
 | Kakao i 오픈빌더 | 챗봇 Skill Webhook |
 | Kakao Local API | 국내 장소 검색 |
 | Google Places API | 해외 장소 검색 (폴백) |
-| Google Gemini 2.0 Flash | 인스타 캡션 → 장소명 AI 추출 |
+| Google Gemini (`gemini-flash-latest`) | 인스타 캡션 → 장소명 AI 추출 |
 | Mapbox GL JS | 3D 지도 렌더링 |
 
 ### DevOps
