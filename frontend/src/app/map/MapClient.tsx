@@ -35,6 +35,7 @@ import RouletteSpinContent from "./_components/RouletteSpinContent";
 import RouletteResultContent from "./_components/RouletteResultContent";
 import ClusterBanner from "./_components/ClusterBanner";
 import EmptyMapCard from "./_components/EmptyMapCard";
+import { TagLegendButton } from "./_components/TagLegendButton";
 import MapLoadError, {
   type MapLoadErrorReason,
 } from "./_components/MapLoadError";
@@ -1327,6 +1328,16 @@ export default function MapClient({
         showProfile={!isDesktop}
       />
       <ClusterBanner visible={hasCluster} />
+      <div
+        style={{
+          position: "absolute",
+          bottom: isDesktop ? 24 : 92,
+          left: 14,
+          zIndex: 20,
+        }}
+      >
+        <TagLegendButton />
+      </div>
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
           isDesktop={isDesktop}

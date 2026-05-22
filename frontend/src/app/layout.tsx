@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Gowun_Batang, JetBrains_Mono, Noto_Serif_KR } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -41,6 +41,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "우리가 갈 지도",
   description: "우리의 장소를 지도 위에 아카이빙해요",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
