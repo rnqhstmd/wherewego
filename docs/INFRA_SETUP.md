@@ -74,7 +74,7 @@ sudo nano /etc/nginx/sites-available/wherewego
 ```nginx
 server {
     listen 80;
-    server_name wherewego.win www.wherewego.win;
+    server_name {your-domain} www.{your-domain};
 
     location / {
         proxy_pass http://localhost:8080;
@@ -99,7 +99,7 @@ sudo systemctl enable nginx
 
 | 항목 | 값 |
 |------|-----|
-| 도메인 | `wherewego.win` |
+| 도메인 | `{your-domain}` |
 | 구매처 | Cloudflare (2026-05-18 구매, 2027-05-18 만료) |
 | HTTPS | Cloudflare Proxy (주황 구름) 자동 적용 |
 
@@ -107,11 +107,11 @@ sudo systemctl enable nginx
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
 | A | @ | {EC2_PUBLIC_IP} | Proxied ✅ |
-| CNAME | www | wherewego.win | Proxied ✅ |
+| CNAME | www | {your-domain} | Proxied ✅ |
 
 **접속 흐름:**
 ```
-사용자 → https://wherewego.win (Cloudflare HTTPS)
+사용자 → https://{your-domain} (Cloudflare HTTPS)
   → EC2:80 (Nginx)
   → localhost:8080 (Spring Boot)
 ```
@@ -165,7 +165,7 @@ URL: http://{EC2_PUBLIC_IP}:8080/api/v1/chatbot/webhook
 헤더: X-Kakao-Skill-Secret (KAKAO_SKILL_SECRET 값)
 ```
 
-> 도메인 배포 완료 후 → `https://wherewego.win/api/v1/chatbot/webhook` 으로 변경 필요
+> 도메인 배포 완료 후 → `https://{your-domain}/api/v1/chatbot/webhook` 으로 변경 필요
 
 ---
 
@@ -175,18 +175,18 @@ URL: http://{EC2_PUBLIC_IP}:8080/api/v1/chatbot/webhook
 [ ] EC2 Docker 설치 완료 (재접속 후 docker --version 확인)
 [ ] ENV_FILE Secret 운영값으로 최종 확인
      - SPRING_PROFILES_ACTIVE=prod
-     - KAKAO_REDIRECT_URI=https://wherewego.win/auth/kakao/callback
-     - CORS_ALLOWED_ORIGINS=https://wherewego.win
+     - KAKAO_REDIRECT_URI=https://{your-domain}/auth/kakao/callback
+     - CORS_ALLOWED_ORIGINS=https://{your-domain}
      - GOOGLE_PLACES_API_KEY=실제 키
      - GEMINI_API_KEY=실제 키
 [ ] feat/login-onboarding-design → main 머지
 [ ] main 머지 후 GitHub Actions 첫 자동 배포
-[ ] https://wherewego.win/swagger-ui.html 접속 확인
+[ ] https://{your-domain}/swagger-ui.html 접속 확인
 [ ] 카카오 개발자 콘솔 Redirect URI 추가
-     → https://wherewego.win/auth/kakao/callback
+     → https://{your-domain}/auth/kakao/callback
 [ ] 카카오 오픈빌더 스킬 URL 도메인으로 변경
-     → https://wherewego.win/api/v1/chatbot/webhook
-[ ] Mapbox 토큰 URL 제한에 wherewego.win 등록
+     → https://{your-domain}/api/v1/chatbot/webhook
+[ ] Mapbox 토큰 URL 제한에 {your-domain} 등록
 [ ] AWS Budgets 과금 알림 설정 (0원 초과 시 이메일)
 ```
 
@@ -196,9 +196,9 @@ URL: http://{EC2_PUBLIC_IP}:8080/api/v1/chatbot/webhook
 
 | 환경 | URL |
 |------|-----|
-| 프론트엔드 (예정) | https://wherewego.win |
-| API | https://wherewego.win/api/v1 |
-| Swagger | https://wherewego.win/swagger-ui.html |
+| 프론트엔드 (예정) | https://{your-domain} |
+| API | https://{your-domain}/api/v1 |
+| Swagger | https://{your-domain}/swagger-ui.html |
 | EC2 직접 | http://{EC2_PUBLIC_IP}:8080 |
 
 ---

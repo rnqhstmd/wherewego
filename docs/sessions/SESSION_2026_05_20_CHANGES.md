@@ -141,7 +141,7 @@
 ## 5. 카카오 챗봇 시나리오 가이드
 
 `docs/CHATBOT_SETUP_GUIDE.md` 신설/유지 — i 오픈빌더 step-by-step. 핵심:
-- 스킬 URL: `https://visiting-amused-tag.ngrok-free.dev/api/v1/chatbot/webhook` (로컬) / `https://wherewego.win/api/v1/chatbot/webhook` (운영)
+- 스킬 URL: `https://visiting-amused-tag.ngrok-free.dev/api/v1/chatbot/webhook` (로컬) / `https://{your-domain}/api/v1/chatbot/webhook` (운영)
 - 스킬 헤더: `X-Kakao-Skill-Secret: <KAKAO_SKILL_SECRET>` (44자, 끝 `=` 누락 주의)
 - 폴백 블록: 봇 응답 = "스킬데이터 사용" (정적 텍스트 제거)
 - 그룹 연결 블록: `code` 슬롯 (엔티티 `sys.text`), 패턴 발화에 "그룹 연동하기" 추가
@@ -170,11 +170,11 @@ ngrok Inspector(`http://localhost:4040`)로 카카오 raw 헤더 추출 → `X-K
 
 - [ ] GitHub Actions Secrets 6개 등록: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`, `ENV_FILE`, `GH_PAT`, `GITHUB_TOKEN`
 - [ ] `ENV_FILE`의 `KAKAO_SKILL_SECRET` 44자 정확 (`...IvE=`)
-- [ ] `ENV_FILE`의 `KAKAO_REDIRECT_URI=https://wherewego.win/login/callback`
-- [ ] `ENV_FILE`의 `WEB_SECURITY_COOKIE_SECURE=true`, `CORS_ALLOWED_ORIGINS=https://wherewego.win`
+- [ ] `ENV_FILE`의 `KAKAO_REDIRECT_URI=https://{your-domain}/login/callback`
+- [ ] `ENV_FILE`의 `WEB_SECURITY_COOKIE_SECURE=true`, `CORS_ALLOWED_ORIGINS=https://{your-domain}`
 - [ ] 카카오 i 오픈빌더 스킬 URL을 운영 도메인으로 변경 후 **배포하기**
 - [ ] 카카오 채팅 운영시간 24시간 또는 OFF 후 저장
-- [ ] (Frontend) 운영 호스팅 환경변수: `GATE_INVITE_CODE`, `GATE_COOKIE_SECRET`, `BACKEND_BASE_URL=https://wherewego.win`, `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_MAPBOX_STYLE_URL`
+- [ ] (Frontend) 운영 호스팅 환경변수: `GATE_INVITE_CODE`, `GATE_COOKIE_SECRET`, `BACKEND_BASE_URL=https://{your-domain}`, `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_MAPBOX_STYLE_URL`
 - [ ] (Frontend) `BASIC_AUTH_USER`/`PASSWORD` 제거 (혹시 이전 운영 값 남아있다면)
-- [ ] EC2 헬스: `https://wherewego.win/actuator/health` → `{"status":"UP"}`
+- [ ] EC2 헬스: `https://{your-domain}/actuator/health` → `{"status":"UP"}`
 - [ ] 카톡 챗봇 흐름 테스트: 인스타 URL → 메모 안내 → 메모 입력 → 저장 확인
