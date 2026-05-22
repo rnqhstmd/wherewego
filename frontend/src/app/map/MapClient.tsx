@@ -1026,7 +1026,7 @@ export default function MapClient({
       : null;
 
   // 패널 컨테이너 + 콘텐츠 분기 (CONSIDER-2: 컨테이너만 viewport로 갈라짐)
-  const renderPanel = (title: string, content: React.ReactNode) => {
+  const renderPanel = (title: string, content: React.ReactNode, opts?: { halfHeight?: boolean }) => {
     if (isDesktop) {
       return (
         <SidePanel
@@ -1074,7 +1074,9 @@ export default function MapClient({
         : typeof window !== "undefined"
           ? window.innerHeight
           : 800) - keyboardHeight;
-    const maxHeight = Math.max(200, viewportHeight - bottomOffset - 16);
+    const maxHeight = opts?.halfHeight
+      ? Math.max(200, viewportHeight * 0.5)
+      : Math.max(200, viewportHeight - bottomOffset - 16);
     return (
       <Sheet bottomOffset={bottomOffset} maxHeight={maxHeight}>
         {content}
@@ -1253,6 +1255,7 @@ export default function MapClient({
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
       />,
+      { halfHeight: true },
     );
   } else if (activeSheet === "roulette") {
     activePanel = renderPanel("오늘 어디 갈까?", renderRouletteContent());

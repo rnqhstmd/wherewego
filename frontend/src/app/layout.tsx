@@ -41,6 +41,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "우리가 갈 지도",
   description: "우리의 장소를 지도 위에 아카이빙해요",
+  other: {
+    "format-detection": "telephone=no, address=no, email=no",
+  },
 };
 
 export const viewport: Viewport = {
