@@ -26,7 +26,7 @@ const CONTENT_MAX_WIDTH = CARD_WIDTH - PADDING_X * 2; // 952
 // Mapbox Static API 사이즈 (1280 한도 내)
 const MAPBOX_API_WIDTH = 1024;
 const MAPBOX_API_HEIGHT = 1280;
-const MAPBOX_ZOOM = 14;
+const MAPBOX_ZOOM = 13;
 const MAPBOX_TIMEOUT_MS = 8000;
 
 // BR-6 폴백 단색 (warm sand)
@@ -363,8 +363,10 @@ export async function renderPinCard(
   // 1차: 앱 커스텀 스타일. GL JS v3 전용 스타일은 Static API에서 렌더 실패할 수 있으므로
   // 실패 시 light-v11로 자동 재시도해 베이지 단색 폴백을 피한다.
   const { latitude: pinLat, longitude: pinLng } = input.pin;
+  // streets-v12: 도로·수계·지형이 뚜렷해 grayscale 후에도 지도 형태가 보임.
+  // 실패 시 light-v11로 재시도. 두 스타일 모두 Static Images API 호환.
   let img = await loadImageWithTimeout(
-    buildProxyUrl(pinLat, pinLng, extractStyleId(input.mapboxStyleUrl)),
+    buildProxyUrl(pinLat, pinLng, "mapbox/streets-v12"),
     MAPBOX_TIMEOUT_MS,
     signal,
     input.pin.id,
@@ -392,8 +394,10 @@ export async function renderPinCard(
     ctxA.fillStyle = FALLBACK_BACKGROUND_COLOR;
     ctxA.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   } else {
+    // 지도 배경은 흑백으로 처리 — 우리 핀 글리프만 컬러로 남겨 시각적 대비 확보
+    ctxA.filter = "grayscale(1)";
     ctxA.drawImage(img, 0, 0, CARD_WIDTH, CARD_HEIGHT);
-    // 참조 제거(MUST-ADDRESS #2)
+    ctxA.filter = "none";
     img.src = "";
   }
 
@@ -510,7 +514,7 @@ export async function renderPinCard(
   }
   ctx.drawImage(canvasB, 0, 0);
   // 콘텐츠 가독성 확보용 따뜻한 베이지 톤 overlay (40%). 도로·건물 음영은 살짝 비치도록.
-  ctx.fillStyle = "rgba(234, 228, 212, 0.42)";
+  ctx.fillStyle = "rgba(234, 228, 212, 0.35)";
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   canvasB.width = 0;
   canvasB.height = 0;
