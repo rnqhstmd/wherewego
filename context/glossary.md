@@ -18,3 +18,5 @@
 | AMOU 스타일 | 핀 정보창 UI 디자인 참조 (장소명 + 메모 + 릴스 바로가기) |
 | 3D 지구본 모드 | Mapbox 줌 아웃 시 평면 지도가 구체로 전환되는 모드 |
 | 룰렛 | "오늘 어디 갈까?" 기능. 거리 범위 내 핀 중 랜덤 1곳 추천 |
+| 핀 공유 카드 (Pin Share Card) | 핀 한 건을 1080×1350(4:5) PNG 카드로 클라이언트 Canvas에서 합성하여 외부 공유(클립보드 복사 또는 파일 다운로드)에 사용하는 형식. 좌하단 "우리가갈지도" 워터마크로 브랜드 노출 (Phase 9 도입) |
+| Mapbox Static Images API | Mapbox가 제공하는 지도 PNG 정적 이미지 API (`api.mapbox.com/styles/v1/{style}/static/...`). access token + 좌표/줌으로 호출. Phase 9 카드 배경에 사용 |

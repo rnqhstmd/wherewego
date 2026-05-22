@@ -86,6 +86,13 @@ export default function SearchPanelContent({
           onChange={handleKeywordChange}
           onKeyDown={handleKeyDown}
           autoFocus
+          type="search"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          inputMode="search"
+          enterKeyHint="search"
           style={{ paddingRight: 38 }}
         />
         <button

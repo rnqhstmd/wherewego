@@ -6,6 +6,11 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { colors } from "@/lib/design/tokens";
 import {
+  getReelSvgString,
+  getWishSvgString,
+  getMemorySvgString,
+} from "@/lib/pin/markers";
+import {
   createClusterer,
   getClustersForView,
   isClusterFeature,
@@ -100,22 +105,37 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
   el.style.margin = "0";
   el.style.background = "transparent";
   el.style.border = "none";
+  el.style.borderRadius = "0";
+  el.style.boxShadow = "none";
 
-  if (tag === "PLACE") {
-    el.style.width = "18px";
-    el.style.height = "18px";
-    el.style.borderRadius = "50%";
-    el.style.background = colors.pinPlace;
-    el.style.border = "none";
-    el.style.boxShadow = `0 2px 6px ${colors.pinPlace}99`;
-  } else {
-    // MEMORY: 표준 material 하트 SVG (viewBox 24x24 정사각형으로 종횡비 보정).
-    el.style.width = "22px";
-    el.style.height = "22px";
-    el.style.borderRadius = "0";
-    el.style.background = "transparent";
-    el.style.boxShadow = "none";
-    el.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" style="display:block;filter:drop-shadow(0 2px 4px ${colors.pinMemory}AA);" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="${colors.pinMemory}"/></svg>`;
+  switch (tag) {
+    case "REEL":
+      el.style.width = "22px";
+      el.style.height = "22px";
+      el.innerHTML = getReelSvgString(22);
+      break;
+    case "WISH":
+      el.style.width = "18px";
+      el.style.height = "18px";
+      el.innerHTML = getWishSvgString(18);
+      break;
+    case "MEMORY":
+      el.style.width = "22px";
+      el.style.height = "22px";
+      // material standard 하트 viewBox 0 0 24 24 정사각이라 22x22 동일 비율로 호출.
+      el.innerHTML = getMemorySvgString(22, 22);
+      break;
+    default:
+      // M1 fallback: 알 수 없는 enum → WISH 글리프.
+      // Phase 7 사용자 확인된 안전장치 — 운영 관찰 목적
+      console.warn(
+        "[MapboxView] Unknown tag in marker, falling back to wish:",
+        tag,
+      );
+      el.style.width = "18px";
+      el.style.height = "18px";
+      el.innerHTML = getWishSvgString(18);
+      break;
   }
 }
 

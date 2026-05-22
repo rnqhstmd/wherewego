@@ -21,6 +21,8 @@ interface SpeechBubblePopupProps {
   width?: number;
   /** ⋮ 메뉴 클릭 콜백 (인라인 태그 칩 펼침 토글) */
   onMenuClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** ⋮ 버튼 좌측 sibling 영역 (Phase 9 공유 버튼 등). undefined면 ⋮ 단독 렌더. */
+  shareAction?: ReactNode;
   /** ⋮ 영역 아래 인라인 펼침 영역 (PinTag 칩 등) */
   footerContent?: ReactNode;
   /** 본문 하단 추가 children (커스텀 확장) */
@@ -56,6 +58,7 @@ export function SpeechBubblePopup({
   instagramUrl,
   width = 296,
   onMenuClick,
+  shareAction,
   footerContent,
   children,
   collapseBody = false,
@@ -225,49 +228,61 @@ export function SpeechBubblePopup({
             }}
           >
             {date}&nbsp;&nbsp;
-            <span
-              style={{
-                fontFamily: fonts.sans,
-                fontStyle: "italic",
-                color: colors.inkSoft,
-                fontWeight: 400,
-                fontSize: writtenByFontSize,
-                marginRight: 6,
-              }}
-            >
-              written by
-            </span>
-            <span
-              style={{
-                fontFamily: fonts.sans,
-                fontStyle: "normal",
-                color: colors.ink,
-                fontWeight: 600,
-              }}
-            >
-              {author}
+            {/* "written by {author}"는 한 묶음 — 좁은 모바일 화면에서 author 중간 줄바꿈 방지 */}
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span
+                style={{
+                  fontFamily: fonts.sans,
+                  fontStyle: "italic",
+                  color: colors.inkSoft,
+                  fontWeight: 400,
+                  fontSize: writtenByFontSize,
+                  marginRight: 6,
+                }}
+              >
+                written by
+              </span>
+              <span
+                style={{
+                  fontFamily: fonts.sans,
+                  fontStyle: "normal",
+                  color: colors.ink,
+                  fontWeight: 600,
+                }}
+              >
+                {author}
+              </span>
             </span>
           </div>
-          <button
-            type="button"
-            onClick={onMenuClick}
-            aria-label="더 보기"
+          <div
             style={{
-              width: menuBtnSize,
-              height: menuBtnSize,
-              borderRadius: 6,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: colors.inkSoft,
-              padding: 0,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 4,
             }}
           >
-            <IconMenuVert size={menuIconSize} color={colors.inkSoft} />
-          </button>
+            {shareAction}
+            <button
+              type="button"
+              onClick={onMenuClick}
+              aria-label="더 보기"
+              style={{
+                width: menuBtnSize,
+                height: menuBtnSize,
+                borderRadius: 6,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: colors.inkSoft,
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <IconMenuVert size={menuIconSize} color={colors.inkSoft} />
+            </button>
+          </div>
         </div>
 
         {/* 인라인 펼침 영역 (태그 칩 등) */}

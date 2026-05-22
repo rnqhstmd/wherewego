@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -15,7 +23,7 @@
 }
 
 /* Phase 6 컬러 토큰 — tokens.jsx::T 와 1:1 매칭.
-   Tailwind v4 클래스(bg-bg / text-ink / bg-pin-place 등)로 사용 가능. */
+   Tailwind v4 클래스(bg-bg / text-ink / bg-pin-reel / bg-pin-wish / bg-pin-memory 등)로 사용 가능. */
 @theme {
   --color-bg: #faf8f5;
   --color-panel: #ffffff;
@@ -24,8 +32,9 @@
   --color-map-park: #d5e5cb;
   --color-map-block: #f0ebe0;
   --color-map-road: #ffffff;
-  --color-pin-place: #7bb3e8;
-  --color-pin-memory: #f4a8b0;
+  --color-pin-reel: #7bb3e8;
+  --color-pin-wish: #f4c842;
+  --color-pin-memory: #ffb3c6;
   --color-pin-new: #e05a5a;
   --color-cta: #c4622d;
   --color-cta-hover: #a84e23;
@@ -172,4 +181,11 @@ body {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* 키보드 닫힘 후 ActionBar mount 시 fade-in. Sheet/컨테이너 transition(150ms) 종료 후 mount되어
+   합쳐서 ~250ms 안에 안정화된다. */
+@keyframes kbd-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }

@@ -90,7 +90,7 @@ public class Pin extends BaseEntity {
 
     /**
      * 인스타그램 링크 단건 결과(Single) 기반 자동 등록 핀.
-     * tag=PLACE, memoSource=null (2초 룰 메모가 도착해야 AUTO 부착).
+     * tag=REEL, memoSource=null (2초 룰 메모가 도착해야 AUTO 부착).
      */
     public static Pin autoFromInstagram(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
         String normalizedUrl = validateInstagramUrl(instagramUrl);
@@ -102,13 +102,13 @@ public class Pin extends BaseEntity {
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
                 normalizedUrl,
-                PinTag.PLACE
+                PinTag.REEL
         );
     }
 
     /**
      * 사용자가 후보 카드 중 하나를 선택한 결과 기반 등록 핀.
-     * autoFromInstagram 과 동일 구조 (tag=PLACE, memoSource=null).
+     * autoFromInstagram 과 동일 구조 (tag=REEL, memoSource=null).
      */
     public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
         String normalizedUrl = validateInstagramUrl(instagramUrl);
@@ -120,13 +120,13 @@ public class Pin extends BaseEntity {
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
                 normalizedUrl,
-                PinTag.PLACE
+                PinTag.REEL
         );
     }
 
     /**
      * 사용자가 웹/모바일에서 직접 입력(검색 선택 또는 좌표 picker)한 결과 기반 등록 핀.
-     * <p>{@link #autoFromInstagram}/{@link #fromSelection} 과 달리 {@code tag} 를 호출자가 지정한다 (PLACE | MEMORY).
+     * <p>{@link #autoFromInstagram}/{@link #fromSelection} 과 달리 {@code tag} 를 호출자가 지정한다 (WISH | MEMORY).
      * memo 는 별도로 {@link #applyManualMemo(String)} 를 호출하여 MANUAL 마킹과 함께 부착한다.</p>
      */
     public static Pin createFromUser(Long groupId,

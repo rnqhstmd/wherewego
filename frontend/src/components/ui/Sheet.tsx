@@ -53,6 +53,10 @@ export function Sheet({
         zIndex: 20,
         paddingTop: padTop,
         overflow: "hidden",
+        // 키보드 닫힘 시 컨테이너 bottom transition(150ms)과 동기 진행되어 한 프레임 점프 제거.
+        // bottomOffset(키보드 시 12, 기본 88), maxHeight 둘 다 부드럽게 전환한다.
+        transition: "bottom 150ms ease, max-height 150ms ease",
+        willChange: "bottom, max-height",
         ...(scrollable
           ? {
               maxHeight,

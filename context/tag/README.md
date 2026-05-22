@@ -42,18 +42,17 @@ PRD §3-B의 `visited` UI는 tag 도입과 함께 **제거**되었고, REEL→WI
 
 ## 현재 상태
 
-Phase 7 예정 — PLACE→REEL+WISH 분리, Expand-Contract DB 마이그레이션 + 마커 3종 신설
+Phase 7 완료 — PLACE→REEL+WISH 분리 + MEMORY 색상 갱신, V006 단일 합본 마이그레이션 + 마커 3종 신설 + 룰렛 토글 정합화
 
-## 배포 중 마이그레이션 전략 (Expand-Contract)
+## 배포 마이그레이션 전략 (V006 단일 합본)
 
-서비스가 이미 운영 중이므로 한 번에 enum을 바꾸면 CHECK 제약 위반으로 서비스 다운 위험. 3단계로 분리한다.
+~2,500핀 규모 + 1인 운영 환경에서 Expand-Contract 3단계는 과잉으로 판정되어, **단일 Flyway 트랜잭션에서 ALTER+UPDATE+ALTER를 묶음 실행**하는 단일 합본 배포로 진행했다.
 
-| 단계 | Flyway | 내용 | 코드 배포 |
-|------|--------|------|-----------|
-| **1단계 Expand** | V00X | `chk_pins_tag` CHECK에 `REEL`, `WISH` 추가 (PLACE 유지) | 기존 코드 그대로 |
-| **2단계 Migrate** | V00Y | `UPDATE pins SET tag='REEL' WHERE tag='PLACE'` 일괄 변환 | 새 코드(REEL/WISH/MEMORY) 동시 배포 |
-| **3단계 Contract** | V00Z | CHECK에서 `PLACE` 제거 (안정 확인 후 별도 배포) | 변경 없음 |
+| Flyway | 내용 | 코드 배포 |
+|--------|------|-----------|
+| **V006** | ① CHECK 일시 확장(PLACE/REEL/WISH/MEMORY) → ② `UPDATE pins SET tag='REEL' WHERE tag='PLACE'` → ③ CHECK 축소(REEL/WISH/MEMORY) | 새 코드(REEL/WISH/MEMORY) 동시 배포 |
 
-- 1·2단계 사이 롤백 가능 (`PLACE` 여전히 유효한 값)
-- 2단계 실패 시 데이터 변환 전 상태로 복구 가능
-- ~2,500핀 규모에서 V00Y 실행 시간 < 1초 예상
+- 단일 트랜잭션 — 부분 적용 위험 없음 (Postgres 17 DDL+DML 트랜잭션)
+- 배포 윈도우: 트래픽 차단 ~5~10초 (V006 실행 + 새 코드 활성화)
+- ~2,500핀 규모에서 V006 UPDATE 실행 시간 < 1초
+- 롤백 시 운영 플레이북의 down-migration SQL 실행 (REEL/WISH → PLACE 일괄 변환, **WISH 의미 손실** 경고 포함)

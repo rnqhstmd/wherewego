@@ -53,5 +53,4 @@ Thumbs.db
 # Build artifacts (additional)
 # ========================
 dist/
-.dev/
 .env.bak

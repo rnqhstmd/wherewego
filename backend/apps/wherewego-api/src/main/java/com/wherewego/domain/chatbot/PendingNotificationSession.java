@@ -15,6 +15,10 @@ import java.util.Optional;
  * {@code ChatbotWebhookService.decorate}가 응답 본문 앞에 1회 prepend 후 invalidate.</p>
  *
  * <p>key = botUserKey, value = 알림 텍스트, TTL = 7일.</p>
+ *
+ * <p>참고: {@link RecentlyAutoSavedSession}과 별도. 본 세션은 "사용자 다음 발화 시 1회 prepend"
+ * 의미 + 7일 TTL인 반면, {@link RecentlyAutoSavedSession}은 "URL 단위 RESEND-1 가드" 의미 +
+ * 10분 TTL이라 의미·TTL이 달라 통합하지 않는다.</p>
  */
 @Component
 public class PendingNotificationSession {

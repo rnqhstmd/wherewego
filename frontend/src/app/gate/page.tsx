@@ -29,6 +29,7 @@ function GatePageInner() {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [kakaoSubmitting, setKakaoSubmitting] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -120,15 +121,16 @@ function GatePageInner() {
           textAlign: "center",
         }}
       >
-        {/* Brand wordmark */}
+        {/* Brand wordmark — 작은 화면(360px대)에서 한 줄 유지를 위해 viewport 기반 축소 */}
         <div
           style={{
             fontFamily: fonts.emo,
-            fontSize: 56,
+            fontSize: "clamp(36px, 11vw, 56px)",
             fontWeight: 700,
             color: colors.ink,
             letterSpacing: -1.5,
             lineHeight: 1.05,
+            whiteSpace: "nowrap",
           }}
         >
           우리가 갈 지도
@@ -167,9 +169,9 @@ function GatePageInner() {
             alignItems: "center",
           }}
         >
-          <PinDot type="place" size={8} />
+          <PinDot type="reel" size={8} />
           <PinDot type="memory" size={11} />
-          <PinDot type="place" size={8} />
+          <PinDot type="reel" size={8} />
         </div>
 
         {error ? (
@@ -205,11 +207,13 @@ function GatePageInner() {
               pattern="[0-9]*"
               value={code}
               onChange={handleChange}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               autoFocus
               autoComplete="one-time-code"
               maxLength={6}
               disabled={pending}
-              placeholder="● ● ● ● ● ●"
+              placeholder={focused ? "" : "● ● ● ● ● ●"}
               aria-label="초대 코드"
               style={{
                 width: "100%",
@@ -295,7 +299,7 @@ function GatePageInner() {
           opacity: 0.5,
         }}
       >
-        {[colors.pinPlace, colors.pinMemory, colors.inkFaint].map((c, i) => (
+        {[colors.pinReel, colors.pinMemory, colors.inkFaint].map((c, i) => (
           <div
             key={i}
             style={{

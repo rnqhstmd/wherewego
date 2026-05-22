@@ -4,6 +4,7 @@ import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.group.GroupMemberService;
+import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -28,6 +30,7 @@ public class PlaceSelectionHandler implements MessageHandler {
     private final PinService pinService;
     private final PlaceSelectionCandidateStore placeSelectionCandidateStore;
     private final TwoSecondMemoSession twoSecondMemoSession;
+    private final NotificationService notificationService;
 
     @Override
     public MessageType supports() {
@@ -72,6 +75,12 @@ public class PlaceSelectionHandler implements MessageHandler {
                         "📌 이미 저장된 장소\n• " + result.pin().getPlaceName());
             }
             twoSecondMemoSession.put(botUserKey, result.pin().getId());
+            // Phase 8: 그룹원에게 알림 (장소 카드 선택 저장 = CHATBOT_PINS 단건 묶음)
+            try {
+                notificationService.createForChatbotBatch(groupId, userId, List.of(result.pin().getId()));
+            } catch (RuntimeException e) {
+                log.warn("notification (chatbot place-selection) failed pinId={}", result.pin().getId(), e);
+            }
             return ChatbotV1Dto.SkillResponse.simple(
                     "장소가 저장되었어요: " + result.pin().getPlaceName());
         } catch (DataIntegrityViolationException e) {

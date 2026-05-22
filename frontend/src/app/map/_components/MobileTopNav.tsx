@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { colors, fonts } from "@/lib/design/tokens";
@@ -9,6 +10,12 @@ interface MobileTopNavProps {
   myNickname?: string;
   /** 우상단 프로필 노출 여부. 데스크탑은 사이드바 하단에 프로필을 두므로 false. */
   showProfile?: boolean;
+  /**
+   * 우상단 프로필 좌측에 표시할 알림 벨 노드.
+   * MapClient가 useNotifications 결과로 <NotificationBell .../>를 만들어 prop으로 전달.
+   * MobileTopNav는 단일 인스턴스를 위해 직접 useNotifications를 호출하지 않는다.
+   */
+  notificationBell?: ReactNode;
 }
 
 /**
@@ -20,6 +27,7 @@ interface MobileTopNavProps {
  */
 export default function MobileTopNav({
   showProfile = true,
+  notificationBell,
 }: MobileTopNavProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -132,11 +140,13 @@ export default function MobileTopNav({
             </svg>
             <div
               style={{
-                fontFamily: fonts.emo,
+                // Gowun Batang(emo)은 한글 글자별 vertical metric이 균일하지 않아
+                // "지" 등이 baseline에서 시각적으로 어긋남. 부제목과 동일한 Pretendard로 통일.
+                fontFamily: fonts.sans,
                 fontSize: 17,
                 fontWeight: 700,
                 color: colors.ink,
-                letterSpacing: -0.2,
+                letterSpacing: -0.3,
                 lineHeight: 1.35,
               }}
             >
@@ -158,41 +168,50 @@ export default function MobileTopNav({
         )}
       </div>
 
-      {/* 우상단 프로필 — 모바일 전용. 데스크탑 사이드바 하단 프로필과 동일한 담백 톤. */}
+      {/* 우상단 [알림 벨][프로필] — 모바일 전용. 데스크탑 사이드바 하단 프로필과 동일한 담백 톤. */}
       {showProfile && (
-        <Link
-          href="/settings"
-          aria-label="마이페이지"
-          title="마이페이지"
+        <div
           style={{
             position: "absolute",
             top: 14,
             right: 14,
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            background: colors.bg,
-            border: `1px solid ${colors.hairline}`,
-            color: colors.inkSoft,
-            boxShadow: `0 6px 18px ${colors.shadow}`,
-            textDecoration: "none",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            gap: 10,
             zIndex: 26,
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="9" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
-            <path
-              d="M5.5 19.5c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
-        </Link>
+          {notificationBell}
+          <Link
+            href="/settings"
+            aria-label="마이페이지"
+            title="마이페이지"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              background: colors.bg,
+              border: `1px solid ${colors.hairline}`,
+              color: colors.inkSoft,
+              boxShadow: `0 6px 18px ${colors.shadow}`,
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="9" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+              <path
+                d="M5.5 19.5c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          </Link>
+        </div>
       )}
     </>
   );

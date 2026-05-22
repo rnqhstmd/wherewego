@@ -56,6 +56,11 @@ import {
   updatePinTagAction,
 } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
+import { useNotifications } from "@/lib/notifications/useNotifications";
+import { NotificationBell } from "./_components/notifications/NotificationBell";
+import { NotificationToast } from "./_components/notifications/NotificationToast";
+import { NotificationPanel } from "./_components/notifications/NotificationPanel";
+import type { NotificationPinItem } from "@/lib/notifications/types";
 
 /**
  * MapboxView는 mapbox-gl이 window 의존이므로 ssr:false로 동적 로드.
@@ -208,6 +213,61 @@ export default function MapClient({
   // 모바일 키보드 등장 시 root container 높이를 줄여 ActionBar/Sheet 가
   // 키보드 위에 정확히 정렬되도록 한다. 데스크탑(>=768px)에서는 SidePanel 경로라 무영향.
   const { keyboardHeight, keyboardOpen } = useKeyboardInsets();
+  // KBD-2 한 프레임 깜빡임 회피: 키보드 닫힘 전환은 Sheet/컨테이너 transition(150ms) 종료 후
+  // ActionBar를 mount하도록 keyboardOpen을 150ms 지연 반영한 파생값을 사용한다.
+  // open 전환은 즉시 — 키보드가 올라오자마자 ActionBar unmount하여 입력 공간 확보.
+  const [keyboardOpenForLayout, setKeyboardOpenForLayout] =
+    useState(keyboardOpen);
+  useEffect(() => {
+    if (keyboardOpen) {
+      setKeyboardOpenForLayout(true);
+      return;
+    }
+    const t = window.setTimeout(() => setKeyboardOpenForLayout(false), 150);
+    return () => window.clearTimeout(t);
+  }, [keyboardOpen]);
+
+  // Phase 8: 알림 시스템 통합. MapClient 한 곳에서만 호출하여 SSE 중복 구독을 방지한다.
+  const notifications = useNotifications();
+
+  // 동시 1개 패널 정책: 다른 액션 시트가 열리면 알림 패널을 닫는다.
+  // (역방향 — 알림 패널 열림 시 다른 시트 닫기 — 은 mobileBell/desktopBell onClick에서 처리.)
+  useEffect(() => {
+    if (activeSheet && notifications.isPanelOpen) {
+      notifications.closePanel();
+    }
+  }, [activeSheet, notifications]);
+
+  // Deep link: URL `?pinId=X` 진입 시 해당 핀 자동 선택 + flyTo. 그룹 멤버만 적용됨.
+  const deepLinkAppliedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    if (!map || optimisticPins.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const pinIdStr = params.get("pinId");
+    if (!pinIdStr) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const pinId = Number(pinIdStr);
+    if (Number.isNaN(pinId)) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const target = optimisticPins.find((p) => p.id === pinId);
+    if (!target) {
+      // 핀 없거나 다른 그룹 → 무시 (사용자 안내 없이 일반 진입)
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    setSelectedPinId(pinId);
+    map.flyTo({
+      center: [target.longitude, target.latitude],
+      zoom: 15,
+      duration: 700,
+    });
+    deepLinkAppliedRef.current = true;
+  }, [map, optimisticPins]);
 
   // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
   // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
@@ -520,7 +580,8 @@ export default function MapClient({
    * 추첨 직전 5분 캐시 정책으로 stale이면 await 재조회 (MUST-4).
    *
    * `tagsAllowed`로 풀 필터를 외부에서 제어한다. MEMORY 토글 ON 이면
-   * `["PLACE", "MEMORY"]`를, OFF 이면 `["PLACE"]`를 전달한다 (FR-REC-6).
+   * `["REEL", "WISH", "MEMORY"]`를, OFF 이면 `["REEL", "WISH"]`를 전달한다 (FR-REC-6).
+   * 호출처에서는 `computeTagsAllowed(includeMemory)` 헬퍼로 일관성을 보장한다.
    */
   const runRoulette = useCallback(
     async (center: LatLng, tagsAllowed: PinTag[]) => {
@@ -598,7 +659,7 @@ export default function MapClient({
       });
       void runRoulette(
         geoState.coords,
-        ["PLACE", "MEMORY"],
+        computeTagsAllowed(includeMemory),
       );
       return;
     }
@@ -650,7 +711,7 @@ export default function MapClient({
       if (status === "granted") {
         void runRoulette(
           geoState.coords,
-          ["PLACE", "MEMORY"],
+          computeTagsAllowed(includeMemory),
         );
       } else if (status === "denied") {
         setShowPermDialog(true);
@@ -861,6 +922,31 @@ export default function MapClient({
     resetMapPadding();
   }, [activeSheet, coordinateEditTarget, resetMapPadding]);
 
+  /**
+   * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
+   *
+   * <p>패널 자체는 `NotificationPanel` 내부에서 onSelectPin 직후 onClose로 닫힌다.
+   * 삭제된 핀(deleted=true) 또는 좌표 없음(null)이면 no-op.
+   * 클라이언트 state에 존재하는 핀이면 setSelectedPinId로 PinPopup 자동 표시 —
+   * 룰렛 "지도에서 보기" 패턴과 동일.</p>
+   */
+  const handleSelectPinFromNotification = useCallback(
+    (pin: NotificationPinItem) => {
+      if (pin.deleted || pin.latitude == null || pin.longitude == null) return;
+      if (map) {
+        map.flyTo({
+          center: [Number(pin.longitude), Number(pin.latitude)],
+          zoom: 14,
+        });
+      }
+      const exists = pins.some((p) => p.id === pin.pinId);
+      if (exists) {
+        setSelectedPinId(pin.pinId);
+      }
+    },
+    [map, pins],
+  );
+
   // 룰렛: "지도에서 보기" — flyTo + popup 자동.
   const handleShowOnMap = useCallback(
     (pin: PinSummaryResponse) => {
@@ -899,7 +985,7 @@ export default function MapClient({
       }
       void runRoulette(
         center,
-        ["PLACE", "MEMORY"],
+        computeTagsAllowed(includeMemory),
       );
       return;
     }
@@ -1035,7 +1121,7 @@ export default function MapClient({
               color: colors.ink,
             }}
           >
-            이 지도에 아직 핀이 없어요
+            현재 조건에 맞는 핀이 없어요
           </div>
           <div
             style={{
@@ -1046,7 +1132,8 @@ export default function MapClient({
               lineHeight: 1.5,
             }}
           >
-            10km 이내에 추첨할 만한 장소가 없어요.
+            10km 이내에 추첨 후보가 없어요.
+            {!includeMemory && " 추억 핀도 포함해 다시 시도해 보세요."}
           </div>
           <button
             type="button"
@@ -1161,6 +1248,7 @@ export default function MapClient({
       <MemoTagPanelContent
         origin={addPinOrigin}
         groupId={groupId}
+        mapboxToken={mapboxToken}
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
       />,
@@ -1179,6 +1267,25 @@ export default function MapClient({
       />,
     );
   }
+
+  // Phase 8: 알림 벨 — 모바일은 하단 ActionBar 4번째 탭, 데스크탑은 사이드바 하단.
+  // 클릭 시 패널 토글. 열려 있으면 닫고, 닫혀 있으면 활성 시트를 닫고 패널을 연다(동시 1개 패널 정책).
+  const handleBellClick = () => {
+    if (notifications.isPanelOpen) {
+      notifications.closePanel();
+      return;
+    }
+    setActiveSheet(null);
+    void notifications.openPanel();
+  };
+
+  const desktopBell = (
+    <NotificationBell
+      variant="desktop"
+      unreadCount={notifications.unreadCount}
+      onClick={handleBellClick}
+    />
+  );
 
   return (
     <div
@@ -1215,7 +1322,10 @@ export default function MapClient({
         }
       />
       {mapError && <MapLoadError reason={mapError} />}
-      <MobileTopNav myNickname={myNickname} showProfile={!isDesktop} />
+      <MobileTopNav
+        myNickname={myNickname}
+        showProfile={!isDesktop}
+      />
       <ClusterBanner visible={hasCluster} />
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -1233,6 +1343,9 @@ export default function MapClient({
           authorLabel={
             selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`
           }
+          mapboxToken={mapboxToken}
+          mapboxStyleUrl={mapboxStyleUrl}
+          groupPins={optimisticPins}
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
           onPlaceNameChange={handlePlaceNameChange}
@@ -1268,10 +1381,12 @@ export default function MapClient({
             geoState.status === "denied"
           }
           myNickname={myNickname}
+          notificationBell={desktopBell}
         />
-      ) : keyboardOpen ? null : (
+      ) : keyboardOpenForLayout ? null : (
         // 모바일 키보드 등장 시 ActionBar 를 unmount 하여 입력 공간을 확보한다.
-        // 키보드가 닫히면 다시 마운트되어 기본 상태(검색/추가/어디갈까?)가 복원된다.
+        // 닫힘은 keyboardOpenForLayout 으로 150ms 지연하여 Sheet/컨테이너 transition 후 mount.
+        // ActionBar 자체에 kbd-fadein 100ms animation 이 있어 자연스럽게 등장한다.
         <ActionBar
           active={activeSheetToTab(activeSheet)}
           onChange={handleTabChange}
@@ -1280,8 +1395,27 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          notificationActive={notifications.isPanelOpen}
+          notificationUnreadCount={notifications.unreadCount}
+          onNotificationClick={handleBellClick}
         />
       )}
+      {notifications.toast && (
+        <NotificationToast
+          key={notifications.toast.id}
+          payload={notifications.toast.payload}
+          onDismiss={notifications.dismissToast}
+          anchorVariant={isDesktop ? "desktop" : "mobile"}
+        />
+      )}
+      <NotificationPanel
+        items={notifications.items}
+        isOpen={notifications.isPanelOpen}
+        onClose={notifications.closePanel}
+        onSelectPin={handleSelectPinFromNotification}
+        loadDetail={notifications.loadDetail}
+        variant={isDesktop ? "desktop" : "mobile"}
+      />
       {showPermDialog && (
         <PermissionDialog
           title="위치를 알려주세요"
@@ -1331,4 +1465,19 @@ function activeSheetToTab(sheet: ActiveSheet): ActionBarTab {
   if (sheet === "roulette") return "roulette";
   // "coordinate-edit"는 액션바 비강조 (Phase 2.10 B4b): null fallback.
   return null;
+}
+
+/**
+ * 룰렛 풀 필터링을 위한 `tagsAllowed` 배열 산출 헬퍼 (Phase 7 D4 정합화).
+ *
+ * Phase 2.6 PR-A 도입 시 `runRoulette(tagsAllowed)` 시그니처는 MEMORY 토글을
+ * 받을 수 있게 설계됐지만 호출처가 `["PLACE", "MEMORY"]` 하드코딩으로 토글을
+ * 무시하던 부분 버그가 있었다. Phase 7 에서 PinTag 가 REEL/WISH/MEMORY 로
+ * 리뉴얼되면서 이 헬퍼로 호출처를 일관화한다.
+ *
+ * - includeMemory=true  → ["REEL", "WISH", "MEMORY"]
+ * - includeMemory=false → ["REEL", "WISH"]
+ */
+function computeTagsAllowed(includeMemory: boolean): PinTag[] {
+  return includeMemory ? ["REEL", "WISH", "MEMORY"] : ["REEL", "WISH"];
 }

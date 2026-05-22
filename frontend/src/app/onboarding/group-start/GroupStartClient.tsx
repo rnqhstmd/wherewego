@@ -80,7 +80,7 @@ export function GroupStartClient() {
             marginBottom: 6,
           }}
         >
-          <PinDot type="memory" size={14} />
+          <PinDot type="wish" size={14} />
           <span
             style={{
               fontFamily: fonts.emo,

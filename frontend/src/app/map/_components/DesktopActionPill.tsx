@@ -13,6 +13,8 @@ interface DesktopActionPillProps {
   rouletteDisabled?: boolean;
   /** 사이드바 하단 프로필 아바타에 노출할 닉네임 첫 글자. */
   myNickname?: string;
+  /** 하단 프로필 위에 노출할 알림 벨 (desktop variant, 36x36). */
+  notificationBell?: React.ReactNode;
 }
 
 const TABS: Array<{
@@ -38,6 +40,7 @@ export default function DesktopActionPill({
   onChange,
   rouletteDisabled = false,
   myNickname,
+  notificationBell,
 }: DesktopActionPillProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const initial = myNickname?.trim().charAt(0) ?? "";
@@ -47,7 +50,7 @@ export default function DesktopActionPill({
       style={{
         position: "absolute",
         top: 72,
-        bottom: 14,
+        // 콘텐츠(아이콘 3 + 벨 + 프로필)에 맞춰 자동 높이 — viewport 전체로 늘리지 않음.
         left: 14,
         width: 44,
         background: colors.panel,
@@ -58,7 +61,7 @@ export default function DesktopActionPill({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 6,
+        gap: 8,
         zIndex: 24,
       }}
     >
@@ -139,9 +142,24 @@ export default function DesktopActionPill({
         );
       })}
 
-      {/* 하단 프로필 — 담백한 사람 아이콘. */}
+      {/* 알림 벨 (선택) — 액션 아이콘과 동일 gap 자연 흐름. 사이드바 자동 높이라 marginTop:auto 불필요. */}
+      {notificationBell && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {notificationBell}
+        </div>
+      )}
+
+      {/* 프로필 — 액션·벨과 동일 gap으로 이어 배치 */}
       <div
-        style={{ marginTop: "auto", position: "relative" }}
+        style={{
+          position: "relative",
+        }}
         onMouseEnter={() => setHoveredId("profile")}
         onMouseLeave={() => setHoveredId(null)}
       >
