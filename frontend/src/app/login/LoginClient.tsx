@@ -97,12 +97,12 @@ export function LoginClient() {
         <div
           style={{
             fontFamily: fonts.emo,
-            fontSize: 56,
+            fontSize: "clamp(36px, 11vw, 56px)",
             fontWeight: 700,
             color: colors.ink,
             letterSpacing: -1.5,
             lineHeight: 1.05,
-            textAlign: "center",
+            whiteSpace: "nowrap",
           }}
         >
           우리가 갈 지도

@@ -88,6 +88,7 @@ export function NotificationPanel({
           bottom: 0,
           left: 0,
           right: 0,
+          minHeight: '50vh',
           maxHeight: '70vh',
           background: colors.panel,
           borderTopLeftRadius: 20,

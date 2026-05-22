@@ -26,7 +26,7 @@ const CONTENT_MAX_WIDTH = CARD_WIDTH - PADDING_X * 2; // 952
 // Mapbox Static API 사이즈 (1280 한도 내)
 const MAPBOX_API_WIDTH = 1024;
 const MAPBOX_API_HEIGHT = 1280;
-const MAPBOX_ZOOM = 13;
+const MAPBOX_ZOOM = 15;
 const MAPBOX_TIMEOUT_MS = 8000;
 
 // BR-6 폴백 단색 (warm sand)
@@ -394,11 +394,16 @@ export async function renderPinCard(
     ctxA.fillStyle = FALLBACK_BACKGROUND_COLOR;
     ctxA.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   } else {
-    // 지도 배경은 흑백으로 처리 — 우리 핀 글리프만 컬러로 남겨 시각적 대비 확보
-    ctxA.filter = "grayscale(1)";
     ctxA.drawImage(img, 0, 0, CARD_WIDTH, CARD_HEIGHT);
-    ctxA.filter = "none";
     img.src = "";
+    // canvas filter가 iOS Safari에서 불안정하므로 ImageData 픽셀 직접 조작으로 흑백 처리
+    const imageData = ctxA.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      d[i] = d[i + 1] = d[i + 2] = gray;
+    }
+    ctxA.putImageData(imageData, 0, 0);
   }
 
   // Step 4.5 — 커스텀 핀 글리프를 canvasA에 드로잉 (blur 전 적용)
