@@ -6,8 +6,6 @@ import type { NotificationToastPayload } from "@/lib/notifications/types";
 interface NotificationToastProps {
   payload: NotificationToastPayload;
   onDismiss: () => void;
-  /** 모바일은 벨(우상단) 아래, 데스크탑은 사이드바 우측 위치. 기본 mobile. */
-  anchorVariant?: "mobile" | "desktop";
 }
 
 /**
@@ -19,7 +17,6 @@ interface NotificationToastProps {
 export function NotificationToast({
   payload,
   onDismiss,
-  anchorVariant = "mobile",
 }: NotificationToastProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -43,21 +40,23 @@ export function NotificationToast({
       ? `${payload.registeredByNickname}님이 ${payload.firstPlaceName}을 저장했어요`
       : `${payload.registeredByNickname}님이 ${payload.firstPlaceName} 외 ${payload.totalPinCount - 1}곳을 저장했어요`;
 
-  const containerStyle: CSSProperties =
-    anchorVariant === "mobile"
-      ? { position: "fixed", top: 64, right: 14, zIndex: 60 }
-      : { position: "fixed", top: 80, left: 80, zIndex: 60 };
+  const containerStyle: CSSProperties = {
+    position: "fixed",
+    top: 60,
+    left: "50%",
+    transform: "translateX(-50%)",
+    whiteSpace: "nowrap",
+    zIndex: 60,
+  };
 
   const bubbleStyle: CSSProperties = {
     background: "#FFFFFF",
-    borderRadius: 12,
-    padding: "10px 14px",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+    borderRadius: 999,
+    padding: "8px 16px",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.10)",
     border: "1px solid rgba(0,0,0,0.06)",
-    fontSize: 13,
+    fontSize: 12,
     color: "#333",
-    maxWidth: 280,
-    lineHeight: 1.45,
   };
 
   return (

@@ -336,10 +336,10 @@ export async function renderPinCard(
       await document.fonts.ready;
       try {
         const results = await Promise.all([
-          document.fonts.load(`${FONT_MEMO_PX}px Pretendard`),
+          document.fonts.load(`600 ${FONT_MEMO_PX}px Pretendard`),
           document.fonts.load(`bold ${FONT_PLACE_PX}px Pretendard`),
           document.fonts.load(`${FONT_META_PX}px Pretendard`),
-          document.fonts.load(`bold ${FONT_WATERMARK_PX}px Pretendard`),
+          document.fonts.load(`600 ${FONT_WATERMARK_PX}px Pretendard`),
         ]);
         // document.fonts.load는 폰트 미등록 시 reject가 아닌 빈 배열을 resolve한다.
         // 어느 하나라도 빈 배열이면 Pretendard 미보장 → sans-serif 폴백 전환.
@@ -356,6 +356,7 @@ export async function renderPinCard(
     usePretendardFallback = true;
   }
   const fontFamily = usePretendardFallback ? "sans-serif" : "Pretendard";
+
 
   throwIfAborted(signal);
 
@@ -561,7 +562,7 @@ export async function renderPinCard(
 
   // 메모 (BR-2)
   if (input.pin.memo && input.pin.memo.length > 0) {
-    ctx.font = fontStr(`${FONT_MEMO_PX}px`, fontFamily);
+    ctx.font = fontStr(`600 ${FONT_MEMO_PX}px`, fontFamily);
     ctx.fillStyle = COLOR_MEMO;
     const memoLines = wrapAndEllipsize(
       input.pin.memo,
@@ -633,10 +634,10 @@ export async function renderPinCard(
   );
 
   // 워터마크 (좌하단 고정)
-  ctx.font = fontStr(`bold ${FONT_WATERMARK_PX}px`, fontFamily);
+  ctx.font = fontStr(`600 ${FONT_WATERMARK_PX}px`, fontFamily);
   ctx.fillStyle = COLOR_WATERMARK;
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("우리가갈지도", PADDING_X, CARD_HEIGHT - WATERMARK_BOTTOM_OFFSET);
+  ctx.fillText("우리가 갈 지도", PADDING_X, CARD_HEIGHT - WATERMARK_BOTTOM_OFFSET);
 
   throwIfAborted(signal);
 
