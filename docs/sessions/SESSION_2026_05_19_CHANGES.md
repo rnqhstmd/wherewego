@@ -143,8 +143,8 @@
 | ☐ Mapbox 커스텀 스타일 URL 공개 권한 | Mapbox Studio → Share → public |
 | ☐ Basic Auth Gate 환경변수 EC2 주입 | `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, `GATE_COOKIE_SECRET` |
 | ☐ JWT TTL 운영에도 86400/2592000 적용 | 운영 `.env` 동기화 |
-| ☐ 카카오 i 오픈빌더 URL = 운영 HTTPS | `https://wherewego.win/api/v1/chatbot/webhook` |
-| ☐ `KAKAO_REDIRECT_URI` 운영 도메인 | `https://wherewego.win/login/callback` |
+| ☐ 카카오 i 오픈빌더 URL = 운영 HTTPS | `https://{your-domain}/api/v1/chatbot/webhook` |
+| ☐ `KAKAO_REDIRECT_URI` 운영 도메인 | `https://{your-domain}/login/callback` |
 | ☐ CORS_ALLOWED_ORIGINS 운영 도메인 | 동일 |
 | ☐ WEB_SECURITY_COOKIE_SECURE | 운영은 `true` |
 

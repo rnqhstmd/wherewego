@@ -12,7 +12,7 @@
 | ID | 요구사항 | 상태 | PR/커밋 |
 |----|----------|------|---------|
 | FR-MAP-1 | Mapbox 3D 지구본 초기 렌더 | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `MapboxView` `projection: { name: "globe" }` + `setFog` + DOM Marker 인스턴스 캐시 패턴 |
-| FR-MAP-2 | 태그별 마커 시각화 (PLACE=파란 동그라미 `#7BB3E8`, MEMORY=핑크 하트 SVG `#F4A8B0`) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `renderPinDotInto` + `PinDot` 컴포넌트 |
+| FR-MAP-2 | 태그별 마커 시각화 (REEL=연보라 인스타 아이콘 `#C5B4E3`, WISH=민트 동그라미 `#A8E6CF`, MEMORY=핑크 하트 `#FFB3C6`) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) 초기 구현 → [#38](https://github.com/rnqhstmd/wherewego/pull/38) Phase 7에서 3종으로 확장. `lib/pin/markers.tsx` 공통 SVG 모듈 |
 | FR-MAP-3 | SpeechBubblePopup 정보창 (메모 + 가게명/주소 + 날짜·작성자·⋮ + 태그 변경) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `SpeechBubblePopup` + `PinPopup` 화면 좌표 계산. ⋮ 인라인 PinTag 칩 펼침, `useOptimistic`으로 즉시 마커 갱신 |
 | FR-MAP-4 | 커스텀 검색 UI + 클러스터링 (Tailwind/디자인 토큰, supercluster) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `SearchPanelContent`(debounce 300ms, 최대 5건) + `clusterer.ts` + `ClusterBanner`(localStorage 1회) |
 | FR-MAP-5 | 검색 → 태그 선택 → 핀 추가 플로우 (3클릭) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `MemoTagPanelContent` + `createPinAction` (`revalidatePath` 생략, 응답 직접 반영) |

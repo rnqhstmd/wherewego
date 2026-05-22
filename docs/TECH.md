@@ -22,18 +22,23 @@
 
 ```typescript
 colors = {
-  bg:        "#FAF8F5",  // 앱 배경
-  pinPlace:  "#7BB3E8",  // PLACE 핀 (파랑)
-  pinMemory: "#F4A8B0",  // MEMORY 핀 (핑크)
-  cta:       "#C4622D",  // 주요 CTA (오렌지)
-  kakao:     "#FEE500",  // 카카오 노랑
-  ink:       "#1A1A2E",  // 기본 텍스트
+  bg:         "#FAF8F5",  // 앱 배경
+  panel:      "#FFFFFF",  // 카드 / 패널
+  mapBg:      "#EAE4D4",  // 지도 배경
+  pinReel:    "#C5B4E3",  // REEL 핀 (발견, 연보라)
+  pinWish:    "#A8E6CF",  // WISH 핀 (설렘, 민트)
+  pinMemory:  "#FFB3C6",  // MEMORY 핀 (추억, 핑크)
+  cta:        "#C4622D",  // 주요 CTA (오렌지)
+  kakao:      "#FEE500",  // 카카오 노랑
+  ink:        "#1A1A2E",  // 기본 텍스트
+  inkSoft:    "#8B8B9E",  // 보조 텍스트
+  hairline:   "#E8E4DE",  // 구분선
 }
 
 fonts = {
-  emo:  "Gowun Batang",  // 워드마크, 헤딩 (감성)
-  sans: "Pretendard",    // 본문
-  mono: "JetBrains Mono",
+  emo:  "Gowun Batang",   // 워드마크, 헤딩 (감성)
+  sans: "Pretendard",     // 본문 (self-host)
+  mono: "JetBrains Mono", // 코드용
 }
 ```
 
@@ -82,7 +87,7 @@ backend/
 | Kakao i 오픈빌더 | 챗봇 Skill Webhook |
 | Kakao Local API | 국내 장소 좌표 검색 |
 | Google Places API | 해외 장소 검색 (Kakao 폴백) |
-| Google Gemini 2.0 Flash | 인스타 캡션 → 장소명 AI 추출 |
+| Google Gemini (`gemini-flash-latest`) | 인스타 캡션 → 장소명 AI 추출 |
 | Mapbox GL JS | 3D 지도 렌더링 |
 | Slack Webhook | 운영 알림 (에러, 비동기 처리 결과) |
 
@@ -106,8 +111,8 @@ backend/
 
 | 도메인 | 대상 | 비고 |
 |--------|------|------|
-| `wherewego.win` | Vercel (프론트엔드) | Cloudflare DNS Only |
-| `api.wherewego.win` | EC2 (백엔드) | Cloudflare Proxied (HTTPS 종단) |
+| `{your-domain}` | Vercel (프론트엔드) | Cloudflare DNS Only |
+| `api.{your-domain}` | EC2 (백엔드) | Cloudflare Proxied (HTTPS 종단) |
 
 ---
 

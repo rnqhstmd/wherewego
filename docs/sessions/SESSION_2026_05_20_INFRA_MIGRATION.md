@@ -175,7 +175,7 @@ Vercel 대시보드 → Environment Variables에서 직접 관리.
 |--------|------|
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox 공개 토큰 (번들에 포함) |
 | `NEXT_PUBLIC_MAPBOX_STYLE_URL` | Mapbox 스타일 URL |
-| `BACKEND_BASE_URL` | `https://api.wherewego.win` (서버 컴포넌트 전용) |
+| `BACKEND_BASE_URL` | `https://api.{your-domain}` (서버 컴포넌트 전용) |
 | `GATE_INVITE_CODE` | 2인 게이트 초대 코드 |
 | `GATE_COOKIE_SECRET` | 게이트 쿠키 HMAC 시크릿 |
 
@@ -202,18 +202,18 @@ Vercel 대시보드 → Environment Variables에서 직접 관리.
 
 | 도메인 | Type | Target | Proxy | 용도 |
 |--------|------|--------|-------|------|
-| `wherewego.win` | CNAME | `*.vercel-dns-017.com` | DNS Only (회색) | 프론트엔드 (Vercel) |
-| `api.wherewego.win` | A | `54.116.3.177` | Proxied (주황) | 백엔드 (EC2) |
-| `www.wherewego.win` | — | — | — | 사용 안 함 (삭제) |
+| `{your-domain}` | CNAME | `*.vercel-dns-017.com` | DNS Only (회색) | 프론트엔드 (Vercel) |
+| `api.{your-domain}` | A | `54.116.3.177` | Proxied (주황) | 백엔드 (EC2) |
+| `www.{your-domain}` | — | — | — | 사용 안 함 (삭제) |
 
 ### Proxy 설정이 다른 이유
 
-**`wherewego.win` → DNS Only**
+**`{your-domain}` → DNS Only**
 Vercel은 자체 CDN과 DDoS 보호를 가지고 있음.
 Cloudflare Proxy를 앞에 두면 이중 SSL 처리로 성능 저하 + Vercel의 봇 미티게이션 비활성화.
 Vercel "1-click fix"가 자동으로 Proxied → DNS Only로 교체하고 전용 CNAME 레코드를 추가함.
 
-**`api.wherewego.win` → Proxied**
+**`api.{your-domain}` → Proxied**
 EC2에는 자체 SSL 인증서가 없음.
 Cloudflare Proxy가 클라이언트와 HTTPS를 처리하고 EC2로는 HTTP(80)로 포워딩.
 Nginx가 Cloudflare로부터 80 포트 요청을 받아 Spring Boot(8080)로 프록시.
@@ -235,10 +235,10 @@ Spring Boot는 8080 포트로 실행 중이므로 80 → 8080 포워딩을 위�
 ```bash
 sudo apt update && sudo apt install -y nginx
 
-sudo tee /etc/nginx/sites-available/api.wherewego.win << 'EOF'
+sudo tee /etc/nginx/sites-available/api.{your-domain} << 'EOF'
 server {
     listen 80;
-    server_name api.wherewego.win;
+    server_name api.{your-domain};
 
     location / {
         proxy_pass http://localhost:8080;
@@ -250,7 +250,7 @@ server {
 }
 EOF
 
-sudo ln -s /etc/nginx/sites-available/api.wherewego.win /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/api.{your-domain} /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl start nginx
@@ -283,10 +283,10 @@ Active: active (running)
 - [ ] `.env.prod` `<기존값>` 모두 채우기
 - [ ] GitHub Secrets 추가: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `EC2_INSTANCE_ID`
 - [ ] GitHub Secrets 업데이트: `ENV_FILE` → Neon 값으로 교체
-- [ ] Vercel 환경변수 `BACKEND_BASE_URL` → `https://api.wherewego.win` 확인
+- [ ] Vercel 환경변수 `BACKEND_BASE_URL` → `https://api.{your-domain}` 확인
 - [ ] `main` 브랜치 푸시 → deploy.yml 자동 실행
-- [ ] 배포 후 `https://api.wherewego.win/actuator/health` → `{"status":"UP"}` 확인
-- [ ] `https://wherewego.win` 프론트 정상 렌더링 확인
+- [ ] 배포 후 `https://api.{your-domain}/actuator/health` → `{"status":"UP"}` 확인
+- [ ] `https://{your-domain}` 프론트 정상 렌더링 확인
 - [ ] Neon DB에 Flyway 마이그레이션 V001~V005 전체 적용 확인
 
 ---
@@ -294,12 +294,12 @@ Active: active (running)
 ## 9. 트러블슈팅 기록
 
 ### 9-1. Vercel `www` 자동 생성 문제
-루트 도메인 추가 시 Vercel이 `www.wherewego.win`을 Production으로 자동 설정.
+루트 도메인 추가 시 Vercel이 `www.{your-domain}`을 Production으로 자동 설정.
 루트 도메인이 www로 307 리다이렉트되고 www는 DNS 미설정으로 Invalid Configuration.
-→ `www.wherewego.win` 도메인 삭제 + 루트 도메인을 Production으로 직접 지정.
+→ `www.{your-domain}` 도메인 삭제 + 루트 도메인을 Production으로 직접 지정.
 
 ### 9-2. Cloudflare Proxy와 Vercel 충돌
-`wherewego.win` CNAME을 Proxied(주황)으로 설정하면 Vercel이 "Proxy Detected" 경고 표시.
+`{your-domain}` CNAME을 Proxied(주황)으로 설정하면 Vercel이 "Proxy Detected" 경고 표시.
 Vercel 자체 CDN과 Cloudflare CDN이 이중으로 동작해 성능 저하 및 봇 보호 기능 비활성화.
 → Vercel "1-click fix" 버튼으로 DNS Only(회색)로 자동 변환 + 전용 CNAME 레코드로 교체.
 
