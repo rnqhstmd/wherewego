@@ -19,6 +19,8 @@ interface PinShareSheetProps {
   pin: PinSummaryResponse;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  /** 카드 배경 지도에 함께 표시할 그룹 내 다른 핀들 (자기 핀은 자동 제외). */
+  groupPins?: PinSummaryResponse[];
   onClose: () => void;
 }
 
@@ -32,6 +34,8 @@ type InlineNotice =
   | { kind: "copy-success" }
   | { kind: "copy-failed" }
   | { kind: "save-success" }
+  | { kind: "link-copy-success" }
+  | { kind: "link-copy-failed" }
   | null;
 
 /**
@@ -48,6 +52,7 @@ export default function PinShareSheet({
   pin,
   mapboxToken,
   mapboxStyleUrl,
+  groupPins,
   onClose,
 }: PinShareSheetProps): JSX.Element {
   // BR-1: 카드의 작성자 라벨은 닉네임 null → "익명". 팝업의 라벨(`사용자 #N` 등)과 별개로 카드 표기를 위해 직접 계산.
@@ -58,6 +63,7 @@ export default function PinShareSheet({
   );
   const [notice, setNotice] = useState<InlineNotice>(null);
   const [justCopied, setJustCopied] = useState(false);
+  const [justCopiedLink, setJustCopiedLink] = useState(false);
   // mount slide-up 전환: 초기 false → 다음 프레임에서 true로 토글
   const [enter, setEnter] = useState(false);
 
@@ -110,6 +116,12 @@ export default function PinShareSheet({
             formattedDate,
             mapboxToken,
             mapboxStyleUrl,
+            groupPins: groupPins?.map((p) => ({
+              id: p.id,
+              latitude: p.latitude,
+              longitude: p.longitude,
+              tag: p.tag,
+            })),
           },
           ac.signal,
         );
@@ -228,6 +240,23 @@ export default function PinShareSheet({
     setNotice({ kind: "save-success" });
   }, []);
 
+  // 그룹 멤버용 deep link 복사 — /map?pinId=X. 비그룹 사용자는 일반 진입.
+  const handleCopyLink = useCallback(async () => {
+    const url = `${window.location.origin}/map?pinId=${pin.id}`;
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setNotice({ kind: "link-copy-failed" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setJustCopiedLink(true);
+      setNotice({ kind: "link-copy-success" });
+      window.setTimeout(() => setJustCopiedLink(false), 2000);
+    } catch {
+      setNotice({ kind: "link-copy-failed" });
+    }
+  }, [pin.id]);
+
   const isReady = phase.kind === "ready";
   const primaryBg = isReady ? colors.ink : colors.hairline;
   const primaryColor = isReady ? "#ffffff" : colors.inkSoft;
@@ -255,22 +284,27 @@ export default function PinShareSheet({
         aria-modal="true"
         aria-label="핀 공유 카드"
         style={{
+          // 화면 가운데 중앙 정렬 모달 — 모바일·데스크탑 공통.
+          // 진입 transition은 opacity + translateY 미세 슬라이드(시각 부드러움)로 보강.
           position: "fixed",
+          top: "50%",
           left: "50%",
-          bottom: 0,
           transform: enter
-            ? "translateX(-50%) translateY(0)"
-            : "translateX(-50%) translateY(100%)",
-          transition: "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
-          width: "100%",
+            ? "translate(-50%, -50%)"
+            : "translate(-50%, calc(-50% + 12px))",
+          opacity: enter ? 1 : 0,
+          transition:
+            "transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+          width: "calc(100% - 32px)",
           maxWidth: 420,
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
           background: colors.panel,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderRadius: 20,
           padding: 20,
           paddingBottom: 24,
           zIndex: 51,
-          boxShadow: "0 -8px 32px rgba(0,0,0,0.18)",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.22)",
           fontFamily: fonts.sans,
           boxSizing: "border-box",
         }}
@@ -414,7 +448,7 @@ export default function PinShareSheet({
           </div>
         </div>
 
-        {/* 두 액션 버튼 */}
+        {/* 액션 버튼 — 이미지 복사 / 이미지 저장 / 링크 복사 */}
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="button"
@@ -435,7 +469,7 @@ export default function PinShareSheet({
               fontFamily: fonts.sans,
             }}
           >
-            {justCopied ? "복사됨 ✓" : "복사하기"}
+            {justCopied ? "복사됨 ✓" : "이미지 복사"}
           </button>
           <button
             type="button"
@@ -462,6 +496,61 @@ export default function PinShareSheet({
           </button>
         </div>
 
+        {/* 링크 공유 — 그룹 멤버용 deep link 클립보드 복사 (별도 row, 두 액션과 시각 분리) */}
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          style={{
+            marginTop: 8,
+            width: "100%",
+            padding: "10px 0",
+            borderRadius: 10,
+            border: `1px solid ${colors.hairline}`,
+            background: "transparent",
+            color: colors.inkSoft,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+            fontFamily: fonts.sans,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          {justCopiedLink ? (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+          )}
+          {justCopiedLink ? "복사됨" : "링크 복사"}
+        </button>
+
         {/* 인라인 안내 */}
         {notice !== null && (
           <div
@@ -482,6 +571,10 @@ export default function PinShareSheet({
             {notice.kind === "copy-failed" &&
               "이 브라우저는 이미지 복사를 지원하지 않아요. 이미지 저장을 이용해주세요"}
             {notice.kind === "save-success" && "이미지를 저장했어요"}
+            {notice.kind === "link-copy-success" &&
+              "핀 링크가 복사되었어요. 그룹 멤버에게 보내면 바로 이 핀이 열려요"}
+            {notice.kind === "link-copy-failed" &&
+              "이 브라우저는 링크 복사를 지원하지 않아요"}
           </div>
         )}
       </div>

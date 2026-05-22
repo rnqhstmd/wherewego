@@ -238,6 +238,37 @@ export default function MapClient({
     }
   }, [activeSheet, notifications]);
 
+  // Deep link: URL `?pinId=X` 진입 시 해당 핀 자동 선택 + flyTo. 그룹 멤버만 적용됨.
+  const deepLinkAppliedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    if (!map || optimisticPins.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const pinIdStr = params.get("pinId");
+    if (!pinIdStr) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const pinId = Number(pinIdStr);
+    if (Number.isNaN(pinId)) {
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    const target = optimisticPins.find((p) => p.id === pinId);
+    if (!target) {
+      // 핀 없거나 다른 그룹 → 무시 (사용자 안내 없이 일반 진입)
+      deepLinkAppliedRef.current = true;
+      return;
+    }
+    setSelectedPinId(pinId);
+    map.flyTo({
+      center: [target.longitude, target.latitude],
+      zoom: 15,
+      duration: 700,
+    });
+    deepLinkAppliedRef.current = true;
+  }, [map, optimisticPins]);
+
   // 그룹 핀 30s polling — 다른 사용자가 등록한 신규 핀만 append.
   // append-only 정책: 본인 in-flight 액션(add/patch/remove)과의 race를 회피하고
   // 다른 사용자의 수정/삭제는 새로고침 전까지 미반영(후속 PR에서 충돌 정책과 함께 다룸).
@@ -1217,6 +1248,7 @@ export default function MapClient({
       <MemoTagPanelContent
         origin={addPinOrigin}
         groupId={groupId}
+        mapboxToken={mapboxToken}
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
       />,
@@ -1236,27 +1268,22 @@ export default function MapClient({
     );
   }
 
-  // Phase 8: 알림 벨 — 모바일은 우상단 프로필 좌측, 데스크탑은 사이드바 하단.
-  // onClick에서 활성 시트를 닫고(동시 1개 패널 정책) 알림 패널을 연다.
-  const mobileBell = (
-    <NotificationBell
-      variant="mobile"
-      unreadCount={notifications.unreadCount}
-      onClick={() => {
-        setActiveSheet(null);
-        void notifications.openPanel();
-      }}
-    />
-  );
+  // Phase 8: 알림 벨 — 모바일은 하단 ActionBar 4번째 탭, 데스크탑은 사이드바 하단.
+  // 클릭 시 패널 토글. 열려 있으면 닫고, 닫혀 있으면 활성 시트를 닫고 패널을 연다(동시 1개 패널 정책).
+  const handleBellClick = () => {
+    if (notifications.isPanelOpen) {
+      notifications.closePanel();
+      return;
+    }
+    setActiveSheet(null);
+    void notifications.openPanel();
+  };
 
   const desktopBell = (
     <NotificationBell
       variant="desktop"
       unreadCount={notifications.unreadCount}
-      onClick={() => {
-        setActiveSheet(null);
-        void notifications.openPanel();
-      }}
+      onClick={handleBellClick}
     />
   );
 
@@ -1298,7 +1325,6 @@ export default function MapClient({
       <MobileTopNav
         myNickname={myNickname}
         showProfile={!isDesktop}
-        notificationBell={!isDesktop ? mobileBell : undefined}
       />
       <ClusterBanner visible={hasCluster} />
       {pins.length === 0 && !activeSheet && (
@@ -1319,6 +1345,7 @@ export default function MapClient({
           }
           mapboxToken={mapboxToken}
           mapboxStyleUrl={mapboxStyleUrl}
+          groupPins={optimisticPins}
           onTagChange={handleTagChange}
           onMemoChange={handleMemoChange}
           onPlaceNameChange={handlePlaceNameChange}
@@ -1368,6 +1395,9 @@ export default function MapClient({
             permissionState === "denied" ||
             geoState.status === "denied"
           }
+          notificationActive={notifications.isPanelOpen}
+          notificationUnreadCount={notifications.unreadCount}
+          onNotificationClick={handleBellClick}
         />
       )}
       {notifications.toast && (

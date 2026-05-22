@@ -140,7 +140,7 @@ export default function MobileTopNav({
             </svg>
             <div
               style={{
-                // BR: Gowun Batang(emo)은 한글 글자별 vertical metric이 균일하지 않아
+                // Gowun Batang(emo)은 한글 글자별 vertical metric이 균일하지 않아
                 // "지" 등이 baseline에서 시각적으로 어긋남. 부제목과 동일한 Pretendard로 통일.
                 fontFamily: fonts.sans,
                 fontSize: 17,

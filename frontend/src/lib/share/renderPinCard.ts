@@ -7,10 +7,13 @@
 //   - isCanvasSupported            : Canvas 지원 가드 (SSR safe)
 
 import type { PinSummaryResponse } from "@/lib/api/types";
+import { extractStyleId } from "@/lib/share/mapboxStaticUrl";
+import { geoToApiPixel } from "@/lib/share/geoToPixel";
 import {
-  buildMapboxStaticUrl,
-  extractStyleId,
-} from "@/lib/share/mapboxStaticUrl";
+  getReelSvgString,
+  getWishSvgString,
+  getMemorySvgString,
+} from "@/lib/pin/markers";
 
 // 카드 픽셀 사이즈(4:5)
 const CARD_WIDTH = 1080;
@@ -23,14 +26,15 @@ const CONTENT_MAX_WIDTH = CARD_WIDTH - PADDING_X * 2; // 952
 // Mapbox Static API 사이즈 (1280 한도 내)
 const MAPBOX_API_WIDTH = 1024;
 const MAPBOX_API_HEIGHT = 1280;
-const MAPBOX_ZOOM = 14;
+const MAPBOX_ZOOM = 13;
 const MAPBOX_TIMEOUT_MS = 8000;
 
 // BR-6 폴백 단색 (warm sand)
 const FALLBACK_BACKGROUND_COLOR = "#EAE4D4";
 
-// 콘텐츠 시작 y좌표(설계 §"자연 흐름 배치" 메모 시작)
-const CONTENT_START_Y = 400;
+// 콘텐츠 시작 y좌표 — 메모가 카드 세로 중앙에 가깝게 위치하도록 540 설정.
+// (CARD_HEIGHT 1350 기준 ~40% 지점, 워터마크 영역 제외 시 시각 중앙)
+const CONTENT_START_Y = 540;
 
 // 색상 토큰
 const COLOR_MEMO = "rgba(26, 26, 46, 0.95)";
@@ -39,13 +43,13 @@ const COLOR_META = "rgba(26, 26, 46, 0.6)";
 const COLOR_WATERMARK = "rgba(26, 26, 46, 0.55)";
 
 // 폰트 사이즈
-const FONT_MEMO_PX = 44;
+const FONT_MEMO_PX = 60;
 const FONT_PLACE_PX = 36;
 const FONT_META_PX = 22;
 const FONT_WATERMARK_PX = 24;
 
 // 줄 높이
-const LINE_HEIGHT_MEMO = 62; // 44 * 1.4 ≈ 61.6
+const LINE_HEIGHT_MEMO = 84; // 60 * 1.4 = 84
 const LINE_HEIGHT_PLACE = 43; // 36 * 1.2 ≈ 43.2
 const LINE_HEIGHT_META = 28;
 
@@ -57,6 +61,23 @@ const GAP_AFTER_DATE = 8;
 // 워터마크 위치
 const WATERMARK_BOTTOM_OFFSET = 64;
 
+// Step 4.5: 커스텀 핀 글리프 사이즈 상수
+const GLYPH_SIZE_OTHER = 24; // 그룹 핀 아이콘 px
+const GLYPH_SIZE_SELF  = 40; // 자기 핀 아이콘 px
+const BG_RADIUS_OTHER  = 16; // 그룹 핀 흰 원 배경 반지름 px
+const BG_RADIUS_SELF   = 24; // 자기 핀 흰 원 배경 반지름 px
+// API 응답(1024×1280) → 카드 캔버스(1080×1350) 좌표 변환 비율
+const SCALE_X = CARD_WIDTH  / MAPBOX_API_WIDTH;
+const SCALE_Y = CARD_HEIGHT / MAPBOX_API_HEIGHT;
+
+/** 카드 배경 지도에 함께 표시할 다른 핀 마커 정보 (자기 핀 제외). 자기 핀은 중앙에 자동 표시. */
+export interface CardGroupPinMarker {
+  id: number;
+  latitude: number;
+  longitude: number;
+  tag: "REEL" | "WISH" | "MEMORY";
+}
+
 export interface RenderPinCardInput {
   pin: PinSummaryResponse;
   /** BR-1: 호출처가 미리 처리한 표시명 ("익명" 포함) */
@@ -65,11 +86,38 @@ export interface RenderPinCardInput {
   formattedDate: string;
   mapboxToken: string;
   mapboxStyleUrl: string | null;
+  /** 카드 배경 지도에 함께 표시할 그룹 내 다른 핀들. 자기 핀은 자동 제외됨. */
+  groupPins?: CardGroupPinMarker[];
 }
 
 export interface RenderPinCardResult {
   blob: Blob;
   previewDataUrl: string;
+}
+
+type PinTag = "REEL" | "WISH" | "MEMORY";
+
+/** Mapbox Static 서버사이드 프록시 URL 생성. CORS·토큰 노출 방지. */
+function buildProxyUrl(
+  lat: number,
+  lng: number,
+  styleId: string,
+): string {
+  return (
+    `/api/mapbox-static` +
+    `?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}` +
+    `&zoom=${MAPBOX_ZOOM}&w=${MAPBOX_API_WIDTH}&h=${MAPBOX_API_HEIGHT}` +
+    `&styleId=${encodeURIComponent(styleId)}`
+  );
+}
+
+function loadSvgImage(svgStr: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => resolve(null);
+    el.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+  });
 }
 
 /** SSR safe — top-level에서 document 접근하지 않는다. */
@@ -102,7 +150,6 @@ function loadImageWithTimeout(
 ): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
     const img = new Image();
-    img.crossOrigin = "anonymous"; // QE-2
 
     let settled = false;
     const settle = (result: HTMLImageElement | null, reason: string | null) => {
@@ -312,22 +359,26 @@ export async function renderPinCard(
 
   throwIfAborted(signal);
 
-  // Step 3 — Mapbox Static 이미지 로드
-  const staticUrl = buildMapboxStaticUrl({
-    lat: input.pin.latitude,
-    lng: input.pin.longitude,
-    width: MAPBOX_API_WIDTH,
-    height: MAPBOX_API_HEIGHT,
-    zoom: MAPBOX_ZOOM,
-    token: input.mapboxToken,
-    styleId: extractStyleId(input.mapboxStyleUrl),
-  });
-  const img = await loadImageWithTimeout(
-    staticUrl,
+  // Step 3 — Mapbox Static 이미지 로드 (서버사이드 프록시 경유 — CORS 완전 회피)
+  // 1차: 앱 커스텀 스타일. GL JS v3 전용 스타일은 Static API에서 렌더 실패할 수 있으므로
+  // 실패 시 light-v11로 자동 재시도해 베이지 단색 폴백을 피한다.
+  const { latitude: pinLat, longitude: pinLng } = input.pin;
+  // streets-v12: 도로·수계·지형이 뚜렷해 grayscale 후에도 지도 형태가 보임.
+  // 실패 시 light-v11로 재시도. 두 스타일 모두 Static Images API 호환.
+  let img = await loadImageWithTimeout(
+    buildProxyUrl(pinLat, pinLng, "mapbox/streets-v12"),
     MAPBOX_TIMEOUT_MS,
     signal,
     input.pin.id,
   );
+  if (img === null) {
+    img = await loadImageWithTimeout(
+      buildProxyUrl(pinLat, pinLng, "mapbox/light-v11"),
+      MAPBOX_TIMEOUT_MS,
+      signal,
+      input.pin.id,
+    );
+  }
 
   throwIfAborted(signal);
 
@@ -343,12 +394,102 @@ export async function renderPinCard(
     ctxA.fillStyle = FALLBACK_BACKGROUND_COLOR;
     ctxA.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   } else {
+    // 지도 배경은 흑백으로 처리 — 우리 핀 글리프만 컬러로 남겨 시각적 대비 확보
+    ctxA.filter = "grayscale(1)";
     ctxA.drawImage(img, 0, 0, CARD_WIDTH, CARD_HEIGHT);
-    // 참조 제거(MUST-ADDRESS #2)
+    ctxA.filter = "none";
     img.src = "";
   }
 
-  // Step 5 — Off-canvas B에 blur(8px) 합성
+  // Step 4.5 — 커스텀 핀 글리프를 canvasA에 드로잉 (blur 전 적용)
+  // API 실패(img === null)이면 단색 폴백 유지 — 핀 드로잉 skip
+  if (img !== null) {
+    // tag별 SVG Image 캐시 — 그룹 핀용(GLYPH_SIZE_OTHER) + 자기 핀용(GLYPH_SIZE_SELF)
+    const [otherImgResults, selfImgResults] = await Promise.all([
+      Promise.allSettled([
+        loadSvgImage(getReelSvgString(GLYPH_SIZE_OTHER)),
+        loadSvgImage(getWishSvgString(GLYPH_SIZE_OTHER)),
+        loadSvgImage(getMemorySvgString(GLYPH_SIZE_OTHER, GLYPH_SIZE_OTHER)),
+      ]),
+      Promise.allSettled([
+        loadSvgImage(getReelSvgString(GLYPH_SIZE_SELF)),
+        loadSvgImage(getWishSvgString(GLYPH_SIZE_SELF)),
+        loadSvgImage(getMemorySvgString(GLYPH_SIZE_SELF, GLYPH_SIZE_SELF)),
+      ]),
+    ]);
+
+    throwIfAborted(signal);
+
+    const TAGS: PinTag[] = ["REEL", "WISH", "MEMORY"];
+    const otherGlyphMap: Partial<Record<PinTag, HTMLImageElement>> = {};
+    const selfGlyphMap:  Partial<Record<PinTag, HTMLImageElement>> = {};
+    TAGS.forEach((tag, i) => {
+      const or = otherImgResults[i];
+      if (or.status === "fulfilled" && or.value) otherGlyphMap[tag] = or.value;
+      const sr = selfImgResults[i];
+      if (sr.status === "fulfilled" && sr.value) selfGlyphMap[tag] = sr.value;
+    });
+
+    const centerLat = input.pin.latitude;
+    const centerLng = input.pin.longitude;
+
+    // 그룹 핀 드로잉 (최대 16개 — 시각 혼잡 방지)
+    const groupPinsToRender = (input.groupPins ?? [])
+      .filter((p) => p.id !== input.pin.id)
+      .slice(0, 16);
+
+    for (const gp of groupPinsToRender) {
+      if (Math.abs(gp.longitude - centerLng) > 180) continue; // antimeridian skip
+
+      const { x: apiX, y: apiY } = geoToApiPixel(
+        gp.latitude, gp.longitude,
+        centerLat, centerLng,
+        MAPBOX_ZOOM, MAPBOX_API_WIDTH, MAPBOX_API_HEIGHT,
+      );
+      const cx = apiX * SCALE_X;
+      const cy = apiY * SCALE_Y;
+
+      if (cx < -60 || cx > CARD_WIDTH + 60 || cy < -60 || cy > CARD_HEIGHT + 60) continue;
+
+      ctxA.beginPath();
+      ctxA.arc(cx, cy, BG_RADIUS_OTHER, 0, 2 * Math.PI);
+      ctxA.fillStyle = "rgba(255,255,255,0.85)";
+      ctxA.fill();
+
+      const glyphImg = otherGlyphMap[gp.tag as PinTag];
+      if (glyphImg) {
+        ctxA.drawImage(
+          glyphImg,
+          cx - GLYPH_SIZE_OTHER / 2, cy - GLYPH_SIZE_OTHER / 2,
+          GLYPH_SIZE_OTHER, GLYPH_SIZE_OTHER,
+        );
+      }
+    }
+
+    // 자기 핀 드로잉 — 최상위 레이어 (canvasA 마지막)
+    // self pin은 항상 center이므로 카드 중앙 좌표로 직접 계산
+    {
+      const cx = CARD_WIDTH / 2;
+      const cy = CARD_HEIGHT / 2;
+
+      ctxA.beginPath();
+      ctxA.arc(cx, cy, BG_RADIUS_SELF, 0, 2 * Math.PI);
+      ctxA.fillStyle = "rgba(255,255,255,0.95)";
+      ctxA.fill();
+
+      const selfTag = input.pin.tag as PinTag;
+      const selfGlyph = selfGlyphMap[selfTag];
+      if (selfGlyph) {
+        ctxA.drawImage(
+          selfGlyph,
+          cx - GLYPH_SIZE_SELF / 2, cy - GLYPH_SIZE_SELF / 2,
+          GLYPH_SIZE_SELF, GLYPH_SIZE_SELF,
+        );
+      }
+    }
+  }
+
+  // Step 5 — Off-canvas B에 blur(4px) 합성 — 동네 식별 가능 수준의 약한 흐림
   const canvasB = document.createElement("canvas");
   canvasB.width = CARD_WIDTH;
   canvasB.height = CARD_HEIGHT;
@@ -356,7 +497,7 @@ export async function renderPinCard(
   if (!ctxB) {
     throw new Error("CANVAS_UNSUPPORTED");
   }
-  ctxB.filter = "blur(8px)";
+  ctxB.filter = "blur(2px)";
   ctxB.drawImage(canvasA, 0, 0);
   ctxB.filter = "none";
   // A 메모리 즉시 해제
@@ -372,10 +513,41 @@ export async function renderPinCard(
     throw new Error("CANVAS_UNSUPPORTED");
   }
   ctx.drawImage(canvasB, 0, 0);
+  // 콘텐츠 가독성 확보용 따뜻한 베이지 톤 overlay (40%). 도로·건물 음영은 살짝 비치도록.
+  ctx.fillStyle = "rgba(234, 228, 212, 0.35)";
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   canvasB.width = 0;
   canvasB.height = 0;
 
   throwIfAborted(signal);
+
+  // Step 7-0 — 태그 글리프 Image 로드 (장소명 좌측에 작은 글리프로 합성). 실패 시 skip.
+  const TAG_GLYPH_SIZE = 28;
+  let tagGlyphImg: HTMLImageElement | null = null;
+  let tagGlyphSvgUrl: string | null = null;
+  {
+    const tag = input.pin.tag;
+    let glyphSvg = "";
+    if (tag === "REEL") glyphSvg = getReelSvgString(TAG_GLYPH_SIZE);
+    else if (tag === "WISH") glyphSvg = getWishSvgString(TAG_GLYPH_SIZE);
+    else if (tag === "MEMORY")
+      glyphSvg = getMemorySvgString(TAG_GLYPH_SIZE, TAG_GLYPH_SIZE);
+    if (glyphSvg) {
+      const svgBlob = new Blob([glyphSvg], { type: "image/svg+xml" });
+      tagGlyphSvgUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.src = tagGlyphSvgUrl;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject();
+        });
+        tagGlyphImg = img;
+      } catch {
+        // 로드 실패 → 글리프 없이 카드 진행
+      }
+    }
+  }
 
   // Step 7 — 콘텐츠 텍스트 그리기 (FR-6, BR-1/2/3/4/9)
   ctx.textBaseline = "alphabetic";
@@ -398,18 +570,37 @@ export async function renderPinCard(
     cursorY += memoLines.length * LINE_HEIGHT_MEMO + GAP_AFTER_MEMO;
   }
 
-  // 장소명 (BR-3)
+  // 장소명 (BR-3) — 첫 줄 좌측에 핀 태그 글리프(28×28) 합성. 라벨 없이 글리프만.
   ctx.font = fontStr(`bold ${FONT_PLACE_PX}px`, fontFamily);
   ctx.fillStyle = COLOR_PLACE_NAME;
+  const GLYPH_TEXT_GAP = 10;
+  const placeFirstLineX =
+    PADDING_X + (tagGlyphImg ? TAG_GLYPH_SIZE + GLYPH_TEXT_GAP : 0);
+  const placeMaxWidthFirstLine = tagGlyphImg
+    ? CONTENT_MAX_WIDTH - TAG_GLYPH_SIZE - GLYPH_TEXT_GAP
+    : CONTENT_MAX_WIDTH;
   const placeLines = wrapAndEllipsize(
     input.pin.placeName,
-    CONTENT_MAX_WIDTH,
+    placeMaxWidthFirstLine,
     2,
     (s) => ctx.measureText(s).width,
   );
   placeLines.forEach((line, idx) => {
-    ctx.fillText(line, PADDING_X, cursorY + (idx + 1) * LINE_HEIGHT_PLACE);
+    const lineX = idx === 0 ? placeFirstLineX : PADDING_X;
+    ctx.fillText(line, lineX, cursorY + (idx + 1) * LINE_HEIGHT_PLACE);
   });
+  // 글리프는 장소명 첫 줄과 시각 중앙 정렬 (cap height 중앙 ≈ baseline - 13)
+  if (tagGlyphImg) {
+    const firstBaseline = cursorY + LINE_HEIGHT_PLACE;
+    const glyphY = firstBaseline - 13 - TAG_GLYPH_SIZE / 2;
+    ctx.drawImage(
+      tagGlyphImg,
+      PADDING_X,
+      glyphY,
+      TAG_GLYPH_SIZE,
+      TAG_GLYPH_SIZE,
+    );
+  }
   cursorY += placeLines.length * LINE_HEIGHT_PLACE + GAP_AFTER_PLACE;
 
   // 날짜 · 주소 (BR-9)
@@ -457,6 +648,11 @@ export async function renderPinCard(
   // 메인 캔버스 메모리 즉시 해제
   main.width = 0;
   main.height = 0;
+  // 태그 글리프 SVG URL 해제 (Step 7-0에서 생성한 Blob URL)
+  if (tagGlyphSvgUrl) {
+    URL.revokeObjectURL(tagGlyphSvgUrl);
+    if (tagGlyphImg) tagGlyphImg.src = "";
+  }
 
   const previewDataUrl = URL.createObjectURL(blob);
   return { blob, previewDataUrl };

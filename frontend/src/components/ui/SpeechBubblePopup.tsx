@@ -228,27 +228,30 @@ export function SpeechBubblePopup({
             }}
           >
             {date}&nbsp;&nbsp;
-            <span
-              style={{
-                fontFamily: fonts.sans,
-                fontStyle: "italic",
-                color: colors.inkSoft,
-                fontWeight: 400,
-                fontSize: writtenByFontSize,
-                marginRight: 6,
-              }}
-            >
-              written by
-            </span>
-            <span
-              style={{
-                fontFamily: fonts.sans,
-                fontStyle: "normal",
-                color: colors.ink,
-                fontWeight: 600,
-              }}
-            >
-              {author}
+            {/* "written by {author}"는 한 묶음 — 좁은 모바일 화면에서 author 중간 줄바꿈 방지 */}
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span
+                style={{
+                  fontFamily: fonts.sans,
+                  fontStyle: "italic",
+                  color: colors.inkSoft,
+                  fontWeight: 400,
+                  fontSize: writtenByFontSize,
+                  marginRight: 6,
+                }}
+              >
+                written by
+              </span>
+              <span
+                style={{
+                  fontFamily: fonts.sans,
+                  fontStyle: "normal",
+                  color: colors.ink,
+                  fontWeight: 600,
+                }}
+              >
+                {author}
+              </span>
             </span>
           </div>
           <div

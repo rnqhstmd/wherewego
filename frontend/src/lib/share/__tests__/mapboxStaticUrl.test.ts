@@ -17,27 +17,33 @@ describe("extractStyleId (Phase 9)", () => {
     );
   });
 
-  it("null 입력은 mapbox/streets-v12 폴백", () => {
-    expect(extractStyleId(null)).toBe("mapbox/streets-v12");
+  it("null 입력은 mapbox/light-v11 폴백", () => {
+    expect(extractStyleId(null)).toBe("mapbox/light-v11");
   });
 
-  it("undefined 입력은 mapbox/streets-v12 폴백", () => {
-    expect(extractStyleId(undefined)).toBe("mapbox/streets-v12");
+  it("undefined 입력은 mapbox/light-v11 폴백", () => {
+    expect(extractStyleId(undefined)).toBe("mapbox/light-v11");
   });
 
   it("빈 문자열은 폴백", () => {
-    expect(extractStyleId("")).toBe("mapbox/streets-v12");
+    expect(extractStyleId("")).toBe("mapbox/light-v11");
   });
 
   it("https 같은 잘못된 스킴은 폴백", () => {
     expect(extractStyleId("https://example.com/foo/bar")).toBe(
-      "mapbox/streets-v12",
+      "mapbox/light-v11",
     );
   });
 
   it("mapbox://styles/ 뒤 슬래시 누락은 폴백", () => {
     expect(extractStyleId("mapbox://styles/onlyuser")).toBe(
-      "mapbox/streets-v12",
+      "mapbox/light-v11",
+    );
+  });
+
+  it("mapbox/standard는 Static API 미지원이므로 light-v11 폴백", () => {
+    expect(extractStyleId("mapbox://styles/mapbox/standard")).toBe(
+      "mapbox/light-v11",
     );
   });
 });
@@ -53,7 +59,7 @@ describe("buildMapboxStaticUrl (Phase 9)", () => {
       token: "pk.testtoken",
     });
     expect(url).toBe(
-      "https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/126.978000,37.566500,14,0/1024x1280?access_token=pk.testtoken",
+      "https://api.mapbox.com/styles/v1/mapbox/light-v11/static/126.978000,37.566500,14,0/1024x1280?access_token=pk.testtoken",
     );
   });
 
@@ -80,7 +86,7 @@ describe("buildMapboxStaticUrl (Phase 9)", () => {
       token: "tk",
       styleId: null,
     });
-    expect(url).toContain("/styles/v1/mapbox/streets-v12/static/");
+    expect(url).toContain("/styles/v1/mapbox/light-v11/static/");
   });
 
   it("styleId가 undefined이면 기본 스타일로 폴백한다", () => {
@@ -92,7 +98,7 @@ describe("buildMapboxStaticUrl (Phase 9)", () => {
       zoom: 1,
       token: "tk",
     });
-    expect(url).toContain("/styles/v1/mapbox/streets-v12/static/");
+    expect(url).toContain("/styles/v1/mapbox/light-v11/static/");
   });
 
   it("좌표는 toFixed(6) 으로 자릿수가 안정화된다", () => {
