@@ -7,10 +7,7 @@
 //   - isCanvasSupported            : Canvas 지원 가드 (SSR safe)
 
 import type { PinSummaryResponse } from "@/lib/api/types";
-import {
-  buildMapboxStaticUrl,
-  extractStyleId,
-} from "@/lib/share/mapboxStaticUrl";
+import { extractStyleId } from "@/lib/share/mapboxStaticUrl";
 import { geoToApiPixel } from "@/lib/share/geoToPixel";
 import {
   getReelSvgString,
@@ -100,6 +97,20 @@ export interface RenderPinCardResult {
 
 type PinTag = "REEL" | "WISH" | "MEMORY";
 
+/** Mapbox Static 서버사이드 프록시 URL 생성. CORS·토큰 노출 방지. */
+function buildProxyUrl(
+  lat: number,
+  lng: number,
+  styleId: string,
+): string {
+  return (
+    `/api/mapbox-static` +
+    `?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}` +
+    `&zoom=${MAPBOX_ZOOM}&w=${MAPBOX_API_WIDTH}&h=${MAPBOX_API_HEIGHT}` +
+    `&styleId=${encodeURIComponent(styleId)}`
+  );
+}
+
 function loadSvgImage(svgStr: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const el = new Image();
@@ -139,7 +150,6 @@ function loadImageWithTimeout(
 ): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
     const img = new Image();
-    img.crossOrigin = "anonymous"; // QE-2
 
     let settled = false;
     const settle = (result: HTMLImageElement | null, reason: string | null) => {
@@ -349,26 +359,19 @@ export async function renderPinCard(
 
   throwIfAborted(signal);
 
-  // Step 3 — Mapbox Static 이미지 로드
-  // 커스텀 Studio 스타일은 GL JS v3 기반이면 Static API에서 렌더링 실패할 수 있다.
-  // 1차 시도: 앱 styleUrl. 실패 시 light-v11로 재시도해 베이지 단색 폴백을 피한다.
-  const baseStaticParams = {
-    lat: input.pin.latitude,
-    lng: input.pin.longitude,
-    width: MAPBOX_API_WIDTH,
-    height: MAPBOX_API_HEIGHT,
-    zoom: MAPBOX_ZOOM,
-    token: input.mapboxToken,
-  };
+  // Step 3 — Mapbox Static 이미지 로드 (서버사이드 프록시 경유 — CORS 완전 회피)
+  // 1차: 앱 커스텀 스타일. GL JS v3 전용 스타일은 Static API에서 렌더 실패할 수 있으므로
+  // 실패 시 light-v11로 자동 재시도해 베이지 단색 폴백을 피한다.
+  const { latitude: pinLat, longitude: pinLng } = input.pin;
   let img = await loadImageWithTimeout(
-    buildMapboxStaticUrl({ ...baseStaticParams, styleId: extractStyleId(input.mapboxStyleUrl) }),
+    buildProxyUrl(pinLat, pinLng, extractStyleId(input.mapboxStyleUrl)),
     MAPBOX_TIMEOUT_MS,
     signal,
     input.pin.id,
   );
   if (img === null) {
     img = await loadImageWithTimeout(
-      buildMapboxStaticUrl({ ...baseStaticParams, styleId: "mapbox/light-v11" }),
+      buildProxyUrl(pinLat, pinLng, "mapbox/light-v11"),
       MAPBOX_TIMEOUT_MS,
       signal,
       input.pin.id,
