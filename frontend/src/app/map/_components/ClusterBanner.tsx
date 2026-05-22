@@ -17,7 +17,7 @@ import { colors, fonts } from "@/lib/design/tokens";
  */
 
 const STORAGE_KEY = "map.clusterBannerShown";
-const AUTO_DISMISS_MS = 3000;
+const AUTO_DISMISS_MS = 2000;
 
 interface ClusterBannerProps {
   /** 현재 viewport에 클러스터가 1개 이상 존재하는지. */
@@ -81,47 +81,25 @@ export default function ClusterBanner({ visible }: ClusterBannerProps) {
       style={{
         position: "absolute",
         top: 60,
-        left: 16,
-        right: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        whiteSpace: "nowrap",
         background: colors.panel,
-        padding: "10px 14px",
-        borderRadius: 12,
+        padding: "8px 16px",
+        borderRadius: 999,
         border: `1px solid ${colors.hairline}`,
-        boxShadow: `0 2px 8px ${colors.shadow}`,
+        boxShadow: `0 2px 10px ${colors.shadow}`,
         fontFamily: fonts.sans,
         fontSize: 12,
-        color: colors.inkSoft,
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
+        color: colors.ink,
         zIndex: 25,
       }}
     >
-      <div
-        aria-hidden
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: "50%",
-          background: colors.cta,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 11,
-          flexShrink: 0,
-        }}
-      >
-        3
-      </div>
-      <span style={{ flex: 1, color: colors.ink }}>
-        가까운 핀이 묶여있어요.{" "}
-        <span style={{ color: colors.cta, fontWeight: 600 }}>
-          탭하거나 확대하면
-        </span>{" "}
-        펼쳐져요
-      </span>
+      가까운 핀이 묶여있어요.{" "}
+      <span style={{ color: colors.cta, fontWeight: 600 }}>
+        탭하거나 확대하면
+      </span>{" "}
+      펼쳐져요
     </div>
   );
 }
