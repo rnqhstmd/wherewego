@@ -216,7 +216,9 @@ public class InstagramLinkHandler implements MessageHandler {
         }
         return "📝 이 링크와 함께 저장할 메모를 보내주세요.\n"
                 + "메모 없이 저장하려면 아래 버튼을 눌러주세요.\n"
-                + "(1분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)";
+                + "(1분 내에 메모를 보내지 않으시면 자동으로 메모 없이 저장돼요)\n\n"
+                + "⏳ 저장 처리는 30초~1분 소요될 수 있어요.\n"
+                + "결과 메시지가 바로 오지 않으면 잠시 후 아무 메시지나 보내주세요.";
     }
 
     /** 안내 응답 하단 빠른답장 — 1개. 라벨에 ❌ 이모티콘, 전송값은 "메모 없이 저장" 정확 매칭용. */
@@ -326,14 +328,22 @@ public class InstagramLinkHandler implements MessageHandler {
                         asyncCtx.setUserId(userId);
                         ChatbotV1Dto.SkillResponse result = runParseAndCandidates(
                                 parser, botUserKey, userId, groupId, instagramUrl, memo, asyncCtx);
+                        String bodyText = extractSimpleText(result);
                         // 정상 메모 흐름의 RESEND-1 가드 적재 (push 직전). body는 prefix-free.
-                        recentlyAutoSavedSession.put(botUserKey, instagramUrl, extractSimpleText(result));
-                        kakaoCallbackClient.push(callbackUrl, result);
+                        recentlyAutoSavedSession.put(botUserKey, instagramUrl, bodyText);
+                        // 카카오 1001 타임아웃으로 callbackUrl이 만료된 경우 push가 실패함.
+                        // 실패 시 pendingNotificationSession에 저장해 다음 발화 시 prepend로 전달.
+                        boolean pushed = kakaoCallbackClient.push(callbackUrl, result);
+                        if (!pushed && bodyText != null && !bodyText.isBlank()) {
+                            pendingNotificationSession.put(botUserKey, "📋 이전 링크 처리 결과\n" + bodyText);
+                        }
                     } catch (RuntimeException e) {
                         log.error("Async candidates processing failed url={} cause={}",
                                 instagramUrl, e.getMessage(), e);
                         kakaoCallbackClient.pushText(callbackUrl,
                                 "장소 처리 중 오류가 발생했어요. 다시 시도해 주세요.");
+                        pendingNotificationSession.put(botUserKey,
+                                "❗ 이전 링크 처리 중 오류가 발생했어요. 링크를 다시 보내주세요.");
                     }
                 });
                 return ChatbotV1Dto.SkillResponse.useCallback(

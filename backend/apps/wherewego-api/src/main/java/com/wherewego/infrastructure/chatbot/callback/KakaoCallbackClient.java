@@ -70,14 +70,14 @@ public class KakaoCallbackClient {
      * callbackUrl로 SkillResponse JSON POST. 실패 시 예외를 던지지 않고 swallow + warn 로그.
      * 호출자는 메서드 반환 후에도 자체 후처리 (Slack 알림 등)를 수행할 책임이 있다.
      */
-    public void push(String callbackUrl, ChatbotV1Dto.SkillResponse payload) {
+    public boolean push(String callbackUrl, ChatbotV1Dto.SkillResponse payload) {
         if (callbackUrl == null || callbackUrl.isBlank()) {
             log.warn("kakao callback push skipped: callbackUrl is blank");
-            return;
+            return false;
         }
         if (strictHostCheck && !isAllowedCallbackUrl(callbackUrl)) {
             log.warn("kakao callback push skipped: disallowed url scheme or host");
-            return;
+            return false;
         }
         long start = System.currentTimeMillis();
         String outcome = OUTCOME_ERROR;
@@ -90,12 +90,14 @@ public class KakaoCallbackClient {
                     .toBodilessEntity();
             log.debug("kakao callback push ok host={}", safeHost(callbackUrl));
             outcome = OUTCOME_SUCCESS;
+            return true;
         } catch (RestClientException e) {
             log.warn("kakao callback push failed cause={}", e.getMessage());
             slackNotifier.notifyFailure("카카오 콜백 푸시 실패", Map.of(
                     "host", safeHost(callbackUrl),
                     "cause", e.getMessage() == null ? "unknown" : e.getMessage()
             ));
+            return false;
         } finally {
             long elapsed = System.currentTimeMillis() - start;
             log.info("api={} op={} duration_ms={} outcome={} cache={}",
