@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useOptimistic,
   useRef,
   useState,
@@ -148,6 +149,12 @@ export default function MapClient({
   mapboxStyleUrl,
   myNickname,
 }: MapClientProps) {
+  // 딥링크(?pinId=X) 진입 시 초기 geolocation flyTo를 건너뜀 — 핀 줌인 유지.
+  const skipInitialGeoFly = useMemo(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pinId"),
+    [],
+  );
+
   const [pins, setPins] = useState<PinSummaryResponse[]>(initialPins);
   // MUST-5: 태그/메모 등 부분 갱신을 마커/팝업에 즉시 반영하기 위한 useOptimistic.
   // Phase 2.8: reducer 를 `patch | remove` 액션으로 일반화하여 삭제 흐름(FR-7)도 포괄.
@@ -1324,6 +1331,7 @@ export default function MapClient({
               }
             : null
         }
+        skipInitialGeoFly={skipInitialGeoFly}
       />
       {mapError && <MapLoadError reason={mapError} />}
       <MobileTopNav

@@ -38,6 +38,11 @@ interface MapboxViewProps {
    * null 이면 마커 비표시. cta(rust) 색상으로 일반 핀과 시각적으로 구분된다.
    */
   previewMarker?: { lat: number; lng: number } | null;
+  /**
+   * true 이면 초기 지도 로드 시 현재 위치로 flyTo 하지 않는다.
+   * 딥링크(?pinId=X) 진입 시 핀 위치 줌인이 geolocation에 의해 덮어쓰이는 것을 방지.
+   */
+  skipInitialGeoFly?: boolean;
 }
 
 /**
@@ -195,6 +200,7 @@ export default function MapboxView({
   onClustersChange,
   onMapError,
   previewMarker,
+  skipInitialGeoFly = false,
 }: MapboxViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -459,21 +465,24 @@ export default function MapboxView({
       renderClusters();
 
       // 초기 진입 시 globe 시점 → 현재 위치로 부드러운 비행.
+      // skipInitialGeoFly(딥링크 진입)일 때는 flyTo 생략, 마커 표시만 수행.
       // 권한 거부/실패 시는 그대로 globe 유지.
       if (typeof navigator !== "undefined" && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const lng = pos.coords.longitude;
             const lat = pos.coords.latitude;
-            map.flyTo({
-              center: [lng, lat],
-              zoom: 15,
-              pitch: 0,
-              bearing: 0,
-              speed: 0.9,
-              curve: 1.5,
-              essential: true,
-            });
+            if (!skipInitialGeoFly) {
+              map.flyTo({
+                center: [lng, lat],
+                zoom: 15,
+                pitch: 0,
+                bearing: 0,
+                speed: 0.9,
+                curve: 1.5,
+                essential: true,
+              });
+            }
             // GeolocateControl trigger 없이 진입한 경우에도 자체 마커 표시.
             if (userMarkerRef.current && !userMarkerAddedRef.current) {
               userMarkerRef.current.setLngLat([lng, lat]).addTo(map);
