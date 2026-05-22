@@ -2,7 +2,7 @@
 
 <img src="app-icon-light.svg" width="110" alt="우리가갈지도 아이콘" />
 
-# 우리가갈지도 (MayGo)
+# 우리가갈지도 (wherewego)
 
 **커플의 장소 기억을 함께 모으고, 나누고, 발견하는 글로벌 데이트 지도 앱**
 
@@ -26,7 +26,7 @@ Mapbox 3D 지구본 위에 핀을 꽂아줍니다.
 
 카카오톡 채널 챗봇에 인스타그램 릴스 링크를 붙여넣으면, AI가 장소 정보를 자동 추출해 지도에 핀을 등록합니다.
 
-- **AI 장소 추출** — Gemini 2.0 Flash가 인스타 캡션에서 장소명을 자동 파싱
+- **AI 장소 추출** — Gemini (`gemini-flash-latest`)가 인스타 캡션에서 장소명을 자동 파싱
 - **국내/해외 통합 검색** — 카카오 Local API(국내 우선) → Google Places API(해외 폴백) 자동 전환
 - **2초 룰 메모 자동 연결** — 릴스 링크 공유 직후 2초 내에 보낸 텍스트가 핀 메모로 자동 저장
 - **장소 선택 카드** — 후보 장소가 여러 개일 때 카카오톡 리스트 카드로 직접 선택
@@ -138,7 +138,7 @@ Mapbox GL JS 기반의 3D 지구본 지도 위에 커플의 핀이 시각화됩�
 | Kakao i 오픈빌더 | 챗봇 Skill Webhook |
 | Kakao Local API | 국내 장소 좌표 검색 |
 | Google Places API | 해외 장소 검색 (카카오 폴백) |
-| Google Gemini 2.0 Flash | 인스타 캡션 → 장소명 AI 추출 |
+| Google Gemini (`gemini-flash-latest`) | 인스타 캡션 → 장소명 AI 추출 |
 | Mapbox GL JS | 3D 지도 렌더링 |
 | Slack Webhook | 운영 알림 (에러, 임계값 초과) |
 
@@ -255,30 +255,6 @@ wherewego/
 ├── docs/                       # ADR, 아키텍처 문서
 └── .github/workflows/          # CI/CD (deploy.yml)
 ```
-
----
-
-## 구현 현황
-
-| Phase | 범위 | 상태 |
-|-------|------|------|
-| Phase 0 | DB 스키마(V001) + Spring Boot 멀티모듈 기반 | ✅ |
-| Phase 1 | 카카오 OAuth2 + JWT 세션 | ✅ |
-| Phase 2 | 챗봇 Webhook + 인스타 파이프라인 | ✅ |
-| Phase 2.5 | Gemini 2.0 Flash 장소명 추출 전환 | ✅ |
-| Phase 3 | 그룹 생성 / 초대 / 탈퇴 | ✅ |
-| Phase 4 | 웹 UI 핀 CRUD | ✅ |
-| Phase 5 | Google Places 해외 장소 비동기 폴백 | ✅ |
-| Phase 6 | Mapbox 3D 지도 + 파스텔 핀 UI + 위치 기반 룰렛 | ✅ |
-| Phase 2.6 | UX 완성 · 보안 안정화 (SameSite Lax, Bucket4j) | ✅ |
-| Phase 2.7 | 테스트 자동화 28건 (E2E · 동시성 · WireMock) | ✅ |
-| Phase 2.8 | 핀 도메인 UX 완성 (Instagram URL · 장소 수정) | ✅ |
-| Phase 2.9 | 페이지네이션 계약 준비 + Mapbox GL 마이그레이션 분석 | ✅ |
-| Phase 2.10 | 핀 좌표 수정 · 챗봇 플로우 검증 · Mapbox 토큰 SOP | ✅ |
-| Phase 2.11 | Observability: MDC + 외부 API 구조화 로그 + Slack 임계값 알림 | ✅ |
-| Phase 7 | 태그 3종 리뉴얼: REEL · WISH · MEMORY + 지도 마커 신설 | ✅ |
-| Phase 8 | 인앱 알림: 그룹원 핀 등록 시 fetch 트리거 알림 + 패널 UI | ✅ |
-| Phase 9 | 핀 공유 카드: Canvas 4:5 카드 + 클립보드 복사 / 이미지 저장 | ✅ |
 
 ---
 

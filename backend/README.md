@@ -1,6 +1,6 @@
 # wherewego-api Backend
 
-우리가갈지도(MayGo) 백엔드 멀티모듈 프로젝트.
+우리가갈지도(wherewego) 백엔드 멀티모듈 프로젝트.
 
 - **런타임:** Spring Boot 3.4.4 + Java 21 + PostgreSQL 17 + Caffeine 3.1 (인메모리 캐시)
 - **빌드:** Gradle (Kotlin DSL)

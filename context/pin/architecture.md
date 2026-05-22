@@ -5,7 +5,7 @@
 ## 시스템 구조
 
 - 테이블: `pins (id, group_id FK, created_by FK, place_name, address, latitude, longitude, instagram_url NULLABLE, memo, memo_source, tag, created_at, updated_at, deleted_at)`
-  - `CONSTRAINT chk_pins_tag CHECK (tag IN ('PLACE', 'MEMORY'))`
+  - `CONSTRAINT chk_pins_tag CHECK (tag IN ('REEL', 'WISH', 'MEMORY'))` — V006(Phase 7)에서 PLACE 제거, REEL·WISH 신설
   - `CONSTRAINT chk_pins_memo_source CHECK (memo_source IN ('AUTO', 'MANUAL'))`
 - 인덱스:
   - `UNIQUE(group_id, instagram_url)` — 챗봇 중복 방지. PostgreSQL 표준 동작으로 NULL distinct 처리 → instagram_url IS NULL 행(직접 등록)은 중복 허용, 비NULL만 차단
