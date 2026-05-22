@@ -1427,7 +1427,6 @@ export default function MapClient({
           key={notifications.toast.id}
           payload={notifications.toast.payload}
           onDismiss={notifications.dismissToast}
-          anchorVariant={isDesktop ? "desktop" : "mobile"}
         />
       )}
       <NotificationPanel
