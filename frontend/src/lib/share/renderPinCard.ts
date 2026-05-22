@@ -350,23 +350,30 @@ export async function renderPinCard(
   throwIfAborted(signal);
 
   // Step 3 — Mapbox Static 이미지 로드
-  // 카드 배경용은 앱 styleUrl (Mapbox Studio 커스텀 포함) 또는 light-v11 폴백.
-  // 마커는 Static API에 전달하지 않음 — Step 4.5에서 Canvas에 직접 그린다.
-  const staticUrl = buildMapboxStaticUrl({
+  // 커스텀 Studio 스타일은 GL JS v3 기반이면 Static API에서 렌더링 실패할 수 있다.
+  // 1차 시도: 앱 styleUrl. 실패 시 light-v11로 재시도해 베이지 단색 폴백을 피한다.
+  const baseStaticParams = {
     lat: input.pin.latitude,
     lng: input.pin.longitude,
     width: MAPBOX_API_WIDTH,
     height: MAPBOX_API_HEIGHT,
     zoom: MAPBOX_ZOOM,
     token: input.mapboxToken,
-    styleId: extractStyleId(input.mapboxStyleUrl),
-  });
-  const img = await loadImageWithTimeout(
-    staticUrl,
+  };
+  let img = await loadImageWithTimeout(
+    buildMapboxStaticUrl({ ...baseStaticParams, styleId: extractStyleId(input.mapboxStyleUrl) }),
     MAPBOX_TIMEOUT_MS,
     signal,
     input.pin.id,
   );
+  if (img === null) {
+    img = await loadImageWithTimeout(
+      buildMapboxStaticUrl({ ...baseStaticParams, styleId: "mapbox/light-v11" }),
+      MAPBOX_TIMEOUT_MS,
+      signal,
+      input.pin.id,
+    );
+  }
 
   throwIfAborted(signal);
 
