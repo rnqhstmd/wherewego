@@ -6,10 +6,10 @@ import { MemoryGlyph, PIN_COLORS, ReelGlyph, WishGlyph } from "@/lib/pin/markers
 
 const TAGS = [
   {
-    label: "발견",
-    desc: "인스타에서 발견한 가고 싶은 곳",
-    color: PIN_COLORS.reel,
-    Glyph: () => <ReelGlyph size={15} color={PIN_COLORS.reel} />,
+    label: "추억",
+    desc: "함께 다녀온 소중한 곳",
+    color: PIN_COLORS.memory,
+    Glyph: () => <MemoryGlyph w={15} h={15} color={PIN_COLORS.memory} />,
   },
   {
     label: "위시",
@@ -18,10 +18,10 @@ const TAGS = [
     Glyph: () => <WishGlyph size={15} color={PIN_COLORS.wish} />,
   },
   {
-    label: "추억",
-    desc: "함께 다녀온 소중한 곳",
-    color: PIN_COLORS.memory,
-    Glyph: () => <MemoryGlyph w={15} h={15} color={PIN_COLORS.memory} />,
+    label: "발견",
+    desc: "인스타에서 발견한 가고 싶은 곳",
+    color: PIN_COLORS.reel,
+    Glyph: () => <ReelGlyph size={15} color={PIN_COLORS.reel} />,
   },
 ];
 
@@ -94,21 +94,17 @@ export function TagLegendButton() {
             animation: "maygo-bubble-pop 200ms cubic-bezier(0.2,0.8,0.2,1) both",
           }}
         >
-          {/* 말풍선 꼬리 — 좌하단 */}
+          {/* 말풍선 꼬리 — 하단 왼쪽, 아래 방향 삼각형 */}
           <svg
-            width="10"
-            height="14"
-            viewBox="0 0 10 14"
+            width="14"
+            height="8"
+            viewBox="0 0 14 8"
             aria-hidden="true"
-            style={{ position: "absolute", bottom: -13, left: 17 }}
+            style={{ position: "absolute", bottom: -8, left: 16 }}
           >
-            <path
-              d="M0 0 L10 7 L0 14 Z"
-              fill={colors.panel}
-              stroke={colors.hairline}
-              strokeWidth="1"
-            />
-            <path d="M1 1 L1 13" stroke={colors.panel} strokeWidth="2" />
+            <path d="M0 0 L14 0 L7 8 Z" fill={colors.hairline} />
+            <path d="M1 0 L13 0 L7 7 Z" fill={colors.panel} />
+            <rect x="1" y="0" width="12" height="1.5" fill={colors.panel} />
           </svg>
 
           <p
@@ -120,7 +116,7 @@ export function TagLegendButton() {
               letterSpacing: 0.3,
             }}
           >
-            핀 태그 안내
+            각 태그는 이런 의미예요
           </p>
 
           {TAGS.map(({ label, desc, color, Glyph }) => (
