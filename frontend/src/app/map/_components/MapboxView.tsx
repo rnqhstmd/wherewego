@@ -368,14 +368,8 @@ export default function MapboxView({
       center: initialCenter,
       zoom: initialZoom,
       projection: { name: "globe" },
-      // 기본 attribution(bottom-right) 비활성. bottom-left 에서 compact 모드로 다시 추가하여
-      // GeolocateControl 과 시각적으로 겹치지 않게 분리한다 (Mapbox ToS 충족 — 화면에 노출됨).
       attributionControl: false,
     });
-    map.addControl(
-      new mapboxgl.AttributionControl({ compact: true }),
-      "bottom-left",
-    );
 
     map.on("style.load", () => {
       // 3D 지구본 fog (설계 §9)

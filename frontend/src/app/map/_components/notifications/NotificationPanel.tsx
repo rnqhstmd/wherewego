@@ -85,13 +85,13 @@ export function NotificationPanel({
         }
       : {
           position: 'fixed',
-          bottom: 0,
+          bottom: 80,
           left: 0,
           right: 0,
-          maxHeight: '70vh',
+          minHeight: '40vh',
+          maxHeight: 'calc(100dvh - 80px - 56px)',
           background: colors.panel,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderRadius: 20,
           boxShadow: `0 -10px 28px ${colors.shadowMd}`,
           zIndex: 50,
           display: 'flex',
