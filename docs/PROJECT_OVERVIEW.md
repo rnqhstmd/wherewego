@@ -1,4 +1,4 @@
-# 우리가갈지도 (MayGo) — 프로젝트 전체 정리
+# 우리가갈지도 (wherewego) — 프로젝트 전체 정리
 
 > 슬로건: "인스타 릴스 한 줄이면 완성되는 우리만의 글로벌 데이트 지도"  
 > 최종 업데이트: 2026-05-18
@@ -21,14 +21,17 @@
 
 ## 1. 프로젝트 개요
 
-**MayGo(우리가갈지도)** 는 커플 또는 소그룹이 인스타그램 릴스를 카카오톡 챗봇에 공유하면, AI가 장소를 자동 추출해 Mapbox 3D 지도 위에 핀으로 등록해주는 서비스다.
+**wherewego(우리가갈지도)** 는 커플 또는 소그룹이 인스타그램 릴스를 카카오톡 챗봇에 공유하면, AI가 장소를 자동 추출해 Mapbox 3D 지도 위에 핀으로 등록해주는 서비스다.
 
 ### 핵심 가치
 | 기능 | 설명 |
 |------|------|
 | **1클릭 핀 등록** | 릴스 링크 공유 → Gemini AI 장소 추출 → 자동 핀 꽂기 |
-| **글로벌 3D 지도** | Mapbox 3D 지구본 위에 PLACE / MEMORY 핀 분류 |
-| **위치 기반 룰렛** | "오늘 어디 갈까?" → 반경 내 미방문 핀 중 랜덤 추천 |
+| **글로벌 3D 지도** | Mapbox 3D 지구본 위에 REEL(발견) / WISH(설렘) / MEMORY(추억) 3종 파스텔 핀 분류 |
+| **태그 시스템** | REEL · WISH · MEMORY 3종으로 장소 의미 구분 — 챗봇 자동 등록은 REEL, 웹 직접 등록은 WISH/MEMORY |
+| **위치 기반 룰렛** | "오늘 어디 갈까?" → 반경(10km) 내 REEL+WISH 핀 중 랜덤 추천 |
+| **인앱 알림** | 파트너 핀 등록 시 벨 아이콘 + 알림 패널로 즉시 확인 |
+| **핀 공유 카드** | 말풍선 팝업에서 4:5 Canvas 카드 생성 → 클립보드 복사 / 이미지 저장 |
 | **그룹 아카이빙** | 커플(2인) / 그룹(N인) 단위로 핀·메모 격리 공유 |
 
 ### 프로젝트 구조
@@ -74,7 +77,7 @@ wherewego/
 | Kakao i 오픈빌더 | 챗봇 Skill Webhook |
 | Kakao Local API | 국내 장소 검색 |
 | Google Places API | 해외 장소 검색 (폴백) |
-| Google Gemini 2.0 Flash | 인스타 캡션 → 장소명 AI 추출 |
+| Google Gemini (`gemini-flash-latest`) | 인스타 캡션 → 장소명 AI 추출 |
 | Mapbox GL JS | 3D 지도 렌더링 |
 
 ### DevOps
@@ -132,7 +135,7 @@ CREATE TABLE pins (
     address        TEXT,
     latitude       NUMERIC(10,8),
     longitude      NUMERIC(11,8),
-    tag            VARCHAR(50),        -- PLACE | MEMORY
+    tag            VARCHAR(50),        -- REEL | WISH | MEMORY
     memo           TEXT,
     instagram_url  TEXT,
     created_by     BIGINT REFERENCES users,
@@ -183,7 +186,7 @@ DELETE /{groupId}/members/me
 #### Pin (`/api/v1/groups/{groupId}/pins`)
 ```
 POST /                ← { placeName, address, latitude, longitude, tag, memo, instagramUrl }
-GET  /                ← ?tag=PLACE&page=0&size=20   → { pins, totalCount, hasNext }
+GET  /                ← ?tag=REEL&page=0&size=20    → { pins, totalCount, hasNext }
 PATCH /{pinId}        ← { memo?, tag?, placeName?, ... }
 DELETE /{pinId}       → 204 No Content
 ```
@@ -211,13 +214,13 @@ POST /webhook         ← KakaoSkillRequest { userKey, utterance }
 
 | 라우트 | 화면명 | 상태 |
 |-------|-------|------|
-| `/` | Splash | ⬜ 구현 필요 |
-| `/login` | Screen 0 — 카카오 로그인 | ⬜ 구현 필요 |
-| `/login/callback` | Screen 0a — 로딩 | ⬜ 구현 필요 |
-| `/onboarding/nickname` | Screen 0b — 닉네임 입력 | ⬜ 구현 필요 |
-| `/onboarding/group-start` | Screen 0c — 그룹 시작 | ⬜ 구현 필요 |
-| `/onboarding/notification` | 알림 권한 요청 | ⬜ 구현 필요 |
-| `/groups` | Screen 1 — 그룹 선택 | ⬜ 구현 필요 |
+| `/` | Splash | ✅ 완료 |
+| `/login` | Screen 0 — 카카오 로그인 | ✅ 완료 |
+| `/login/callback` | Screen 0a — 로딩 | ✅ 완료 |
+| `/onboarding/nickname` | Screen 0b — 닉네임 입력 | ✅ 완료 |
+| `/onboarding/group-start` | Screen 0c — 그룹 시작 | ✅ 완료 |
+| `/onboarding/notification` | 알림 권한 요청 | ✅ 완료 |
+| `/groups` | Screen 1 — 그룹 선택 | ✅ 완료 |
 | `/map` | 메인 Mapbox 지도 | ✅ 완료 |
 | `/pins` | 핀 목록 | ✅ 완료 |
 
@@ -268,8 +271,9 @@ colors = {
   bg:         "#FAF8F5",   // 앱 배경
   panel:      "#FFFFFF",   // 카드/패널
   mapBg:      "#EAE4D4",   // 지도 배경
-  pinPlace:   "#7BB3E8",   // PLACE 핀 (파랑)
-  pinMemory:  "#F4A8B0",   // MEMORY 핀 (핑크)
+  pinReel:    "#C5B4E3",   // REEL 핀 (발견, 연보라)
+  pinWish:    "#A8E6CF",   // WISH 핀 (설렘, 민트)
+  pinMemory:  "#FFB3C6",   // MEMORY 핀 (추억, 핑크)
   cta:        "#C4622D",   // 주요 CTA (오렌지)
   kakao:      "#FEE500",   // 카카오 노랑
   ink:        "#1A1A2E",   // 기본 텍스트
@@ -333,7 +337,7 @@ PlaceSearchService.searchByKeyword(placeName)
 ```
 PinService.addPin(userId, groupId, PlaceInfo)
   ├─ 중복 검사: (group_id, instagram_url) UNIQUE 제약
-  ├─ PIN 생성: tag=PLACE (기본값), memo 비어있음
+  ├─ PIN 생성: tag=REEL (기본값), memo 비어있음
   └─ DB 저장 → pins 테이블
 ```
 
@@ -361,8 +365,9 @@ GET /api/v1/groups/{groupId}/pins 호출
 Supercluster로 핀 클러스터링 계산
   ↓
 Mapbox GL 위에 마커 렌더링
-  ├─ PLACE 핀: 파란 원형 (PinDot, #7BB3E8)
-  └─ MEMORY 핀: 핑크 하트 (PinDot, #F4A8B0)
+  ├─ REEL 핀: 연보라 인스타 아이콘 (markers.tsx, #C5B4E3)
+  ├─ WISH 핀: 민트 동그라미 (markers.tsx, #A8E6CF)
+  └─ MEMORY 핀: 핑크 하트 (markers.tsx, #FFB3C6)
 
 핀 클릭 시
   └─ SpeechBubblePopup 표시
@@ -410,7 +415,7 @@ navigator.geolocation.getCurrentPosition()
 거리 범위 선택 (1km / 5km / 10km)
   ↓
 GET /api/v1/groups/{groupId}/recommendations
-    ?latitude=&longitude=&radiusKm=&tag=PLACE
+    ?latitude=&longitude=&radiusKm=&tag=REEL
   ↓
 서버: Haversine 거리 계산 (PostGIS 미사용, Java 레벨)
      → 범위 내 미방문 핀 중 RANDOM(1)
@@ -592,18 +597,20 @@ docker-compose -f monitoring-compose.yml up
 | Phase 2.7 | 신뢰 인프라 (테스트 자동화) | ✅ | #20 |
 | Phase 2.8 | 핀 도메인 완성 (UX 잔여) | ✅ | #21 |
 | Phase 2.9 | 규모 대응 (페이지네이션 준비) | ✅ | #22 |
-| Phase 2.10 | 잔여 후속 통합 (MVP 운영) | ✅ | #24 |
-| **현재** | **로그인·온보딩·그룹선택 화면 구현** | **⬜ 진행 중** | — |
+| Phase 2.10 | 잔여 후속 통합 (핀 좌표 수정, 챗봇 플로우 검증, Mapbox 토큰 SOP) | ✅ | #24 |
+| Phase 2.11-A | Observability foundation: MDC RequestId, 외부 API 구조화 로그, 일별 로그 회전 90일 | ✅ | #28 |
+| Phase 2.11-B | 외부 API 관제: Google Places Micrometer 메트릭, ThresholdMonitorScheduler, Slack 임계값 알림 | ✅ | #29 |
+| **Phase 7** | **태그 3종 리뉴얼**: REEL(발견) / WISH(설렘) / MEMORY(추억), V006 마이그레이션, 지도 마커 3종 | ✅ | #38 |
+| **Phase 8** | **인앱 알림**: 그룹원 핀 등록 시 fetch 트리거 알림, 벨/패널 UI, CHATBOT_PINS / MANUAL_PIN | ✅ | #40 |
+| **Phase 9** | **핀 공유 카드**: 말풍선 공유 아이콘 → 4:5 Canvas 카드 + 클립보드 복사 / 이미지 저장 | ✅ | #41 |
 
-### 현재 브랜치 (`feat/login-onboarding-design`)
-**구현 대상:**
-- 10개 미구현 화면 (Splash, 로그인, 온보딩 3단계, 그룹선택, 알림권한)
-- 2개 신규 컴포넌트 (`BtnKakao`, `IconBell`)
-- 라우팅 게이트 로직 (`middleware.ts`)
+### 현재 상태
 
-**미구현 상태의 현상:**
-- `http://localhost:3000` → Next.js 기본 스캐폴드 화면 (To get started, edit the page.tsx)
-- 실제 기능: `http://localhost:3000/map`, `http://localhost:3000/pins`에서 확인 가능
+Phase 9(핀 공유 카드)까지 모든 계획 기능 구현 완료. MVP 운영 중.
+
+- 전체 화면 구현 완료 (Splash → 로그인 → 온보딩 → 그룹선택 → 지도)
+- `http://localhost:3000` → Splash 화면 진입
+- 챗봇 자동 핀 등록, 3D 지도, 태그 3종, 룰렛, 인앱 알림, 공유 카드 모두 운영 중
 
 ### 백엔드 멀티모듈 구조
 ```

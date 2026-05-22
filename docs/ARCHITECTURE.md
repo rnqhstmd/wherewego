@@ -331,7 +331,7 @@ sequenceDiagram
     Host->>BE: POST /api/v1/groups/{groupId}/invite-links
     BE->>DB: invite_links 저장 (token, expires_at)
     BE-->>Host: { token, expiresAt }
-    Host->>Guest: 초대 링크 공유\n(wherewego.win/invite/{token})
+    Host->>Guest: 초대 링크 공유\n({your-domain}/invite/{token})
 
     Guest->>BE: POST /api/v1/groups/invite-links/{token}/accept
     BE->>DB: invite_links 조회
