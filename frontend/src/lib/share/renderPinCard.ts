@@ -9,12 +9,13 @@
 import type { PinSummaryResponse } from "@/lib/api/types";
 import {
   buildMapboxStaticUrl,
+  extractStyleId,
 } from "@/lib/share/mapboxStaticUrl";
+import { geoToApiPixel } from "@/lib/share/geoToPixel";
 import {
   getReelSvgString,
   getWishSvgString,
   getMemorySvgString,
-  PIN_COLORS,
 } from "@/lib/pin/markers";
 
 // 카드 픽셀 사이즈(4:5)
@@ -63,6 +64,15 @@ const GAP_AFTER_DATE = 8;
 // 워터마크 위치
 const WATERMARK_BOTTOM_OFFSET = 64;
 
+// Step 4.5: 커스텀 핀 글리프 사이즈 상수
+const GLYPH_SIZE_OTHER = 24; // 그룹 핀 아이콘 px
+const GLYPH_SIZE_SELF  = 40; // 자기 핀 아이콘 px
+const BG_RADIUS_OTHER  = 16; // 그룹 핀 흰 원 배경 반지름 px
+const BG_RADIUS_SELF   = 24; // 자기 핀 흰 원 배경 반지름 px
+// API 응답(1024×1280) → 카드 캔버스(1080×1350) 좌표 변환 비율
+const SCALE_X = CARD_WIDTH  / MAPBOX_API_WIDTH;
+const SCALE_Y = CARD_HEIGHT / MAPBOX_API_HEIGHT;
+
 /** 카드 배경 지도에 함께 표시할 다른 핀 마커 정보 (자기 핀 제외). 자기 핀은 중앙에 자동 표시. */
 export interface CardGroupPinMarker {
   id: number;
@@ -86,6 +96,17 @@ export interface RenderPinCardInput {
 export interface RenderPinCardResult {
   blob: Blob;
   previewDataUrl: string;
+}
+
+type PinTag = "REEL" | "WISH" | "MEMORY";
+
+function loadSvgImage(svgStr: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => resolve(null);
+    el.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+  });
 }
 
 /** SSR safe — top-level에서 document 접근하지 않는다. */
@@ -329,28 +350,8 @@ export async function renderPinCard(
   throwIfAborted(signal);
 
   // Step 3 — Mapbox Static 이미지 로드
-  // 카드 배경용은 streets-v12 — 사용자 main 지도와 유사한 베이지·도로·건물 톤.
-  // 마커 overlay: 자기 핀(large, 태그 색) + 그룹 다른 핀들(small, 태그 색). URL 한계로 최대 28개.
-  const TAG_HEX: Record<"REEL" | "WISH" | "MEMORY", string> = {
-    REEL: "7BB3E8",
-    WISH: "F4C842",
-    MEMORY: "FFB3C6",
-  };
-  const selfMarker = {
-    lat: input.pin.latitude,
-    lng: input.pin.longitude,
-    color: TAG_HEX[input.pin.tag as "REEL" | "WISH" | "MEMORY"] ?? "E05A5A",
-    size: "large" as const,
-  };
-  const otherMarkers = (input.groupPins ?? [])
-    .filter((p) => p.id !== input.pin.id)
-    .slice(0, 28)
-    .map((p) => ({
-      lat: p.latitude,
-      lng: p.longitude,
-      color: TAG_HEX[p.tag] ?? "8B8B9E",
-      size: "small" as const,
-    }));
+  // 카드 배경용은 앱 styleUrl (Mapbox Studio 커스텀 포함) 또는 light-v11 폴백.
+  // 마커는 Static API에 전달하지 않음 — Step 4.5에서 Canvas에 직접 그린다.
   const staticUrl = buildMapboxStaticUrl({
     lat: input.pin.latitude,
     lng: input.pin.longitude,
@@ -358,8 +359,7 @@ export async function renderPinCard(
     height: MAPBOX_API_HEIGHT,
     zoom: MAPBOX_ZOOM,
     token: input.mapboxToken,
-    styleId: "mapbox/streets-v12",
-    markers: [selfMarker, ...otherMarkers],
+    styleId: extractStyleId(input.mapboxStyleUrl),
   });
   const img = await loadImageWithTimeout(
     staticUrl,
@@ -385,6 +385,94 @@ export async function renderPinCard(
     ctxA.drawImage(img, 0, 0, CARD_WIDTH, CARD_HEIGHT);
     // 참조 제거(MUST-ADDRESS #2)
     img.src = "";
+  }
+
+  // Step 4.5 — 커스텀 핀 글리프를 canvasA에 드로잉 (blur 전 적용)
+  // API 실패(img === null)이면 단색 폴백 유지 — 핀 드로잉 skip
+  if (img !== null) {
+    // tag별 SVG Image 캐시 — 그룹 핀용(GLYPH_SIZE_OTHER) + 자기 핀용(GLYPH_SIZE_SELF)
+    const [otherImgResults, selfImgResults] = await Promise.all([
+      Promise.allSettled([
+        loadSvgImage(getReelSvgString(GLYPH_SIZE_OTHER)),
+        loadSvgImage(getWishSvgString(GLYPH_SIZE_OTHER)),
+        loadSvgImage(getMemorySvgString(GLYPH_SIZE_OTHER, GLYPH_SIZE_OTHER)),
+      ]),
+      Promise.allSettled([
+        loadSvgImage(getReelSvgString(GLYPH_SIZE_SELF)),
+        loadSvgImage(getWishSvgString(GLYPH_SIZE_SELF)),
+        loadSvgImage(getMemorySvgString(GLYPH_SIZE_SELF, GLYPH_SIZE_SELF)),
+      ]),
+    ]);
+
+    throwIfAborted(signal);
+
+    const TAGS: PinTag[] = ["REEL", "WISH", "MEMORY"];
+    const otherGlyphMap: Partial<Record<PinTag, HTMLImageElement>> = {};
+    const selfGlyphMap:  Partial<Record<PinTag, HTMLImageElement>> = {};
+    TAGS.forEach((tag, i) => {
+      const or = otherImgResults[i];
+      if (or.status === "fulfilled" && or.value) otherGlyphMap[tag] = or.value;
+      const sr = selfImgResults[i];
+      if (sr.status === "fulfilled" && sr.value) selfGlyphMap[tag] = sr.value;
+    });
+
+    const centerLat = input.pin.latitude;
+    const centerLng = input.pin.longitude;
+
+    // 그룹 핀 드로잉 (최대 16개 — 시각 혼잡 방지)
+    const groupPinsToRender = (input.groupPins ?? [])
+      .filter((p) => p.id !== input.pin.id)
+      .slice(0, 16);
+
+    for (const gp of groupPinsToRender) {
+      if (Math.abs(gp.longitude - centerLng) > 180) continue; // antimeridian skip
+
+      const { x: apiX, y: apiY } = geoToApiPixel(
+        gp.latitude, gp.longitude,
+        centerLat, centerLng,
+        MAPBOX_ZOOM, MAPBOX_API_WIDTH, MAPBOX_API_HEIGHT,
+      );
+      const cx = apiX * SCALE_X;
+      const cy = apiY * SCALE_Y;
+
+      if (cx < -60 || cx > CARD_WIDTH + 60 || cy < -60 || cy > CARD_HEIGHT + 60) continue;
+
+      ctxA.beginPath();
+      ctxA.arc(cx, cy, BG_RADIUS_OTHER, 0, 2 * Math.PI);
+      ctxA.fillStyle = "rgba(255,255,255,0.85)";
+      ctxA.fill();
+
+      const glyphImg = otherGlyphMap[gp.tag as PinTag];
+      if (glyphImg) {
+        ctxA.drawImage(
+          glyphImg,
+          cx - GLYPH_SIZE_OTHER / 2, cy - GLYPH_SIZE_OTHER / 2,
+          GLYPH_SIZE_OTHER, GLYPH_SIZE_OTHER,
+        );
+      }
+    }
+
+    // 자기 핀 드로잉 — 최상위 레이어 (canvasA 마지막)
+    // self pin은 항상 center이므로 카드 중앙 좌표로 직접 계산
+    {
+      const cx = CARD_WIDTH / 2;
+      const cy = CARD_HEIGHT / 2;
+
+      ctxA.beginPath();
+      ctxA.arc(cx, cy, BG_RADIUS_SELF, 0, 2 * Math.PI);
+      ctxA.fillStyle = "rgba(255,255,255,0.95)";
+      ctxA.fill();
+
+      const selfTag = input.pin.tag as PinTag;
+      const selfGlyph = selfGlyphMap[selfTag];
+      if (selfGlyph) {
+        ctxA.drawImage(
+          selfGlyph,
+          cx - GLYPH_SIZE_SELF / 2, cy - GLYPH_SIZE_SELF / 2,
+          GLYPH_SIZE_SELF, GLYPH_SIZE_SELF,
+        );
+      }
+    }
   }
 
   // Step 5 — Off-canvas B에 blur(4px) 합성 — 동네 식별 가능 수준의 약한 흐림

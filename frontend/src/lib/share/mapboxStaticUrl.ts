@@ -17,17 +17,22 @@ export interface MapboxStaticParams {
   height: number;
   zoom: number;
   token: string;
-  /** null/undefined 면 mapbox/streets-v12 로 폴백 */
+  /** null/undefined 면 mapbox/light-v11 로 폴백 */
   styleId?: string | null;
   /** 지도 위에 그릴 마커 목록. URL 길이 한계로 최대 30개 권장. */
   markers?: MapboxStaticMarker[];
 }
 
-const DEFAULT_STYLE_ID = "mapbox/streets-v12";
+const DEFAULT_STYLE_ID = "mapbox/light-v11";
+
+// mapbox/standard는 GL JS v3 전용 렌더링 파이프라인이라 Static Images API와
+// 호환되지 않으므로 light-v11 폴백으로 교체한다.
+const STANDARD_STYLE_ID = "mapbox/standard";
 
 /**
  * `mapbox://styles/{user}/{styleId}` 형태에서 `{user}/{styleId}` 추출.
- * null/undefined/형식 불일치는 `mapbox/streets-v12` 폴백 (page.tsx:19 와 일치).
+ * null/undefined/형식 불일치는 `mapbox/light-v11` 폴백.
+ * `mapbox/standard`는 Static Images API 미지원이므로 폴백으로 교체.
  */
 export function extractStyleId(
   mapboxStyleUrl: string | null | undefined,
@@ -39,7 +44,11 @@ export function extractStyleId(
   if (!match) {
     return DEFAULT_STYLE_ID;
   }
-  return `${match[1]}/${match[2]}`;
+  const extracted = `${match[1]}/${match[2]}`;
+  if (extracted === STANDARD_STYLE_ID) {
+    return DEFAULT_STYLE_ID;
+  }
+  return extracted;
 }
 
 /**
