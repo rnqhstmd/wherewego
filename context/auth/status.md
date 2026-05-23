@@ -17,3 +17,9 @@
 | FR-AUTH-4 | JWT Refresh Token 발급/저장 (TTL 14d, SHA-256 해시 저장) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 | FR-AUTH-5 | JWT 검증 필터 (Spring Security Stateless, 쿠키 access_token 추출) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 | FR-AUTH-6 | 로그아웃 (Refresh Token DB 폐기, Max-Age=0 쿠키, 멱등) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
+
+## 운영 버그 수정
+
+| 항목 | 상태 | 상세 |
+|------|------|------|
+| 카카오 로그인 JPA 커넥션 풀 고갈 | ✅ | `KakaoOAuth2UserService`의 DB 조회 로직을 별도 `UserLoginPersistence` Spring Bean으로 분리 — 트랜잭션 경계 명확화로 커넥션 조기 반환. HikariCP `maximum-pool-size: 10` 명시. [PR #54](https://github.com/rnqhstmd/wherewego/pull/54) |

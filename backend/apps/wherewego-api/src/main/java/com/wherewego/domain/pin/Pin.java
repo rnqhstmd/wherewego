@@ -64,6 +64,9 @@ public class Pin extends BaseEntity {
     @Column(name = "memo_source", length = 10)
     private MemoSource memoSource;
 
+    @Column(name = "memo_updated_by")
+    private Long memoUpdatedBy;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tag", nullable = false, length = 10)
     private PinTag tag;
@@ -174,18 +177,20 @@ public class Pin extends BaseEntity {
      * 수동 메모 적용. memo 는 non-null, 길이 ≤ 500 자 (호출 전 서비스에서 검증).
      * memoSource 를 MANUAL 로 마킹하여 이후 AUTO 메모 갱신을 차단한다 (BR-3, FR-4).
      */
-    public void applyManualMemo(String memo) {
+    public void applyManualMemo(String memo, Long updatedBy) {
         this.memo = memo;
         this.memoSource = MemoSource.MANUAL;
+        this.memoUpdatedBy = updatedBy;
     }
 
     /**
-     * 메모 제거 + 잠금 해제. memo 와 memoSource 모두 NULL 로 초기화한다 (BR-8).
+     * 메모 제거 + 잠금 해제. memo, memoSource, memoUpdatedBy 모두 NULL 로 초기화한다 (BR-8).
      * 이후 {@link PinRepository#updateAutoMemoIfNotManual} 의 WHERE 조건이 다시 통과한다.
      */
     public void clearMemo() {
         this.memo = null;
         this.memoSource = null;
+        this.memoUpdatedBy = null;
     }
 
     /**

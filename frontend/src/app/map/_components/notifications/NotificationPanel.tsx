@@ -223,7 +223,6 @@ export function NotificationPanel({
                   key={item.id}
                   item={item}
                   onClick={() => handleSelectItem(item)}
-                  currentUserId={currentUserId}
                 />
               ))}
             </div>
