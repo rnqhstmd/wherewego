@@ -82,6 +82,7 @@ interface MapClientProps {
   mapboxToken: string;
   mapboxStyleUrl: string | null;
   myNickname: string;
+  myId: number;
 }
 
 type ActiveSheet =
@@ -148,6 +149,7 @@ export default function MapClient({
   mapboxToken,
   mapboxStyleUrl,
   myNickname,
+  myId,
 }: MapClientProps) {
   // 딥링크(?pinId=X) 진입 시 초기 geolocation flyTo를 건너뜀 — 핀 줌인 유지.
   const skipInitialGeoFly = useMemo(
@@ -1436,6 +1438,7 @@ export default function MapClient({
         onSelectPin={handleSelectPinFromNotification}
         loadDetail={notifications.loadDetail}
         variant={isDesktop ? "desktop" : "mobile"}
+        currentUserId={myId}
       />
       {showPermDialog && (
         <PermissionDialog

@@ -131,31 +131,36 @@ class NotificationServiceIT {
     // ────────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("MANUAL_PIN: 본인에게는 알림 미생성, 상대방에게는 알림 1건 + NotificationPin 1행")
-    void createForManualPin_excludesSelf_createsForOther() {
+    @DisplayName("MANUAL_PIN: 본인 + 상대방 모두 알림 1건씩, 등록자·수신자 필드 정확")
+    void createForManualPin_includesSelf_createsForBoth() {
         // given : userA 가 핀 1개 등록
         Pin pin = savePin(userAId, "https://www.instagram.com/p/M1/");
 
         // when : userA 트리거
         notificationService.createForManualPin(groupId, userAId, pin.getId());
 
-        // then : userA 는 알림 0건, userB 는 알림 1건 (type=MANUAL_PIN)
+        // then : userA 도 알림 1건(자기 저장 기록), userB 도 알림 1건
         List<Notification> aNotifications =
                 notificationJpa.findByReceiverIdOrderByCreatedAtDesc(userAId, org.springframework.data.domain.PageRequest.of(0, 50));
-        assertThat(aNotifications).isEmpty();
+        assertThat(aNotifications).hasSize(1);
+        Notification selfNotif = aNotifications.get(0);
+        assertThat(selfNotif.getType()).isEqualTo(NotificationType.MANUAL_PIN);
+        assertThat(selfNotif.getRegisteredBy()).isEqualTo(userAId);
+        assertThat(selfNotif.getReceiverId()).isEqualTo(userAId);
+        assertThat(selfNotif.getReadAt()).isNull();
 
         List<Notification> bNotifications =
                 notificationJpa.findByReceiverIdOrderByCreatedAtDesc(userBId, org.springframework.data.domain.PageRequest.of(0, 50));
         assertThat(bNotifications).hasSize(1);
-        Notification only = bNotifications.get(0);
-        assertThat(only.getType()).isEqualTo(NotificationType.MANUAL_PIN);
-        assertThat(only.getRegisteredBy()).isEqualTo(userAId);
-        assertThat(only.getReceiverId()).isEqualTo(userBId);
-        assertThat(only.getReadAt()).isNull();
+        Notification partnerNotif = bNotifications.get(0);
+        assertThat(partnerNotif.getType()).isEqualTo(NotificationType.MANUAL_PIN);
+        assertThat(partnerNotif.getRegisteredBy()).isEqualTo(userAId);
+        assertThat(partnerNotif.getReceiverId()).isEqualTo(userBId);
+        assertThat(partnerNotif.getReadAt()).isNull();
 
-        // 그리고 NotificationPin 링크 1행
+        // 그리고 NotificationPin 링크 1행 (B 기준)
         List<NotificationPin> links = notificationPinJpa
-                .findByNotificationIdOrderBySortOrderAsc(only.getId());
+                .findByNotificationIdOrderBySortOrderAsc(partnerNotif.getId());
         assertThat(links).hasSize(1);
         assertThat(links.get(0).getPinId()).isEqualTo(pin.getId());
         assertThat(links.get(0).getSortOrder()).isZero();
@@ -212,9 +217,9 @@ class NotificationServiceIT {
     // ────────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("그룹에 등록자 본인만 있으면 알림 미생성")
-    void noOtherActiveMembers_noOp() {
-        // given : userA 단독 그룹 (별도 그룹 생성)
+    @DisplayName("그룹에 등록자 본인만 있으면 자신에게만 알림 1건 생성")
+    void soloMember_selfNotificationCreated() {
+        // given : userC 단독 그룹 (별도 그룹 생성)
         GroupCreatedResult soloGroup = groupMemberService.createGroup(userCId, "솔로 그룹");
         Long soloGroupId = soloGroup.groupId();
         Pin pin = pinRepository.save(Pin.autoFromInstagram(
@@ -226,9 +231,12 @@ class NotificationServiceIT {
         // when
         notificationService.createForManualPin(soloGroupId, userCId, pin.getId());
 
-        // then : 어떤 사용자에게도 알림 0건
-        assertThat(notificationJpa.count()).isZero();
-        assertThat(notificationPinJpa.count()).isZero();
+        // then : userC 에게 자신의 저장 알림 1건 생성 (상대방 없어도 본인 기록은 남음)
+        List<Notification> cNotifications = notificationJpa
+                .findByReceiverIdOrderByCreatedAtDesc(userCId, org.springframework.data.domain.PageRequest.of(0, 50));
+        assertThat(cNotifications).hasSize(1);
+        assertThat(cNotifications.get(0).getRegisteredBy()).isEqualTo(userCId);
+        assertThat(cNotifications.get(0).getReceiverId()).isEqualTo(userCId);
     }
 
     // ────────────────────────────────────────────────────────────────────

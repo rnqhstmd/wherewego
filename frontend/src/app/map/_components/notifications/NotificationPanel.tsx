@@ -10,6 +10,30 @@ import type {
   NotificationPinItem,
 } from '@/lib/notifications/types';
 
+function groupByDate(items: NotificationItemType[]): { label: string; items: NotificationItemType[] }[] {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - 7);
+
+  const buckets: Record<string, NotificationItemType[]> = {};
+  const order = ['오늘', '어제', '이번 주', '이전'];
+
+  for (const item of items) {
+    const d = new Date(item.createdAt);
+    let label: string;
+    if (d >= todayStart) label = '오늘';
+    else if (d >= yesterdayStart) label = '어제';
+    else if (d >= weekStart) label = '이번 주';
+    else label = '이전';
+    (buckets[label] ??= []).push(item);
+  }
+
+  return order.filter((l) => buckets[l]).map((l) => ({ label: l, items: buckets[l] }));
+}
+
 interface NotificationPanelProps {
   items: NotificationItemType[];
   isOpen: boolean;
@@ -17,6 +41,7 @@ interface NotificationPanelProps {
   onSelectPin: (pin: NotificationPinItem) => void;
   loadDetail: (notificationId: number) => Promise<NotificationDetail>;
   variant?: 'mobile' | 'desktop';
+  currentUserId: number;
 }
 
 /**
@@ -35,19 +60,23 @@ export function NotificationPanel({
   onSelectPin,
   loadDetail,
   variant = 'mobile',
+  currentUserId,
 }: NotificationPanelProps) {
   const [activeDetail, setActiveDetail] = useState<NotificationDetail | null>(null);
+  const [selectedItem, setSelectedItem] = useState<NotificationItemType | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setActiveDetail(null);
+      setSelectedItem(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   async function handleSelectItem(item: NotificationItemType) {
+    setSelectedItem(item);
     setLoading(true);
     try {
       const detail = await loadDetail(item.id);
@@ -113,23 +142,41 @@ export function NotificationPanel({
           flexShrink: 0,
         }}
       >
-        <strong style={{ fontSize: 16, color: colors.ink }}>
-          {activeDetail ? `${activeDetail.registeredByNickname}님의 알림` : '알림'}
-        </strong>
-        <button
-          type="button"
-          onClick={activeDetail ? () => setActiveDetail(null) : onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: 14,
-            color: colors.inkSoft,
-            fontFamily: fonts.sans,
-          }}
-        >
-          {activeDetail ? '← 목록' : '닫기'}
-        </button>
+        {activeDetail ? (
+          <button
+            type="button"
+            onClick={() => { setActiveDetail(null); setSelectedItem(null); }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 14,
+              color: colors.inkSoft,
+              fontFamily: fonts.sans,
+              padding: 0,
+            }}
+          >
+            ← 목록
+          </button>
+        ) : (
+          <>
+            <strong style={{ fontSize: 16, color: colors.ink }}>알림</strong>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 14,
+                color: colors.inkSoft,
+                fontFamily: fonts.sans,
+              }}
+            >
+              닫기
+            </button>
+          </>
+        )}
       </div>
 
       {/* Body */}
@@ -139,7 +186,13 @@ export function NotificationPanel({
             불러오는 중...
           </div>
         ) : activeDetail ? (
-          <NotificationPinList pins={activeDetail.pins} onSelectPin={handleSelectPin} />
+          <NotificationPinList
+            pins={activeDetail.pins}
+            onSelectPin={handleSelectPin}
+            actorLabel={selectedItem?.registeredBy === currentUserId ? '내가' : `${activeDetail.registeredByNickname}님이`}
+            type={activeDetail.type}
+            createdAt={activeDetail.createdAt}
+          />
         ) : items.length === 0 ? (
           <div
             style={{
@@ -152,12 +205,28 @@ export function NotificationPanel({
             아직 알림이 없어요
           </div>
         ) : (
-          items.map((item) => (
-            <NotificationItem
-              key={item.id}
-              item={item}
-              onClick={() => handleSelectItem(item)}
-            />
+          groupByDate(items).map(({ label, items: group }) => (
+            <div key={label}>
+              <div style={{
+                padding: '8px 16px 4px',
+                fontSize: 11,
+                color: colors.inkSoft,
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                fontFamily: fonts.sans,
+              }}>
+                {label}
+              </div>
+              {group.map((item) => (
+                <NotificationItem
+                  key={item.id}
+                  item={item}
+                  onClick={() => handleSelectItem(item)}
+                  currentUserId={currentUserId}
+                />
+              ))}
+            </div>
           ))
         )}
       </div>
