@@ -66,12 +66,13 @@ public class NotificationService {
     }
 
     /**
-     * 공통 fan-out 로직. 활성 멤버 중 등록자 본인을 제외한 수신자별로
+     * 공통 fan-out 로직. 활성 멤버 전원(등록자 본인 포함)에게
      * {@link Notification} + {@link NotificationPin} 링크를 저장한다.
      */
     private void fanOut(Long groupId, Long registeredBy, List<Long> pinIds, NotificationType type) {
-        List<Long> receiverIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
-        if (receiverIds.isEmpty()) return;  // 엣지 7: 다른 활성 멤버 없음
+        List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
+        List<Long> receiverIds = new ArrayList<>(otherIds);
+        receiverIds.add(registeredBy);  // 본인도 알림함에서 저장 기록을 확인할 수 있도록 포함
 
         for (Long receiverId : receiverIds) {
             Notification n = repository.save(
@@ -152,15 +153,15 @@ public class NotificationService {
             Pin pin = pinById.get(link.getPinId());
             if (pin == null) {
                 // pin row 자체가 존재하지 않음 (이론상 거의 없음)
-                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true);
+                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null);
             }
             if (pin.isDeleted()) {
                 return new NotificationPinItemResult(
-                        pin.getId(), pin.getPlaceName(), null, null, null, true);
+                        pin.getId(), pin.getPlaceName(), null, null, null, true, null);
             }
             return new NotificationPinItemResult(
                     pin.getId(), pin.getPlaceName(), pin.getAddress(),
-                    pin.getLatitude(), pin.getLongitude(), false);
+                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl());
         }).toList();
 
         return new NotificationDetailResult(
@@ -217,7 +218,8 @@ public class NotificationService {
             String address,
             BigDecimal latitude,
             BigDecimal longitude,
-            boolean deleted
+            boolean deleted,
+            String instagramUrl
     ) {}
 
     public record NotificationDetailResult(

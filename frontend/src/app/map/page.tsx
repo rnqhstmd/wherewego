@@ -37,6 +37,7 @@ export default async function MapPage() {
       mapboxToken={token}
       mapboxStyleUrl={styleUrl}
       myNickname={me.nickname}
+      myId={me.id}
     />
   );
 }
