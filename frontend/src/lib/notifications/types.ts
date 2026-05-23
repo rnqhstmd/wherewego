@@ -30,6 +30,7 @@ export interface NotificationPinItem {
   latitude: string | null;
   longitude: string | null;
   deleted: boolean;
+  instagramUrl: string | null;
 }
 
 export interface NotificationDetail {
