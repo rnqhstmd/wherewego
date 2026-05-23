@@ -26,12 +26,14 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenHasher refreshTokenHasher;
     private final KakaoLoginUrlGenerator kakaoLoginUrlGenerator;
+    private final UserLoginPersistence userLoginPersistence;
 
     public KakaoLoginUrlInfo getKakaoLoginUrl() {
         return new KakaoLoginUrlInfo(kakaoLoginUrlGenerator.generate());
     }
 
-    @Transactional
+    // @Transactional 없음 — 카카오 외부 HTTP 호출(최대 3초)이 포함되므로 트랜잭션을 걸면
+    // 그 시간 동안 커넥션을 점유해 풀이 고갈된다. DB 작업은 UserLoginPersistence에 위임.
     public AuthResultInfo loginWithKakao(String code) {
         KakaoTokenResponse tokenRes = kakaoClient.exchangeCodeForToken(code);
         KakaoUserInfoResponse userInfo = kakaoClient.fetchUserInfo(tokenRes.accessToken());
@@ -44,23 +46,7 @@ public class AuthService {
             throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "카카오 닉네임을 가져올 수 없습니다.");
         }
 
-        UserModel user = userRepository.findByKakaoUserId(kakaoUserId)
-                .map(existing -> {
-                    if (!existing.isActive()) {
-                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED);
-                    }
-                    existing.updateProfile(nickname, profileImageUrl);
-                    return existing;
-                })
-                .orElseGet(() -> userRepository.save(UserModel.create(kakaoUserId, nickname, profileImageUrl)));
-
-        String accessRaw = jwtTokenProvider.issueAccessToken(user.getId());
-        String refreshRaw = jwtTokenProvider.issueRefreshToken(user.getId());
-
-        user.replaceRefreshTokenHash(refreshTokenHasher.sha256Hex(refreshRaw));
-        userRepository.save(user);
-
-        return AuthResultInfo.of(user, accessRaw, refreshRaw);
+        return userLoginPersistence.upsertAndIssueTokens(kakaoUserId, nickname, profileImageUrl);
     }
 
     @Transactional

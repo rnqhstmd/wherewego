@@ -33,6 +33,11 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public UserModel saveAndFlush(UserModel user) {
+        return jpaRepository.saveAndFlush(user);
+    }
+
+    @Override
     public Map<Long, String> findNicknamesByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return Collections.emptyMap();
         return jpaRepository.findAllById(ids).stream()
