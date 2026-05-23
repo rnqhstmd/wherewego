@@ -476,6 +476,8 @@ export default function MapboxView({
         const tryInitialFly = () => {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
+              // unmount 후 비동기 콜백이 도착하면 이미 제거된 map에 접근하므로 조기 반환.
+              if (mapRef.current !== map) return;
               const lng = pos.coords.longitude;
               const lat = pos.coords.latitude;
               if (!skipInitialGeoFly) {
@@ -502,15 +504,16 @@ export default function MapboxView({
           );
         };
 
+        // Permissions API 미지원 환경(구형 브라우저)은 자동 요청 없이 버튼 클릭으로 유도.
+        // granted일 때만 자동 flyTo — prompt 상태에서 자동 요청 시 iOS blocking modal 발생,
+        // 거부 선택 시 Mapbox GeolocateControl 버튼이 비활성화되는 버그 방지.
         if (navigator.permissions) {
           navigator.permissions
             .query({ name: "geolocation" as PermissionName })
             .then((status) => {
               if (status.state === "granted") tryInitialFly();
             })
-            .catch(() => tryInitialFly());
-        } else {
-          tryInitialFly();
+            .catch(() => { /* Permissions API 오류 — 버튼 클릭으로 유도 */ });
         }
       }
     });

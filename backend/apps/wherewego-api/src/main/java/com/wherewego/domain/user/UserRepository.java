@@ -8,6 +8,8 @@ public interface UserRepository {
     Optional<UserModel> findByKakaoUserId(Long kakaoUserId);
     Optional<UserModel> findById(Long id);
     UserModel save(UserModel user);
+    /** 즉시 flush — 동시 삽입 race 시 DataIntegrityViolationException 조기 감지용. */
+    UserModel saveAndFlush(UserModel user);
 
     /**
      * 주어진 user id 집합에 대한 nickname 맵을 조회한다.

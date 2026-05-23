@@ -57,6 +57,9 @@ class AuthServiceTest {
     @Mock
     private KakaoLoginUrlGenerator kakaoLoginUrlGenerator;
 
+    @Mock
+    private UserLoginPersistence userLoginPersistence;
+
     @InjectMocks
     private AuthService authService;
 
@@ -81,46 +84,47 @@ class AuthServiceTest {
     @DisplayName("카카오 로그인을 처리할 때,")
     @Nested
     class LoginWithKakao {
-        @DisplayName("신규 사용자면, 사용자를 저장하고 AuthResultInfo를 반환한다.")
+        @DisplayName("카카오 API 응답을 파싱해 UserLoginPersistence에 위임하고 결과를 반환한다.")
         @Test
-        void loginWithKakao_newUser_createsAndIssuesTokens() {
+        void loginWithKakao_validResponse_delegatesAndReturns() {
             // arrange
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.empty());
-            UserModel savedUser = spy(UserModel.create(12345L, "닉네임", "http://img.example/p.png"));
-            when(userRepository.save(any(UserModel.class))).thenReturn(savedUser);
+            AuthResultInfo expected = new AuthResultInfo(1L, "닉네임", "http://img.example/p.png", "new-access", "new-refresh");
+            when(userLoginPersistence.upsertAndIssueTokens(12345L, "닉네임", "http://img.example/p.png"))
+                    .thenReturn(expected);
 
             // act
             AuthResultInfo result = authService.loginWithKakao("code-123");
 
             // assert
-            verify(userRepository, times(2)).save(any(UserModel.class));
-            assertThat(result.accessToken()).isEqualTo("new-access");
-            assertThat(result.refreshToken()).isEqualTo("new-refresh");
-            assertThat(result.nickname()).isEqualTo("닉네임");
+            verify(kakaoClient).exchangeCodeForToken("code-123");
+            verify(kakaoClient).fetchUserInfo("kakao-access");
+            verify(userLoginPersistence).upsertAndIssueTokens(12345L, "닉네임", "http://img.example/p.png");
+            assertThat(result).isEqualTo(expected);
         }
 
-        @DisplayName("기존 활성 사용자면, 프로필을 갱신한다.")
+        @DisplayName("카카오 닉네임이 없으면, AUTH_KAKAO_API_FAILED 예외가 발생하고 persistence에 위임하지 않는다.")
         @Test
-        void loginWithKakao_existingActiveUser_updatesProfile() {
+        void loginWithKakao_noNickname_throwsWithoutDelegating() {
             // arrange
-            UserModel existing = spy(UserModel.create(12345L, "OldName", "old.png"));
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.of(existing));
-            when(userRepository.save(any(UserModel.class))).thenReturn(existing);
+            when(kakaoClient.fetchUserInfo(anyString())).thenReturn(
+                    new KakaoUserInfoResponse(12345L,
+                            new KakaoUserInfoResponse.Properties(null, null, null), null));
 
-            // act
-            authService.loginWithKakao("code-123");
+            // act & assert
+            assertThatThrownBy(() -> authService.loginWithKakao("code-123"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
 
-            // assert
-            verify(existing).updateProfile("닉네임", "http://img.example/p.png");
+            verify(userLoginPersistence, never()).upsertAndIssueTokens(any(), any(), any());
         }
 
-        @DisplayName("기존 비활성(탈퇴) 사용자면, AUTH_USER_DEACTIVATED 예외가 발생한다.")
+        @DisplayName("UserLoginPersistence에서 예외가 발생하면 그대로 전파한다.")
         @Test
-        void loginWithKakao_deactivatedUser_throwsDeactivated() {
+        void loginWithKakao_persistenceThrows_propagates() {
             // arrange
-            UserModel existing = UserModel.create(12345L, "닉", null);
-            existing.delete();
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.of(existing));
+            when(userLoginPersistence.upsertAndIssueTokens(anyLong(), anyString(), anyString()))
+                    .thenThrow(new CoreException(ErrorType.AUTH_USER_DEACTIVATED));
 
             // act & assert
             assertThatThrownBy(() -> authService.loginWithKakao("code-123"))
