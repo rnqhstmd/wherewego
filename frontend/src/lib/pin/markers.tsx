@@ -21,9 +21,9 @@ export type PinKind = "reel" | "wish" | "memory";
  * 브라우저가 default(검정)로 폴백되는 회귀가 있었다. globals.css의 `--color-pin-*`
  * 토큰과 동일한 hex를 직접 사용해 모든 환경에서 정확한 파스텔 톤이 노출되도록 한다.
  *
- * - REEL: 연보라 #C5B4E3 (인스타 릴스에서 발견한 곳)
- * - WISH: 파스텔 민트 #A8E6CF (가보고 싶은 곳)
- * - MEMORY: 파스텔 핑크 #FFB3C6 (다녀온 곳)
+ * - REEL: 하늘색 #7BB3E8 동그라미 (인스타 릴스에서 발견한 곳)
+ * - WISH: 노랑 #F4C842 별모양 (가보고 싶은 곳)
+ * - MEMORY: 파스텔 핑크 #FFB3C6 하트 (다녀온 곳)
  */
 export const PIN_COLORS: Record<PinKind, string> = {
   reel: "#7BB3E8",   // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
