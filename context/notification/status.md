@@ -45,6 +45,13 @@
 | BR-6 | SseEmitter 5분 타임아웃 | ⬜ | — | 옵션 B 다운그레이드로 SSE 제거 |
 | BR-7 | 알림 목록 최대 50건 cap | ✅ | [#40](https://github.com/rnqhstmd/wherewego/pull/40) | |
 
+## 알림 UX 개선 (2026-05-23, 커밋 6426914)
+
+| 항목 | 상태 | 상세 |
+|------|------|------|
+| 알림 목록 actor 레이블 통일 | ✅ | `NotificationItem.tsx` — `currentUserId` prop 제거, 항상 `{registeredByNickname}님이 장소를 저장했어요.` 표시. "나"→본인 이름 형식으로 통일 |
+| 알림 상세 버튼 텍스트 | ✅ | `NotificationPinList.tsx` — "출처 ↗" → "릴스 보기 ↗" 텍스트 변경 |
+
 ## 후속 작업 (Trust Ledger 기록, 미반영)
 
 - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)

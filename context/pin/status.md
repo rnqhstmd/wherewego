@@ -23,6 +23,8 @@
 
 ## 후속 작업
 
+- **메모 수정자 추적 완료 (2026-05-23)**: `pins.memo_updated_by BIGINT NULL` 컬럼 추가 (V008 Flyway). `Pin.applyManualMemo(String memo, Long updatedBy)` 시그니처 변경 — 수정자 ID 저장. `clearMemo()`도 `memoUpdatedBy = null` 리셋. `PinSummary` + `PinSummaryResponse`에 `memoUpdatedBy` / `memoUpdatedByNickname` 필드 추가. `PinService.toSummaries`는 `createdBy` + `memoUpdatedBy` ID를 1회 배치 쿼리로 닉네임 일괄 조회(N+1 방지). 프론트 `MapClient.authorLabel`: 수정자 != 등록자이면 수정자 닉네임, 동일하거나 null이면 등록자 닉네임으로 표시 — 커밋 6426914
+
 - **Phase 2.8 완료**: 웹 등록 시 `instagramUrl` 명시 입력 UI (`MemoTagPanelContent` 공통, 검색·picker 양 경로 자동 커버). 클라이언트 `https://` 시작 검증 + 백엔드 `Pin.validateInstagramUrl` 양방향 보안 검증 + `PinCard.tsx` 조건부 href — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
 - **Phase 2.8 완료**: 핀 장소 정보(`place_name`, `address`) 텍스트 수정 — `PinUpdateCommand` 확장 + `PinEditDialog` 장소명/주소 편집 필드 (순서: 장소명 → 주소 → 태그 → 메모) + `PinListClient.applyPatch` 낙관적 반영 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)
 - **Phase 2.8 완료**: map ⋮ 메뉴 삭제 액션 — `PinPopup` footer에 HLine + 우측 정렬 텍스트 버튼, `PinDeleteConfirm` 재사용, `useOptimistic` reducer 일반화(`patch|remove`)로 마커 즉시 제거 + 실패 시 자동 롤백 — [#21](https://github.com/rnqhstmd/wherewego/pull/21)

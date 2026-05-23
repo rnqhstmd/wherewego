@@ -27,21 +27,30 @@ public class PinService {
 
     /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 포함). */
     private PinSummary toSummary(Pin pin) {
-        String nickname = userRepository.findById(pin.getCreatedBy())
+        String createdByNickname = userRepository.findById(pin.getCreatedBy())
                 .map(u -> u.getNickname())
                 .orElse(null);
-        return PinSummary.from(pin, nickname);
+        String memoUpdatedByNickname = pin.getMemoUpdatedBy() != null
+                ? userRepository.findById(pin.getMemoUpdatedBy()).map(u -> u.getNickname()).orElse(null)
+                : null;
+        return PinSummary.from(pin, createdByNickname, memoUpdatedByNickname);
     }
 
-    /** 다건 Pin → PinSummary 변환. N+1 회피를 위해 createdBy ids 배치 조회. */
+    /** 다건 Pin → PinSummary 변환. N+1 회피를 위해 관련 user ids 배치 조회. */
     private List<PinSummary> toSummaries(List<Pin> pins) {
         if (pins.isEmpty()) return List.of();
         Set<Long> userIds = pins.stream()
-                .map(Pin::getCreatedBy)
+                .flatMap(p -> {
+                    java.util.stream.Stream.Builder<Long> b = java.util.stream.Stream.builder();
+                    b.add(p.getCreatedBy());
+                    if (p.getMemoUpdatedBy() != null) b.add(p.getMemoUpdatedBy());
+                    return b.build();
+                })
                 .collect(Collectors.toSet());
         Map<Long, String> nicknames = userRepository.findNicknamesByIds(userIds);
         return pins.stream()
-                .map(p -> PinSummary.from(p, nicknames.get(p.getCreatedBy())))
+                .map(p -> PinSummary.from(p, nicknames.get(p.getCreatedBy()),
+                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null))
                 .toList();
     }
 
@@ -63,7 +72,7 @@ public class PinService {
                                      String instagramUrl, String memo) {
         Pin pin = Pin.autoFromInstagram(groupId, userId, hit, instagramUrl);
         if (memo != null && !memo.isBlank()) {
-            pin.applyManualMemo(memo);
+            pin.applyManualMemo(memo, userId);
         }
         return pinRepository.save(pin);
     }
@@ -92,7 +101,7 @@ public class PinService {
         try {
             Pin pin = Pin.autoFromInstagram(groupId, userId, hit, instagramUrl);
             if (memo != null && !memo.isBlank()) {
-                pin.applyManualMemo(memo);
+                pin.applyManualMemo(memo, userId);
             }
             Pin saved = pinRepository.saveAndFlush(pin);
             return new RegisterPinResult(saved, false);
@@ -162,7 +171,7 @@ public class PinService {
                 cmd.tag()
         );
         if (cmd.memo() != null && !cmd.memo().isBlank()) {
-            pin.applyManualMemo(cmd.memo());
+            pin.applyManualMemo(cmd.memo(), userId);
         }
         Pin saved;
         try {
@@ -229,7 +238,7 @@ public class PinService {
             if (m == null || m.isEmpty()) {
                 pin.clearMemo();
             } else {
-                pin.applyManualMemo(m);
+                pin.applyManualMemo(m, userId);
             }
         }
         if (cmd.placeNameProvided()) {

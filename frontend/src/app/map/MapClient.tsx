@@ -1365,7 +1365,11 @@ export default function MapClient({
           pin={selectedPin}
           map={map}
           authorLabel={
-            selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`
+            // 상대방이 메모를 수정한 경우 written by 이름을 수정자로 변경
+            (selectedPin.memoUpdatedBy != null &&
+              selectedPin.memoUpdatedBy !== selectedPin.createdBy)
+              ? (selectedPin.memoUpdatedByNickname ?? `사용자 #${selectedPin.memoUpdatedBy}`)
+              : (selectedPin.createdByNickname ?? `사용자 #${selectedPin.createdBy}`)
           }
           mapboxToken={mapboxToken}
           mapboxStyleUrl={mapboxStyleUrl}

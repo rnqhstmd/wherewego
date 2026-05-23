@@ -29,7 +29,9 @@ public final class PinV1Dto {
             String memo,
             MemoSource memoSource,
             PinTag tag,
-            ZonedDateTime createdAt
+            ZonedDateTime createdAt,
+            Long memoUpdatedBy,
+            String memoUpdatedByNickname
     ) {
         public static PinSummaryResponse from(PinSummary s) {
             return new PinSummaryResponse(
@@ -45,7 +47,9 @@ public final class PinV1Dto {
                     s.memo(),
                     s.memoSource(),
                     s.tag(),
-                    s.createdAt()
+                    s.createdAt(),
+                    s.memoUpdatedBy(),
+                    s.memoUpdatedByNickname()
             );
         }
     }
