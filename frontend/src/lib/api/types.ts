@@ -31,6 +31,8 @@ export interface PinSummaryResponse {
   memoSource: MemoSource | null;
   tag: PinTag;
   createdAt: string;
+  memoUpdatedBy: number | null;
+  memoUpdatedByNickname: string | null;
 }
 
 export interface PinListResponse {

@@ -65,7 +65,7 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
               flexShrink: 0,
             }}
           >
-            출처 ↗
+            릴스 보기 ↗
           </a>
         )}
       </div>

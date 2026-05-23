@@ -6,7 +6,6 @@ import { colors, fonts } from '@/lib/design/tokens';
 interface NotificationItemProps {
   item: NotificationItemType;
   onClick: () => void;
-  currentUserId: number;
 }
 
 /**
@@ -15,9 +14,8 @@ interface NotificationItemProps {
  * <p>읽지 않은 알림은 옅은 CTA 배경으로 강조.</p>
  * <p>Row 1: 행위자명 + 타입칩 + 시간, Row 2: 장소 요약.</p>
  */
-export function NotificationItem({ item, onClick, currentUserId }: NotificationItemProps) {
-  const isSelf = item.registeredBy === currentUserId;
-  const actorLabel = isSelf ? '나' : item.registeredByNickname;
+export function NotificationItem({ item, onClick }: NotificationItemProps) {
+  const actorLabel = `${item.registeredByNickname}님이 장소를 저장했어요.`;
   const placeSummary =
     item.totalPinCount <= 1
       ? item.firstPlaceName

@@ -19,10 +19,12 @@ public record PinSummary(
         String memo,
         MemoSource memoSource,
         PinTag tag,
-        ZonedDateTime createdAt
+        ZonedDateTime createdAt,
+        Long memoUpdatedBy,
+        String memoUpdatedByNickname
 ) {
 
-    public static PinSummary from(Pin pin, String createdByNickname) {
+    public static PinSummary from(Pin pin, String createdByNickname, String memoUpdatedByNickname) {
         return new PinSummary(
                 pin.getId(),
                 pin.getGroupId(),
@@ -36,7 +38,9 @@ public record PinSummary(
                 pin.getMemo(),
                 pin.getMemoSource(),
                 pin.getTag(),
-                pin.getCreatedAt()
+                pin.getCreatedAt(),
+                pin.getMemoUpdatedBy(),
+                memoUpdatedByNickname
         );
     }
 }

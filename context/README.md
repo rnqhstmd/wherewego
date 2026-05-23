@@ -60,6 +60,9 @@
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
 
+| **Phase 10** | **장소 방문 감지**: WISH·REEL 핀 100m 이내 진입 시 "이 장소에 오셨나요?" 바텀 토스트 → 확인 시 MEMORY 전환 애니메이션 + 메모 바텀시트. 세션 중 동일 핀 중복 표시 없음. 프론트 Haversine 계산, 백엔드 신규 API 없음. [상세](pin/phase-10-visit-detection.md) | ⬜ 미시작 | — |
+| **Phase 11** | **우리 기록 (마이페이지)**: 커플 저장 핀 전체를 월별 타임라인으로 조회. 추억/위시/전체 탭 필터, 카드 탭 → 지도 flyTo + PinPopup. `written by` 수정자 반영. 기존 핀 목록 API 재사용. [상세](map/phase-11-our-records.md) | ⬜ 미시작 | — |
+
 ## 고도화 로드맵
 
 서비스 안정화 이후 별도 PRD 기반으로 진행하는 대규모 확장 작업.
