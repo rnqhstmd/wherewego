@@ -467,33 +467,51 @@ export default function MapboxView({
       // 초기 진입 시 globe 시점 → 현재 위치로 부드러운 비행.
       // skipInitialGeoFly(딥링크 진입)일 때는 flyTo 생략, 마커 표시만 수행.
       // 권한 거부/실패 시는 그대로 globe 유지.
+      //
+      // iOS에서 자동 getCurrentPosition 호출은 blocking modal을 띄우고,
+      // 사용자가 거부하면 Mapbox GeolocateControl 버튼이 비활성화된다.
+      // (Mapbox 내부에서 navigator.permissions.query 결과가 'denied'가 되기 때문)
+      // → 이미 'granted'인 경우에만 자동 호출, 그 외에는 버튼 클릭으로 유도.
       if (typeof navigator !== "undefined" && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lng = pos.coords.longitude;
-            const lat = pos.coords.latitude;
-            if (!skipInitialGeoFly) {
-              map.flyTo({
-                center: [lng, lat],
-                zoom: 15,
-                pitch: 0,
-                bearing: 0,
-                speed: 0.9,
-                curve: 1.5,
-                essential: true,
-              });
-            }
-            // GeolocateControl trigger 없이 진입한 경우에도 자체 마커 표시.
-            if (userMarkerRef.current && !userMarkerAddedRef.current) {
-              userMarkerRef.current.setLngLat([lng, lat]).addTo(map);
-              userMarkerAddedRef.current = true;
-            }
-          },
-          () => {
-            /* 권한 거부/실패 — globe 유지 */
-          },
-          { enableHighAccuracy: true, timeout: 5000 },
-        );
+        const tryInitialFly = () => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lng = pos.coords.longitude;
+              const lat = pos.coords.latitude;
+              if (!skipInitialGeoFly) {
+                map.flyTo({
+                  center: [lng, lat],
+                  zoom: 15,
+                  pitch: 0,
+                  bearing: 0,
+                  speed: 0.9,
+                  curve: 1.5,
+                  essential: true,
+                });
+              }
+              // GeolocateControl trigger 없이 진입한 경우에도 자체 마커 표시.
+              if (userMarkerRef.current && !userMarkerAddedRef.current) {
+                userMarkerRef.current.setLngLat([lng, lat]).addTo(map);
+                userMarkerAddedRef.current = true;
+              }
+            },
+            () => {
+              /* 권한 거부/실패 — globe 유지 */
+            },
+            { enableHighAccuracy: true, timeout: 5000 },
+          );
+        };
+
+        if (navigator.permissions) {
+          navigator.permissions
+            .query({ name: "geolocation" as PermissionName })
+            .then((status) => {
+              if (status.state === "granted") tryInitialFly();
+            })
+            .catch(() => tryInitialFly());
+        } else {
+          tryInitialFly();
+        }
       }
     });
 
