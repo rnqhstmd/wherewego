@@ -42,7 +42,9 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
       }}>
         <div>
           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
-            {actorLabel} 저장한 {pins.length}곳
+            {type === 'VISIT_DETECTED'
+              ? `함께 만든 추억 ${pins.length}곳`
+              : `${actorLabel} 저장한 ${pins.length}곳`}
           </div>
           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
             {formatTime(createdAt)}
@@ -119,6 +121,20 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
                         삭제됨
                       </span>
                     )}
+                    {/* Phase 10 FR-VD-29/31: VISIT_DETECTED 알림에서 현재 MEMORY 태그인 활성 핀에 추억 배지 표시. */}
+                    {!disabled && type === 'VISIT_DETECTED' && pin.tag === 'MEMORY' && (
+                      <span style={{
+                        fontSize: 10,
+                        color: '#FFB3C6',
+                        background: 'rgba(255,179,198,0.15)',
+                        padding: '2px 6px',
+                        borderRadius: 99,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                        ● 추억
+                      </span>
+                    )}
                   </div>
                   {!disabled && pin.address && (
                     <div style={{
@@ -128,6 +144,19 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
                       fontFamily: fonts.mono,
                     }}>
                       {pin.address}
+                    </div>
+                  )}
+                  {!disabled && type === 'VISIT_DETECTED' && pin.memo && (
+                    <div style={{
+                      fontSize: 12,
+                      color: colors.ink,
+                      marginTop: 4,
+                      padding: '6px 8px',
+                      background: colors.bg,
+                      borderRadius: 6,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {pin.memo}
                     </div>
                   )}
                 </div>

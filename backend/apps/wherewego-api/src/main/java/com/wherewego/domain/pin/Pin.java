@@ -13,6 +13,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
 
 /**
  * 그룹 공유 장소 핀. V001 스키마 {@code pins} 테이블 매핑.
@@ -70,6 +71,17 @@ public class Pin extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "tag", nullable = false, length = 10)
     private PinTag tag;
+
+    /**
+     * WISH/REEL → MEMORY 전환 시각 (V010). NULL 허용.
+     * <ul>
+     *     <li>WISH/REEL 상태: 항상 NULL.</li>
+     *     <li>MEMORY 로 처음 전환된 순간 {@link ZonedDateTime#now()} 가 기록된다.</li>
+     *     <li>V010 이전에 생성된 기존 MEMORY 핀: NULL (UI 는 createdAt 폴백).</li>
+     * </ul>
+     */
+    @Column(name = "visited_at")
+    private ZonedDateTime visitedAt;
 
     protected Pin() { }
 
@@ -195,9 +207,17 @@ public class Pin extends BaseEntity {
 
     /**
      * 태그 변경. tag 는 non-null (호출 전 서비스에서 검증).
+     *
+     * <p>Phase 10 후속: WISH/REEL → MEMORY 전환 시점에 {@link #visitedAt} 을 NOW() 로 기록한다.
+     * 다른 전환(예: MEMORY → WISH, WISH ↔ REEL)은 visitedAt 을 건드리지 않는다.
+     * 이미 visitedAt 이 있는 핀이 재전환되었다가 다시 MEMORY 가 되어도 새 시점으로 덮어쓴다.</p>
      */
     public void changeTag(PinTag tag) {
+        PinTag previous = this.tag;
         this.tag = tag;
+        if (tag == PinTag.MEMORY && (previous == PinTag.WISH || previous == PinTag.REEL)) {
+            this.visitedAt = ZonedDateTime.now();
+        }
     }
 
     /**

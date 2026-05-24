@@ -83,6 +83,9 @@ class PinServiceIT {
     }
 
     private void truncateAll() {
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM invite_links");
         jdbcTemplate.execute("DELETE FROM group_members");
@@ -172,7 +175,7 @@ class PinServiceIT {
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동", false, null,
                 false, null, false, null, false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.memo()).isEqualTo("수동");
@@ -180,23 +183,26 @@ class PinServiceIT {
         assertThat(result.tag()).isEqualTo(originalTag);
     }
 
-    @DisplayName("updatePin - tag 만 전달하면 tag 만 갱신되고 memo/memoSource 는 유지된다 (AC-8).")
+    @DisplayName("updatePin - tag 만 전달하면 tag 만 갱신되고 memo/memoSource 는 유지된다 (AC-8). REEL→MEMORY 전환 시 visitedAt 이 기록된다 (Phase 10 후속).")
     @Test
     void updatePin_tagOnly_updatesTagAndKeepsMemo() {
-        // arrange : 기존 memo 가 있는 핀
+        // arrange : 기존 memo 가 있는 핀 (savePin → REEL)
         Pin pin = savePin(userAId, "https://www.instagram.com/p/U2/");
-        pin.applyManualMemo("기존 메모");
+        pin.applyManualMemo("기존 메모", userAId);
         pinJpaRepository.saveAndFlush(pin);
+        assertThat(pin.getVisitedAt()).isNull();
 
-        // act
+        // act : REEL → MEMORY
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
                 false, null, false, null, false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.tag()).isEqualTo(PinTag.MEMORY);
         assertThat(result.memo()).isEqualTo("기존 메모");
         assertThat(result.memoSource()).isEqualTo(MemoSource.MANUAL);
+        // Phase 10 후속: REEL → MEMORY 전환 시 visitedAt 이 NOW() 로 기록되어야 한다.
+        assertThat(result.visitedAt()).isNotNull();
     }
 
     @DisplayName("updatePin - 빈 문자열 memo 는 memo=null/memoSource=null 로 리셋하고 이후 updateAutoMemoIfNotManual 이 1행을 갱신한다 (AC-11).")
@@ -205,13 +211,13 @@ class PinServiceIT {
     void updatePin_emptyMemo_clearsLockAndAllowsAuto() {
         // arrange : MANUAL 메모 있는 핀
         Pin pin = savePin(userAId, "https://www.instagram.com/p/U3/");
-        pin.applyManualMemo("기존 수동");
+        pin.applyManualMemo("기존 수동", userAId);
         pinJpaRepository.saveAndFlush(pin);
 
         // act : 빈 문자열 전송 → 잠금 해제
         PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null,
                 false, null, false, null, false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert : DB 값도 NULL
         assertThat(result.memo()).isNull();
@@ -279,7 +285,7 @@ class PinServiceIT {
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
                 true, "새 장소", false, null, false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.placeName()).isEqualTo("새 장소");
@@ -313,7 +319,7 @@ class PinServiceIT {
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
                 true, "userB 수정", false, null, false, null, null);
-        PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.placeName()).isEqualTo("userB 수정");
@@ -329,7 +335,7 @@ class PinServiceIT {
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
                 false, null, true, "새 주소", false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.address()).isEqualTo("새 주소");
@@ -350,7 +356,7 @@ class PinServiceIT {
         // act
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
                 true, "새 장소", true, "새 주소", false, null, null);
-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
+        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
 
         // assert
         assertThat(result.placeName()).isEqualTo("새 장소");

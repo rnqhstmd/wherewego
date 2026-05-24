@@ -61,12 +61,18 @@ CREATE TABLE notifications (
     group_id BIGINT NOT NULL REFERENCES groups(id),
     receiver_id BIGINT NOT NULL REFERENCES users(id),    -- 단일 컬럼 fan-out
     registered_by BIGINT NOT NULL REFERENCES users(id),
-    type VARCHAR(20) NOT NULL CHECK (type IN ('MANUAL_PIN','CHATBOT_PINS')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('MANUAL_PIN','CHATBOT_PINS','VISIT_DETECTED')),  -- V009: VISIT_DETECTED 추가
+    visit_pin_id BIGINT NULL REFERENCES pins(id) ON DELETE RESTRICT,  -- V009: VISIT_DETECTED 부분 UNIQUE 인덱스 키 (다른 유형은 NULL)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,    -- BaseEntity 정합
     read_at TIMESTAMPTZ
 );
+
+-- Phase 10 race-free 중복 차단: 동일 (group_id, receiver_id, registered_by, visit_pin_id) 조합 1회만 허용
+CREATE UNIQUE INDEX uq_notifications_visit
+    ON notifications (group_id, receiver_id, registered_by, visit_pin_id)
+    WHERE type = 'VISIT_DETECTED' AND visit_pin_id IS NOT NULL;
 
 CREATE INDEX idx_notifications_receiver_created
     ON notifications (receiver_id, created_at DESC);

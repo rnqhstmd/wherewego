@@ -6,6 +6,7 @@ import { colors, fonts } from '@/lib/design/tokens';
 interface NotificationItemProps {
   item: NotificationItemType;
   onClick: () => void;
+  currentUserId: number;
 }
 
 /**
@@ -13,9 +14,16 @@ interface NotificationItemProps {
  *
  * <p>읽지 않은 알림은 옅은 CTA 배경으로 강조.</p>
  * <p>Row 1: 행위자명 + 타입칩 + 시간, Row 2: 장소 요약.</p>
+ *
+ * <p>Phase 10 보강: VISIT_DETECTED 알림은 커플 공유 컨셉을 살려 본인/짝꿍 분기 없이
+ * "추억이 한 곳 더 쌓였어요"로 통일 표시. 본인 fan-out 정책에 따라 본인 알림함에도
+ * 동일 카피로 노출된다. currentUserId prop 은 향후 분기 가능성을 위해 보존.</p>
  */
-export function NotificationItem({ item, onClick }: NotificationItemProps) {
-  const actorLabel = `${item.registeredByNickname}님이 장소를 저장했어요.`;
+export function NotificationItem({ item, onClick, currentUserId: _currentUserId }: NotificationItemProps) {
+  const actorLabel =
+    item.type === 'VISIT_DETECTED'
+      ? '추억이 한 곳 더 쌓였어요'
+      : `${item.registeredByNickname}님이 장소를 저장했어요.`;
   const placeSummary =
     item.totalPinCount <= 1
       ? item.firstPlaceName

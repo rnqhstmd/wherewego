@@ -8,6 +8,7 @@ import type {
   CreatePinInput,
   PinSummaryResponse,
   PinTag,
+  UpdatePinResponse,
 } from "@/lib/api/types";
 
 export type CreatePinActionResult =
@@ -35,7 +36,17 @@ export async function createPinAction(
   }
 }
 
-export type UpdatePinTagActionResult = CreatePinActionResult;
+/**
+ * Phase 10 보강 (2026-05-24): PATCH 응답이 {@link UpdatePinResponse} 로 감싸진다.
+ * - {@code data.summary} 는 기존 핀 응답 (대부분의 호출처에서 사용)
+ * - {@code data.transitionedToMemoryNow} 는 WISH/REEL → MEMORY 전환이 본 호출에서
+ *   발생했는지 (동시 수정 분기용). tag 외 필드 PATCH 에서는 항상 false.
+ */
+export type UpdatePinActionResult =
+  | { ok: true; data: UpdatePinResponse }
+  | { ok: false; code: string; message: string };
+
+export type UpdatePinTagActionResult = UpdatePinActionResult;
 
 /**
  * 핀 태그 변경 Server Action. `/pins/actions.ts::updatePinAction` 과 분리한다
@@ -59,7 +70,7 @@ export async function updatePinTagAction(
   }
 }
 
-export type UpdatePinMemoActionResult = CreatePinActionResult;
+export type UpdatePinMemoActionResult = UpdatePinActionResult;
 
 /**
  * 핀 메모 변경 Server Action (FR-MMO-2).
@@ -96,7 +107,7 @@ export async function updatePinMemoAction(
   }
 }
 
-export type UpdatePinCoordinateActionResult = CreatePinActionResult;
+export type UpdatePinCoordinateActionResult = UpdatePinActionResult;
 
 /**
  * 핀 좌표 변경 Server Action (Phase 2.10 FR-PIN-COORD).
@@ -130,7 +141,7 @@ export async function updatePinCoordinateAction(
   }
 }
 
-export type UpdatePinPlaceNameActionResult = CreatePinActionResult;
+export type UpdatePinPlaceNameActionResult = UpdatePinActionResult;
 
 /**
  * 핀 장소 이름 변경 Server Action (Phase 2.8).

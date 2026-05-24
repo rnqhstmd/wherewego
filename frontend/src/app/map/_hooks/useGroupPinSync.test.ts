@@ -30,6 +30,7 @@ function pin(id: number): PinSummaryResponse {
     memoSource: null,
     tag: "WISH",
     createdAt: "2026-05-21T00:00:00Z",
+    visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
   };

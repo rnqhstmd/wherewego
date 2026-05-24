@@ -4,6 +4,7 @@ import type {
   PinListResponse,
   PinSummaryResponse,
   PinTag,
+  UpdatePinResponse,
 } from "./types";
 
 export interface PinPatch {
@@ -72,16 +73,21 @@ export async function createPin(
  *
  * 빈 문자열 memo는 잠금 해제 신호이므로 그대로 전송한다.
  * `undefined`인 키만 제거하여 "키 없음" 의미를 보존한다.
+ *
+ * Phase 10 보강 (2026-05-24): 응답이 {@link UpdatePinResponse} 로 감싸진다.
+ * {@code summary} 는 기존 핀 응답, {@code transitionedToMemoryNow} 는 동시 수정 분기용
+ * (WISH/REEL → MEMORY 전환이 본 호출에서 발생했는지). 호출처는 응답의 summary 만 사용해도 되지만,
+ * 동시 수정 케이스를 다루는 흐름(MapClient.handleVisitConfirm) 은 transitionedToMemoryNow 도 본다.
  */
 export async function updatePin(
   groupId: number,
   pinId: number,
   patch: PinPatch,
-): Promise<PinSummaryResponse> {
+): Promise<UpdatePinResponse> {
   const body = Object.fromEntries(
     Object.entries(patch).filter(([, value]) => value !== undefined),
   );
-  return apiFetchServer<PinSummaryResponse>(
+  return apiFetchServer<UpdatePinResponse>(
     `/groups/${groupId}/pins/${pinId}`,
     {
       method: "PATCH",

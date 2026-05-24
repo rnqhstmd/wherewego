@@ -5,7 +5,7 @@
  * BigDecimal 좌표는 정밀도 손실 방지를 위해 문자열로 직렬화된다.</p>
  */
 
-export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS";
+export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
 
 export interface NotificationItem {
   id: number;
@@ -31,6 +31,17 @@ export interface NotificationPinItem {
   longitude: string | null;
   deleted: boolean;
   instagramUrl: string | null;
+  /**
+   * Phase 10 VISIT_DETECTED: 알림 상세 조회 시 백엔드가 최신 핀 메모를 join 하여 채움.
+   * MANUAL_PIN/CHATBOT_PINS 알림은 null. soft-delete 핀도 null.
+   */
+  memo?: string | null;
+  /**
+   * Phase 10 FR-VD-29: 핀의 현재 태그(REEL/WISH/MEMORY). 알림 상세에서
+   * VISIT_DETECTED 케이스의 MEMORY 배지 표시에 사용. soft-delete 또는
+   * 핀 자체가 사라진 경우 null.
+   */
+  tag?: string | null;
 }
 
 export interface NotificationDetail {

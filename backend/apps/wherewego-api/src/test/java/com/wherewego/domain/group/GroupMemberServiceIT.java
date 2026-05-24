@@ -86,6 +86,9 @@ class GroupMemberServiceIT {
 
     private void truncateAll() {
         // users 를 참조하는 자식 테이블을 모두 정리한 뒤 users 삭제 (다른 IT 와 격리 보장).
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM invite_links");
         jdbcTemplate.execute("DELETE FROM group_members");

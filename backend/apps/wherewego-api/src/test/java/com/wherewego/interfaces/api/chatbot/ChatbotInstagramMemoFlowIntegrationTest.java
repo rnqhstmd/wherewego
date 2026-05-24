@@ -114,6 +114,9 @@ class ChatbotInstagramMemoFlowIntegrationTest {
     }
 
     private void truncate() {
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM group_members");
         jdbcTemplate.execute("DELETE FROM groups");

@@ -52,6 +52,26 @@
 | 알림 목록 actor 레이블 통일 | ✅ | `NotificationItem.tsx` — `currentUserId` prop 제거, 항상 `{registeredByNickname}님이 장소를 저장했어요.` 표시. "나"→본인 이름 형식으로 통일 |
 | 알림 상세 버튼 텍스트 | ✅ | `NotificationPinList.tsx` — "출처 ↗" → "릴스 보기 ↗" 텍스트 변경 |
 
+## Phase 10 완료 (2026-05-24)
+
+| 항목 | 상태 | PR | 비고 |
+|------|------|-----|------|
+| `VISIT_DETECTED` 신규 알림 유형 (WISH/REEL→MEMORY 자동 전환 시 발송) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | V009 마이그레이션 (`visit_pin_id` 컬럼 + 부분 UNIQUE 인덱스 + ON DELETE RESTRICT) |
+| `NotificationVisitWriter` (`@Transactional(REQUIRES_NEW)`) + 호출자 catch race-free 차단 | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Spring self-invocation 회피, `DataIntegrityViolationException` 호출자 catch |
+| `NotificationService.createForVisitDetected` 본인 포함 fan-out | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Phase 11 "우리 기록" 도입 전 과도기 용도. 본인 알림함에도 방문 기록 노출 |
+| 알림 상세 `pin.memo` 최신값 join (VISIT_DETECTED 한정) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `NotificationPinItemResult.memo` + `PinItem.memo` 필드 추가 |
+| `NotificationItem` 본인/짝꿍 카피 분기 ("내가 다녀온 장소" / "{닉네임}님이 다녀온 장소") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `currentUserId` prop 추가 |
+| `NotificationPinList` 메모 줄 표시 (VISIT_DETECTED 한정) + 동사 분기 ("다녀온" / "저장한") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `type` prop 추가 |
+
+## Phase 10 추가 보강 (2026-05-24, 커밋 957761a — gemini-code-assist 봇 리뷰 반영)
+
+| 항목 | 상태 | 상세 |
+|------|------|------|
+| `createForVisitDetected` 멤버십 사전 검증 | ✅ | `groupMemberRepository.findActiveByGroupIdAndUserId(groupId, registeredBy)` → 비활성 멤버면 `log.warn` 후 early return. 비활성 그룹 멤버가 알림 발사 시도 시 의도치 않은 fan-out 차단 |
+| Fan-out 루프 `RuntimeException` 격리 | ✅ | `NotificationVisitWriter.writeOne` 호출 try-catch에 `DataIntegrityViolationException` (duplicate) 분기 외에 `RuntimeException` catch 추가. 한 receiver의 예외가 나머지 receiver fan-out을 막지 않음 |
+| `MapClient.handleVisitConfirm` 에러 로그 단순화 | ✅ | `console.error` 페이로드를 `{groupId, pinId, code, message}` → `result.code`만으로 축소. 식별자 노출 최소화 |
+| `accuracy > 50m` 시 `firstEnterAt` clear (gemini 권고) | ⬜ | **의도적 미반영**. PRD BR-VD-3 "타이머에 영향을 주지 않는다"를 누적 보존으로 해석한 self-check Q4 결정 존중. 부작용(연속 불량 GPS 후 즉시 detect)은 trust-ledger 후속 관찰 항목 |
+
 ## 후속 작업 (Trust Ledger 기록, 미반영)
 
 - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)
@@ -59,6 +79,7 @@
 - ⬜ `notification_pins.pin_id` ON DELETE 정책 ADR 기록 (soft delete 영구 유지 가정)
 - ⬜ `NotificationPanel.loadDetail` 실패 시 에러 UI 표시
 - ⬜ `NotificationPanel` 빠른 연속 클릭 시 detail fetch race condition (AbortController)
+- ⬜ Phase 11 도입 시 `createForVisitDetected`의 본인 포함 fan-out을 "우리 기록" 화면 기반으로 재검토 (현재는 과도기 정책)
 
 ## 옵션 B 다운그레이드 코드 반영 (2026-05-21)
 

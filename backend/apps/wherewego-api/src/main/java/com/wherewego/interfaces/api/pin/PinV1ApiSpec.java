@@ -50,7 +50,7 @@ public interface PinV1ApiSpec {
                     "Phase 2.10: 좌표 수정 지원 — latitude/longitude 는 함께 전달해야 하며 한 쪽만 전달 시 " +
                     "PIN_COORDINATE_INVALID (400). 범위: latitude -90~90, longitude -180~180, 소수점 7자리 이하 (DB DECIMAL(10,7) 정합)."
     )
-    ApiResponse<PinV1Dto.PinSummaryResponse> updatePin(
+    ApiResponse<PinV1Dto.UpdatePinResponse> updatePin(
             @Parameter(hidden = true) Long userId,
             Long groupId,
             Long pinId,
