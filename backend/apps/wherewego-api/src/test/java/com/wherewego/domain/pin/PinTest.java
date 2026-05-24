@@ -92,7 +92,7 @@ class PinTest {
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
 
             // act
-            pin.applyManualMemo("좋은 카페!");
+            pin.applyManualMemo("좋은 카페!", null);
 
             // assert
             assertThat(pin.getMemo()).isEqualTo("좋은 카페!");
@@ -104,10 +104,10 @@ class PinTest {
         void applyManualMemo_overwritesExistingManual() {
             // arrange
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
-            pin.applyManualMemo("첫 메모");
+            pin.applyManualMemo("첫 메모", null);
 
             // act
-            pin.applyManualMemo("두 번째 메모");
+            pin.applyManualMemo("두 번째 메모", null);
 
             // assert
             assertThat(pin.getMemo()).isEqualTo("두 번째 메모");
@@ -138,7 +138,7 @@ class PinTest {
         void clearMemo_resetsExistingManualMemo() {
             // arrange
             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
-            pin.applyManualMemo("수동 메모");
+            pin.applyManualMemo("수동 메모", null);
 
             // act
             pin.clearMemo();

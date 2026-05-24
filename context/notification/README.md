@@ -19,6 +19,7 @@ Phase 8(PR [#40](https://github.com/rnqhstmd/wherewego/pull/40))에서 신규로
 |------|--------|----------|
 | `MANUAL_PIN` | 웹 직접 등록 (`PinV1Controller.createPin`) | 단건 핀 |
 | `CHATBOT_PINS` | 챗봇 릴스 자동 저장 + 장소 카드 선택 | 1~N개 핀 |
+| `VISIT_DETECTED` | WISH/REEL → MEMORY 자동 전환 (`PinV1Controller.updatePin`, Phase 10) | 단건 핀. 본인 포함 fan-out (Phase 11 도입 전 과도기) |
 
 ## API
 

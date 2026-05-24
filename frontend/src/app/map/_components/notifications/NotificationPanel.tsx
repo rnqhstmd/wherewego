@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { NotificationItem } from './NotificationItem';
 import { NotificationPinList } from './NotificationPinList';
 import { colors, fonts } from '@/lib/design/tokens';
@@ -66,16 +66,33 @@ export function NotificationPanel({
   const [selectedItem, setSelectedItem] = useState<NotificationItemType | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // 목록 스크롤 위치 보존 — 상세에서 목록 복귀 시 이전 위치로 복원.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef(0);
+
   useEffect(() => {
     if (!isOpen) {
       setActiveDetail(null);
       setSelectedItem(null);
+      listScrollRef.current = 0;
     }
   }, [isOpen]);
+
+  // activeDetail 이 null 로 돌아올 때(상세 → 목록) 저장된 scrollTop 복원.
+  // React 렌더가 commit 된 직후 호출되어 목록 children 이 이미 DOM 에 있음.
+  useEffect(() => {
+    if (!activeDetail && bodyRef.current) {
+      bodyRef.current.scrollTop = listScrollRef.current;
+    }
+  }, [activeDetail]);
 
   if (!isOpen) return null;
 
   async function handleSelectItem(item: NotificationItemType) {
+    // 상세 진입 직전 목록 스크롤 위치 저장.
+    if (bodyRef.current) {
+      listScrollRef.current = bodyRef.current.scrollTop;
+    }
     setSelectedItem(item);
     setLoading(true);
     try {
@@ -97,10 +114,10 @@ export function NotificationPanel({
           position: 'fixed',
           top: 14,
           left: 66,
-          // 알림함은 사용자 정보량이 많은 영역이라 화면 절반 정도의 길이를 기본으로 확보.
-          // 최대 50개 fetch + 본문 자체 스크롤. 알림 0건 빈 상태에서도 50vh 유지하여 시각 안정.
-          maxHeight: 'calc(100% - 28px)',
-          minHeight: '50vh',
+          // 알림함은 최대 50개 fetch + 내부 스크롤. 높이는 600px 로 고정하여
+          // 알림 개수와 무관하게 일관된 패널 크기를 유지한다. 작은 화면(< 628px viewport)에서는
+          // viewport 에 맞춰 축소.
+          height: 'min(600px, calc(100vh - 28px))',
           width: 360,
           background: colors.panel,
           borderRadius: 20,
@@ -117,8 +134,9 @@ export function NotificationPanel({
           bottom: 80,
           left: 12,
           right: 12,
-          minHeight: '40vh',
-          maxHeight: 'calc(100dvh - 80px - 56px)',
+          // 모바일도 일정 높이 고정 + 내부 스크롤. 70dvh 와 600px 중 작은 값.
+          // ActionBar(80px) + 안전 여백(56px) 을 제외한 viewport 범위 안.
+          height: 'min(70dvh, 600px, calc(100dvh - 80px - 56px))',
           background: colors.panel,
           borderRadius: 20,
           boxShadow: `0 -10px 28px ${colors.shadowMd}`,
@@ -180,7 +198,7 @@ export function NotificationPanel({
       </div>
 
       {/* Body */}
-      <div style={{ overflowY: 'auto', flex: 1 }}>
+      <div ref={bodyRef} style={{ overflowY: 'auto', flex: 1 }}>
         {loading ? (
           <div style={{ padding: 16, color: colors.inkSoft, fontSize: 13 }}>
             불러오는 중...
@@ -223,6 +241,7 @@ export function NotificationPanel({
                   key={item.id}
                   item={item}
                   onClick={() => handleSelectItem(item)}
+                  currentUserId={currentUserId}
                 />
               ))}
             </div>

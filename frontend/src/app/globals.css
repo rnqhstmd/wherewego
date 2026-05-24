@@ -189,3 +189,27 @@ body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* Phase 10 — 장소 방문 감지 (설계 §5.3).
+   triggerVisitCelebration 호출 시 MapboxView가 마커 element 자식으로 inner div + confetti div를
+   주입하고 600ms 후 제거한다. CSS 변수 --dx/--dy 는 하트 span 에 inline style 로 주입된다. */
+@keyframes maygo-marker-bounce {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.5); }
+  60%  { transform: scale(0.92); }
+  82%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+/* 하트 6개 공용 keyframe — 인덱스별 size/dx/dy/delay 는 인라인 style 로 주입. */
+@keyframes maygo-confetti-heart {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  12%  { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.85); opacity: 0; }
+}
+
+/* VisitToast 정중앙 페이드인 + 살짝 scale mount 애니메이션.
+   컨테이너의 transform: translate(-50%, -50%) 와 합쳐 화면 정중앙에 머무름. */
+@keyframes maygo-visit-toast-fade-in {
+  0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}

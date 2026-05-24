@@ -224,12 +224,16 @@ public class PinService {
      * 핀 부분 수정. 활성 멤버십(AC-15) → 비관 락 조회 → memo/tag/placeName/address 독립 갱신(AC-6,7,8).
      * 빈 memo 는 잠금 해제(AC-11/BR-8), 비어있지 않은 memo 는 MANUAL 마킹(AC-10/BR-3).
      * Phase 2.8: placeName/address 도 동일 트랜잭션에서 독립 갱신 가능.
+     *
+     * <p>Phase 10: 반환 타입을 {@link PinUpdateResult} 로 변경. tag 변경 시 이전 태그를 기억해
+     * WISH/REEL → MEMORY 전환 1회를 Controller에 시그널로 전달한다 (VISIT_DETECTED 알림 트리거 판정).</p>
      */
     @Transactional
-    public PinSummary updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {
+    public PinUpdateResult updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {
         groupMemberService.requireActiveMembership(userId, groupId);
         Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
                 .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
+        PinTag previousTag = pin.getTag();
         if (cmd.tagProvided()) {
             pin.changeTag(cmd.tag());
         }
@@ -249,7 +253,10 @@ public class PinService {
         if (cmd.coordinateProvided()) {
             pin.changeCoordinate(cmd.latitude(), cmd.longitude());
         }
-        return toSummary(pin);
+        boolean wasWishOrReelToMemory = cmd.tagProvided()
+                && cmd.tag() == PinTag.MEMORY
+                && (previousTag == PinTag.WISH || previousTag == PinTag.REEL);
+        return new PinUpdateResult(toSummary(pin), wasWishOrReelToMemory);
     }
 
     /**

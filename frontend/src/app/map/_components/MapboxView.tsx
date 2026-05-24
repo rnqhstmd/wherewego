@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
@@ -43,6 +49,90 @@ interface MapboxViewProps {
    * 딥링크(?pinId=X) 진입 시 핀 위치 줌인이 geolocation에 의해 덮어쓰이는 것을 방지.
    */
   skipInitialGeoFly?: boolean;
+  /**
+   * Phase 10: GeolocateControl `geolocate` 이벤트마다 호출되는 위치 콜백.
+   * MapClient 가 `useVisitDetection.evaluate(...)` 트리거에 사용한다.
+   * 자체 사용자 마커 갱신과 무관하게 항상 호출된다.
+   */
+  onGeolocate?: (position: GeolocationPosition) => void;
+}
+
+/**
+ * Phase 10: 부모(MapClient)가 imperative API 로 마커 bounce + confetti 를 트리거하기 위한 핸들.
+ */
+export interface MapboxViewHandle {
+  /**
+   * 지정 핀의 마커에 bounce + 하트 confetti 를 1회 발사한다.
+   * 클러스터에 포함되어 markerCacheRef 에 없는 핀이면 no-op (설계 §9 허용 케이스).
+   */
+  triggerVisitCelebration: (pinId: number) => void;
+}
+
+/**
+ * 마커 element 자식 노드로 bounce + 하트 confetti 를 주입하고 600ms 후 자연 소멸시킨다 (설계 §5.3).
+ *
+ *  - 기존 자식(SVG 글리프) 을 `data-bounce-inner` div 로 감싸 bounce animation 적용.
+ *  - confetti div 안에 하트 3개를 절대 위치로 추가. 각도 -120°/-90°/-60°, 거리 36~44px 의
+ *    오프셋을 CSS 변수(--dx, --dy) 로 주입한다.
+ *  - 600ms 후 confetti div 와 inner wrapper 를 제거하고 원본 자식을 복원. 다음 renderClusters 에서
+ *    별도 처리가 필요하지 않다.
+ */
+function runMarkerBounceAndConfetti(markerEl: HTMLDivElement): void {
+  // 같은 마커에 중복 트리거 방지 — 진행 중이면 무시.
+  if (markerEl.dataset.celebrating === "1") return;
+  markerEl.dataset.celebrating = "1";
+
+  // 기존 자식들을 inner div 로 이동시켜 bounce 적용 (900ms, 더 큰 scale 4단 키프레임).
+  const inner = document.createElement("div");
+  inner.dataset.bounceInner = "1";
+  inner.style.cssText =
+    "width:100%;height:100%;display:block;animation:maygo-marker-bounce 900ms cubic-bezier(0.22,1.2,0.36,1) both;transform-origin:50% 50%;";
+  const originalChildren: ChildNode[] = [];
+  while (markerEl.firstChild) {
+    originalChildren.push(markerEl.firstChild);
+    inner.appendChild(markerEl.firstChild);
+  }
+  markerEl.appendChild(inner);
+
+  // confetti 레이어 — 마커 중심 기준 절대 위치 하트 6개 (더 풍성한 이펙트).
+  const confetti = document.createElement("div");
+  confetti.dataset.confetti = "1";
+  confetti.style.cssText =
+    "position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;";
+
+  // 상단 반원형 부채꼴 6개. 거리/크기 다양화 + 인덱스별 stagger delay 로 자연스러움.
+  // 가장 위쪽 하트가 가장 크고 멀리 — 시선 유도.
+  const offsets: Array<{ dx: number; dy: number; size: number; delay: number }> = [
+    { dx: -82, dy: -42, size: 22, delay: 40 },   // -150°
+    { dx: -50, dy: -78, size: 26, delay: 20 },   // -120°
+    { dx: -16, dy: -96, size: 30, delay: 0 },    // -100°
+    { dx: 16,  dy: -96, size: 30, delay: 0 },    // -80°
+    { dx: 50,  dy: -78, size: 26, delay: 20 },   // -60°
+    { dx: 82,  dy: -42, size: 22, delay: 40 },   // -30°
+  ];
+  for (let i = 0; i < offsets.length; i++) {
+    const { dx, dy, size, delay } = offsets[i];
+    const heart = document.createElement("span");
+    heart.textContent = "♡";
+    heart.style.cssText = `position:absolute;top:0;left:0;font-size:${size}px;color:${colors.pinMemory};text-shadow:0 1px 2px rgba(0,0,0,0.12);animation:maygo-confetti-heart 1000ms ease-out ${delay}ms both;--dx:${dx}px;--dy:${dy}px;`;
+    confetti.appendChild(heart);
+  }
+  markerEl.appendChild(confetti);
+
+  window.setTimeout(() => {
+    // confetti 제거.
+    if (confetti.parentNode === markerEl) {
+      markerEl.removeChild(confetti);
+    }
+    // inner 제거 + 원본 자식 복원.
+    if (inner.parentNode === markerEl) {
+      markerEl.removeChild(inner);
+      for (const child of originalChildren) {
+        markerEl.appendChild(child);
+      }
+    }
+    delete markerEl.dataset.celebrating;
+  }, 1100);
 }
 
 /**
@@ -189,19 +279,26 @@ function createClusterElement(count: string): HTMLDivElement {
  *  - 데이터 fetch (page.tsx 서버 컴포넌트)
  *
  * SSR 불가: dynamic ssr:false 로만 로드되어야 한다 (mapbox-gl이 window 의존).
+ *
+ * Phase 10: forwardRef 로 변환되어 부모(MapClient)가 `triggerVisitCelebration` 을 호출할 수 있다.
+ * `next/dynamic` 의 default export 컴포넌트 ref 전달은 React.lazy 동작과 동일하게 지원된다.
  */
-export default function MapboxView({
-  pins,
-  token,
-  styleUrl,
-  onMarkerClick,
-  onMapBackgroundClick,
-  onMapReady,
-  onClustersChange,
-  onMapError,
-  previewMarker,
-  skipInitialGeoFly = false,
-}: MapboxViewProps) {
+const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function MapboxView(
+  {
+    pins,
+    token,
+    styleUrl,
+    onMarkerClick,
+    onMapBackgroundClick,
+    onMapReady,
+    onClustersChange,
+    onMapError,
+    previewMarker,
+    skipInitialGeoFly = false,
+    onGeolocate,
+  },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerCacheRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
@@ -212,6 +309,7 @@ export default function MapboxView({
   const onClustersChangeRef = useRef(onClustersChange);
   const onMapErrorRef = useRef(onMapError);
   const onMapBackgroundClickRef = useRef(onMapBackgroundClick);
+  const onGeolocateRef = useRef(onGeolocate);
   // 마지막으로 부모에 알린 hasCluster 값. 변화가 있을 때만 콜백 호출 → setState 폭주 차단.
   const lastHasClusterRef = useRef<boolean | null>(null);
   // 자체 사용자 위치 마커 — geolocate 이벤트마다 좌표만 갱신.
@@ -234,8 +332,25 @@ export default function MapboxView({
     onMapBackgroundClickRef.current = onMapBackgroundClick;
   }, [onMapBackgroundClick]);
   useEffect(() => {
+    onGeolocateRef.current = onGeolocate;
+  }, [onGeolocate]);
+  useEffect(() => {
     pinsRef.current = pins;
   }, [pins]);
+
+  // Phase 10: imperative API — visit 검출 시 마커 bounce + confetti 트리거.
+  useImperativeHandle(
+    ref,
+    () => ({
+      triggerVisitCelebration: (pinId: number) => {
+        const marker = markerCacheRef.current.get(pinId);
+        if (!marker) return;
+        const el = marker.getElement() as HTMLDivElement;
+        runMarkerBounceAndConfetti(el);
+      },
+    }),
+    [],
+  );
 
   /**
    * 현재 viewport 기준으로 클러스터/핀 마커를 diff 렌더링.
@@ -459,6 +574,8 @@ export default function MapboxView({
           userMarker.addTo(map);
           userMarkerAddedRef.current = true;
         }
+        // Phase 10: 부모(MapClient)의 useVisitDetection.evaluate 트리거.
+        onGeolocateRef.current?.(e);
       });
       onMapReady?.(map);
       // 초기 렌더: clusterer가 이미 준비되어 있다면 즉시 표시.
@@ -620,4 +737,6 @@ export default function MapboxView({
       aria-label="지도"
     />
   );
-}
+});
+
+export default MapboxView;

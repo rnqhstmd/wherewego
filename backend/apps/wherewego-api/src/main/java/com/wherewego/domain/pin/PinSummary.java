@@ -20,6 +20,7 @@ public record PinSummary(
         MemoSource memoSource,
         PinTag tag,
         ZonedDateTime createdAt,
+        ZonedDateTime visitedAt,
         Long memoUpdatedBy,
         String memoUpdatedByNickname
 ) {
@@ -39,6 +40,7 @@ public record PinSummary(
                 pin.getMemoSource(),
                 pin.getTag(),
                 pin.getCreatedAt(),
+                pin.getVisitedAt(),
                 pin.getMemoUpdatedBy(),
                 memoUpdatedByNickname
         );

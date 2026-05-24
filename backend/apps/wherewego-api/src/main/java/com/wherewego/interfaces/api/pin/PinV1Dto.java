@@ -30,6 +30,7 @@ public final class PinV1Dto {
             MemoSource memoSource,
             PinTag tag,
             ZonedDateTime createdAt,
+            ZonedDateTime visitedAt,
             Long memoUpdatedBy,
             String memoUpdatedByNickname
     ) {
@@ -48,9 +49,27 @@ public final class PinV1Dto {
                     s.memoSource(),
                     s.tag(),
                     s.createdAt(),
+                    s.visitedAt(),
                     s.memoUpdatedBy(),
                     s.memoUpdatedByNickname()
             );
+        }
+    }
+
+    /**
+     * Phase 10 보강 (2026-05-24): PATCH 응답 — 동시 수정 분기용.
+     *
+     * <p>{@code transitionedToMemoryNow} 는 본 PATCH 호출이 실제로 WISH/REEL → MEMORY 전환을
+     * 발생시켰는지(=Service 가 {@code wasWishOrReelToMemory=true} 를 돌려줬는지)를 나타낸다.
+     * 두 사용자가 동시에 같은 핀을 메모리로 전환하면 두 번째 PATCH 는 전환을 발생시키지 않으므로
+     * {@code false} 가 된다. 클라이언트는 이 값을 보고 confetti/메모 시트 발사 여부를 분기한다.</p>
+     */
+    public record UpdatePinResponse(
+            PinSummaryResponse summary,
+            boolean transitionedToMemoryNow
+    ) {
+        public static UpdatePinResponse from(PinSummary summary, boolean transitioned) {
+            return new UpdatePinResponse(PinSummaryResponse.from(summary), transitioned);
         }
     }
 

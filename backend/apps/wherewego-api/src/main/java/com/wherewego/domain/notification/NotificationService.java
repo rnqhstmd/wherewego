@@ -8,6 +8,8 @@ import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+
     private static final int RECENT_LIMIT_HARD_CAP = 50;
     private static final String FALLBACK_NICKNAME = "멤버";
     private static final String FALLBACK_PLACE_NAME = "저장된 장소";
@@ -44,6 +48,7 @@ public class NotificationService {
     private final GroupMemberRepository groupMemberRepository;
     private final PinRepository pinRepository;
     private final UserRepository userRepository;
+    private final NotificationVisitWriter visitWriter;
 
     /**
      * 웹/모바일 직접 등록 트리거 (PinV1Controller.createPin에서 트랜잭션 밖에서 호출).
@@ -63,6 +68,53 @@ public class NotificationService {
     public void createForChatbotBatch(Long groupId, Long registeredBy, List<Long> pinIds) {
         if (pinIds == null || pinIds.isEmpty()) return;
         fanOut(groupId, registeredBy, pinIds, NotificationType.CHATBOT_PINS);
+    }
+
+    /**
+     * Phase 10: WISH/REEL → MEMORY 전환 알림을 그룹 멤버 + 본인에게 fan-out.
+     *
+     * <p><b>호출 계약</b>: {@code registeredBy} 는 호출자가 사전에 {@code groupId} 의
+     * 활성 멤버임을 검증한 사용자 ID여야 한다. 본 메서드는 멤버십 재검증을 수행하지 않는다.
+     * 정상 진입 경로는 {@code PinV1Controller#updatePin} 으로, 이미 PinService.updatePin
+     * 내부에서 GroupMember 활성 멤버십이 검증된다.</p>
+     *
+     * <p>본 메서드는 트랜잭션을 시작하지 않는다 (호출자가 PATCH 응답을 차단하지 않도록 try-catch 격리,
+     * BR-VD-6). 각 receiver 별로 {@link NotificationVisitWriter#writeOne}을
+     * {@code REQUIRES_NEW} 새 트랜잭션으로 호출한다.</p>
+     *
+     * <p><b>본인 포함 fan-out</b>: 등록자 본인에게도 1행이 생성되어 알림함에 자신의 방문
+     * 기록이 남는다 (Phase 11 "우리 기록" 화면 연동 전 과도기 용도). NotificationItem
+     * UI 는 본인 분기 시 "내가 다녀온 장소"로 라벨링한다.</p>
+     *
+     * <p><b>중복 차단</b>: 부분 UNIQUE 인덱스 {@code uq_notifications_visit} 가 동일
+     * {@code (groupId, receiverId, registeredBy, pinId)} 조합 1회만 허용한다. 위반 시
+     * {@link org.springframework.dao.DataIntegrityViolationException} 을 catch 후 조용히 스킵하여
+     * race-free 중복 차단을 보장한다 (BR-3).</p>
+     */
+    public void createForVisitDetected(Long groupId, Long registeredBy, Long pinId) {
+        // 방어적 검증 (gemini-code-assist 권고): 호출자(PinV1Controller)가 PinService.requireActiveMembership
+        // 으로 사전 검증하지만, 서비스 레이어 자체에서도 비멤버 ID 차단. 외부 직접 호출/리팩터링 대비.
+        if (groupMemberRepository.findActiveByGroupIdAndUserId(groupId, registeredBy).isEmpty()) {
+            log.warn("createForVisitDetected skipped — registeredBy {} not an active member of group {}",
+                    registeredBy, groupId);
+            return;
+        }
+        List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
+        List<Long> receiverIds = new ArrayList<>(otherIds);
+        receiverIds.add(registeredBy);
+        for (Long receiverId : receiverIds) {
+            try {
+                visitWriter.writeOne(groupId, receiverId, registeredBy, pinId);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                // 부분 UNIQUE 위반 = 동일 조합이 이미 존재 → 조용히 스킵 (race-free 중복 차단).
+                log.debug("visit notification skipped (duplicate) receiverId={} pinId={}", receiverId, pinId);
+            } catch (RuntimeException e) {
+                // gemini-code-assist 권고: 일시적 DB 오류 등으로 한 receiver 가 실패해도
+                // 다른 receiver 까지 fan-out 이 중단되지 않도록 개별 격리. BR-VD-6 호출자(Controller)
+                // 격리와 별개로, fan-out 자체의 best-effort 도 보장.
+                log.warn("visit notification per-receiver failed receiverId={} pinId={}", receiverId, pinId, e);
+            }
+        }
     }
 
     /**
@@ -149,19 +201,24 @@ public class NotificationService {
                 .map(UserModel::getNickname)
                 .orElse(FALLBACK_NICKNAME);
 
+        boolean isVisitType = n.getType() == NotificationType.VISIT_DETECTED;
         List<NotificationPinItemResult> pinItems = links.stream().map(link -> {
             Pin pin = pinById.get(link.getPinId());
             if (pin == null) {
                 // pin row 자체가 존재하지 않음 (이론상 거의 없음)
-                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null);
+                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null, null, null);
             }
             if (pin.isDeleted()) {
                 return new NotificationPinItemResult(
-                        pin.getId(), pin.getPlaceName(), null, null, null, true, null);
+                        pin.getId(), pin.getPlaceName(), null, null, null, true, null, null, null);
             }
+            // Phase 10: VISIT_DETECTED 알림에서만 핀의 최신 memo를 join.
+            // 그 외 타입(MANUAL_PIN/CHATBOT_PINS)은 memo 노출 스코프 밖이므로 항상 null.
+            String memo = isVisitType ? pin.getMemo() : null;
             return new NotificationPinItemResult(
                     pin.getId(), pin.getPlaceName(), pin.getAddress(),
-                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl());
+                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl(), memo,
+                    pin.getTag().name());
         }).toList();
 
         return new NotificationDetailResult(
@@ -219,7 +276,14 @@ public class NotificationService {
             BigDecimal latitude,
             BigDecimal longitude,
             boolean deleted,
-            String instagramUrl
+            String instagramUrl,
+            String memo,
+            /**
+             * Phase 10 FR-VD-29: 핀의 현재 태그(REEL/WISH/MEMORY). 알림 상세에서
+             * VISIT_DETECTED 케이스의 MEMORY 배지 표시에 사용. soft-delete 또는
+             * 핀 자체가 사라진 경우 null.
+             */
+            String tag
     ) {}
 
     public record NotificationDetailResult(

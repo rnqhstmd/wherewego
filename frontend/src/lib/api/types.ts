@@ -31,6 +31,11 @@ export interface PinSummaryResponse {
   memoSource: MemoSource | null;
   tag: PinTag;
   createdAt: string;
+  /**
+   * WISH/REEL → MEMORY 전환 시각(ISO 8601). MEMORY 가 아니거나 V010 이전 기존 MEMORY 핀이면 null.
+   * 핀 팝업 날짜 표시 정책: tag === "MEMORY" && visitedAt 있으면 visitedAt, 그 외 createdAt 폴백.
+   */
+  visitedAt: string | null;
   memoUpdatedBy: number | null;
   memoUpdatedByNickname: string | null;
 }
@@ -39,6 +44,20 @@ export interface PinListResponse {
   items: PinSummaryResponse[];
   totalCount?: number;
   hasNext?: boolean;
+}
+
+/**
+ * Phase 10 보강 (2026-05-24): PATCH /pins/{id} 응답.
+ *
+ * <p>{@code transitionedToMemoryNow} 는 본 PATCH 가 WISH/REEL → MEMORY 전환을 실제로
+ * 발생시켰는지를 나타낸다. 두 사용자가 동시에 같은 핀을 메모리로 전환하면 두 번째 PATCH 는
+ * {@code false} 가 되어, 클라이언트가 confetti/메모 시트를 건너뛰고 안내 토스트만 노출한다.</p>
+ *
+ * <p>tag 외 필드(memo/coordinate/placeName)만 변경하는 PATCH 에서는 항상 {@code false}.</p>
+ */
+export interface UpdatePinResponse {
+  summary: PinSummaryResponse;
+  transitionedToMemoryNow: boolean;
 }
 
 export interface ActiveGroupResponse {

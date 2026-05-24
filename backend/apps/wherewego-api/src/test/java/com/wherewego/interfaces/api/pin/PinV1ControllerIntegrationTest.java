@@ -83,6 +83,10 @@ class PinV1ControllerIntegrationTest {
     }
 
     private void truncateAll() {
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해
+        // pins 보다 먼저 notification_pins / notifications 를 비워야 한다.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM invite_links");
         jdbcTemplate.execute("DELETE FROM group_members");
@@ -249,10 +253,13 @@ class PinV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강 (2026-05-24): UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(data.get("memo").asText()).isEqualTo("hi");
         assertThat(data.get("memoSource").asText()).isEqualTo("MANUAL");
         assertThat(data.get("tag").asText()).isEqualTo("MEMORY");
+        // REEL → MEMORY 첫 전환이므로 transitionedToMemoryNow=true.
+        assertThat(response.getBody().get("data").get("transitionedToMemoryNow").asBoolean()).isTrue();
     }
 
     @DisplayName("PATCH /api/v1/groups/{groupId}/pins/{pinId} - 빈 body 는 400 PIN_UPDATE_EMPTY 를 반환한다 (AC-9).")
@@ -339,7 +346,8 @@ class PinV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강: UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(data.get("placeName").asText()).isEqualTo("새 이름");
     }
 
@@ -373,7 +381,8 @@ class PinV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강: UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(data.get("address").asText()).isEqualTo("서울 강남구");
         assertThat(data.get("memo").asText()).isEqualTo("m");
     }
@@ -408,7 +417,8 @@ class PinV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강: UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(data.get("placeName").asText()).isEqualTo("x");
         assertThat(data.get("memo").asText()).isEqualTo("y");
         assertThat(data.get("memoSource").asText()).isEqualTo("MANUAL");
@@ -445,7 +455,8 @@ class PinV1ControllerIntegrationTest {
 
         // assert HTTP & 좌표 갱신 (AC-1)
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강: UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(new BigDecimal(data.get("latitude").asText()))
                 .isEqualByComparingTo(new BigDecimal("37.5665"));
         assertThat(new BigDecimal(data.get("longitude").asText()))
@@ -505,7 +516,8 @@ class PinV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = response.getBody().get("data");
+        // Phase 10 보강: UpdatePinResponse 응답 구조 — summary 하위에서 핀 필드를 읽는다.
+        JsonNode data = response.getBody().get("data").get("summary");
         assertThat(new BigDecimal(data.get("latitude").asText()))
                 .isEqualByComparingTo(new BigDecimal("37.5"));
         assertThat(new BigDecimal(data.get("longitude").asText()))

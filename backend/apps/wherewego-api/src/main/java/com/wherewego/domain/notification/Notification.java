@@ -37,6 +37,14 @@ public class Notification extends BaseEntity {
     @Column(name = "read_at")
     private Instant readAt;
 
+    /**
+     * Phase 10: VISIT_DETECTED 알림에서만 채워지는 핀 참조. 부분 UNIQUE 인덱스
+     * {@code uq_notifications_visit} (group_id, receiver_id, registered_by, visit_pin_id) 와 결합되어
+     * 동일 핀에 대한 중복 알림을 race-free 하게 차단한다. MANUAL_PIN/CHATBOT_PINS 는 NULL 유지.
+     */
+    @Column(name = "visit_pin_id")
+    private Long visitPinId;
+
     protected Notification() { }
 
     private Notification(Long groupId, Long receiverId, Long registeredBy, NotificationType type) {
@@ -46,8 +54,25 @@ public class Notification extends BaseEntity {
         this.type = type;
     }
 
+    private Notification(Long groupId, Long receiverId, Long registeredBy,
+                         NotificationType type, Long visitPinId) {
+        this.groupId = groupId;
+        this.receiverId = receiverId;
+        this.registeredBy = registeredBy;
+        this.type = type;
+        this.visitPinId = visitPinId;
+    }
+
     public static Notification create(Long groupId, Long receiverId, Long registeredBy, NotificationType type) {
         return new Notification(groupId, receiverId, registeredBy, type);
+    }
+
+    /**
+     * VISIT_DETECTED 알림 팩토리. {@code visitPinId} 는 부분 UNIQUE 인덱스의 키 컬럼이므로
+     * non-null 이어야 한다 (호출자에서 보장).
+     */
+    public static Notification createForVisit(Long groupId, Long receiverId, Long registeredBy, Long visitPinId) {
+        return new Notification(groupId, receiverId, registeredBy, NotificationType.VISIT_DETECTED, visitPinId);
     }
 
     /**
