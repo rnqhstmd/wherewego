@@ -70,6 +70,7 @@ public class PinService {
     @Transactional
     public Pin registerFromInstagram(Long userId, Long groupId, PlaceSearchHit hit,
                                      String instagramUrl, String memo) {
+        groupMemberService.requireActiveMembership(userId, groupId);
         Pin pin = Pin.autoFromInstagram(groupId, userId, hit, instagramUrl);
         if (memo != null && !memo.isBlank()) {
             pin.applyManualMemo(memo, userId);
@@ -91,6 +92,7 @@ public class PinService {
     public RegisterPinResult registerFromInstagramWithDedup(Long userId, Long groupId,
                                                             PlaceSearchHit hit,
                                                             String instagramUrl, String memo) {
+        groupMemberService.requireActiveMembership(userId, groupId);
         BigDecimal lat = BigDecimal.valueOf(hit.latitude());
         BigDecimal lng = BigDecimal.valueOf(hit.longitude());
         Optional<Pin> existing = pinRepository.findActiveByGroupPlaceNear(
@@ -120,6 +122,7 @@ public class PinService {
      */
     @Transactional
     public Pin registerFromSelection(Long userId, Long groupId, PlaceSearchHit hit, String instagramUrl) {
+        groupMemberService.requireActiveMembership(userId, groupId);
         Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
         return pinRepository.save(pin);
     }
@@ -132,6 +135,7 @@ public class PinService {
     @Transactional
     public RegisterPinResult registerFromSelectionWithDedup(Long userId, Long groupId,
                                                             PlaceSearchHit hit, String instagramUrl) {
+        groupMemberService.requireActiveMembership(userId, groupId);
         BigDecimal lat = BigDecimal.valueOf(hit.latitude());
         BigDecimal lng = BigDecimal.valueOf(hit.longitude());
         Optional<Pin> existing = pinRepository.findActiveByGroupPlaceNear(

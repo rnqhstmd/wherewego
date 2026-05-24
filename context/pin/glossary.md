@@ -18,6 +18,10 @@
 | GPS 정확도 게이트 (Phase 10) | `position.coords.accuracy ≤ 50m` 인 이벤트만 평가 사용. 50m 초과는 머무름 타이머에도 영향 없음 (보존) |
 | `PinUpdateResult` (Phase 10) | `PinService.updatePin` 반환 record. `(PinSummary summary, boolean wasWishOrReelToMemory)`. 컨트롤러가 태그 전이 감지하여 VISIT_DETECTED 알림 호출 분기 |
 | 세션 Set `shownPinIds` (Phase 10) | 메모리 내 `Set<number>`. "다음에 올게요"/MEMORY 전환 후 추가. MapClient unmount 시 자동 소멸 (localStorage 미사용) |
+| `pins.visited_at` 컬럼 (Phase 10) | V010 마이그레이션으로 추가된 `TIMESTAMPTZ NULL`. `Pin.changeTag(MEMORY)`가 WISH/REEL → MEMORY 전이 시 `ZonedDateTime.now()` 기록. MEMORY 이외 전이는 변경하지 않음. `PinSummary`/`PinSummaryResponse` 노출 → VisitMemoSheet "다녀온 날" 표시 |
+| BBox prefilter (Phase 10) | `useVisitDetection` 평가 시 Haversine 호출 전 `LAT_DEG_PER_METER × PROXIMITY_METERS` 박스로 후보 1차 필터링. 1000핀 환경에서 거리 계산을 99% 컷 (~10회로 축소) |
+| 속도 게이트 (Phase 10) | `position.coords.speed > 1.4 m/s` (`WALKING_SPEED_MAX_MS`, 보행 속도 상한) 감지 시 모든 후보의 `firstEnterAt` clear. 차량 이동 추정 시 우연한 30초 통과를 방지 |
+| `NotificationVisitWriter` (Phase 10) | `@Transactional(REQUIRES_NEW)` + `void writeOne`. 예외를 caller에 전파해 Spring `UnexpectedRollbackException` 회피. 호출자(`NotificationService.createForVisitDetected`)가 `DataIntegrityViolationException`(부분 UNIQUE 충돌)과 `RuntimeException`(per-receiver 격리)을 각각 catch |
 | PinListResult | Phase 2.9 — `PinService.listGroupPinsPaged`의 페이지 모드 전용 결과 record. 필드: `List<PinSummary> items`, `long totalCount`, `boolean hasNext`. 항상 유의미한 값(null 없음). 인터페이스 레이어에서 `PinListResponse.fromPaged()`로 응답 매핑 |
 | legacy 모드 | Phase 2.9 — 핀 목록 API가 `page`/`size` 파라미터 미전달일 때 동작. 기존 `{items}` 단일 응답 구조 유지. 룰렛 stale 재조회 + `/pins` 초기 fetch가 사용 |
 | 페이지 모드 | Phase 2.9 — 핀 목록 API가 `page`(0-based)와 `size`(최대 100)를 둘 다 전달받았을 때 동작. 응답에 `totalCount`/`hasNext` 추가. `hasNext = (long)(page + 1) * size < totalCount` (long 캐스팅으로 오버플로 방지) |

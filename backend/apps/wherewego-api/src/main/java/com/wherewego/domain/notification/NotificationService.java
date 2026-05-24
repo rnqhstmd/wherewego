@@ -192,6 +192,8 @@ public class NotificationService {
     public NotificationDetailResult getDetail(Long notificationId, Long receiverId) {
         Notification n = repository.findByIdAndReceiverId(notificationId, receiverId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND));
+        groupMemberRepository.findActiveByGroupIdAndUserId(n.getGroupId(), receiverId)
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND));
 
         List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
         Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
