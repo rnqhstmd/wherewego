@@ -24,27 +24,27 @@ Mapbox 3D 지구본 위에 핀을 꽂아줍니다.
 
 ### 핀 등록
 
-| + 버튼으로 현재 지도 좌표에 핀 생성 | 챗봇 릴스 링크 → 앱 지도에 핀 반영 |
+| 장소 검색으로 핀 추가 | 챗봇 릴스 링크 → 앱 지도에 핀 반영 |
 |:---:|:---:|
-| <img src="docs/demo/pin-add-manual.gif" alt="+ 버튼 핀 생성" width="280" /> | <img src="docs/demo/pin-add-chatbot.gif" alt="챗봇 릴스 → 앱 핀 확인" width="280" /> |
+| <img src="docs/demo/pin-add-manual.gif" alt="장소 검색으로 핀 추가" width="280" /> | <img src="docs/demo/pin-add-chatbot.gif" alt="챗봇 릴스 → 앱 핀 확인" width="280" /> |
 
 ### 지도 탐색
 
-| 3D 지구본 & 클러스터링 줌인 | 핀 말풍선 팝업 |
+| 지도 줌인·줌아웃 & 3D 지구본 | 핀 말풍선 팝업 |
 |:---:|:---:|
-| <img src="docs/demo/map-globe-cluster.gif" alt="3D 지구본 & 클러스터링" width="280" /> | <img src="docs/demo/map-pin-popup.gif" alt="핀 말풍선 팝업" width="280" /> |
+| <img src="docs/demo/map-globe-cluster.gif" alt="지도 줌인·줌아웃" width="280" /> | <img src="docs/demo/map-pin-popup.gif" alt="핀 말풍선 팝업" width="280" /> |
 
 ### 핀 편집 & 공유
 
-| 태그 변경 (WISH → MEMORY) | 핀 공유 카드 생성 |
+| 핀 수정 & 삭제 | 핀 공유 카드 생성 |
 |:---:|:---:|
-| <img src="docs/demo/pin-tag-change.gif" alt="태그 변경" width="280" /> | <img src="docs/demo/pin-share-card.gif" alt="핀 공유 카드" width="280" /> |
+| <img src="docs/demo/pin-tag-change.gif" alt="핀 수정 & 삭제" width="280" /> | <img src="docs/demo/pin-share-card.gif" alt="핀 공유 카드" width="280" /> |
 
 ### 룰렛 & 알림
 
-| 위치 기반 룰렛 | 인앱 알림 & 핀 flyTo 이동 |
+| 위치 기반 룰렛 | 방문 감지 — 네 다녀왔어요 |
 |:---:|:---:|
-| <img src="docs/demo/roulette.gif" alt="위치 기반 룰렛" width="280" /> | <img src="docs/demo/notification.gif" alt="인앱 알림" width="280" /> |
+| <img src="docs/demo/roulette.gif" alt="위치 기반 룰렛" width="280" /> | <img src="docs/demo/notification.gif" alt="방문 감지 — 네 다녀왔어요" width="280" /> |
 
 ---
 
