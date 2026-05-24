@@ -20,6 +20,50 @@ Mapbox 3D 지구본 위에 핀을 꽂아줍니다.
 
 ---
 
+## 데모
+
+### 시작하기
+
+| 카카오 로그인 | 그룹 생성 & 파트너 초대 |
+|:---:|:---:|
+| <img src="docs/demo/login.gif" alt="카카오 로그인" width="280" /> | <img src="docs/demo/group-invite.gif" alt="그룹 생성 & 초대" width="280" /> |
+
+### 핀 등록
+
+| 웹에서 장소 검색 & 직접 등록 | 카카오톡 챗봇 — 인스타 릴스 자동 등록 |
+|:---:|:---:|
+| <img src="docs/demo/pin-add-manual.gif" alt="웹 직접 핀 등록" width="280" /> | <img src="docs/demo/pin-add-chatbot.gif" alt="챗봇 인스타 릴스 등록" width="280" /> |
+
+| 2초 룰 — 릴스 직후 메모 자동 연결 | 후보 장소 선택 카드 |
+|:---:|:---:|
+| <img src="docs/demo/pin-memo-2sec.gif" alt="2초 룰 메모 자동 연결" width="280" /> | <img src="docs/demo/pin-select-card.gif" alt="후보 장소 선택 카드" width="280" /> |
+
+### 지도 탐색
+
+| 3D 지구본 & 클러스터링 줌인 | 핀 말풍선 팝업 |
+|:---:|:---:|
+| <img src="docs/demo/map-globe-cluster.gif" alt="3D 지구본 & 클러스터링" width="280" /> | <img src="docs/demo/map-pin-popup.gif" alt="핀 말풍선 팝업" width="280" /> |
+
+### 핀 편집 & 공유
+
+| 태그 변경 (WISH → MEMORY) | 핀 공유 카드 생성 |
+|:---:|:---:|
+| <img src="docs/demo/pin-tag-change.gif" alt="태그 변경" width="280" /> | <img src="docs/demo/pin-share-card.gif" alt="핀 공유 카드" width="280" /> |
+
+### 룰렛 & 알림
+
+| 위치 기반 룰렛 | 인앱 알림 & 핀 flyTo 이동 |
+|:---:|:---:|
+| <img src="docs/demo/roulette.gif" alt="위치 기반 룰렛" width="280" /> | <img src="docs/demo/notification.gif" alt="인앱 알림" width="280" /> |
+
+### 챗봇 계정 연동
+
+| 6자리 코드로 챗봇 계정 연동 |
+|:---:|
+| <img src="docs/demo/bot-link.gif" alt="챗봇 계정 연동" width="280" /> |
+
+---
+
 ## 주요 기능
 
 ### 카카오톡 챗봇 자동 핀 등록
