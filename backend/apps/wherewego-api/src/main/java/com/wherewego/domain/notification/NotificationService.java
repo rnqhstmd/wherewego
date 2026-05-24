@@ -92,6 +92,13 @@ public class NotificationService {
      * race-free 중복 차단을 보장한다 (BR-3).</p>
      */
     public void createForVisitDetected(Long groupId, Long registeredBy, Long pinId) {
+        // 방어적 검증 (gemini-code-assist 권고): 호출자(PinV1Controller)가 PinService.requireActiveMembership
+        // 으로 사전 검증하지만, 서비스 레이어 자체에서도 비멤버 ID 차단. 외부 직접 호출/리팩터링 대비.
+        if (groupMemberRepository.findActiveByGroupIdAndUserId(groupId, registeredBy).isEmpty()) {
+            log.warn("createForVisitDetected skipped — registeredBy {} not an active member of group {}",
+                    registeredBy, groupId);
+            return;
+        }
         List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
         List<Long> receiverIds = new ArrayList<>(otherIds);
         receiverIds.add(registeredBy);
@@ -101,6 +108,11 @@ public class NotificationService {
             } catch (org.springframework.dao.DataIntegrityViolationException e) {
                 // 부분 UNIQUE 위반 = 동일 조합이 이미 존재 → 조용히 스킵 (race-free 중복 차단).
                 log.debug("visit notification skipped (duplicate) receiverId={} pinId={}", receiverId, pinId);
+            } catch (RuntimeException e) {
+                // gemini-code-assist 권고: 일시적 DB 오류 등으로 한 receiver 가 실패해도
+                // 다른 receiver 까지 fan-out 이 중단되지 않도록 개별 격리. BR-VD-6 호출자(Controller)
+                // 격리와 별개로, fan-out 자체의 best-effort 도 보장.
+                log.warn("visit notification per-receiver failed receiverId={} pinId={}", receiverId, pinId, e);
             }
         }
     }

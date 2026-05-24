@@ -1179,10 +1179,9 @@ export default function MapClient({
       ]);
       if (!result.ok) {
         // FR-VD-21: 시스템 에러 — 세션 Set 미추가, firstEnterAt 도 유지하여 재시도 가능하게 둠.
-        console.error(
-          "visit PATCH(tag=MEMORY) failed",
-          { groupId, pinId, code: result.code, message: result.message },
-        );
+        // gemini-code-assist 권고: 운영 브라우저 콘솔에 내부 식별자(groupId/pinId)를 노출하지 않는다.
+        // 에러 코드만 남겨 디버깅 단서는 보존하고 사용자 식별/리소스 노출은 회피.
+        console.error("visit PATCH(tag=MEMORY) failed", result.code);
         // AC-VD-14: 사용자에게 인라인 토스트로 실패를 알린다 (1.5초 후 자동 닫힘).
         setVisitErrorMessage("장소를 추억으로 옮기지 못했어요. 다시 시도해주세요.");
         return;
