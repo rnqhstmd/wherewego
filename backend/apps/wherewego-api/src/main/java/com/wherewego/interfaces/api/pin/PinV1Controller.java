@@ -6,6 +6,7 @@ import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
+import com.wherewego.domain.pin.PinUpdateResult;
 import com.wherewego.interfaces.api.ApiResponse;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
@@ -122,9 +123,17 @@ public class PinV1Controller implements PinV1ApiSpec {
             @PathVariable Long pinId,
             @RequestBody PinV1Dto.UpdatePinRequest request
     ) {
-        return ApiResponse.success(
-                PinV1Dto.PinSummaryResponse.from(
-                        pinService.updatePin(userId, groupId, pinId, request.toCommand())));
+        PinUpdateResult result = pinService.updatePin(userId, groupId, pinId, request.toCommand());
+        // Phase 10: WISH/REEL → MEMORY 전환 1회에 한해 VISIT_DETECTED 알림 fan-out.
+        // 알림 실패는 PATCH 응답을 막지 않도록 호출자 격리 (BR-VD-6).
+        if (result.wasWishOrReelToMemory()) {
+            try {
+                notificationService.createForVisitDetected(groupId, userId, pinId);
+            } catch (RuntimeException e) {
+                log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
+            }
+        }
+        return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(result.summary()));
     }
 
     @DeleteMapping("/{groupId}/pins/{pinId}")

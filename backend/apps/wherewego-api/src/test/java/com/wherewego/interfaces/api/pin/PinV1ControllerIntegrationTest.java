@@ -83,6 +83,10 @@ class PinV1ControllerIntegrationTest {
     }
 
     private void truncateAll() {
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해
+        // pins 보다 먼저 notification_pins / notifications 를 비워야 한다.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM invite_links");
         jdbcTemplate.execute("DELETE FROM group_members");

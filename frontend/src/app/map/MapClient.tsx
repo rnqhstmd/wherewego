@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import {
+  forwardRef,
   useCallback,
   useEffect,
   useMemo,
@@ -24,6 +25,8 @@ import { SidePanel } from "@/components/ui/SidePanel";
 import { PermissionDialog } from "@/components/ui/PermissionDialog";
 import { IconLocation } from "@/components/icons";
 import PinPopup from "./_components/PinPopup";
+import VisitToast from "./_components/VisitToast";
+import VisitMemoSheet from "./_components/VisitMemoSheet";
 import ActionBar from "./_components/ActionBar";
 import DesktopActionPill from "./_components/DesktopActionPill";
 import MobileTopNav from "./_components/MobileTopNav";
@@ -44,6 +47,8 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useKeyboardInsets } from "@/lib/hooks/useKeyboardInsets";
 import { useGeolocation, type LatLng } from "./_hooks/useGeolocation";
 import { useGroupPinSync } from "./_hooks/useGroupPinSync";
+import { useVisitDetection } from "./_hooks/useVisitDetection";
+import type { MapboxViewHandle } from "./_components/MapboxView";
 import {
   pickRandomWithExpansion,
   reRollFromSamePool,
@@ -67,13 +72,28 @@ import type { NotificationPinItem } from "@/lib/notifications/types";
 /**
  * MapboxView는 mapbox-gl이 window 의존이므로 ssr:false로 동적 로드.
  * Server Component에서는 ssr:false 옵션이 허용되지 않으므로 반드시 이 Client Component에서 호출.
+ *
+ * Phase 10: 부모(MapClient)가 ref 로 `triggerVisitCelebration` imperative API 를 호출해야 하지만
+ * `next/dynamic` 의 결과 컴포넌트는 ref 전달 동작이 React 19 lazy 변경에 묶여 있어
+ * 명시적 forwardRef wrapper 로 감싸 ref 흐름을 보장한다. wrapper 는 forwardRef 자체이므로
+ * 내부 dynamic 컴포넌트의 ssr:false / loading fallback 동작을 그대로 유지한다.
  */
-const MapboxView = dynamic(() => import("./_components/MapboxView"), {
+const MapboxViewDynamic = dynamic(() => import("./_components/MapboxView"), {
   ssr: false,
   loading: () => (
     <div style={{ position: "absolute", inset: 0, background: colors.bg }} />
   ),
 });
+
+type MapboxViewProps = React.ComponentProps<typeof MapboxViewDynamic>;
+
+const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(
+  function MapboxView(props, ref) {
+    // dynamic 컴포넌트는 React 19 환경에서 ref 를 그대로 전달하지만,
+    // 명시적 wrapper 로 ref prop 을 강제 전달하여 미래 dynamic 동작 변화에도 안전하게 한다.
+    return <MapboxViewDynamic {...(props as MapboxViewProps)} ref={ref} />;
+  },
+);
 
 interface MapClientProps {
   initialPins: PinSummaryResponse[];
@@ -91,6 +111,7 @@ type ActiveSheet =
   | "memo"
   | "roulette"
   | "coordinate-edit"
+  | "visit-memo"
   | null;
 
 /**
@@ -239,6 +260,29 @@ export default function MapClient({
 
   // Phase 8: 알림 시스템 통합. MapClient 한 곳에서만 호출하여 SSE 중복 구독을 방지한다.
   const notifications = useNotifications();
+
+  // Phase 10: 장소 방문 감지 상태 (설계 §5.6).
+  // - shownPinIdsRef: 세션 단위 중복 노출 방지. 토스트가 한 번 노출된 핀은 새로고침 전까지 재노출되지 않는다.
+  // - visitedAtRef: 사용자가 "네, 다녀왔어요" 를 누른 시각 — VisitMemoSheet 의 dateLabel 에 사용.
+  // - mapboxViewRef: 1차 PATCH 성공 시 marker bounce + confetti 트리거.
+  const shownPinIdsRef = useRef<Set<number>>(new Set());
+  const { evaluate: evaluateVisit, clearFirstEnterAt } = useVisitDetection();
+  const [visitToastPin, setVisitToastPin] =
+    useState<PinSummaryResponse | null>(null);
+  const [visitMemoPin, setVisitMemoPin] =
+    useState<PinSummaryResponse | null>(null);
+  // Phase 10 보강 (AC-VD-14): 1차 PATCH 실패 시 사용자에게 인라인 토스트로 피드백을 준다.
+  // null 이면 토스트 비표시. 메시지 set 후 useEffect 가 1.5초 뒤 자동으로 null 로 되돌린다.
+  const [visitErrorMessage, setVisitErrorMessage] = useState<string | null>(null);
+  const visitedAtRef = useRef<Date | null>(null);
+  const mapboxViewRef = useRef<MapboxViewHandle | null>(null);
+
+  // visitErrorMessage 자동 닫힘 (1.5초). 메시지가 바뀌면 이전 타이머 정리 후 재시작.
+  useEffect(() => {
+    if (!visitErrorMessage) return;
+    const t = setTimeout(() => setVisitErrorMessage(null), 1500);
+    return () => clearTimeout(t);
+  }, [visitErrorMessage]);
 
   // 동시 1개 패널 정책: 다른 액션 시트가 열리면 알림 패널을 닫는다.
   // (역방향 — 알림 패널 열림 시 다른 시트 닫기 — 은 mobileBell/desktopBell onClick에서 처리.)
@@ -921,6 +965,8 @@ export default function MapClient({
     setActiveSheet(null);
     setAddPinOrigin(null);
     setCoordinateEditTarget(null);
+    // Phase 10: visit-memo 시트를 × 로 닫으면 건너뛰기와 동일 — 2차 PATCH 미발사.
+    setVisitMemoPin(null);
     setRouletteState({ status: "idle" });
     pendingRouletteRef.current = false;
     if (spinTimerRef.current !== null) {
@@ -931,6 +977,141 @@ export default function MapClient({
     // 시각적 viewport 중앙과 일치하도록 보장한다.
     resetMapPadding();
   }, [activeSheet, coordinateEditTarget, resetMapPadding]);
+
+  /**
+   * Phase 10: GeolocateControl `geolocate` 이벤트 콜백 (설계 §5.6).
+   *
+   * MapboxView 가 GeolocateControl 콜백에서 항상 호출한다. 본 핸들러는
+   * useVisitDetection.evaluate 를 거쳐 detectedPinId 가 있고 다른 패널/시트/토스트/메모시트/알림패널
+   * 이 모두 닫혀 있을 때만 VisitToast 를 노출한다 (동시 1개 패널 정책, QE-VD-1).
+   *
+   * 패널이 열려 있어 토스트를 띄우지 못한 경우에도 firstEnterAt 은 useVisitDetection 내부에서
+   * 누적되므로 다음 geolocate 콜백에서 다시 시도된다.
+   */
+  const handleGeolocate = useCallback(
+    (position: GeolocationPosition) => {
+      const { detectedPinId } = evaluateVisit({
+        position,
+        pins: optimisticPins,
+        shownPinIds: shownPinIdsRef.current,
+      });
+      if (detectedPinId === null) return;
+      if (
+        activeSheet !== null ||
+        visitToastPin !== null ||
+        visitMemoPin !== null ||
+        notifications.isPanelOpen
+      ) {
+        return;
+      }
+      const pin = optimisticPins.find((p) => p.id === detectedPinId);
+      if (!pin) return;
+      setVisitToastPin(pin);
+    },
+    [
+      evaluateVisit,
+      optimisticPins,
+      activeSheet,
+      visitToastPin,
+      visitMemoPin,
+      notifications.isPanelOpen,
+    ],
+  );
+
+  /**
+   * "다음에 올게요" — 세션 Set 에 추가 후 토스트 닫기 (FR-VD-13).
+   * firstEnterAt 도 함께 비워 동일 핀이 즉시 재계산되지 않도록 한다.
+   */
+  const handleVisitSkip = useCallback(() => {
+    if (visitToastPin) {
+      shownPinIdsRef.current.add(visitToastPin.id);
+      clearFirstEnterAt(visitToastPin.id);
+    }
+    setVisitToastPin(null);
+  }, [visitToastPin, clearFirstEnterAt]);
+
+  /**
+   * "네, 다녀왔어요" — 1차 PATCH(tag → MEMORY) 발사 (FR-VD-14, FR-VD-15).
+   * - 토스트는 즉시 닫는다 (사용자 피드백).
+   * - useOptimistic 으로 마커 모양 즉시 갱신 → updatePinTagAction 호출.
+   * - 성공: shownPinIds 추가, firstEnterAt 비움, marker bounce + confetti 트리거,
+   *   VisitMemoSheet 오픈 (visit-memo activeSheet).
+   * - 실패 (FR-VD-21): 세션 Set 미추가하여 사용자가 다시 시도할 수 있도록 한다.
+   *   별도 시스템 에러 UX 인프라가 없어 console.error 만 남긴다.
+   */
+  const handleVisitConfirm = useCallback(() => {
+    if (!visitToastPin) return;
+    const pin = visitToastPin;
+    const pinId = pin.id;
+    visitedAtRef.current = new Date();
+    setVisitToastPin(null);
+
+    startOptimisticTransition(async () => {
+      applyOptimistic({ kind: "patch", pinId, patch: { tag: "MEMORY" } });
+      const result = await updatePinTagAction(groupId, pinId, "MEMORY");
+      if (!result.ok) {
+        // FR-VD-21: 시스템 에러 — 세션 Set 미추가, firstEnterAt 도 유지하여 재시도 가능하게 둠.
+        console.error(
+          "visit PATCH(tag=MEMORY) failed",
+          { groupId, pinId, code: result.code, message: result.message },
+        );
+        // AC-VD-14: 사용자에게 인라인 토스트로 실패를 알린다 (1.5초 후 자동 닫힘).
+        setVisitErrorMessage("장소를 추억으로 옮기지 못했어요. 다시 시도해주세요.");
+        return;
+      }
+      setPins((prev) =>
+        prev.map((p) => (p.id === pinId ? result.data : p)),
+      );
+      shownPinIdsRef.current.add(pinId);
+      clearFirstEnterAt(pinId);
+
+      // confetti + 메모 시트를 동시에 시작 (FR-VD-15, FR-VD-16).
+      mapboxViewRef.current?.triggerVisitCelebration(pinId);
+      setVisitMemoPin(result.data);
+      setActiveSheet("visit-memo");
+    });
+  }, [visitToastPin, groupId, applyOptimistic, clearFirstEnterAt]);
+
+  /**
+   * 메모 저장 — 2차 PATCH(memo) (FR-VD-17 ~ FR-VD-19).
+   * 성공: 시트 닫기 + pins state 갱신.
+   * 실패 (FR-VD-22): 시트 유지, VisitMemoSheet 내부에서 인라인 에러로 노출.
+   */
+  const handleVisitMemoSave = useCallback(
+    async (memo: string): Promise<{ ok: boolean; message?: string }> => {
+      if (!visitMemoPin) return { ok: true };
+      const pinId = visitMemoPin.id;
+      const result = await updatePinMemoAction(groupId, pinId, memo);
+      if (result.ok) {
+        setPins((prev) =>
+          prev.map((p) => (p.id === pinId ? result.data : p)),
+        );
+        setVisitMemoPin(null);
+        setActiveSheet(null);
+        return { ok: true };
+      }
+      const message =
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : result.code === "PIN_MEMO_TOO_LONG"
+            ? "메모는 500자까지 입력할 수 있어요"
+            : result.code === "PIN_MEMO_INVALID"
+              ? "메모 값이 유효하지 않아요"
+              : result.code === "PIN_NOT_FOUND"
+                ? "이 핀을 찾을 수 없어요"
+                : result.message;
+      return { ok: false, message };
+    },
+    [visitMemoPin, groupId],
+  );
+
+  /**
+   * 메모 건너뛰기 — 2차 PATCH 미발사. 시트만 닫는다 (FR-VD-20).
+   */
+  const handleVisitMemoSkip = useCallback(() => {
+    setVisitMemoPin(null);
+    setActiveSheet(null);
+  }, []);
 
   /**
    * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
@@ -1279,6 +1460,21 @@ export default function MapClient({
         onConfirm={handleConfirmCoordinateEdit}
       />,
     );
+  } else if (
+    activeSheet === "visit-memo" &&
+    visitMemoPin &&
+    visitedAtRef.current
+  ) {
+    activePanel = renderPanel(
+      "방문 기록",
+      <VisitMemoSheet
+        pin={visitMemoPin}
+        visitedAt={visitedAtRef.current}
+        onSave={handleVisitMemoSave}
+        onSkip={handleVisitMemoSkip}
+      />,
+      { halfHeight: true },
+    );
   }
 
   // Phase 8: 알림 벨 — 모바일은 하단 ActionBar 4번째 탭, 데스크탑은 사이드바 하단.
@@ -1289,6 +1485,9 @@ export default function MapClient({
       return;
     }
     setActiveSheet(null);
+    // Phase 10: 동시 1개 패널 정책 — 방문 토스트/메모 시트도 함께 닫는다.
+    setVisitToastPin(null);
+    setVisitMemoPin(null);
     void notifications.openPanel();
   };
 
@@ -1317,6 +1516,7 @@ export default function MapClient({
       }}
     >
       <MapboxView
+        ref={mapboxViewRef}
         pins={optimisticPins}
         token={mapboxToken}
         styleUrl={mapboxStyleUrl}
@@ -1325,6 +1525,7 @@ export default function MapClient({
         onMapReady={handleMapReady}
         onClustersChange={handleClustersChange}
         onMapError={setMapError}
+        onGeolocate={handleGeolocate}
         previewMarker={
           activeSheet === "memo" && addPinOrigin
             ? {
@@ -1399,6 +1600,35 @@ export default function MapClient({
         />
       )}
       {activePanel}
+      {visitToastPin && (
+        <VisitToast
+          pin={visitToastPin}
+          onSkip={handleVisitSkip}
+          onConfirm={handleVisitConfirm}
+        />
+      )}
+      {visitErrorMessage && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed",
+            bottom: 100,
+            left: 12,
+            right: 12,
+            zIndex: 30,
+            background: colors.ink,
+            color: colors.bg,
+            padding: "12px 16px",
+            borderRadius: 12,
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            textAlign: "center",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          }}
+        >
+          {visitErrorMessage}
+        </div>
+      )}
       {isDesktop ? (
         <DesktopActionPill
           active={activeSheetToTab(activeSheet)}

@@ -72,6 +72,9 @@ class PinRepositoryIT {
     private void truncateAll() {
         // pins → group_members → groups → bot_* → users 순서로 정리 (FK 의존성).
         // 다른 IT 와 격리 보장 위해 users 참조 자식 테이블을 모두 비운다.
+        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
+        jdbcTemplate.execute("DELETE FROM notification_pins");
+        jdbcTemplate.execute("DELETE FROM notifications");
         jdbcTemplate.execute("DELETE FROM pins");
         jdbcTemplate.execute("DELETE FROM group_members");
         jdbcTemplate.execute("DELETE FROM groups");
@@ -222,7 +225,7 @@ class PinRepositoryIT {
                 Pin.autoFromInstagram(groupId, userId,
                         new PlaceSearchHit("k-1", "P1", "A1", 37.5, 127.0),
                         "https://www.instagram.com/p/MN/"));
-        pin.applyManualMemo("수동 메모");
+        pin.applyManualMemo("수동 메모", userId);
         pinJpaRepository.saveAndFlush(pin);
 
         // act
@@ -241,7 +244,7 @@ class PinRepositoryIT {
                 Pin.autoFromInstagram(groupId, userId,
                         new PlaceSearchHit("k-1", "P1", "A1", 37.5, 127.0),
                         "https://www.instagram.com/p/CL/"));
-        pin.applyManualMemo("수동 메모");
+        pin.applyManualMemo("수동 메모", userId);
         pinJpaRepository.saveAndFlush(pin);
         pin.clearMemo();
         pinJpaRepository.saveAndFlush(pin);

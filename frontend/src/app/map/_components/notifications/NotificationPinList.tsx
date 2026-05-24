@@ -42,7 +42,7 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
       }}>
         <div>
           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
-            {actorLabel} 저장한 {pins.length}곳
+            {actorLabel} {type === 'VISIT_DETECTED' ? '다녀온' : '저장한'} {pins.length}곳
           </div>
           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
             {formatTime(createdAt)}
@@ -128,6 +128,19 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
                       fontFamily: fonts.mono,
                     }}>
                       {pin.address}
+                    </div>
+                  )}
+                  {!disabled && type === 'VISIT_DETECTED' && pin.memo && (
+                    <div style={{
+                      fontSize: 12,
+                      color: colors.ink,
+                      marginTop: 4,
+                      padding: '6px 8px',
+                      background: colors.bg,
+                      borderRadius: 6,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {pin.memo}
                     </div>
                   )}
                 </div>

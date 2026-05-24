@@ -1,0 +1,257 @@
+ .dev/feat-login-onboarding-design/codemap.md       |    28 +
+ .../cross-review-diff.txt                          |  2883 +++++
+ .../cross-review-prompt.md                         |   189 +
+ .dev/feat-login-onboarding-design/cross-review.err |    98 +
+ .dev/feat-login-onboarding-design/cross-review.md  |    80 +
+ .../cross-review.raw.md                            |    43 +
+ .dev/feat-login-onboarding-design/design.md        |   483 +
+ .dev/feat-login-onboarding-design/diff.txt         |    61 +
+ .dev/feat-login-onboarding-design/pr-context.md    |    74 +
+ .dev/feat-login-onboarding-design/prd.md           |   149 +
+ .dev/feat-login-onboarding-design/self-check.md    |    45 +
+ .dev/feat-login-onboarding-design/state.md         |    31 +
+ .dev/feat-login-onboarding-design/trust-ledger.md  |    85 +
+ .dev/feat-phase-10-visit-detection/codemap.md      |    22 +
+ .dev/feat-phase-10-visit-detection/design.md       |   574 +
+ .dev/feat-phase-10-visit-detection/diff.txt        |    44 +
+ .dev/feat-phase-10-visit-detection/prd.md          |   255 +
+ .dev/feat-phase-10-visit-detection/self-check.md   |    39 +
+ .dev/feat-phase-10-visit-detection/state.md        |    52 +
+ .dev/feat-phase-10-visit-detection/trust-ledger.md |    71 +
+ .dev/feat-phase-2-10/cross-review.err              |   161 +
+ .dev/feat-phase-2-5-gemini-extractor/codemap.md    |    20 +
+ .../cross-review-prompt.md                         |   113 +
+ .../cross-review-state.md                          |    15 +
+ .../cross-review.err                               |    91 +
+ .../cross-review.md                                |    70 +
+ .../cross-review.raw.md                            |    51 +
+ .dev/feat-phase-2-5-gemini-extractor/diff.txt      |  1081 ++
+ .dev/feat-phase-2-5-gemini-extractor/pr-context.md |    29 +
+ .dev/feat-phase-2-5-gemini-extractor/prd.md        |    43 +
+ .dev/feat-phase-2-5-gemini-extractor/self-check.md |    51 +
+ .dev/feat-phase-2-5-gemini-extractor/state.md      |    62 +
+ .../trust-ledger.md                                |    35 +
+ .dev/feat-phase-2-6-ops-stabilization/codemap.md   |    53 +
+ .dev/feat-phase-2-6-ops-stabilization/design.md    |   321 +
+ .dev/feat-phase-2-6-ops-stabilization/diff.txt     |    19 +
+ .dev/feat-phase-2-6-ops-stabilization/fix-diff.txt |   409 +
+ .../feat-phase-2-6-ops-stabilization/pr-context.md |    50 +
+ .dev/feat-phase-2-6-ops-stabilization/prd.md       |   172 +
+ .../feat-phase-2-6-ops-stabilization/self-check.md |    38 +
+ .dev/feat-phase-2-6-ops-stabilization/state.md     |    42 +
+ .../trust-ledger.md                                |    77 +
+ .dev/feat-phase-2-6-pr-b-stabilization/codemap.md  |    45 +
+ .../cross-review-prompt.md                         |   131 +
+ .../cross-review.err                               |    84 +
+ .../cross-review.md                                |    58 +
+ .../cross-review.raw.md                            |    34 +
+ .dev/feat-phase-2-6-pr-b-stabilization/design.md   |   232 +
+ .dev/feat-phase-2-6-pr-b-stabilization/diff.txt    |  1797 ++++
+ .../pr-context.md                                  |    59 +
+ .dev/feat-phase-2-6-pr-b-stabilization/prd.md      |   146 +
+ .../self-check.md                                  |    56 +
+ .dev/feat-phase-2-6-pr-b-stabilization/state.md    |    33 +
+ .../trust-ledger.md                                |    58 +
+ .dev/feat-phase-2-7-test-infra/codemap.md          |    55 +
+ .../cross-review-prompt.md                         |   222 +
+ .dev/feat-phase-2-7-test-infra/cross-review.err    |   110 +
+ .dev/feat-phase-2-7-test-infra/cross-review.md     |    61 +
+ .dev/feat-phase-2-7-test-infra/cross-review.raw.md |    59 +
+ .dev/feat-phase-2-7-test-infra/design.md           |   487 +
+ .dev/feat-phase-2-7-test-infra/diff.txt            |   927 ++
+ .dev/feat-phase-2-7-test-infra/pr-context.md       |    58 +
+ .dev/feat-phase-2-7-test-infra/prd.md              |   177 +
+ .dev/feat-phase-2-7-test-infra/self-check.md       |    50 +
+ .dev/feat-phase-2-7-test-infra/state.md            |    94 +
+ .dev/feat-phase-2-7-test-infra/trust-ledger.md     |    59 +
+ .dev/feat-phase-2-chatbot/diff.txt                 |   252 +
+ .../feat-phase-2-chatbot/gemini-place-extractor.md |   186 +
+ .dev/feat-phase-2-chatbot/pr-context.md            |    99 +
+ .dev/feat-phase-2-chatbot/self-check.md            |    71 +
+ .dev/feat-phase-2-chatbot/trust-ledger.md          |   136 +
+ .dev/feat-phase-3-group/codemap.md                 |    31 +
+ .dev/feat-phase-3-group/cross-review-prompt.md     |   148 +
+ .dev/feat-phase-3-group/cross-review.err           |   120 +
+ .dev/feat-phase-3-group/cross-review.md            |    70 +
+ .dev/feat-phase-3-group/cross-review.raw.md        |    50 +
+ .dev/feat-phase-3-group/design.md                  |   342 +
+ .dev/feat-phase-3-group/diff.txt                   |  2378 +++++
+ .dev/feat-phase-3-group/pr-context.md              |    68 +
+ .dev/feat-phase-3-group/prd.md                     |   168 +
+ .dev/feat-phase-3-group/self-check.md              |    25 +
+ .dev/feat-phase-3-group/state.md                   |    41 +
+ .dev/feat-phase-3-group/trust-ledger.md            |    85 +
+ .dev/feat-phase-4-pin-crud/codemap.md              |    24 +
+ .dev/feat-phase-4-pin-crud/cross-review-prompt.md  |   184 +
+ .dev/feat-phase-4-pin-crud/cross-review.err        |   152 +
+ .dev/feat-phase-4-pin-crud/cross-review.md         |    79 +
+ .dev/feat-phase-4-pin-crud/cross-review.raw.md     |    60 +
+ .dev/feat-phase-4-pin-crud/design.md               |   615 ++
+ .dev/feat-phase-4-pin-crud/diff.txt                |  3141 ++++++
+ .dev/feat-phase-4-pin-crud/pr-context.md           |    85 +
+ .dev/feat-phase-4-pin-crud/prd.md                  |   133 +
+ .dev/feat-phase-4-pin-crud/self-check.md           |    48 +
+ .dev/feat-phase-4-pin-crud/state.md                |    52 +
+ .dev/feat-phase-4-pin-crud/trust-ledger.md         |    82 +
+ .dev/feat-phase-5-google-places/codemap.md         |    25 +
+ .../cross-review-prompt.md                         |   138 +
+ .dev/feat-phase-5-google-places/cross-review.err   |    94 +
+ .dev/feat-phase-5-google-places/cross-review.md    |    62 +
+ .../feat-phase-5-google-places/cross-review.raw.md |    58 +
+ .dev/feat-phase-5-google-places/design.md          |   295 +
+ .dev/feat-phase-5-google-places/diff.txt           |  2170 ++++
+ .dev/feat-phase-5-google-places/pr-context.md      |    79 +
+ .dev/feat-phase-5-google-places/prd.md             |   154 +
+ .dev/feat-phase-5-google-places/self-check.md      |    16 +
+ .dev/feat-phase-5-google-places/state.md           |    37 +
+ .dev/feat-phase-5-google-places/trust-ledger.md    |    74 +
+ .dev/feat-phase-6-mapbox-roulette/codemap.md       |    35 +
+ .../cross-review-prompt.md                         |   183 +
+ .dev/feat-phase-6-mapbox-roulette/cross-review.err |    87 +
+ .../cross-review.raw.md                            |    69 +
+ .../design-bundle/README.md                        |    25 +
+ .../design-bundle/chats/chat1.md                   |   511 +
+ .../design-bundle/project/design-canvas.jsx        |   966 ++
+ .../design-bundle/project/icon-kit.html            |   156 +
+ .../project/icons-png/app-icon-dark.png            |   Bin 0 -> 41011 bytes
+ .../project/icons-png/app-icon-light.png           |   Bin 0 -> 36783 bytes
+ .../design-bundle/project/icons-png/ic-add.png     |   Bin 0 -> 1076 bytes
+ .../design-bundle/project/icons-png/ic-back.png    |   Bin 0 -> 987 bytes
+ .../design-bundle/project/icons-png/ic-chat.png    |   Bin 0 -> 1180 bytes
+ .../design-bundle/project/icons-png/ic-check.png   |   Bin 0 -> 3722 bytes
+ .../design-bundle/project/icons-png/ic-close.png   |   Bin 0 -> 1840 bytes
+ .../design-bundle/project/icons-png/ic-compass.png |   Bin 0 -> 4123 bytes
+ .../design-bundle/project/icons-png/ic-copy.png    |   Bin 0 -> 1808 bytes
+ .../design-bundle/project/icons-png/ic-dice.png    |   Bin 0 -> 2798 bytes
+ .../design-bundle/project/icons-png/ic-globe.png   |   Bin 0 -> 4114 bytes
+ .../design-bundle/project/icons-png/ic-heart.png   |   Bin 0 -> 2248 bytes
+ .../design-bundle/project/icons-png/ic-list.png    |   Bin 0 -> 1408 bytes
+ .../project/icons-png/ic-location.png              |   Bin 0 -> 2775 bytes
+ .../design-bundle/project/icons-png/ic-map.png     |   Bin 0 -> 1721 bytes
+ .../design-bundle/project/icons-png/ic-profile.png |   Bin 0 -> 2483 bytes
+ .../design-bundle/project/icons-png/ic-reel.png    |   Bin 0 -> 3453 bytes
+ .../design-bundle/project/icons-png/ic-search.png  |   Bin 0 -> 2896 bytes
+ .../project/icons-png/ic-settings.png              |   Bin 0 -> 2638 bytes
+ .../design-bundle/project/icons-png/ic-share.png   |   Bin 0 -> 1523 bytes
+ .../design-bundle/project/icons-png/ic-star.png    |   Bin 0 -> 2293 bytes
+ .../project/icons-png/pin-heart-dark.png           |   Bin 0 -> 3619 bytes
+ .../project/icons-png/pin-heart-light.png          |   Bin 0 -> 3617 bytes
+ .../project/icons-png/pin-moon-dark.png            |   Bin 0 -> 3806 bytes
+ .../project/icons-png/pin-moon-light.png           |   Bin 0 -> 3832 bytes
+ .../project/icons-png/pin-star-dark.png            |   Bin 0 -> 3798 bytes
+ .../project/icons-png/pin-star-light.png           |   Bin 0 -> 3786 bytes
+ .../project/icons-png/pin-star-visited-dark.png    |   Bin 0 -> 3545 bytes
+ .../project/icons-png/pin-star-visited-light.png   |   Bin 0 -> 3621 bytes
+ .../design-bundle/project/icons/app-icon-dark.svg  |    31 +
+ .../design-bundle/project/icons/app-icon-light.svg |    23 +
+ .../design-bundle/project/icons/ic-add.svg         |     5 +
+ .../design-bundle/project/icons/ic-back.svg        |     4 +
+ .../design-bundle/project/icons/ic-chat.svg        |     4 +
+ .../design-bundle/project/icons/ic-check.svg       |     5 +
+ .../design-bundle/project/icons/ic-close.svg       |     5 +
+ .../design-bundle/project/icons/ic-compass.svg     |     9 +
+ .../design-bundle/project/icons/ic-copy.svg        |     5 +
+ .../design-bundle/project/icons/ic-dice.svg        |     9 +
+ .../design-bundle/project/icons/ic-globe.svg       |     7 +
+ .../design-bundle/project/icons/ic-heart.svg       |     4 +
+ .../design-bundle/project/icons/ic-list.svg        |     9 +
+ .../design-bundle/project/icons/ic-location.svg    |     5 +
+ .../design-bundle/project/icons/ic-map.svg         |     6 +
+ .../design-bundle/project/icons/ic-profile.svg     |     5 +
+ .../design-bundle/project/icons/ic-reel.svg        |     5 +
+ .../design-bundle/project/icons/ic-search.svg      |     5 +
+ .../design-bundle/project/icons/ic-settings.svg    |     9 +
+ .../design-bundle/project/icons/ic-share.svg       |     6 +
+ .../design-bundle/project/icons/ic-star.svg        |     4 +
+ .../design-bundle/project/icons/pin-heart-dark.svg |     4 +
+ .../project/icons/pin-heart-light.svg              |     4 +
+ .../design-bundle/project/icons/pin-moon-dark.svg  |     4 +
+ .../design-bundle/project/icons/pin-moon-light.svg |     4 +
+ .../design-bundle/project/icons/pin-star-dark.svg  |     4 +
+ .../design-bundle/project/icons/pin-star-light.svg |     4 +
+ .../project/icons/pin-star-visited-dark.svg        |     4 +
+ .../project/icons/pin-star-visited-light.svg       |     4 +
+ .../design-bundle/project/index.html               |    51 +
+ .../design-bundle/project/ios-frame.jsx            |   338 +
+ .../design-bundle/project/mapbg.jsx                |   221 +
+ .../design-bundle/project/newapp.jsx               |   168 +
+ .../design-bundle/project/screens-basic.jsx        |   220 +
+ .../design-bundle/project/screens-desktop.jsx      |   348 +
+ .../design-bundle/project/screens-login.jsx        |   309 +
+ .../design-bundle/project/screens-mobile.jsx       |   347 +
+ .../design-bundle/project/tokens.jsx               |   358 +
+ .../design-bundle/project/tweaks-panel.jsx         |   568 +
+ .../design-bundle/project/uploads/design.md        |   217 +
+ .../project/uploads/pasted-1778841903765-0.png     |   Bin 0 -> 222813 bytes
+ .../project/uploads/pasted-1778842677685-0.png     |   Bin 0 -> 771645 bytes
+ .dev/feat-phase-6-mapbox-roulette/design.md        |   850 ++
+ .dev/feat-phase-6-mapbox-roulette/diff.txt         | 10510 +++++++++++++++++++
+ .dev/feat-phase-6-mapbox-roulette/pr-context.md    |    90 +
+ .dev/feat-phase-6-mapbox-roulette/prd.md           |   273 +
+ .dev/feat-phase-6-mapbox-roulette/self-check.md    |    51 +
+ .dev/feat-phase-6-mapbox-roulette/state.md         |    50 +
+ .dev/feat-phase-6-mapbox-roulette/trust-ledger.md  |   112 +
+ .../cross-review-prompt.md                         |    87 +
+ .dev/feat-phase-8-notifications/cross-review.diff  |  1826 ++++
+ .dev/feat-phase-8-notifications/cross-review.err   |    66 +
+ .dev/feat-phase-8-notifications/cross-review.md    |    69 +
+ .../feat-phase-8-notifications/cross-review.raw.md |    43 +
+ .dev/feature-phase-0-foundation/codemap.md         |    50 +
+ .../cross-review-prompt.md                         |   235 +
+ .dev/feature-phase-0-foundation/cross-review.err   |   147 +
+ .dev/feature-phase-0-foundation/cross-review.md    |   101 +
+ .../feature-phase-0-foundation/cross-review.raw.md |    65 +
+ .dev/feature-phase-0-foundation/design.md          |   511 +
+ .dev/feature-phase-0-foundation/diff.txt           |  3785 +++++++
+ .dev/feature-phase-0-foundation/pr-context.md      |   107 +
+ .dev/feature-phase-0-foundation/prd.md             |   430 +
+ .dev/feature-phase-0-foundation/self-check.md      |    49 +
+ .dev/feature-phase-0-foundation/state.md           |    56 +
+ .dev/feature-phase-0-foundation/trust-ledger.md    |    88 +
+ .../cross-review-prompt.md                         |   238 +
+ .../cross-review.err                               |    92 +
+ .../cross-review.md                                |    76 +
+ .../cross-review.raw.md                            |    57 +
+ .dev/fix-ios-geolocate-jpa-connection/diff.txt     |   181 +
+ .../domain/notification/Notification.java          |    25 +
+ .../domain/notification/NotificationService.java   |    53 +-
+ .../domain/notification/NotificationType.java      |     3 +-
+ .../notification/NotificationVisitWriter.java      |    41 +
+ .../java/com/wherewego/domain/pin/PinService.java  |    11 +-
+ .../com/wherewego/domain/pin/PinUpdateResult.java  |    13 +
+ .../api/notification/NotificationV1Dto.java        |     6 +-
+ .../interfaces/api/pin/PinV1Controller.java        |    15 +-
+ .../V009__add_visit_detected_notification_type.sql |    28 +
+ .../wherewego/domain/bot/BotLinkCodeServiceIT.java |     3 +
+ .../domain/group/GroupMemberServiceIT.java         |     3 +
+ .../NotificationServiceVisitDetectedIT.java        |   298 +
+ .../com/wherewego/domain/pin/PinMemoServiceIT.java |     3 +
+ .../com/wherewego/domain/pin/PinServiceIT.java     |    21 +-
+ .../java/com/wherewego/domain/pin/PinTest.java     |     8 +-
+ .../infrastructure/pin/PinRepositoryIT.java        |     7 +-
+ .../api/bot/BotV1ControllerIntegrationTest.java    |     3 +
+ .../ChatbotInstagramMemoFlowIntegrationTest.java   |     3 +
+ .../ChatbotV1ControllerIntegrationTest.java        |     3 +
+ .../group/GroupV1ControllerIntegrationTest.java    |     3 +
+ .../wherewego/interfaces/api/pin/PinCreateIT.java  |     3 +
+ .../api/pin/PinV1ControllerIntegrationTest.java    |     4 +
+ .../interfaces/api/place/PlaceSearchIT.java        |     3 +
+ .../api/user/UserV1ControllerIntegrationTest.java  |     3 +
+ frontend/.dev/feat-phase-2-7-test-infra/diff.txt   |    15 +
+ frontend/src/app/globals.css                       |    29 +
+ frontend/src/app/map/MapClient.tsx                 |   232 +-
+ frontend/src/app/map/_components/MapboxView.tsx    |   143 +-
+ .../app/map/_components/VisitMemoSheet.test.tsx    |   108 +
+ .../src/app/map/_components/VisitMemoSheet.tsx     |   146 +
+ .../src/app/map/_components/VisitToast.test.tsx    |    72 +
+ frontend/src/app/map/_components/VisitToast.tsx    |   101 +
+ .../_components/notifications/NotificationItem.tsx |    15 +-
+ .../notifications/NotificationPanel.tsx            |     1 +
+ .../notifications/NotificationPinList.tsx          |    15 +-
+ .../src/app/map/_hooks/useVisitDetection.test.ts   |   286 +
+ frontend/src/app/map/_hooks/useVisitDetection.ts   |   117 +
+ frontend/src/lib/notifications/types.ts            |     7 +-
+ frontend/vitest.setup.ts                           |    23 +
+ 254 files changed, 53024 insertions(+), 46 deletions(-)
+---
+위는 요약입니다. 변경된 파일을 Read 도구로 직접 확인하라.
