@@ -24,13 +24,9 @@ Mapbox 3D 지구본 위에 핀을 꽂아줍니다.
 
 ### 핀 등록
 
-| + 버튼으로 현재 지도 좌표에 핀 생성 | 카카오톡 챗봇 — 인스타 릴스 자동 등록 |
+| + 버튼으로 현재 지도 좌표에 핀 생성 | 챗봇 릴스 링크 → 앱 지도에 핀 반영 |
 |:---:|:---:|
-| <img src="docs/demo/pin-add-manual.gif" alt="+ 버튼 핀 생성" width="280" /> | <img src="docs/demo/pin-add-chatbot.gif" alt="챗봇 인스타 릴스 등록" width="280" /> |
-
-| 2초 룰 — 릴스 직후 메모 자동 연결 | 후보 장소 선택 카드 |
-|:---:|:---:|
-| <img src="docs/demo/pin-memo-2sec.gif" alt="2초 룰 메모 자동 연결" width="280" /> | <img src="docs/demo/pin-select-card.gif" alt="후보 장소 선택 카드" width="280" /> |
+| <img src="docs/demo/pin-add-manual.gif" alt="+ 버튼 핀 생성" width="280" /> | <img src="docs/demo/pin-add-chatbot.gif" alt="챗봇 릴스 → 앱 핀 확인" width="280" /> |
 
 ### 지도 탐색
 
