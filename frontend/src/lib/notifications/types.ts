@@ -36,6 +36,12 @@ export interface NotificationPinItem {
    * MANUAL_PIN/CHATBOT_PINS 알림은 null. soft-delete 핀도 null.
    */
   memo?: string | null;
+  /**
+   * Phase 10 FR-VD-29: 핀의 현재 태그(REEL/WISH/MEMORY). 알림 상세에서
+   * VISIT_DETECTED 케이스의 MEMORY 배지 표시에 사용. soft-delete 또는
+   * 핀 자체가 사라진 경우 null.
+   */
+  tag?: string | null;
 }
 
 export interface NotificationDetail {

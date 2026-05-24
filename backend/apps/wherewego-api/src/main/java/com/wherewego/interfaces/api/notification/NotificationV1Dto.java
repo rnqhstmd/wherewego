@@ -59,7 +59,8 @@ public final class NotificationV1Dto {
             BigDecimal longitude,
             boolean deleted,
             String instagramUrl,
-            String memo
+            String memo,
+            String tag
     ) {
         public static PinItem from(NotificationPinItemResult r) {
             return new PinItem(
@@ -70,7 +71,8 @@ public final class NotificationV1Dto {
                     r.longitude(),
                     r.deleted(),
                     r.instagramUrl(),
-                    r.memo()
+                    r.memo(),
+                    r.tag()
             );
         }
     }

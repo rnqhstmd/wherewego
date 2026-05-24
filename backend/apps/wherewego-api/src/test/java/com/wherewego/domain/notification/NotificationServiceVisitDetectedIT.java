@@ -268,6 +268,8 @@ class NotificationServiceVisitDetectedIT {
         NotificationService.NotificationPinItemResult item = detail.pins().get(0);
         assertThat(item.deleted()).isFalse();
         assertThat(item.memo()).isEqualTo("최신 메모로 갱신");
+        // FR-VD-29: 활성 핀이면 현재 태그(MEMORY)도 함께 전달되어 알림 상세 MEMORY 배지 표시에 사용된다.
+        assertThat(item.tag()).isEqualTo("MEMORY");
     }
 
     @Test

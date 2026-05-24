@@ -1,6 +1,6 @@
 ---
-phase: setup
-status: in_progress
+phase: complete
+status: completed
 branch: feat/phase-10-visit-detection
 base: develop
 project-type: java-spring + node
@@ -10,43 +10,33 @@ mode: normal
 intent-source: user-selection
 flags: ""
 started: 2026-05-24T00:08:00
-last-known-head: aa572c5564faa09b13bac005fdb7131053378939
+ended: 2026-05-24T12:10:00
+last-known-head: f4aec23b534e19e24a32dadffd874f7468f3125c
 auto-stashed: false
-current-step: setup-complete
+pr-url: https://github.com/rnqhstmd/wherewego/pull/57
 phases:
   setup: completed
-  requirements: pending
-  design: pending
-  implement: pending
-  review: pending
-  complete: pending
-steps:
-  setup:
-    - git-check: completed
-    - base-decision: completed (develop)
-    - auto-stash: completed (pushed + popped)
-    - branch-create: completed (feat/phase-10-visit-detection)
-    - codemap: completed
-    - state-init: completed
-execution-log:
-  - phase: setup
-    step: base-decision
-    result: "사용자가 develop 선택. main도 후보였으나 feat/* → develop 머지 패턴 확인"
-  - phase: setup
-    step: auto-stash
-    result: "untracked .dev/ 23건 stash 후 새 브랜치에서 pop 성공"
-  - phase: setup
-    step: codemap
-    result: "핵심 5건 + 참조 7건 + 설정 3건 = 15건 등록"
-prior-decisions:
-  - "/ttutak:context phase 10 계획 파악 세션에서 9개 결정 사항 확정 (Q1-Q9, 2026-05-23~24)"
-  - "Q1 세션 정의: 메모리 Set, 페이지 unmount 시 리셋"
-  - "Q2 트리거 주기: 매 geolocate 콜백, throttle 없음"
-  - "Q3 진입/통과: 30초 머무름 임계"
-  - "Q4 정확도 게이트: accuracy ≤ 50m"
-  - "Q5 차순위 핀: Set 누적, 다음 콜백부터 자동 재평가"
-  - "Q6 권한 UX: 조용히 비활성"
-  - "Q7 PATCH 흐름: 2회 분리, 메모는 선택"
-  - "Q8 알림: 무조건 발송, MANUAL_PIN과 동일 구조, VISIT_DETECTED 신규 유형"
-  - "Q9 마커 전환: 하트 confetti 3개 + scale, ~600ms"
+  requirements: completed
+  design: completed
+  implement: completed
+  review: completed
+  complete: completed
+acceptance: ACCEPT (AC-VD-1~22 22건 모두 충족)
+audit-summary: CRITICAL 0, HIGH 3 (모두 해결 또는 INFO 재분류), MEDIUM 5, Warning 3 (5건 보강 후 1건 SPEC 해소)
+test-results:
+  backend-it: NotificationServiceVisitDetectedIT 6/6 + NotificationServiceIT 7/7 + PinServiceIT 23/23 PASS
+  frontend: 162/162 PASS (Phase 10 신규 15건 포함)
+context-updates:
+  - context/pin/status.md: Phase 10 후속 작업 행 추가
+  - context/notification/status.md: Phase 10 신규 섹션 (6개 항목)
+  - context/notification/README.md: VISIT_DETECTED 알림 유형 표 추가
+  - context/notification/architecture.md: notifications 테이블에 visit_pin_id 컬럼 + 부분 UNIQUE 인덱스 명시
+  - context/pin/glossary.md: 방문 감지/30초 머무름/100m 반경/GPS 정확도 게이트/PinUpdateResult/세션 Set 6개 용어 추가
+follow-up:
+  - "Controller IT 3건 (c/d/g) 별도 이슈"
+  - "알림 실패 운영 가시성 (Prometheus counter)"
+  - "전환율 모니터링 이벤트 트래킹"
+  - "Phase 11 우리 기록 도입 시 본인 알림 정책 재검토"
+  - "PinPopup 칩 경로 MEMORY 전환 confetti 일관성 확장"
+  - "차량 정차 오탐 실측 후 30초 임계 튜닝"
 ---

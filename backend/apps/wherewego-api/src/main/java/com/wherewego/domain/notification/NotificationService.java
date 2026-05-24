@@ -194,18 +194,19 @@ public class NotificationService {
             Pin pin = pinById.get(link.getPinId());
             if (pin == null) {
                 // pin row 자체가 존재하지 않음 (이론상 거의 없음)
-                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null, null);
+                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null, null, null);
             }
             if (pin.isDeleted()) {
                 return new NotificationPinItemResult(
-                        pin.getId(), pin.getPlaceName(), null, null, null, true, null, null);
+                        pin.getId(), pin.getPlaceName(), null, null, null, true, null, null, null);
             }
             // Phase 10: VISIT_DETECTED 알림에서만 핀의 최신 memo를 join.
             // 그 외 타입(MANUAL_PIN/CHATBOT_PINS)은 memo 노출 스코프 밖이므로 항상 null.
             String memo = isVisitType ? pin.getMemo() : null;
             return new NotificationPinItemResult(
                     pin.getId(), pin.getPlaceName(), pin.getAddress(),
-                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl(), memo);
+                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl(), memo,
+                    pin.getTag().name());
         }).toList();
 
         return new NotificationDetailResult(
@@ -264,7 +265,13 @@ public class NotificationService {
             BigDecimal longitude,
             boolean deleted,
             String instagramUrl,
-            String memo
+            String memo,
+            /**
+             * Phase 10 FR-VD-29: 핀의 현재 태그(REEL/WISH/MEMORY). 알림 상세에서
+             * VISIT_DETECTED 케이스의 MEMORY 배지 표시에 사용. soft-delete 또는
+             * 핀 자체가 사라진 경우 null.
+             */
+            String tag
     ) {}
 
     public record NotificationDetailResult(

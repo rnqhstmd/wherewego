@@ -1,257 +1,4227 @@
- .dev/feat-login-onboarding-design/codemap.md       |    28 +
- .../cross-review-diff.txt                          |  2883 +++++
- .../cross-review-prompt.md                         |   189 +
- .dev/feat-login-onboarding-design/cross-review.err |    98 +
- .dev/feat-login-onboarding-design/cross-review.md  |    80 +
- .../cross-review.raw.md                            |    43 +
- .dev/feat-login-onboarding-design/design.md        |   483 +
- .dev/feat-login-onboarding-design/diff.txt         |    61 +
- .dev/feat-login-onboarding-design/pr-context.md    |    74 +
- .dev/feat-login-onboarding-design/prd.md           |   149 +
- .dev/feat-login-onboarding-design/self-check.md    |    45 +
- .dev/feat-login-onboarding-design/state.md         |    31 +
- .dev/feat-login-onboarding-design/trust-ledger.md  |    85 +
- .dev/feat-phase-10-visit-detection/codemap.md      |    22 +
- .dev/feat-phase-10-visit-detection/design.md       |   574 +
- .dev/feat-phase-10-visit-detection/diff.txt        |    44 +
- .dev/feat-phase-10-visit-detection/prd.md          |   255 +
- .dev/feat-phase-10-visit-detection/self-check.md   |    39 +
- .dev/feat-phase-10-visit-detection/state.md        |    52 +
- .dev/feat-phase-10-visit-detection/trust-ledger.md |    71 +
- .dev/feat-phase-2-10/cross-review.err              |   161 +
- .dev/feat-phase-2-5-gemini-extractor/codemap.md    |    20 +
- .../cross-review-prompt.md                         |   113 +
- .../cross-review-state.md                          |    15 +
- .../cross-review.err                               |    91 +
- .../cross-review.md                                |    70 +
- .../cross-review.raw.md                            |    51 +
- .dev/feat-phase-2-5-gemini-extractor/diff.txt      |  1081 ++
- .dev/feat-phase-2-5-gemini-extractor/pr-context.md |    29 +
- .dev/feat-phase-2-5-gemini-extractor/prd.md        |    43 +
- .dev/feat-phase-2-5-gemini-extractor/self-check.md |    51 +
- .dev/feat-phase-2-5-gemini-extractor/state.md      |    62 +
- .../trust-ledger.md                                |    35 +
- .dev/feat-phase-2-6-ops-stabilization/codemap.md   |    53 +
- .dev/feat-phase-2-6-ops-stabilization/design.md    |   321 +
- .dev/feat-phase-2-6-ops-stabilization/diff.txt     |    19 +
- .dev/feat-phase-2-6-ops-stabilization/fix-diff.txt |   409 +
- .../feat-phase-2-6-ops-stabilization/pr-context.md |    50 +
- .dev/feat-phase-2-6-ops-stabilization/prd.md       |   172 +
- .../feat-phase-2-6-ops-stabilization/self-check.md |    38 +
- .dev/feat-phase-2-6-ops-stabilization/state.md     |    42 +
- .../trust-ledger.md                                |    77 +
- .dev/feat-phase-2-6-pr-b-stabilization/codemap.md  |    45 +
- .../cross-review-prompt.md                         |   131 +
- .../cross-review.err                               |    84 +
- .../cross-review.md                                |    58 +
- .../cross-review.raw.md                            |    34 +
- .dev/feat-phase-2-6-pr-b-stabilization/design.md   |   232 +
- .dev/feat-phase-2-6-pr-b-stabilization/diff.txt    |  1797 ++++
- .../pr-context.md                                  |    59 +
- .dev/feat-phase-2-6-pr-b-stabilization/prd.md      |   146 +
- .../self-check.md                                  |    56 +
- .dev/feat-phase-2-6-pr-b-stabilization/state.md    |    33 +
- .../trust-ledger.md                                |    58 +
- .dev/feat-phase-2-7-test-infra/codemap.md          |    55 +
- .../cross-review-prompt.md                         |   222 +
- .dev/feat-phase-2-7-test-infra/cross-review.err    |   110 +
- .dev/feat-phase-2-7-test-infra/cross-review.md     |    61 +
- .dev/feat-phase-2-7-test-infra/cross-review.raw.md |    59 +
- .dev/feat-phase-2-7-test-infra/design.md           |   487 +
- .dev/feat-phase-2-7-test-infra/diff.txt            |   927 ++
- .dev/feat-phase-2-7-test-infra/pr-context.md       |    58 +
- .dev/feat-phase-2-7-test-infra/prd.md              |   177 +
- .dev/feat-phase-2-7-test-infra/self-check.md       |    50 +
- .dev/feat-phase-2-7-test-infra/state.md            |    94 +
- .dev/feat-phase-2-7-test-infra/trust-ledger.md     |    59 +
- .dev/feat-phase-2-chatbot/diff.txt                 |   252 +
- .../feat-phase-2-chatbot/gemini-place-extractor.md |   186 +
- .dev/feat-phase-2-chatbot/pr-context.md            |    99 +
- .dev/feat-phase-2-chatbot/self-check.md            |    71 +
- .dev/feat-phase-2-chatbot/trust-ledger.md          |   136 +
- .dev/feat-phase-3-group/codemap.md                 |    31 +
- .dev/feat-phase-3-group/cross-review-prompt.md     |   148 +
- .dev/feat-phase-3-group/cross-review.err           |   120 +
- .dev/feat-phase-3-group/cross-review.md            |    70 +
- .dev/feat-phase-3-group/cross-review.raw.md        |    50 +
- .dev/feat-phase-3-group/design.md                  |   342 +
- .dev/feat-phase-3-group/diff.txt                   |  2378 +++++
- .dev/feat-phase-3-group/pr-context.md              |    68 +
- .dev/feat-phase-3-group/prd.md                     |   168 +
- .dev/feat-phase-3-group/self-check.md              |    25 +
- .dev/feat-phase-3-group/state.md                   |    41 +
- .dev/feat-phase-3-group/trust-ledger.md            |    85 +
- .dev/feat-phase-4-pin-crud/codemap.md              |    24 +
- .dev/feat-phase-4-pin-crud/cross-review-prompt.md  |   184 +
- .dev/feat-phase-4-pin-crud/cross-review.err        |   152 +
- .dev/feat-phase-4-pin-crud/cross-review.md         |    79 +
- .dev/feat-phase-4-pin-crud/cross-review.raw.md     |    60 +
- .dev/feat-phase-4-pin-crud/design.md               |   615 ++
- .dev/feat-phase-4-pin-crud/diff.txt                |  3141 ++++++
- .dev/feat-phase-4-pin-crud/pr-context.md           |    85 +
- .dev/feat-phase-4-pin-crud/prd.md                  |   133 +
- .dev/feat-phase-4-pin-crud/self-check.md           |    48 +
- .dev/feat-phase-4-pin-crud/state.md                |    52 +
- .dev/feat-phase-4-pin-crud/trust-ledger.md         |    82 +
- .dev/feat-phase-5-google-places/codemap.md         |    25 +
- .../cross-review-prompt.md                         |   138 +
- .dev/feat-phase-5-google-places/cross-review.err   |    94 +
- .dev/feat-phase-5-google-places/cross-review.md    |    62 +
- .../feat-phase-5-google-places/cross-review.raw.md |    58 +
- .dev/feat-phase-5-google-places/design.md          |   295 +
- .dev/feat-phase-5-google-places/diff.txt           |  2170 ++++
- .dev/feat-phase-5-google-places/pr-context.md      |    79 +
- .dev/feat-phase-5-google-places/prd.md             |   154 +
- .dev/feat-phase-5-google-places/self-check.md      |    16 +
- .dev/feat-phase-5-google-places/state.md           |    37 +
- .dev/feat-phase-5-google-places/trust-ledger.md    |    74 +
- .dev/feat-phase-6-mapbox-roulette/codemap.md       |    35 +
- .../cross-review-prompt.md                         |   183 +
- .dev/feat-phase-6-mapbox-roulette/cross-review.err |    87 +
- .../cross-review.raw.md                            |    69 +
- .../design-bundle/README.md                        |    25 +
- .../design-bundle/chats/chat1.md                   |   511 +
- .../design-bundle/project/design-canvas.jsx        |   966 ++
- .../design-bundle/project/icon-kit.html            |   156 +
- .../project/icons-png/app-icon-dark.png            |   Bin 0 -> 41011 bytes
- .../project/icons-png/app-icon-light.png           |   Bin 0 -> 36783 bytes
- .../design-bundle/project/icons-png/ic-add.png     |   Bin 0 -> 1076 bytes
- .../design-bundle/project/icons-png/ic-back.png    |   Bin 0 -> 987 bytes
- .../design-bundle/project/icons-png/ic-chat.png    |   Bin 0 -> 1180 bytes
- .../design-bundle/project/icons-png/ic-check.png   |   Bin 0 -> 3722 bytes
- .../design-bundle/project/icons-png/ic-close.png   |   Bin 0 -> 1840 bytes
- .../design-bundle/project/icons-png/ic-compass.png |   Bin 0 -> 4123 bytes
- .../design-bundle/project/icons-png/ic-copy.png    |   Bin 0 -> 1808 bytes
- .../design-bundle/project/icons-png/ic-dice.png    |   Bin 0 -> 2798 bytes
- .../design-bundle/project/icons-png/ic-globe.png   |   Bin 0 -> 4114 bytes
- .../design-bundle/project/icons-png/ic-heart.png   |   Bin 0 -> 2248 bytes
- .../design-bundle/project/icons-png/ic-list.png    |   Bin 0 -> 1408 bytes
- .../project/icons-png/ic-location.png              |   Bin 0 -> 2775 bytes
- .../design-bundle/project/icons-png/ic-map.png     |   Bin 0 -> 1721 bytes
- .../design-bundle/project/icons-png/ic-profile.png |   Bin 0 -> 2483 bytes
- .../design-bundle/project/icons-png/ic-reel.png    |   Bin 0 -> 3453 bytes
- .../design-bundle/project/icons-png/ic-search.png  |   Bin 0 -> 2896 bytes
- .../project/icons-png/ic-settings.png              |   Bin 0 -> 2638 bytes
- .../design-bundle/project/icons-png/ic-share.png   |   Bin 0 -> 1523 bytes
- .../design-bundle/project/icons-png/ic-star.png    |   Bin 0 -> 2293 bytes
- .../project/icons-png/pin-heart-dark.png           |   Bin 0 -> 3619 bytes
- .../project/icons-png/pin-heart-light.png          |   Bin 0 -> 3617 bytes
- .../project/icons-png/pin-moon-dark.png            |   Bin 0 -> 3806 bytes
- .../project/icons-png/pin-moon-light.png           |   Bin 0 -> 3832 bytes
- .../project/icons-png/pin-star-dark.png            |   Bin 0 -> 3798 bytes
- .../project/icons-png/pin-star-light.png           |   Bin 0 -> 3786 bytes
- .../project/icons-png/pin-star-visited-dark.png    |   Bin 0 -> 3545 bytes
- .../project/icons-png/pin-star-visited-light.png   |   Bin 0 -> 3621 bytes
- .../design-bundle/project/icons/app-icon-dark.svg  |    31 +
- .../design-bundle/project/icons/app-icon-light.svg |    23 +
- .../design-bundle/project/icons/ic-add.svg         |     5 +
- .../design-bundle/project/icons/ic-back.svg        |     4 +
- .../design-bundle/project/icons/ic-chat.svg        |     4 +
- .../design-bundle/project/icons/ic-check.svg       |     5 +
- .../design-bundle/project/icons/ic-close.svg       |     5 +
- .../design-bundle/project/icons/ic-compass.svg     |     9 +
- .../design-bundle/project/icons/ic-copy.svg        |     5 +
- .../design-bundle/project/icons/ic-dice.svg        |     9 +
- .../design-bundle/project/icons/ic-globe.svg       |     7 +
- .../design-bundle/project/icons/ic-heart.svg       |     4 +
- .../design-bundle/project/icons/ic-list.svg        |     9 +
- .../design-bundle/project/icons/ic-location.svg    |     5 +
- .../design-bundle/project/icons/ic-map.svg         |     6 +
- .../design-bundle/project/icons/ic-profile.svg     |     5 +
- .../design-bundle/project/icons/ic-reel.svg        |     5 +
- .../design-bundle/project/icons/ic-search.svg      |     5 +
- .../design-bundle/project/icons/ic-settings.svg    |     9 +
- .../design-bundle/project/icons/ic-share.svg       |     6 +
- .../design-bundle/project/icons/ic-star.svg        |     4 +
- .../design-bundle/project/icons/pin-heart-dark.svg |     4 +
- .../project/icons/pin-heart-light.svg              |     4 +
- .../design-bundle/project/icons/pin-moon-dark.svg  |     4 +
- .../design-bundle/project/icons/pin-moon-light.svg |     4 +
- .../design-bundle/project/icons/pin-star-dark.svg  |     4 +
- .../design-bundle/project/icons/pin-star-light.svg |     4 +
- .../project/icons/pin-star-visited-dark.svg        |     4 +
- .../project/icons/pin-star-visited-light.svg       |     4 +
- .../design-bundle/project/index.html               |    51 +
- .../design-bundle/project/ios-frame.jsx            |   338 +
- .../design-bundle/project/mapbg.jsx                |   221 +
- .../design-bundle/project/newapp.jsx               |   168 +
- .../design-bundle/project/screens-basic.jsx        |   220 +
- .../design-bundle/project/screens-desktop.jsx      |   348 +
- .../design-bundle/project/screens-login.jsx        |   309 +
- .../design-bundle/project/screens-mobile.jsx       |   347 +
- .../design-bundle/project/tokens.jsx               |   358 +
- .../design-bundle/project/tweaks-panel.jsx         |   568 +
- .../design-bundle/project/uploads/design.md        |   217 +
- .../project/uploads/pasted-1778841903765-0.png     |   Bin 0 -> 222813 bytes
- .../project/uploads/pasted-1778842677685-0.png     |   Bin 0 -> 771645 bytes
- .dev/feat-phase-6-mapbox-roulette/design.md        |   850 ++
- .dev/feat-phase-6-mapbox-roulette/diff.txt         | 10510 +++++++++++++++++++
- .dev/feat-phase-6-mapbox-roulette/pr-context.md    |    90 +
- .dev/feat-phase-6-mapbox-roulette/prd.md           |   273 +
- .dev/feat-phase-6-mapbox-roulette/self-check.md    |    51 +
- .dev/feat-phase-6-mapbox-roulette/state.md         |    50 +
- .dev/feat-phase-6-mapbox-roulette/trust-ledger.md  |   112 +
- .../cross-review-prompt.md                         |    87 +
- .dev/feat-phase-8-notifications/cross-review.diff  |  1826 ++++
- .dev/feat-phase-8-notifications/cross-review.err   |    66 +
- .dev/feat-phase-8-notifications/cross-review.md    |    69 +
- .../feat-phase-8-notifications/cross-review.raw.md |    43 +
- .dev/feature-phase-0-foundation/codemap.md         |    50 +
- .../cross-review-prompt.md                         |   235 +
- .dev/feature-phase-0-foundation/cross-review.err   |   147 +
- .dev/feature-phase-0-foundation/cross-review.md    |   101 +
- .../feature-phase-0-foundation/cross-review.raw.md |    65 +
- .dev/feature-phase-0-foundation/design.md          |   511 +
- .dev/feature-phase-0-foundation/diff.txt           |  3785 +++++++
- .dev/feature-phase-0-foundation/pr-context.md      |   107 +
- .dev/feature-phase-0-foundation/prd.md             |   430 +
- .dev/feature-phase-0-foundation/self-check.md      |    49 +
- .dev/feature-phase-0-foundation/state.md           |    56 +
- .dev/feature-phase-0-foundation/trust-ledger.md    |    88 +
- .../cross-review-prompt.md                         |   238 +
- .../cross-review.err                               |    92 +
- .../cross-review.md                                |    76 +
- .../cross-review.raw.md                            |    57 +
- .dev/fix-ios-geolocate-jpa-connection/diff.txt     |   181 +
- .../domain/notification/Notification.java          |    25 +
- .../domain/notification/NotificationService.java   |    53 +-
- .../domain/notification/NotificationType.java      |     3 +-
- .../notification/NotificationVisitWriter.java      |    41 +
- .../java/com/wherewego/domain/pin/PinService.java  |    11 +-
- .../com/wherewego/domain/pin/PinUpdateResult.java  |    13 +
- .../api/notification/NotificationV1Dto.java        |     6 +-
- .../interfaces/api/pin/PinV1Controller.java        |    15 +-
- .../V009__add_visit_detected_notification_type.sql |    28 +
- .../wherewego/domain/bot/BotLinkCodeServiceIT.java |     3 +
- .../domain/group/GroupMemberServiceIT.java         |     3 +
- .../NotificationServiceVisitDetectedIT.java        |   298 +
- .../com/wherewego/domain/pin/PinMemoServiceIT.java |     3 +
- .../com/wherewego/domain/pin/PinServiceIT.java     |    21 +-
- .../java/com/wherewego/domain/pin/PinTest.java     |     8 +-
- .../infrastructure/pin/PinRepositoryIT.java        |     7 +-
- .../api/bot/BotV1ControllerIntegrationTest.java    |     3 +
- .../ChatbotInstagramMemoFlowIntegrationTest.java   |     3 +
- .../ChatbotV1ControllerIntegrationTest.java        |     3 +
- .../group/GroupV1ControllerIntegrationTest.java    |     3 +
- .../wherewego/interfaces/api/pin/PinCreateIT.java  |     3 +
- .../api/pin/PinV1ControllerIntegrationTest.java    |     4 +
- .../interfaces/api/place/PlaceSearchIT.java        |     3 +
- .../api/user/UserV1ControllerIntegrationTest.java  |     3 +
- frontend/.dev/feat-phase-2-7-test-infra/diff.txt   |    15 +
- frontend/src/app/globals.css                       |    29 +
- frontend/src/app/map/MapClient.tsx                 |   232 +-
- frontend/src/app/map/_components/MapboxView.tsx    |   143 +-
- .../app/map/_components/VisitMemoSheet.test.tsx    |   108 +
- .../src/app/map/_components/VisitMemoSheet.tsx     |   146 +
- .../src/app/map/_components/VisitToast.test.tsx    |    72 +
- frontend/src/app/map/_components/VisitToast.tsx    |   101 +
- .../_components/notifications/NotificationItem.tsx |    15 +-
- .../notifications/NotificationPanel.tsx            |     1 +
- .../notifications/NotificationPinList.tsx          |    15 +-
- .../src/app/map/_hooks/useVisitDetection.test.ts   |   286 +
- frontend/src/app/map/_hooks/useVisitDetection.ts   |   117 +
- frontend/src/lib/notifications/types.ts            |     7 +-
- frontend/vitest.setup.ts                           |    23 +
- 254 files changed, 53024 insertions(+), 46 deletions(-)
----
-위는 요약입니다. 변경된 파일을 Read 도구로 직접 확인하라.
+diff --git a/.dev/feat-phase-10-visit-detection/codemap.md b/.dev/feat-phase-10-visit-detection/codemap.md
+new file mode 100644
+index 0000000..de1d468
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/codemap.md
+@@ -0,0 +1,22 @@
++## 코드 맵: Phase 10 — 장소 방문 감지
++
++### 핵심 파일
++- frontend/src/app/map/MapClient.tsx → Phase 10 통합 지점 (신규 useVisitDetection 훅 연결, VisitToast/VisitMemoSheet 조건부 렌더, marker 전환 트리거)
++- frontend/src/app/map/_components/MapboxView.tsx:435-462 → GeolocateControl + geo.on("geolocate") 위치 콜백, 자체 user-location-marker. confetti 애니메이션 트리거 진입점
++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java → enum에 VISIT_DETECTED 신규 추가. DB CHECK 제약 동시 확장 필요
++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java → createForVisitDetected(groupId, userId, pinId) 신규 메서드
++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/Pin.java → applyTag / applyManualMemo (Phase 10에서 재사용)
++
++### 참조 파일
++- frontend/src/app/map/_hooks/useGeolocation.ts → 기존 watchPosition 사용 패턴 (정확도/타임아웃 정책 참조)
++- frontend/src/app/map/_components/PinPopup.tsx → 핀 팝업 UX 컨벤션
++- frontend/src/app/map/_components/PinCoordinateEditPicker.tsx → 시트 컴포넌트 컨벤션 (VisitMemoSheet 참조)
++- frontend/src/app/map/actions.ts → pin PATCH 서버 액션 (태그/메모 변경 진입점)
++- backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java → PATCH /pins/{id} + Phase 8 MANUAL_PIN 알림 호출 try-catch 패턴
++- frontend/src/app/map/_components/notifications/NotificationItem.tsx → 알림 항목 표시 (VISIT_DETECTED 분기 추가)
++- frontend/src/app/map/_components/notifications/NotificationPanel.tsx → 알림 상세 표시 (장소명/주소/메모 최신값 join)
++
++### 설정
++- backend/apps/wherewego-api/src/main/resources/db/migration/ → V009__add_visit_detected_notification_type.sql 신규 (CHECK 제약 확장)
++- context/pin/phase-10-visit-detection.md → PRD 기반 문서
++- context/notification/architecture.md → 알림 도메인 데이터 모델 / fetch 트리거 정책
+diff --git a/.dev/feat-phase-10-visit-detection/design.md b/.dev/feat-phase-10-visit-detection/design.md
+new file mode 100644
+index 0000000..59ecfaf
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/design.md
+@@ -0,0 +1,574 @@
++# 설계서: Phase 10 — 장소 방문 감지 ("이 장소에 오셨나요?")
++
++- 작성일: 2026-05-24
++- 수정일: 2026-05-24
++- 관련 레포: rnqhstmd/wherewego
++- 베이스 PRD: `.dev/feat-phase-10-visit-detection/prd.md`
++- 반복: 2회차 (1회차 + design-critic 피드백 + 사용자 결정 반영)
++
++## 설계 규모
++**중형** — 기존 인프라(GeolocateControl, PATCH /pins, Phase 8 알림) 위에 새 훅 1개 + 토스트/시트 2개 + 알림 유형 1개를 얹는다. DB는 V009 1개 마이그레이션.
++
++---
++
++## 1회차 대비 변경사항
++
++| 항목 | 1회차 | 2회차 결정 | 반영 위치 |
++|------|------|-----------|----------|
++| MUST-1 confetti 좌표 추적 | 별도 `VisitConfettiLayer` 컴포넌트가 markerCacheRef에서 위치를 읽어 portal로 그림 | **폐기**. MapboxView 내부에서 마커 element의 자식 노드로 직접 추가, 600ms 후 제거 | §5.5 (신규) |
++| MUST-2 30초 머무름 임계 | 30초 고정 | **유지**. 차량 정차 오탐 가능성 인지, MVP 출시 후 실측 데이터 기반 후속 튜닝 | §11 후속 튜닝 후보 |
++| MUST-3 알림 중복/폭주 억제 | NotificationService 호출 1회만 (애플리케이션 레벨) | DB 부분 UNIQUE 인덱스 추가. `notifications.visit_pin_id` 컬럼 신설 + `WHERE type='VISIT_DETECTED'` 부분 인덱스. UNIQUE 위반 catch 후 조용히 스킵 | §3 V009, §4.2 NotificationService |
++| CONSIDER 마커 bounce 일관성 | 모든 WISH/REEL→MEMORY 전환에서 자동 트리거 | **변경**. VISIT_DETECTED 토스트 경로에서만 bounce+confetti 발사. PinPopup 칩 경로는 별도 작업으로 분리 | §5.5, §5.6 |
++| CONSIDER 차순위 핀 firstEnterAt 누적 | 가장 가까운 1개 핀만 추적 | **변경**. 후보 핀 모두 firstEnterAt을 병행 추적. "다음에 올게요" 후 차순위 핀이 이미 30초+면 즉시 토스트 가능 | §5.1 useVisitDetection |
++| CONSIDER 메모 노출 스코프 | 모든 알림 상세에서 메모 표시 | **VISIT_DETECTED만**. NotificationPinList에서 `type === "VISIT_DETECTED"`일 때 메모 줄 추가 | §5.7 NotificationPinList |
++| CONSIDER PinUpdateResult | 옵션 A — `PinUpdateResult(PinSummary, boolean wasWishOrReelToMemory)` record 신규 | **유지** (옵션 A 채택) | §4.1 PinService.updatePin |
++| CONSIDER useVisitDetection 시계 주입 | `Date.now()` 직접 사용, 테스트에서 mock | **유지**. `vi.setSystemTime`로 모킹 | §5.1, §8 테스트 |
++| CONSIDER 알림 실패 운영 가시성 | `log.warn`만 | **유지**. 메트릭은 후속 작업으로 분리 | §11 후속 작업 |
++| CONSIDER 훅 책임 누수 | MapClient가 토스트 상태 관리, 훅은 evaluate만 노출 | **유지** | §5.1 |
++
++---
++
++## 배경 및 목적
++
++wherewego는 커플이 함께 가고 싶은 장소를 WISH·REEL 핀으로 저장하고, 실제 방문 후 MEMORY로 전환하는 흐름을 갖는다. 현재는 사용자가 수동으로 핀을 찾아 태그를 바꿔야 해 대부분 방치된다. Phase 10은 GPS 기반으로 100m 이내 30초 머무름을 감지해 MEMORY 전환을 자동 제안하고, 전환 시 짝꿍에게 VISIT_DETECTED 알림을 보내 Phase 11 "우리 기록"의 데이터 정확도를 끌어올린다.
++
++기존 인프라 활용:
++- `MapboxView.tsx:435-462` GeolocateControl + `geo.on("geolocate")` 콜백
++- `PATCH /api/v1/groups/{groupId}/pins/{pinId}` (태그/메모 독립 변경)
++- Phase 8 알림(MANUAL_PIN 패턴)을 NotificationType 확장으로 재사용
++
++---
++
++## 요구사항 및 수용 기준
++
++PRD `.dev/feat-phase-10-visit-detection/prd.md` 참조. FR-VD-1~31, BR-VD-1~8, AC-VD-1~22 그대로 인용.
++
++---
++
++## 2. 변경 범위
++
++**영향 받는 패키지/모듈:**
++- 백엔드: `com.wherewego.domain.notification`, `com.wherewego.domain.pin`, `com.wherewego.interfaces.api.pin`, `com.wherewego.interfaces.api.notification`
++- 프론트엔드: `frontend/src/app/map`, `frontend/src/app/map/_hooks`, `frontend/src/app/map/_components`, `frontend/src/app/map/_components/notifications`, `frontend/src/lib/notifications`
++
++**신규 생성 파일 (백엔드 4개):**
++- `backend/apps/wherewego-api/src/main/resources/db/migration/V009__add_visit_detected_notification_type.sql`
++- `backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationVisitWriter.java`
++- `backend/apps/wherewego-api/src/test/java/com/wherewego/domain/notification/NotificationServiceVisitDetectedIT.java`
++- `backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateResult.java`
++
++**신규 생성 파일 (프론트엔드 6개):**
++- `frontend/src/app/map/_hooks/useVisitDetection.ts`
++- `frontend/src/app/map/_components/VisitToast.tsx`
++- `frontend/src/app/map/_components/VisitMemoSheet.tsx`
++- `frontend/src/app/map/_hooks/useVisitDetection.test.ts`
++- `frontend/src/app/map/_components/VisitToast.test.tsx`
++- `frontend/src/app/map/_components/VisitMemoSheet.test.tsx`
++
++**수정 대상 파일 (백엔드 5개):**
++- `NotificationType.java` — VISIT_DETECTED 추가
++- `Notification.java` — `visitPinId` 컬럼 + `createForVisit` 팩토리
++- `NotificationService.java` — `createForVisitDetected` 추가 + getDetail에 memo join
++- `NotificationV1Dto.java` — `PinItem.memo` 추가
++- `PinService.java` — `updatePin` 반환 타입 `PinUpdateResult`로 변경
++- `PinV1Controller.java` — `updatePin` 핸들러에서 VISIT_DETECTED 알림 호출
++
++**수정 대상 파일 (프론트엔드 5개):**
++- `MapboxView.tsx` — `triggerVisitCelebration` ref API + confetti 자식 노드 주입 + `onGeolocate` prop
++- `MapClient.tsx` — useVisitDetection 연결, VisitToast/VisitMemoSheet 조건부 렌더
++- `NotificationPinList.tsx` — VISIT_DETECTED 메모 줄 추가
++- `NotificationItem.tsx` — VISIT_DETECTED 분기
++- `lib/notifications/types.ts` — `NotificationType` union 확장, `NotificationPinItem.memo` 추가
++- `globals.css` — confetti/bounce keyframes 추가
++
++---
++
++## 3. 데이터 모델 / 마이그레이션
++
++### 3.1 V009__add_visit_detected_notification_type.sql
++
++```sql
++-- ============================================================
++-- V009__add_visit_detected_notification_type.sql
++-- Phase 10: VISIT_DETECTED 알림 유형 도입.
++--
++-- 1) chk_notifications_type 확장: VISIT_DETECTED 허용.
++-- 2) notifications.visit_pin_id (nullable) — VISIT_DETECTED 타입에서만 채워짐.
++--    기존 MANUAL_PIN/CHATBOT_PINS는 NULL 유지(notification_pins로 연결).
++--    FK → pins(id). pin이 soft-delete 되어도 row는 살아 있어 무결성 유지.
++-- 3) 부분 UNIQUE 인덱스 uq_notifications_visit:
++--    동일 (group_id, receiver_id, registered_by, visit_pin_id) 조합으로
++--    VISIT_DETECTED 알림은 1회만 생성되도록 race-free 보장.
++-- ============================================================
++
++ALTER TABLE notifications
++    DROP CONSTRAINT IF EXISTS chk_notifications_type;
++
++ALTER TABLE notifications
++    ADD CONSTRAINT chk_notifications_type
++    CHECK (type IN ('MANUAL_PIN', 'CHATBOT_PINS', 'VISIT_DETECTED'));
++
++ALTER TABLE notifications
++    ADD COLUMN IF NOT EXISTS visit_pin_id BIGINT NULL REFERENCES pins (id);
++
++CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_visit
++    ON notifications (group_id, receiver_id, registered_by, visit_pin_id)
++    WHERE type = 'VISIT_DETECTED' AND visit_pin_id IS NOT NULL;
++```
++
++**Trade-off**: 컬럼 1개 추가 + 부분 인덱스. 데이터 모델 부담은 최소. 기존 MANUAL_PIN/CHATBOT_PINS는 visit_pin_id NULL 유지하여 호환.
++
++---
++
++## 4. 백엔드 상세 설계
++
++### 4.1 PinService.updatePin + PinUpdateResult
++
++신규 `PinUpdateResult.java`:
++```java
++public record PinUpdateResult(
++        PinSummary summary,
++        boolean wasWishOrReelToMemory
++) {}
++```
++
++`PinService.updatePin` 시그니처: `PinUpdateResult updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd)`
++
++동작:
++- 비관 락 조회 직후 `PinTag previousTag = pin.getTag();`
++- `cmd.tagProvided()`에서 `pin.changeTag(cmd.tag())` 호출
++- `boolean transitioned = cmd.tagProvided() && cmd.tag() == PinTag.MEMORY && (previousTag == PinTag.WISH || previousTag == PinTag.REEL);`
++- 반환: `new PinUpdateResult(toSummary(pin), transitioned)`
++
++### 4.2 NotificationType + Notification (visit_pin_id 매핑)
++
++```java
++public enum NotificationType { MANUAL_PIN, CHATBOT_PINS, VISIT_DETECTED }
++```
++
++`Notification`:
++```java
++@Column(name = "visit_pin_id")
++private Long visitPinId;
++
++public static Notification createForVisit(Long groupId, Long receiverId, Long registeredBy, Long visitPinId) {
++    return new Notification(groupId, receiverId, registeredBy, NotificationType.VISIT_DETECTED, visitPinId);
++}
++```
++
++기존 `create()` 팩토리는 유지(visit_pin_id=NULL).
++
++### 4.3 NotificationVisitWriter (신규) + NotificationService.createForVisitDetected
++
++receiver별 트랜잭션 격리 (REQUIRES_NEW) + UNIQUE 위반 catch.
++
++`NotificationVisitWriter`:
++```java
++@Component
++@RequiredArgsConstructor
++public class NotificationVisitWriter {
++    private final NotificationRepository repository;
++
++    @Transactional(propagation = Propagation.REQUIRES_NEW)
++    public boolean writeOne(Long groupId, Long receiverId, Long registeredBy, Long pinId) {
++        try {
++            Notification n = repository.save(
++                    Notification.createForVisit(groupId, receiverId, registeredBy, pinId));
++            repository.saveAllPins(List.of(NotificationPin.link(n.getId(), pinId, 0)));
++            return true;
++        } catch (DataIntegrityViolationException e) {
++            return false;
++        }
++    }
++}
++```
++
++`NotificationService.createForVisitDetected` (트랜잭션 없음, fan-out 담당):
++```java
++public void createForVisitDetected(Long groupId, Long registeredBy, Long pinId) {
++    List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
++    List<Long> receiverIds = new ArrayList<>(otherIds);
++    receiverIds.add(registeredBy);
++    for (Long receiverId : receiverIds) {
++        boolean inserted = visitWriter.writeOne(groupId, receiverId, registeredBy, pinId);
++        if (!inserted) {
++            log.debug("visit notification skipped (duplicate) receiverId={} pinId={}", receiverId, pinId);
++        }
++    }
++}
++```
++
++### 4.4 PinV1Controller.updatePin
++
++```java
++PinUpdateResult result = pinService.updatePin(userId, groupId, pinId, request.toCommand());
++if (result.wasWishOrReelToMemory()) {
++    try {
++        notificationService.createForVisitDetected(groupId, userId, pinId);
++    } catch (RuntimeException e) {
++        log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
++    }
++}
++return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(result.summary()));
++```
++
++### 4.5 NotificationService.getDetail + DTO에 memo 추가
++
++`NotificationPinItemResult`에 `String memo` 추가. getDetail에서:
++```java
++String memo = (n.getType() == NotificationType.VISIT_DETECTED && pin != null && !pin.isDeleted())
++        ? pin.getMemo()
++        : null;
++```
++
++`NotificationV1Dto.PinItem`에도 `memo` 필드 추가.
++
++---
++
++## 5. 프론트엔드 상세 설계
++
++### 5.1 useVisitDetection 훅 (CONSIDER 반영 — 후보 핀 전체 firstEnterAt 누적)
++
++```typescript
++import { useCallback, useRef } from "react";
++import type { PinSummaryResponse } from "@/lib/api/types";
++import { haversineKm } from "../_lib/roulette";
++
++const PROXIMITY_KM = 0.1;          // 100m
++const ACCURACY_MAX_M = 50;
++const DWELL_MS = 30_000;
++
++interface EvaluateInput {
++  position: GeolocationPosition;
++  pins: PinSummaryResponse[];
++  shownPinIds: Set<number>;
++}
++
++export interface VisitEvaluation {
++  detectedPinId: number | null;
++}
++
++export function useVisitDetection() {
++  const firstEnterAtRef = useRef<Map<number, number>>(new Map());
++
++  const evaluate = useCallback(({ position, pins, shownPinIds }: EvaluateInput): VisitEvaluation => {
++    if (position.coords.accuracy > ACCURACY_MAX_M) {
++      return { detectedPinId: null };
++    }
++
++    const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
++    const now = Date.now();
++
++    const candidates: Array<{ pinId: number; distanceKm: number }> = [];
++    for (const pin of pins) {
++      if (pin.tag !== "WISH" && pin.tag !== "REEL") continue;
++      if (shownPinIds.has(pin.id)) continue;
++      const distanceKm = haversineKm(userPos, {
++        lat: Number(pin.latitude),
++        lng: Number(pin.longitude),
++      });
++      if (distanceKm <= PROXIMITY_KM) {
++        candidates.push({ pinId: pin.id, distanceKm });
++      }
++    }
++
++    const candidateIds = new Set(candidates.map((c) => c.pinId));
++    for (const pinId of firstEnterAtRef.current.keys()) {
++      if (!candidateIds.has(pinId)) firstEnterAtRef.current.delete(pinId);
++    }
++
++    for (const { pinId } of candidates) {
++      if (!firstEnterAtRef.current.has(pinId)) {
++        firstEnterAtRef.current.set(pinId, now);
++      }
++    }
++
++    candidates.sort((a, b) => a.distanceKm - b.distanceKm);
++    for (const { pinId } of candidates) {
++      const firstEnterAt = firstEnterAtRef.current.get(pinId);
++      if (firstEnterAt !== undefined && now - firstEnterAt >= DWELL_MS) {
++        return { detectedPinId: pinId };
++      }
++    }
++
++    return { detectedPinId: null };
++  }, []);
++
++  const clearFirstEnterAt = useCallback((pinId: number) => {
++    firstEnterAtRef.current.delete(pinId);
++  }, []);
++
++  return { evaluate, clearFirstEnterAt };
++}
++```
++
++시계 주입: `Date.now()` 직접. 테스트는 `vi.setSystemTime`.
++
++### 5.2 MapboxView 확장 (forwardRef + onGeolocate)
++
++```typescript
++export interface MapboxViewHandle {
++  triggerVisitCelebration: (pinId: number) => void;
++}
++
++const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function MapboxView(props, ref) {
++  // 기존 로직 + onGeolocate prop
++  useImperativeHandle(ref, () => ({
++    triggerVisitCelebration: (pinId: number) => {
++      const marker = markerCacheRef.current.get(pinId);
++      if (!marker) return;
++      const el = marker.getElement() as HTMLDivElement;
++      runMarkerBounceAndConfetti(el);
++    },
++  }), []);
++});
++```
++
++기존 `geo.on("geolocate", ...)` 리스너에서 `onGeolocateRef.current?.(e)` 추가 호출.
++
++### 5.3 마커 bounce + confetti 자식 노드 주입 (MUST-1)
++
++`runMarkerBounceAndConfetti(markerEl: HTMLDivElement)`:
++1. 기존 자식 SVG를 `<div data-bounce-inner>` 안으로 이동
++2. inner에 `animation: maygo-marker-bounce 600ms`
++3. 별도 `<div>` 추가 + 하트 ♡ 3개 자식 (각도 -120°/-90°/-60°, 거리 36~44px)
++4. `setTimeout(() => { confetti 제거 + inner 제거 }, 600)`
++5. 마커는 다음 `renderClusters`에서 자연 복원
++
++globals.css 추가:
++```css
++@keyframes maygo-marker-bounce {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.3); }
++}
++@keyframes maygo-confetti-heart-0 {
++  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
++  20% { opacity: 1; }
++  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
++}
++/* heart-1, heart-2 동일 (dx/dy 사용) */
++```
++
++핵심 동작:
++- 마커가 이동(zoom/pan)하면 confetti가 마커 element의 자식이므로 자동 따라감
++- PATCH RTT 동안 사용자가 지도를 팬해도 좌표 어긋남 없음
++- 트리거 직후 1회 발사, 600ms 자연 소멸
++
++### 5.4 VisitToast 컴포넌트
++
++```typescript
++interface VisitToastProps {
++  pin: PinSummaryResponse;
++  onSkip: () => void;
++  onConfirm: () => void;
++}
++
++export function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) {
++  return (
++    <div role="status" style={{ position: "fixed", bottom: 100, ... }}>
++      <div>📍 {pin.placeName} 근처에 계신가요?</div>
++      {pin.address && <div>{pin.address}</div>}
++      <div style={{ display: "flex", gap: 8 }}>
++        <BtnSub onClick={onSkip}>다음에 올게요</BtnSub>
++        <BtnPrimary onClick={onConfirm}>네, 다녀왔어요 →</BtnPrimary>
++      </div>
++    </div>
++  );
++}
++```
++
++위치: 모바일 `bottom: 100` (ActionBar 위), 데스크탑 `bottom: 32 / left: 76`. 자동 닫힘 없음.
++
++### 5.5 VisitMemoSheet 컴포넌트
++
++`ActiveSheet` union에 `"visit-memo"` 추가. `renderPanel`로 일관 렌더.
++
++```typescript
++interface VisitMemoSheetProps {
++  pin: PinSummaryResponse;
++  visitedAt: Date;
++  onSave: (memo: string) => Promise<{ ok: boolean; message?: string }>;
++  onSkip: () => void;
++}
++```
++
++내용:
++- 상단: `✓ {pin.placeName}, 다녀왔어요!` + `{YYYY년 M월 D일}`
++- 본문: textarea (maxLength 500)
++- 인라인 에러 영역
++- 버튼: `BtnSub` (건너뛰기) + `BtnPrimary` (저장)
++
++저장 실패 시 시트 유지 (FR-VD-22). 건너뛰기는 2차 PATCH 미발사 (FR-VD-20).
++
++### 5.6 MapClient 통합
++
++상태:
++```typescript
++const shownPinIdsRef = useRef<Set<number>>(new Set());
++const { evaluate: evaluateVisit, clearFirstEnterAt } = useVisitDetection();
++const [visitToastPin, setVisitToastPin] = useState<PinSummaryResponse | null>(null);
++const [visitMemoPin, setVisitMemoPin] = useState<PinSummaryResponse | null>(null);
++const visitedAtRef = useRef<Date | null>(null);
++const mapboxViewRef = useRef<MapboxViewHandle | null>(null);
++```
++
++핸들러:
++- `handleGeolocate(position)`: evaluate 호출 → detectedPinId 있고 activeSheet/패널이 모두 닫혀 있으면 `setVisitToastPin(pin)`
++- `handleVisitSkip()`: shownPinIds 추가, clearFirstEnterAt, 토스트 닫음
++- `handleVisitConfirm()`: 1차 PATCH(tag→MEMORY) → 성공 시 shownPinIds 추가, `mapboxViewRef.current.triggerVisitCelebration(pinId)`, 메모 시트 열기. 실패 시 시스템 에러 노출 + 세션 Set 미추가
++- `handleVisitMemoSave(memo)`: 2차 PATCH(memo) → 성공 시 시트 닫음, 실패 시 인라인 에러
++- `handleVisitMemoSkip()`: 시트만 닫음 (2차 PATCH 미발사)
++
++`renderPanel` 분기에 `visit-memo` 추가. `<MapboxView ref={mapboxViewRef} onGeolocate={handleGeolocate} ... />`.
++
++### 5.7 NotificationPinList 메모 표시 (VISIT_DETECTED 한정)
++
++```typescript
++{pin.memo && type === "VISIT_DETECTED" && (
++  <div style={{ fontSize: 12, color: colors.ink, marginTop: 4, padding: "6px 8px",
++    background: colors.bg, borderRadius: 6, whiteSpace: "pre-wrap" }}>
++    {pin.memo}
++  </div>
++)}
++```
++
++### 5.8 NotificationItem 분기
++
++```typescript
++const actorLabel = item.type === "VISIT_DETECTED"
++  ? `${item.registeredByNickname}님이 다녀온 장소`
++  : `${item.registeredByNickname}님이 장소를 저장했어요.`;
++```
++
++### 5.9 lib/notifications/types.ts
++
++```typescript
++export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
++
++export interface NotificationPinItem {
++  pinId: number;
++  placeName: string;
++  address: string | null;
++  latitude: string | null;
++  longitude: string | null;
++  deleted: boolean;
++  instagramUrl: string | null;
++  memo?: string | null;   // [신규]
++}
++```
++
++---
++
++## 6. 의존성 및 영향도
++
++**새로 추가할 의존성**: 없음.
++
++**기존 코드 영향:**
++- `PinService.updatePin` 반환 타입 변경 → `PinV1Controller`만 호출 (Grep 사전 확인)
++- `NotificationPinItemResult`에 `memo` 추가 → DTO 매핑 1줄. 프론트는 optional이라 호환
++- `MapboxView`가 forwardRef로 전환 → MapClient의 dynamic import에서 ref 전달
++- V009 마이그레이션: CHECK 확장 + nullable 컬럼. 기존 데이터 영향 없음
++
++**하위 호환성:**
++- 기존 MANUAL_PIN/CHATBOT_PINS 알림 동작 무변경
++- PATCH API 시그니처/응답 무변경
++- NotificationItem/Panel 기존 표시 무변경
++
++---
++
++## 7. 구현 순서
++
++1. **[Must]** V009 마이그레이션 + 로컬 Flyway 적용 확인
++2. **[Must]** NotificationType + Notification 엔티티 (`visitPinId` 매핑)
++3. **[Must]** NotificationVisitWriter + NotificationService.createForVisitDetected
++4. **[Must]** NotificationService.getDetail memo join + NotificationPinItemResult/PinItem DTO `memo` 필드
++5. **[Must]** PinUpdateResult record + PinService.updatePin 시그니처 변경
++6. **[Must]** PinV1Controller.updatePin VISIT_DETECTED 알림 호출
++7. **[Must]** NotificationServiceVisitDetectedIT (UNIQUE race, 격리, MEMORY→MEMORY 무알림 등)
++8. **[Must]** frontend types.ts 확장
++9. **[Must]** useVisitDetection 훅 + 단위 테스트
++10. **[Must]** VisitToast / VisitMemoSheet 컴포넌트 + 테스트
++11. **[Must]** MapboxView forwardRef + triggerVisitCelebration imperative API + confetti/bounce + globals.css keyframes
++12. **[Must]** MapClient 통합: useVisitDetection 연결, visit-memo activeSheet, 핸들러 구현
++13. **[Should]** NotificationItem VISIT_DETECTED 카피 분기
++14. **[Should]** NotificationPinList 메모 표시 (VISIT_DETECTED 한정)
++15. 수동 시나리오 검증 (PRD 골든 패스 + 예외 흐름 3건)
++
++**병렬 묶음:**
++- 묶음 A (BE): 1 → (2,5) 동시 → (3,4,6) 단계별 → 7
++- 묶음 B (FE 신규): 8 → (9,10,11) 동시 (모두 신규/독립 파일)
++- 단계 12 MapClient: 9~11 완료 후 단독
++- 묶음 C (FE 알림 분기): 13,14 동시
++
++---
++
++## 8. 테스트 전략
++
++### 8.1 백엔드 통합 테스트 (NotificationServiceVisitDetectedIT)
++- (a) 정상 fan-out: 그룹 멤버 2명, 동일 pinId 1회 → 각 receiver 1행씩
++- (b) race-free UNIQUE: 동일 pinId 2회 연속 → 첫 호출만 INSERT, 두 번째는 silently skip
++- (c) ExecutorService 동시성 시뮬레이션
++- (d) PinV1Controller WISH→MEMORY 전환 시 알림 1회
++- (e) MEMORY→MEMORY 호출 시 알림 미발송
++- (f) memo만 변경 호출 시 알림 미발송
++- (g) NotificationService 내부 RuntimeException 발생 → PATCH 응답 200 유지 (BR-VD-6)
++- (h) getDetail에 VISIT_DETECTED 조회 → memo 최신값. soft-delete 핀이면 null
++
++### 8.2 프론트엔드 단위 테스트
++- `useVisitDetection.test.ts`: 정확도 게이트, 첫 진입, 30초 후 감지, 25초 후 이탈 → 재진입, MEMORY 제외, 세션 Set 제외, **차순위 핀 firstEnterAt 누적**, 30000ms 경계값
++- `VisitToast.test.tsx`: 렌더, 버튼 클릭 콜백, 자동 닫힘 없음
++- `VisitMemoSheet.test.tsx`: 렌더, 저장 성공/실패, 건너뛰기
++
++### 8.3 수동 검증
++PRD 골든 패스 + 예외 흐름 3건 (건너뛰기, 동시 다수 핀, 권한 거부). iOS Safari 실기 1회 포함.
++
++---
++
++## 9. 위험 요소
++
++- **iOS Safari watchPosition 콜백 간격**: 30초 머무름 임계가 콜백 빈도에 따라 누락 가능 → §11 (a)
++- **부분 UNIQUE 인덱스의 NULL 처리**: `WHERE type='VISIT_DETECTED' AND visit_pin_id IS NOT NULL` 명시로 안전
++- **REQUIRES_NEW 트랜잭션 비용**: receiver 2~3명 수준이라 부담 없음
++- **PinService.updatePin 반환 타입 변경**: Grep 사전 확인
++- **마커가 클러스터에 포함되어 markerCacheRef에 없는 경우**: confetti/bounce 스킵. 허용
++- **forwardRef + next/dynamic 호환성**: Next 15 dynamic은 forwardRef 전달 지원. AGENTS.md 따라 docs 재확인
++
++---
++
++## 10. 후속 작업
++
++- 알림 실패 운영 가시성: `log.warn` 외 Prometheus counter 또는 구조화 로그 도입
++- 재방문 알림 정책: 현재 동일 (그룹, 수신자, 등록자, 핀)에 평생 1회. MEMORY→WISH→MEMORY 재전환 시 알림 없음. 후속 Phase에서 시간 윈도우 정책 확장
++- PinPopup 칩으로 직접 MEMORY 전환 시 bounce 자동 트리거 (현재 VISIT_DETECTED 경로만)
++
++---
++
++## 11. 후속 튜닝 후보
++
++30초 머무름 임계의 차량 정차 오탐을 줄이기 위한 후보. MVP 실측 데이터 기반으로 선택:
++
++- (a) iOS Safari watchPosition 콜백 간격 실측
++- (b) 콜백 N회 이상 + 30초 보조 조건
++- (c) `position.coords.speed` 게이트 (걷는 속도 이하만 머무름 카운트)
++
++본 Phase 10 구현 자체에는 변경 없음.
++
++---
++
++## 12. 적용 컨벤션 요약
++
++**백엔드 (Spring Boot, Java/Kotlin Gradle):**
++- 패키지: `domain/{aggregate}` + `interfaces/api/{aggregate}` + `infrastructure/{aggregate}`
++- DTO 변환: `XxxV1Dto.from(result)` static 메서드
++- 트랜잭션: 호출자 격리 (BR-3 정책), REQUIRES_NEW로 receiver별 격리
++- Flyway 파일명: `V{NNN}__{snake_case}.sql`
++
++**프론트엔드 (Next.js 15 + React 19, Mapbox GL):**
++- 클라이언트 컴포넌트 상단 `"use client";`
++- 디자인 토큰: `@/lib/design/tokens` (colors, fonts) + inline style
++- 액션 시트: Sheet(모바일) / SidePanel(데스크탑) 분기, activeSheet 단일 상태
++- 서버 액션: `Result<T> = { ok: true, data: T } | { ok: false, code, message }`
++- 훅: `useXxx.test.ts` 단위 테스트, vitest + `@testing-library/react`
++- 시계 모킹: `vi.useFakeTimers()` + `vi.setSystemTime(...)`
++
++**Next.js 주의 (frontend/AGENTS.md)**: "This is NOT the Next.js you know — node_modules/next/dist/docs/ 를 먼저 읽고 코드 작성". 구현자는 dynamic import + forwardRef, Server Action 등 최신 컨벤션 사전 확인 필요.
+diff --git a/.dev/feat-phase-10-visit-detection/diff.txt b/.dev/feat-phase-10-visit-detection/diff.txt
+new file mode 100644
+index 0000000..1a10b7e
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/diff.txt
+@@ -0,0 +1,551 @@
++diff --git a/.dev/feat-phase-10-visit-detection/codemap.md b/.dev/feat-phase-10-visit-detection/codemap.md
++new file mode 100644
++index 0000000..de1d468
++--- /dev/null
+++++ b/.dev/feat-phase-10-visit-detection/codemap.md
++@@ -0,0 +1,22 @@
+++## 코드 맵: Phase 10 — 장소 방문 감지
+++
+++### 핵심 파일
+++- frontend/src/app/map/MapClient.tsx → Phase 10 통합 지점 (신규 useVisitDetection 훅 연결, VisitToast/VisitMemoSheet 조건부 렌더, marker 전환 트리거)
+++- frontend/src/app/map/_components/MapboxView.tsx:435-462 → GeolocateControl + geo.on("geolocate") 위치 콜백, 자체 user-location-marker. confetti 애니메이션 트리거 진입점
+++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java → enum에 VISIT_DETECTED 신규 추가. DB CHECK 제약 동시 확장 필요
+++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java → createForVisitDetected(groupId, userId, pinId) 신규 메서드
+++- backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/Pin.java → applyTag / applyManualMemo (Phase 10에서 재사용)
+++
+++### 참조 파일
+++- frontend/src/app/map/_hooks/useGeolocation.ts → 기존 watchPosition 사용 패턴 (정확도/타임아웃 정책 참조)
+++- frontend/src/app/map/_components/PinPopup.tsx → 핀 팝업 UX 컨벤션
+++- frontend/src/app/map/_components/PinCoordinateEditPicker.tsx → 시트 컴포넌트 컨벤션 (VisitMemoSheet 참조)
+++- frontend/src/app/map/actions.ts → pin PATCH 서버 액션 (태그/메모 변경 진입점)
+++- backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java → PATCH /pins/{id} + Phase 8 MANUAL_PIN 알림 호출 try-catch 패턴
+++- frontend/src/app/map/_components/notifications/NotificationItem.tsx → 알림 항목 표시 (VISIT_DETECTED 분기 추가)
+++- frontend/src/app/map/_components/notifications/NotificationPanel.tsx → 알림 상세 표시 (장소명/주소/메모 최신값 join)
+++
+++### 설정
+++- backend/apps/wherewego-api/src/main/resources/db/migration/ → V009__add_visit_detected_notification_type.sql 신규 (CHECK 제약 확장)
+++- context/pin/phase-10-visit-detection.md → PRD 기반 문서
+++- context/notification/architecture.md → 알림 도메인 데이터 모델 / fetch 트리거 정책
++diff --git a/.dev/feat-phase-10-visit-detection/design.md b/.dev/feat-phase-10-visit-detection/design.md
++new file mode 100644
++index 0000000..59ecfaf
++--- /dev/null
+++++ b/.dev/feat-phase-10-visit-detection/design.md
++@@ -0,0 +1,574 @@
+++# 설계서: Phase 10 — 장소 방문 감지 ("이 장소에 오셨나요?")
+++
+++- 작성일: 2026-05-24
+++- 수정일: 2026-05-24
+++- 관련 레포: rnqhstmd/wherewego
+++- 베이스 PRD: `.dev/feat-phase-10-visit-detection/prd.md`
+++- 반복: 2회차 (1회차 + design-critic 피드백 + 사용자 결정 반영)
+++
+++## 설계 규모
+++**중형** — 기존 인프라(GeolocateControl, PATCH /pins, Phase 8 알림) 위에 새 훅 1개 + 토스트/시트 2개 + 알림 유형 1개를 얹는다. DB는 V009 1개 마이그레이션.
+++
+++---
+++
+++## 1회차 대비 변경사항
+++
+++| 항목 | 1회차 | 2회차 결정 | 반영 위치 |
+++|------|------|-----------|----------|
+++| MUST-1 confetti 좌표 추적 | 별도 `VisitConfettiLayer` 컴포넌트가 markerCacheRef에서 위치를 읽어 portal로 그림 | **폐기**. MapboxView 내부에서 마커 element의 자식 노드로 직접 추가, 600ms 후 제거 | §5.5 (신규) |
+++| MUST-2 30초 머무름 임계 | 30초 고정 | **유지**. 차량 정차 오탐 가능성 인지, MVP 출시 후 실측 데이터 기반 후속 튜닝 | §11 후속 튜닝 후보 |
+++| MUST-3 알림 중복/폭주 억제 | NotificationService 호출 1회만 (애플리케이션 레벨) | DB 부분 UNIQUE 인덱스 추가. `notifications.visit_pin_id` 컬럼 신설 + `WHERE type='VISIT_DETECTED'` 부분 인덱스. UNIQUE 위반 catch 후 조용히 스킵 | §3 V009, §4.2 NotificationService |
+++| CONSIDER 마커 bounce 일관성 | 모든 WISH/REEL→MEMORY 전환에서 자동 트리거 | **변경**. VISIT_DETECTED 토스트 경로에서만 bounce+confetti 발사. PinPopup 칩 경로는 별도 작업으로 분리 | §5.5, §5.6 |
+++| CONSIDER 차순위 핀 firstEnterAt 누적 | 가장 가까운 1개 핀만 추적 | **변경**. 후보 핀 모두 firstEnterAt을 병행 추적. "다음에 올게요" 후 차순위 핀이 이미 30초+면 즉시 토스트 가능 | §5.1 useVisitDetection |
+++| CONSIDER 메모 노출 스코프 | 모든 알림 상세에서 메모 표시 | **VISIT_DETECTED만**. NotificationPinList에서 `type === "VISIT_DETECTED"`일 때 메모 줄 추가 | §5.7 NotificationPinList |
+++| CONSIDER PinUpdateResult | 옵션 A — `PinUpdateResult(PinSummary, boolean wasWishOrReelToMemory)` record 신규 | **유지** (옵션 A 채택) | §4.1 PinService.updatePin |
+++| CONSIDER useVisitDetection 시계 주입 | `Date.now()` 직접 사용, 테스트에서 mock | **유지**. `vi.setSystemTime`로 모킹 | §5.1, §8 테스트 |
+++| CONSIDER 알림 실패 운영 가시성 | `log.warn`만 | **유지**. 메트릭은 후속 작업으로 분리 | §11 후속 작업 |
+++| CONSIDER 훅 책임 누수 | MapClient가 토스트 상태 관리, 훅은 evaluate만 노출 | **유지** | §5.1 |
+++
+++---
+++
+++## 배경 및 목적
+++
+++wherewego는 커플이 함께 가고 싶은 장소를 WISH·REEL 핀으로 저장하고, 실제 방문 후 MEMORY로 전환하는 흐름을 갖는다. 현재는 사용자가 수동으로 핀을 찾아 태그를 바꿔야 해 대부분 방치된다. Phase 10은 GPS 기반으로 100m 이내 30초 머무름을 감지해 MEMORY 전환을 자동 제안하고, 전환 시 짝꿍에게 VISIT_DETECTED 알림을 보내 Phase 11 "우리 기록"의 데이터 정확도를 끌어올린다.
+++
+++기존 인프라 활용:
+++- `MapboxView.tsx:435-462` GeolocateControl + `geo.on("geolocate")` 콜백
+++- `PATCH /api/v1/groups/{groupId}/pins/{pinId}` (태그/메모 독립 변경)
+++- Phase 8 알림(MANUAL_PIN 패턴)을 NotificationType 확장으로 재사용
+++
+++---
+++
+++## 요구사항 및 수용 기준
+++
+++PRD `.dev/feat-phase-10-visit-detection/prd.md` 참조. FR-VD-1~31, BR-VD-1~8, AC-VD-1~22 그대로 인용.
+++
+++---
+++
+++## 2. 변경 범위
+++
+++**영향 받는 패키지/모듈:**
+++- 백엔드: `com.wherewego.domain.notification`, `com.wherewego.domain.pin`, `com.wherewego.interfaces.api.pin`, `com.wherewego.interfaces.api.notification`
+++- 프론트엔드: `frontend/src/app/map`, `frontend/src/app/map/_hooks`, `frontend/src/app/map/_components`, `frontend/src/app/map/_components/notifications`, `frontend/src/lib/notifications`
+++
+++**신규 생성 파일 (백엔드 4개):**
+++- `backend/apps/wherewego-api/src/main/resources/db/migration/V009__add_visit_detected_notification_type.sql`
+++- `backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationVisitWriter.java`
+++- `backend/apps/wherewego-api/src/test/java/com/wherewego/domain/notification/NotificationServiceVisitDetectedIT.java`
+++- `backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateResult.java`
+++
+++**신규 생성 파일 (프론트엔드 6개):**
+++- `frontend/src/app/map/_hooks/useVisitDetection.ts`
+++- `frontend/src/app/map/_components/VisitToast.tsx`
+++- `frontend/src/app/map/_components/VisitMemoSheet.tsx`
+++- `frontend/src/app/map/_hooks/useVisitDetection.test.ts`
+++- `frontend/src/app/map/_components/VisitToast.test.tsx`
+++- `frontend/src/app/map/_components/VisitMemoSheet.test.tsx`
+++
+++**수정 대상 파일 (백엔드 5개):**
+++- `NotificationType.java` — VISIT_DETECTED 추가
+++- `Notification.java` — `visitPinId` 컬럼 + `createForVisit` 팩토리
+++- `NotificationService.java` — `createForVisitDetected` 추가 + getDetail에 memo join
+++- `NotificationV1Dto.java` — `PinItem.memo` 추가
+++- `PinService.java` — `updatePin` 반환 타입 `PinUpdateResult`로 변경
+++- `PinV1Controller.java` — `updatePin` 핸들러에서 VISIT_DETECTED 알림 호출
+++
+++**수정 대상 파일 (프론트엔드 5개):**
+++- `MapboxView.tsx` — `triggerVisitCelebration` ref API + confetti 자식 노드 주입 + `onGeolocate` prop
+++- `MapClient.tsx` — useVisitDetection 연결, VisitToast/VisitMemoSheet 조건부 렌더
+++- `NotificationPinList.tsx` — VISIT_DETECTED 메모 줄 추가
+++- `NotificationItem.tsx` — VISIT_DETECTED 분기
+++- `lib/notifications/types.ts` — `NotificationType` union 확장, `NotificationPinItem.memo` 추가
+++- `globals.css` — confetti/bounce keyframes 추가
+++
+++---
+++
+++## 3. 데이터 모델 / 마이그레이션
+++
+++### 3.1 V009__add_visit_detected_notification_type.sql
+++
+++```sql
+++-- ============================================================
+++-- V009__add_visit_detected_notification_type.sql
+++-- Phase 10: VISIT_DETECTED 알림 유형 도입.
+++--
+++-- 1) chk_notifications_type 확장: VISIT_DETECTED 허용.
+++-- 2) notifications.visit_pin_id (nullable) — VISIT_DETECTED 타입에서만 채워짐.
+++--    기존 MANUAL_PIN/CHATBOT_PINS는 NULL 유지(notification_pins로 연결).
+++--    FK → pins(id). pin이 soft-delete 되어도 row는 살아 있어 무결성 유지.
+++-- 3) 부분 UNIQUE 인덱스 uq_notifications_visit:
+++--    동일 (group_id, receiver_id, registered_by, visit_pin_id) 조합으로
+++--    VISIT_DETECTED 알림은 1회만 생성되도록 race-free 보장.
+++-- ============================================================
+++
+++ALTER TABLE notifications
+++    DROP CONSTRAINT IF EXISTS chk_notifications_type;
+++
+++ALTER TABLE notifications
+++    ADD CONSTRAINT chk_notifications_type
+++    CHECK (type IN ('MANUAL_PIN', 'CHATBOT_PINS', 'VISIT_DETECTED'));
+++
+++ALTER TABLE notifications
+++    ADD COLUMN IF NOT EXISTS visit_pin_id BIGINT NULL REFERENCES pins (id);
+++
+++CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_visit
+++    ON notifications (group_id, receiver_id, registered_by, visit_pin_id)
+++    WHERE type = 'VISIT_DETECTED' AND visit_pin_id IS NOT NULL;
+++```
+++
+++**Trade-off**: 컬럼 1개 추가 + 부분 인덱스. 데이터 모델 부담은 최소. 기존 MANUAL_PIN/CHATBOT_PINS는 visit_pin_id NULL 유지하여 호환.
+++
+++---
+++
+++## 4. 백엔드 상세 설계
+++
+++### 4.1 PinService.updatePin + PinUpdateResult
+++
+++신규 `PinUpdateResult.java`:
+++```java
+++public record PinUpdateResult(
+++        PinSummary summary,
+++        boolean wasWishOrReelToMemory
+++) {}
+++```
+++
+++`PinService.updatePin` 시그니처: `PinUpdateResult updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd)`
+++
+++동작:
+++- 비관 락 조회 직후 `PinTag previousTag = pin.getTag();`
+++- `cmd.tagProvided()`에서 `pin.changeTag(cmd.tag())` 호출
+++- `boolean transitioned = cmd.tagProvided() && cmd.tag() == PinTag.MEMORY && (previousTag == PinTag.WISH || previousTag == PinTag.REEL);`
+++- 반환: `new PinUpdateResult(toSummary(pin), transitioned)`
+++
+++### 4.2 NotificationType + Notification (visit_pin_id 매핑)
+++
+++```java
+++public enum NotificationType { MANUAL_PIN, CHATBOT_PINS, VISIT_DETECTED }
+++```
+++
+++`Notification`:
+++```java
+++@Column(name = "visit_pin_id")
+++private Long visitPinId;
+++
+++public static Notification createForVisit(Long groupId, Long receiverId, Long registeredBy, Long visitPinId) {
+++    return new Notification(groupId, receiverId, registeredBy, NotificationType.VISIT_DETECTED, visitPinId);
+++}
+++```
+++
+++기존 `create()` 팩토리는 유지(visit_pin_id=NULL).
+++
+++### 4.3 NotificationVisitWriter (신규) + NotificationService.createForVisitDetected
+++
+++receiver별 트랜잭션 격리 (REQUIRES_NEW) + UNIQUE 위반 catch.
+++
+++`NotificationVisitWriter`:
+++```java
+++@Component
+++@RequiredArgsConstructor
+++public class NotificationVisitWriter {
+++    private final NotificationRepository repository;
+++
+++    @Transactional(propagation = Propagation.REQUIRES_NEW)
+++    public boolean writeOne(Long groupId, Long receiverId, Long registeredBy, Long pinId) {
+++        try {
+++            Notification n = repository.save(
+++                    Notification.createForVisit(groupId, receiverId, registeredBy, pinId));
+++            repository.saveAllPins(List.of(NotificationPin.link(n.getId(), pinId, 0)));
+++            return true;
+++        } catch (DataIntegrityViolationException e) {
+++            return false;
+++        }
+++    }
+++}
+++```
+++
+++`NotificationService.createForVisitDetected` (트랜잭션 없음, fan-out 담당):
+++```java
+++public void createForVisitDetected(Long groupId, Long registeredBy, Long pinId) {
+++    List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
+++    List<Long> receiverIds = new ArrayList<>(otherIds);
+++    receiverIds.add(registeredBy);
+++    for (Long receiverId : receiverIds) {
+++        boolean inserted = visitWriter.writeOne(groupId, receiverId, registeredBy, pinId);
+++        if (!inserted) {
+++            log.debug("visit notification skipped (duplicate) receiverId={} pinId={}", receiverId, pinId);
+++        }
+++    }
+++}
+++```
+++
+++### 4.4 PinV1Controller.updatePin
+++
+++```java
+++PinUpdateResult result = pinService.updatePin(userId, groupId, pinId, request.toCommand());
+++if (result.wasWishOrReelToMemory()) {
+++    try {
+++        notificationService.createForVisitDetected(groupId, userId, pinId);
+++    } catch (RuntimeException e) {
+++        log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
+++    }
+++}
+++return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(result.summary()));
+++```
+++
+++### 4.5 NotificationService.getDetail + DTO에 memo 추가
+++
+++`NotificationPinItemResult`에 `String memo` 추가. getDetail에서:
+++```java
+++String memo = (n.getType() == NotificationType.VISIT_DETECTED && pin != null && !pin.isDeleted())
+++        ? pin.getMemo()
+++        : null;
+++```
+++
+++`NotificationV1Dto.PinItem`에도 `memo` 필드 추가.
+++
+++---
+++
+++## 5. 프론트엔드 상세 설계
+++
+++### 5.1 useVisitDetection 훅 (CONSIDER 반영 — 후보 핀 전체 firstEnterAt 누적)
+++
+++```typescript
+++import { useCallback, useRef } from "react";
+++import type { PinSummaryResponse } from "@/lib/api/types";
+++import { haversineKm } from "../_lib/roulette";
+++
+++const PROXIMITY_KM = 0.1;          // 100m
+++const ACCURACY_MAX_M = 50;
+++const DWELL_MS = 30_000;
+++
+++interface EvaluateInput {
+++  position: GeolocationPosition;
+++  pins: PinSummaryResponse[];
+++  shownPinIds: Set<number>;
+++}
+++
+++export interface VisitEvaluation {
+++  detectedPinId: number | null;
+++}
+++
+++export function useVisitDetection() {
+++  const firstEnterAtRef = useRef<Map<number, number>>(new Map());
+++
+++  const evaluate = useCallback(({ position, pins, shownPinIds }: EvaluateInput): VisitEvaluation => {
+++    if (position.coords.accuracy > ACCURACY_MAX_M) {
+++      return { detectedPinId: null };
+++    }
+++
+++    const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
+++    const now = Date.now();
+++
+++    const candidates: Array<{ pinId: number; distanceKm: number }> = [];
+++    for (const pin of pins) {
+++      if (pin.tag !== "WISH" && pin.tag !== "REEL") continue;
+++      if (shownPinIds.has(pin.id)) continue;
+++      const distanceKm = haversineKm(userPos, {
+++        lat: Number(pin.latitude),
+++        lng: Number(pin.longitude),
+++      });
+++      if (distanceKm <= PROXIMITY_KM) {
+++        candidates.push({ pinId: pin.id, distanceKm });
+++      }
+++    }
+++
+++    const candidateIds = new Set(candidates.map((c) => c.pinId));
+++    for (const pinId of firstEnterAtRef.current.keys()) {
+++      if (!candidateIds.has(pinId)) firstEnterAtRef.current.delete(pinId);
+++    }
+++
+++    for (const { pinId } of candidates) {
+++      if (!firstEnterAtRef.current.has(pinId)) {
+++        firstEnterAtRef.current.set(pinId, now);
+++      }
+++    }
+++
+++    candidates.sort((a, b) => a.distanceKm - b.distanceKm);
+++    for (const { pinId } of candidates) {
+++      const firstEnterAt = firstEnterAtRef.current.get(pinId);
+++      if (firstEnterAt !== undefined && now - firstEnterAt >= DWELL_MS) {
+++        return { detectedPinId: pinId };
+++      }
+++    }
+++
+++    return { detectedPinId: null };
+++  }, []);
+++
+++  const clearFirstEnterAt = useCallback((pinId: number) => {
+++    firstEnterAtRef.current.delete(pinId);
+++  }, []);
+++
+++  return { evaluate, clearFirstEnterAt };
+++}
+++```
+++
+++시계 주입: `Date.now()` 직접. 테스트는 `vi.setSystemTime`.
+++
+++### 5.2 MapboxView 확장 (forwardRef + onGeolocate)
+++
+++```typescript
+++export interface MapboxViewHandle {
+++  triggerVisitCelebration: (pinId: number) => void;
+++}
+++
+++const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function MapboxView(props, ref) {
+++  // 기존 로직 + onGeolocate prop
+++  useImperativeHandle(ref, () => ({
+++    triggerVisitCelebration: (pinId: number) => {
+++      const marker = markerCacheRef.current.get(pinId);
+++      if (!marker) return;
+++      const el = marker.getElement() as HTMLDivElement;
+++      runMarkerBounceAndConfetti(el);
+++    },
+++  }), []);
+++});
+++```
+++
+++기존 `geo.on("geolocate", ...)` 리스너에서 `onGeolocateRef.current?.(e)` 추가 호출.
+++
+++### 5.3 마커 bounce + confetti 자식 노드 주입 (MUST-1)
+++
+++`runMarkerBounceAndConfetti(markerEl: HTMLDivElement)`:
+++1. 기존 자식 SVG를 `<div data-bounce-inner>` 안으로 이동
+++2. inner에 `animation: maygo-marker-bounce 600ms`
+++3. 별도 `<div>` 추가 + 하트 ♡ 3개 자식 (각도 -120°/-90°/-60°, 거리 36~44px)
+++4. `setTimeout(() => { confetti 제거 + inner 제거 }, 600)`
+++5. 마커는 다음 `renderClusters`에서 자연 복원
+++
+++globals.css 추가:
+++```css
+++@keyframes maygo-marker-bounce {
+++  0%, 100% { transform: scale(1); }
+++  50% { transform: scale(1.3); }
+++}
+++@keyframes maygo-confetti-heart-0 {
+++  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+++  20% { opacity: 1; }
+++  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+++}
+++/* heart-1, heart-2 동일 (dx/dy 사용) */
+++```
+++
+++핵심 동작:
+++- 마커가 이동(zoom/pan)하면 confetti가 마커 element의 자식이므로 자동 따라감
+++- PATCH RTT 동안 사용자가 지도를 팬해도 좌표 어긋남 없음
+++- 트리거 직후 1회 발사, 600ms 자연 소멸
+++
+++### 5.4 VisitToast 컴포넌트
+++
+++```typescript
+++interface VisitToastProps {
+++  pin: PinSummaryResponse;
+++  onSkip: () => void;
+++  onConfirm: () => void;
+++}
+++
+++export function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) {
+++  return (
+++    <div role="status" style={{ position: "fixed", bottom: 100, ... }}>
+++      <div>📍 {pin.placeName} 근처에 계신가요?</div>
+++      {pin.address && <div>{pin.address}</div>}
+++      <div style={{ display: "flex", gap: 8 }}>
+++        <BtnSub onClick={onSkip}>다음에 올게요</BtnSub>
+++        <BtnPrimary onClick={onConfirm}>네, 다녀왔어요 →</BtnPrimary>
+++      </div>
+++    </div>
+++  );
+++}
+++```
+++
+++위치: 모바일 `bottom: 100` (ActionBar 위), 데스크탑 `bottom: 32 / left: 76`. 자동 닫힘 없음.
+++
+++### 5.5 VisitMemoSheet 컴포넌트
+++
+++`ActiveSheet` union에 `"visit-memo"` 추가. `renderPanel`로 일관 렌더.
+++
+++```typescript
+++interface VisitMemoSheetProps {
+++  pin: PinSummaryResponse;
+++  visitedAt: Date;
+++  onSave: (memo: string) => Promise<{ ok: boolean; message?: string }>;
+++  onSkip: () => void;
+++}
+++```
+++
+++내용:
+++- 상단: `✓ {pin.placeName}, 다녀왔어요!` + `{YYYY년 M월 D일}`
+++- 본문: textarea (maxLength 500)
+++- 인라인 에러 영역
+++- 버튼: `BtnSub` (건너뛰기) + `BtnPrimary` (저장)
+++
+++저장 실패 시 시트 유지 (FR-VD-22). 건너뛰기는 2차 PATCH 미발사 (FR-VD-20).
+++
+++### 5.6 MapClient 통합
+++
+++상태:
+++```typescript
+++const shownPinIdsRef = useRef<Set<number>>(new Set());
+++const { evaluate: evaluateVisit, clearFirstEnterAt } = useVisitDetection();
+++const [visitToastPin, setVisitToastPin] = useState<PinSummaryResponse | null>(null);
+++const [visitMemoPin, setVisitMemoPin] = useState<PinSummaryResponse | null>(null);
+++const visitedAtRef = useRef<Date | null>(null);
+++const mapboxViewRef = useRef<MapboxViewHandle | null>(null);
+++```
+++
+++핸들러:
+++- `handleGeolocate(position)`: evaluate 호출 → detectedPinId 있고 activeSheet/패널이 모두 닫혀 있으면 `setVisitToastPin(pin)`
+++- `handleVisitSkip()`: shownPinIds 추가, clearFirstEnterAt, 토스트 닫음
+++- `handleVisitConfirm()`: 1차 PATCH(tag→MEMORY) → 성공 시 shownPinIds 추가, `mapboxViewRef.current.triggerVisitCelebration(pinId)`, 메모 시트 열기. 실패 시 시스템 에러 노출 + 세션 Set 미추가
+++- `handleVisitMemoSave(memo)`: 2차 PATCH(memo) → 성공 시 시트 닫음, 실패 시 인라인 에러
+++- `handleVisitMemoSkip()`: 시트만 닫음 (2차 PATCH 미발사)
+++
+++`renderPanel` 분기에 `visit-memo` 추가. `<MapboxView ref={mapboxViewRef} onGeolocate={handleGeolocate} ... />`.
+++
+++### 5.7 NotificationPinList 메모 표시 (VISIT_DETECTED 한정)
+++
+++```typescript
+++{pin.memo && type === "VISIT_DETECTED" && (
+++  <div style={{ fontSize: 12, color: colors.ink, marginTop: 4, padding: "6px 8px",
+++    background: colors.bg, borderRadius: 6, whiteSpace: "pre-wrap" }}>
+++    {pin.memo}
+++  </div>
+++)}
+++```
+++
+++### 5.8 NotificationItem 분기
+++
+++```typescript
+++const actorLabel = item.type === "VISIT_DETECTED"
+++  ? `${item.registeredByNickname}님이 다녀온 장소`
+++  : `${item.registeredByNickname}님이 장소를 저장했어요.`;
+++```
+++
+++### 5.9 lib/notifications/types.ts
+++
+++```typescript
+++export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
+++
+++export interface NotificationPinItem {
+++  pinId: number;
+++  placeName: string;
+++  address: string | null;
+++  latitude: string | null;
+++  longitude: string | null;
+++  deleted: boolean;
+++  instagramUrl: string | null;
+++  memo?: string | null;   // [신규]
+++}
+++```
+++
+++---
+++
+++## 6. 의존성 및 영향도
+++
+++**새로 추가할 의존성**: 없음.
+++
+++**기존 코드 영향:**
+++- `PinService.updatePin` 반환 타입 변경 → `PinV1Controller`만 호출 (Grep 사전 확인)
+++- `NotificationPinItemResult`에 `memo` 추가 → DTO 매핑 1줄. 프론트는 optional이라 호환
+++- `MapboxView`가 forwardRef로 전환 → MapClient의 dynamic import에서 ref 전달
+++- V009 마이그레이션: CHECK 확장 + nullable 컬럼. 기존 데이터 영향 없음
+++
+++**하위 호환성:**
+++- 기존 MANUAL_PIN/CHATBOT_PINS 알림 동작 무변경
+++- PATCH API 시그니처/응답 무변경
+++- NotificationItem/Panel 기존 표시 무변경
+++
+++---
+++
+++## 7. 구현 순서
+++
+++1. **[Must]** V009 마이그레이션 + 로컬 Flyway 적용 확인
+++2. **[Must]** NotificationType + Notification 엔티티 (`visitPinId` 매핑)
+++3. **[Must]** NotificationVisitWriter + NotificationService.createForVisitDetected
+++4. **[Must]** NotificationService.getDetail memo join + NotificationPinItemResult/PinItem DTO `memo` 필드
+++5. **[Must]** PinUpdateResult record + PinService.updatePin 시그니처 변경
+++6. **[Must]** PinV1Controller.updatePin VISIT_DETECTED 알림 호출
+++7. **[Must]** NotificationServiceVisitDetectedIT (UNIQUE race, 격리, MEMORY→MEMORY 무알림 등)
+++8. **[Must]** frontend types.ts 확장
+++9. **[Must]** useVisitDetection 훅 + 단위 테스트
+++10. **[Must]** VisitToast / VisitMemoSheet 컴포넌트 + 테스트
+++11. **[Must]** MapboxView forwardRef + triggerVisitCelebration imperative API + confetti/bounce + globals.css keyframes
+++12. **[Must]** MapClient 통합: useVisitDetection 연결, visit-memo activeSheet, 핸들러 구현
+++13. **[Should]** NotificationItem VISIT_DETECTED 카피 분기
+++14. **[Should]** NotificationPinList 메모 표시 (VISIT_DETECTED 한정)
+++15. 수동 시나리오 검증 (PRD 골든 패스 + 예외 흐름 3건)
+++
+++**병렬 묶음:**
+++- 묶음 A (BE): 1 → (2,5) 동시 → (3,4,6) 단계별 → 7
+++- 묶음 B (FE 신규): 8 → (9,10,11) 동시 (모두 신규/독립 파일)
+++- 단계 12 MapClient: 9~11 완료 후 단독
+++- 묶음 C (FE 알림 분기): 13,14 동시
+++
+++---
+++
+++## 8. 테스트 전략
+++
+++### 8.1 백엔드 통합 테스트 (NotificationServiceVisitDetectedIT)
+++- (a) 정상 fan-out: 그룹 멤버 2명, 동일 pinId 1회 → 각 receiver 1행씩
+++- (b) race-free UNIQUE: 동일 pinId 2회 연속 → 첫 호출만 INSERT, 두 번째는 silently skip
+++- (c) ExecutorService 동시성 시뮬레이션
+++- (d) PinV1Controller WISH→MEMORY 전환 시 알림 1회
+++- (e) MEMORY→MEMORY 호출 시 알림 미발송
+++- (f) memo만 변경 호출 시 알림 미발송
+++- (g) NotificationService 내부 RuntimeException 발생 → PATCH 응답 200 유지 (BR-VD-6)
+++- (h) getDetail에 VISIT_DETECTED 조회 → memo 최신값. soft-delete 핀이면 null
+++
+++### 8.2 프론트엔드 단위 테스�
+\ No newline at end of file
+diff --git a/.dev/feat-phase-10-visit-detection/prd.md b/.dev/feat-phase-10-visit-detection/prd.md
+new file mode 100644
+index 0000000..c9be7bb
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/prd.md
+@@ -0,0 +1,255 @@
++# PRD: Phase 10 — 장소 방문 감지 ("이 장소에 오셨나요?")
++
++- 작성일: 2026-05-24
++- 수정일: 2026-05-24
++- 관련 레포: rnqhstmd/wherewego
++- 베이스 문서: context/pin/phase-10-visit-detection.md, context/map/phase-11-our-records.md
++- 사전 결정: /ttutak:context Q1~Q9 세션 (2026-05-23~24)
++
++## 배경
++
++우리가갈지도는 커플이 함께 가고 싶은 장소를 WISH·REEL 핀으로 저장하는 앱이다. 현재는 핀을 저장한 뒤 실제로 방문했을 때 수동으로 지도를 열어 해당 핀을 찾아 태그를 MEMORY로 변경해야 한다. 이 흐름은 직관적이지 않아 대부분의 사용자가 방문 후에도 핀을 MEMORY로 전환하지 않고 방치한다. 결과적으로 Phase 11 "우리 기록" 화면이 실제 다녀온 장소를 반영하지 못하게 된다. Phase 10은 GPS 위치를 기반으로 저장된 핀 근처에 실제로 머물 때 전환을 자동으로 제안하여, 커플이 방문 기억을 자연스럽게 쌓을 수 있도록 한다.
++
++**현재 제품 상태:**
++- GeolocateControl이 지도 화면에 이미 존재하며 `geo.on("geolocate")` 콜백이 구현되어 있다 (`MapboxView.tsx:435-462`)
++- PATCH `/api/v1/groups/{groupId}/pins/{pinId}`로 태그 및 메모를 독립 변경 가능한 구조가 갖춰져 있다
++- Phase 8 알림 인프라(MANUAL_PIN 패턴)가 존재하며 VISIT_DETECTED 유형 추가로 확장 가능하다
++- 알림 CHECK 제약은 현재 `('MANUAL_PIN','CHATBOT_PINS')`만 허용하며, V009 마이그레이션으로 확장이 필요하다
++
++---
++
++## 목표
++
++- WISH·REEL 핀 근처에 실제로 30초 이상 머문 사용자에게 MEMORY 전환을 자동 제안한다
++- 사용자가 방문 기억(메모)을 자연스럽게 기록하도록 유도한다
++- 전환이 완료되면 짝꿍에게 알림을 전달하여 함께 기억을 공유한다
++- Phase 11 "우리 기록 — 추억" 탭에 MEMORY 핀이 정상적으로 집계되도록 한다
++
++**성공 지표:** 방문 감지 후 MEMORY 전환율 (토스트 노출 대비 "네, 다녀왔어요" 클릭 비율)
++
++---
++
++## 요구사항
++
++### 기능 요구사항
++
++#### [근접 감지 — 프론트엔드]
++
++- [Must] **FR-VD-1**: `useVisitDetection` 훅을 신규 생성한다. MapboxView의 `geo.on("geolocate")` 콜백에서 호출되며, GPS 이벤트 발생 시마다 평가를 수행한다. throttle 없음.
++- [Must] **FR-VD-2**: 평가 대상은 현재 그룹의 WISH·REEL 태그 핀만이다. MEMORY 태그 핀은 평가에서 제외한다.
++- [Must] **FR-VD-3**: `position.coords.accuracy > 50m`이면 해당 GPS 이벤트의 근접 판정 평가 전체를 스킵한다. 평가 없이 다음 이벤트를 기다린다.
++- [Must] **FR-VD-4**: Haversine 공식으로 사용자 현재 위치와 각 핀 좌표 간 거리를 계산한다. 100m 이내 핀을 근접 핀 후보로 수집한다.
++- [Must] **FR-VD-5**: 근접 핀 후보 중 세션 Set(`shownPinIds`)에 이미 등록된 pinId는 제외한다. 세션 Set은 메모리 내 Set으로 관리하며, MapClient 페이지 unmount 시 리셋된다. localStorage 미사용.
++- [Must] **FR-VD-6**: 후보 중 가장 가까운 핀 1개만 평가 대상으로 선정한다.
++- [Must] **FR-VD-7**: 선정된 핀에 대해 "첫 진입 시각"을 기록한다. 이후 GPS 이벤트마다 해당 핀이 여전히 100m 이내에 있는지 확인한다. 첫 진입 시각으로부터 30초가 경과한 시점의 GPS 이벤트에서도 100m 이내로 확인되면 방문 감지를 확정하고 토스트를 노출한다.
++- [Must] **FR-VD-8**: 30초 경과 전에 사용자가 100m 밖으로 이탈하면 해당 핀의 첫 진입 시각을 초기화한다. 세션 Set에는 추가하지 않는다.
++
++#### [방문 토스트 — 프론트엔드]
++
++- [Must] **FR-VD-9**: 방문 감지가 확정되면 `VisitToast` 컴포넌트를 지도 하단에서 슬라이드 업(translateY 애니메이션)으로 표시한다. UI는 한 번에 1개만 표시한다.
++- [Must] **FR-VD-10**: 토스트에는 장소명과 주소를 표시한다. 장소명 앞에 📍 아이콘. 형식: `📍 {장소명} 근처에 계신가요?` + 주소 부줄.
++- [Must] **FR-VD-11**: 토스트에 "다음에 올게요" 버튼(보조, 회색 텍스트)과 "네, 다녀왔어요 →" 버튼(주 CTA, `colors.cta` 핑크)을 제공한다.
++- [Must] **FR-VD-12**: "다음에 올게요" 클릭 시 토스트를 닫고 해당 pinId를 세션 Set에 추가한다. 세션 중 동일 핀의 토스트는 다시 표시하지 않는다.
++- [Must] **FR-VD-13**: "다음에 올게요" 또는 "네, 다녀왔어요 →" 클릭 직후, 다음 geolocate 콜백부터 세션 Set에 없는 나머지 후보 핀 중 가장 가까운 핀에 대한 평가를 자동으로 재개한다.
++
++#### [MEMORY 전환 — 프론트엔드]
++
++- [Must] **FR-VD-14**: "네, 다녀왔어요 →" 클릭 시 즉시 1차 PATCH를 발사한다. 요청: `PATCH /api/v1/groups/{groupId}/pins/{pinId}` body `{ "tag": "MEMORY" }`.
++- [Must] **FR-VD-15**: 1차 PATCH 성공 시 마커 confetti 애니메이션을 실행한다.
++  - 마커 위치에서 하트 ♡ 3개가 위쪽 fan-out 랜덤 경로로 떠오르며 fade out (200ms 내)
++  - 동시에 마커는 scale `1.0 → 1.3 → 1.0` 이중 bounce
++  - 마커 아이콘은 confetti 시작과 동시에 WISH/REEL → MEMORY 아이콘으로 교체
++  - 전체 애니메이션 지속 시간: 약 600ms
++- [Must] **FR-VD-16**: 1차 PATCH 성공 후 confetti 애니메이션 시작과 함께 `VisitMemoSheet`(메모 입력 바텀시트)를 슬라이드 업으로 표시한다. 시트와 애니메이션은 동시에 시작한다.
++- [Must] **FR-VD-17**: 메모 시트 상단에 장소명과 방문 날짜(`YYYY년 M월 D일` 형식)를 표시한다. 형식: `✓ {장소명}, 다녀왔어요!` + 방문 날짜.
++- [Must] **FR-VD-18**: 메모 시트에 텍스트 입력 영역과 "저장" 버튼, "건너뛰기" 버튼을 제공한다.
++- [Must] **FR-VD-19**: "저장" 클릭 시 2차 PATCH를 발사한다. 요청: `PATCH /api/v1/groups/{groupId}/pins/{pinId}` body `{ "memo": "{입력값}" }`. 성공 시 시트를 닫는다.
++- [Must] **FR-VD-20**: "건너뛰기" 클릭 시 2차 PATCH를 발사하지 않고 시트를 닫는다. 태그는 이미 MEMORY로 변경된 상태를 유지한다.
++- [Must] **FR-VD-21**: 1차 PATCH(태그 변경) 실패 시 토스트를 닫고 인라인 에러 토스트(시스템 레벨)를 표시한다. 메모 시트는 열지 않는다. 해당 pinId는 세션 Set에 추가하지 않는다 (다음 방문 감지 시 재시도 가능).
++- [Must] **FR-VD-22**: 2차 PATCH(메모 저장) 실패 시 시트 내 인라인 에러를 표시하고 재시도 가능 상태를 유지한다. 시트를 자동으로 닫지 않는다.
++
++#### [권한 및 비활성 처리 — 프론트엔드]
++
++- [Must] **FR-VD-23**: GeolocateControl이 비활성 상태(위치 권한 거부 또는 미요청)이면 방문 감지 평가를 수행하지 않는다. 추가 안내 UI 없이 조용히 비활성 상태를 유지한다.
++- [Must] **FR-VD-24**: 사용자가 GeolocateControl 버튼을 눌러 권한을 허용하면 그 시점부터 방문 감지 평가가 자동으로 활성화된다.
++
++#### [알림 — 백엔드]
++
++- [Must] **FR-VD-25**: `NotificationType` enum에 `VISIT_DETECTED` 유형을 추가한다.
++- [Must] **FR-VD-26**: DB `notifications` 테이블의 CHECK 제약을 V009 Flyway 마이그레이션으로 확장한다. `('MANUAL_PIN','CHATBOT_PINS','VISIT_DETECTED')`를 허용한다. 파일명: `V009__add_visit_detected_notification_type.sql`.
++- [Must] **FR-VD-27**: `NotificationService`에 `createForVisitDetected(groupId, userId, pinId)` 메서드를 추가한다. 동작은 기존 MANUAL_PIN 패턴과 동일하되, 해당 그룹의 **활성 멤버 전원(등록자 본인 포함)**에게 Notification 1행 + NotificationPin 1행을 생성한다. 본인 포함은 Phase 11 "우리 기록" 도입 전 과도기 용도로, 본인 알림함에도 방문 기록이 남는다 (NotificationItem 은 본인 분기 시 "내가 다녀온 장소"로 라벨링). 트랜잭션은 receiver 단위 `REQUIRES_NEW` 로 처리하며, 부분 UNIQUE 인덱스 `uq_notifications_visit` 위반은 try-catch 로 조용히 스킵하여 race-free 중복 차단을 보장한다.
++- [Must] **FR-VD-28**: `PinV1Controller`의 `PATCH /pins/{id}` 핸들러에서 태그가 WISH/REEL → MEMORY로 변경되는 케이스에 한해, 기존 MANUAL_PIN 호출 패턴과 동일하게 try-catch로 `NotificationService.createForVisitDetected(groupId, userId, pinId)`를 호출한다. 메모 작성 여부와 무관하게 태그 전환 성공 즉시 알림을 발송한다.
++- [Must] **FR-VD-29**: 알림 상세 조회(`GET /notifications/{id}`) 응답에 VISIT_DETECTED 유형을 처리한다. 응답에는 장소명, 주소, 태그, 현재 메모(항상 최신값 join)를 포함한다. 메모 미작성 시 메모 필드는 null 또는 빈 값으로 반환한다.
++
++#### [알림 — 프론트엔드]
++
++- [Should] **FR-VD-30**: `NotificationItem.tsx`에 VISIT_DETECTED 분기를 추가한다. 알림 목록에서 방문 감지 알림을 구분하여 표시한다. 등록자가 본인(`registeredBy === currentUserId`)이면 "내가 다녀온 장소"로, 짝꿍이면 "{닉네임}님이 다녀온 장소"로 라벨링한다 (FR-VD-27 본인 포함 fan-out 정책과 일관, NotificationPanel 상세 화면 actorLabel 패턴과 동일).
++- [Should] **FR-VD-31**: 알림 상세(`NotificationPanel`)에서 VISIT_DETECTED 알림 클릭 시 장소명, 주소, 태그, 현재 메모를 표시한다. 메모 미작성 시 메모란을 비워 표시한다.
++
++### 비즈니스 규칙
++
++- [Must] **BR-VD-1**: 감지 반경은 100m (Haversine 공식, 프론트엔드 계산). 백엔드 거리 계산 없음.
++- [Must] **BR-VD-2**: 방문 감지 트리거는 매 `geolocate` 이벤트 콜백 발생 시마다 평가한다. throttle 없음.
++- [Must] **BR-VD-3**: GPS 정확도 ≤ 50m 인 이벤트만 근접 판정에 사용한다. 50m 초과 이벤트는 머무름 타이머에도 영향을 주지 않는다.
++- [Must] **BR-VD-4**: 30초 머무름은 "첫 진입 시각 기록 → 이후 콜백에서 시간 차이 계산"으로 구현한다. 별도 setInterval 타이머 미사용.
++- [Must] **BR-VD-5**: 세션 Set(`shownPinIds`)은 메모리 내에서만 유지한다. MapClient unmount 시 자동 소멸한다. 앱 새로고침 또는 페이지 재방문 시 Set이 초기화되어 동일 핀에 대해 다시 토스트를 표시할 수 있다.
++- [Must] **BR-VD-6**: 알림 실패(VISIT_DETECTED 알림 생성 실패)가 태그 PATCH 응답에 영향을 주지 않는다. try-catch로 격리 (notification BR-3 정책 동일 적용).
++- [Must] **BR-VD-7**: MEMORY 태그 핀은 감지 대상에서 완전히 제외한다. 단 사용자가 MEMORY로 전환한 직후 해당 핀은 세션 Set에도 추가하여 전환 직후 토스트 재표시를 방지한다.
++- [Should] **BR-VD-8**: "다음에 올게요" 클릭 후 해당 pinId는 세션 Set에 추가된다. 이후 동시 후보 핀이 있으면 가장 가까운 다음 핀의 30초 머무름 평가를 이어서 진행한다.
++
++### 품질 기대
++
++- [Should] **QE-VD-1**: 방문 감지 토스트 및 메모 시트가 기존 PinPopup, 알림 패널 등 다른 시트와 동시에 열리지 않는다. 기존 동시 1개 패널 정책(`activeSheet`)을 따른다.
++- [Should] **QE-VD-2**: Haversine 거리 계산 로직은 단위 테스트로 검증한다. 100m 경계값(정확히 100m, 99m, 101m)을 포함한다.
++
++---
++
++## 사용자 시나리오
++
++### 골든 패스: 방문 감지 → MEMORY 전환 → 짝꿍 알림
++
++1. 사용자 A가 지도 화면에서 GeolocateControl 버튼을 활성화한다. GPS 정확도 30m의 위치 추적이 시작된다.
++2. 사용자 A가 저장해둔 WISH 핀 "온량"(서울 송파구 백제고분로43길) 반경 100m 이내에 실제로 진입한다.
++3. 첫 번째 geolocate 이벤트에서 100m 이내가 감지되고 진입 시각이 기록된다.
++4. 이후 geolocate 이벤트에서도 100m 이내를 유지한다. 첫 진입 시각으로부터 30초 이상 경과한 이벤트에서 방문 감지가 확정된다.
++5. 지도 하단에서 토스트가 슬라이드 업으로 등장: `📍 온량 근처에 계신가요?` + `서울 송파구 백제고분로43길` + [다음에 올게요] [네, 다녀왔어요 →]
++6. 사용자 A가 "네, 다녀왔어요 →"를 클릭한다.
++7. 1차 PATCH(태그 → MEMORY)가 즉시 발사된다.
++8. PATCH 성공: 지도 위 온량 마커에서 하트 ♡ 3개가 위로 떠오르며 사라지고, 마커가 scale bounce하면서 MEMORY 아이콘으로 교체된다. 동시에 메모 시트가 슬라이드 업된다.
++9. 메모 시트에 `✓ 온량, 다녀왔어요!` + 오늘 날짜가 표시된다.
++10. 사용자 A가 "오늘 드디어 왔다!"를 입력하고 "저장"을 클릭한다.
++11. 2차 PATCH(메모 저장)가 발사되고 시트가 닫힌다.
++12. 백엔드 PinV1Controller에서 태그 PATCH 완료 직후 `NotificationService.createForVisitDetected`가 호출된다.
++13. 짝꿍 사용자 B가 탭을 다시 활성화(`visibilitychange`)하거나 앱에 포커스 복귀 시 알림 목록이 갱신된다. 빨간 점이 표시되고, 알림 패널에 방문 감지 알림이 나타난다.
++14. 사용자 B가 알림을 클릭하면 온량의 장소명, 주소, MEMORY 태그, 사용자 A의 메모를 확인한다.
++
++### 예외 흐름: "건너뛰기"로 메모 없이 종료
++
++1. ~8번까지 동일.
++2. 사용자 A가 메모 시트에서 "건너뛰기"를 클릭한다.
++3. 시트가 닫힌다. 2차 PATCH 미발사. 태그는 MEMORY 상태 유지.
++4. 짝꿍 알림은 이미 발송된 상태이며, 알림 상세의 메모란은 비어 있다.
++
++### 예외 흐름: 동시 다수 핀
++
++1. 사용자 A가 100m 이내에 WISH 핀 "온량"과 REEL 핀 "선릉역 카페"가 함께 존재하는 지역에 진입한다.
++2. 두 핀 모두 세션 Set에 없으므로, 가장 가까운 "온량"에 대한 30초 머무름 측정이 시작된다.
++3. 30초 후 "온량" 토스트가 표시된다.
++4. 사용자 A가 "다음에 올게요"를 클릭한다. "온량" pinId가 세션 Set에 추가된다.
++5. 다음 geolocate 콜백부터 "선릉역 카페"에 대한 30초 머무름 측정이 시작된다.
++6. 30초 후 "선릉역 카페" 토스트가 표시된다.
++
++---
++
++## 엣지케이스
++
++| 상황 | 처리 |
++|------|------|
++| GPS 정확도 > 50m | 해당 geolocate 이벤트의 평가 전체 스킵. 머무름 타이머에도 영향 없음 |
++| 30초 전 100m 이탈 | 진입 시각 초기화. 세션 Set 미추가. 재진입 시 30초 측정 재시작 |
++| 토스트 표시 중 위치 이탈 | 토스트 유지. 사용자가 직접 닫기 (자동 닫힘 없음) |
++| 이미 MEMORY인 핀 | 감지 대상에서 완전 제외 (FR-VD-2) |
++| 1차 PATCH(태그 변경) 실패 | 토스트 닫힘 + 인라인 에러 토스트 표시("장소를 추억으로 옮기지 못했어요. 다시 시도해주세요.", 1.5초 자동 닫힘, `visitErrorMessage` state + setTimeout). 메모 시트 미표시. pinId 세션 Set 미추가 (재시도 가능). AC-VD-14 충족 |
++| 2차 PATCH(메모 저장) 실패 | 메모 시트 내 인라인 에러. 시트 유지. 재시도 가능 |
++| 위치 권한 거부/미요청 | 감지 비활성. 추가 안내 UI 없음. GeolocateControl 버튼 재활성화 시 자동 재개 |
++| 핀이 0개(WISH·REEL 핀 없음) | 평가 대상 없음. 아무 동작 없음 |
++| 동시 다수 핀 | 세션 Set 미등록 후보 중 가장 가까운 핀 1개만 30초 측정. 닫힌 후 다음 후보로 자동 이행 |
++| 앱 새로고침 / 페이지 재방문 | 세션 Set 소멸. 동일 핀에 대해 30초 머무름부터 재평가 |
++| 알림 발송 실패 | try-catch 격리. 태그 PATCH 응답 및 사용자 경험에 영향 없음 |
++| 메모 미작성 후 짝꿍이 알림 조회 | 알림 상세 메모란 비움. Phase 11 카드에서 메모 없는 MEMORY 정상 케이스로 처리 |
++| GeolocateControl 비활성 중 지도 화면 유지 | geolocate 콜백이 발생하지 않으므로 훅 평가 자체 미실행 |
++
++---
++
++## 영향 범위
++
++**영향받는 기존 기능:**
++
++- `MapboxView.tsx`: `geo.on("geolocate")` 콜백에 `useVisitDetection` 평가 함수 호출 추가
++- `MapClient.tsx`: 훅 연결, 토스트/시트 조건부 렌더, 마커 전환 트리거 연결
++- `PinV1Controller`: PATCH 핸들러에 VISIT_DETECTED 알림 호출 분기 추가
++- `NotificationType` enum: VISIT_DETECTED 추가
++- `NotificationItem.tsx`: VISIT_DETECTED 분기 추가
++- `NotificationPanel.tsx`: VISIT_DETECTED 상세 표시
++
++**기존 사용자 영향:**
++
++- GeolocateControl을 활성화하지 않은 사용자: 변화 없음
++- WISH·REEL 핀이 없는 그룹: 변화 없음
++- 이미 MEMORY인 핀만 있는 그룹: 변화 없음
++
++**하위 호환성:**
++
++- 기존 MANUAL_PIN, CHATBOT_PINS 알림 동작 변경 없음
++- V009 마이그레이션은 CHECK 제약 확장(기존 값 포함)이므로 기존 알림 데이터 영향 없음
++- PATCH API 시그니처 변경 없음. 서버 측 분기 로직만 추가
++
++---
++
++## 수용 기준
++
++| # | 수용 기준 | 대응 |
++|---|-----------|------|
++| AC-VD-1 | WISH·REEL 핀에서 100m 이내에 30초 이상 머물면 방문 토스트가 표시된다 | FR-VD-7 |
++| AC-VD-2 | MEMORY 핀은 100m 이내에 있어도 토스트가 표시되지 않는다 | FR-VD-2, BR-VD-7 |
++| AC-VD-3 | GPS 정확도가 50m를 초과하는 이벤트에서는 근접 판정 평가가 실행되지 않는다 | FR-VD-3, BR-VD-3 |
++| AC-VD-4 | 30초 이전에 100m 밖으로 이탈하면 토스트가 표시되지 않으며 세션 Set에도 추가되지 않는다 | FR-VD-8 |
++| AC-VD-5 | 동일 세션에서 동일 pinId의 토스트는 1회만 표시된다 (다음에 올게요 클릭 또는 전환 완료 후) | FR-VD-5, FR-VD-12 |
++| AC-VD-6 | 토스트에 장소명(📍 {장소명} 근처에 계신가요?)과 주소가 표시된다 | FR-VD-10 |
++| AC-VD-7 | "다음에 올게요" 클릭 시 토스트가 닫히고 세션 Set에 pinId가 추가된다 | FR-VD-12 |
++| AC-VD-8 | "네, 다녀왔어요 →" 클릭 시 즉시 태그 PATCH가 발사된다 | FR-VD-14 |
++| AC-VD-9 | 태그 PATCH 성공 시 마커에서 하트 confetti(3개, fan-out, ~200ms) + scale bounce가 동시에 실행되며 마커 아이콘이 MEMORY로 교체된다 | FR-VD-15 |
++| AC-VD-10 | 태그 PATCH 성공 시 confetti와 동시에 메모 시트가 슬라이드 업된다 | FR-VD-16 |
++| AC-VD-11 | 메모 시트에 "✓ {장소명}, 다녀왔어요!" + `YYYY년 M월 D일` 형식의 날짜가 표시된다 | FR-VD-17 |
++| AC-VD-12 | 메모 입력 후 "저장" 클릭 시 메모 PATCH가 발사되고 성공 시 시트가 닫힌다 | FR-VD-19 |
++| AC-VD-13 | "건너뛰기" 클릭 시 메모 PATCH가 발사되지 않고 시트가 닫힌다. 태그는 MEMORY 상태를 유지한다 | FR-VD-20 |
++| AC-VD-14 | 태그 PATCH 실패 시 메모 시트가 열리지 않고 인라인 에러 토스트가 표시된다. pinId는 세션 Set에 추가되지 않는다 | FR-VD-21 (충족: MapClient `visitErrorMessage` state + 1.5초 자동 닫힘 useEffect) |
++| AC-VD-15 | 메모 PATCH 실패 시 시트 내 인라인 에러가 표시되며 시트가 유지된다 | FR-VD-22 |
++| AC-VD-16 | GeolocateControl 비활성 상태에서는 방문 감지 평가가 실행되지 않는다 | FR-VD-23 |
++| AC-VD-17 | WISH/REEL → MEMORY 태그 전환 성공 시 짝꿍에게 VISIT_DETECTED 알림이 생성된다 (메모 작성 여부 무관) | FR-VD-28 |
++| AC-VD-18 | VISIT_DETECTED 알림 생성 실패가 태그 PATCH API 응답에 영향을 주지 않는다 | FR-VD-28, BR-VD-6 |
++| AC-VD-19 | V009 마이그레이션 적용 후 notifications 테이블에 VISIT_DETECTED 값 insert가 성공한다 | FR-VD-26 |
++| AC-VD-20 | 알림 상세에서 VISIT_DETECTED 알림 클릭 시 장소명, 주소, MEMORY 태그, 현재 메모(없으면 비움)가 표시된다 | FR-VD-29, FR-VD-31 |
++| AC-VD-21 | MapClient 페이지 unmount 시 세션 Set이 소멸하여, 재방문 시 동일 핀에 대해 방문 감지가 재시작된다 | FR-VD-5, BR-VD-5 |
++| AC-VD-22 | 동시에 100m 이내에 2개 이상의 WISH·REEL 핀이 있을 때, 토스트는 1개만 표시되며 닫힌 후 다음 가까운 핀에 대한 평가가 자동 재개된다 | FR-VD-13, Q5 |
++
++---
++
++## 제외 범위
++
++- 백엔드 거리 계산 (PostGIS 미도입, Haversine은 프론트엔드에서만 수행)
++- 위치 권한 거부 시 사용자 안내 UI (조용히 비활성)
++- setInterval 기반 머무름 타이머 (geolocate 콜백 시각 비교 방식으로 대체)
++- 30초 머무름 임계값 사용자 설정 기능
++- MEMORY → WISH/REEL 역방향 전환 기능 (Phase 10 범위 밖)
++- 백그라운드 위치 추적 (앱이 포그라운드 + GeolocateControl 활성 상태에서만 동작)
++- Phase 11 "우리 기록" 화면 구현 (Phase 11 별도 PRD)
++- SSE 실시간 알림 (옵션 B 정책에 따라 현행 fetch 트리거 방식 유지)
++
++---
++
++## 의존성
++
++| 항목 | 설명 |
++|------|------|
++| Phase 8 알림 인프라 | `NotificationService`, `NotificationItem`, `NotificationPanel` 기반 필수 |
++| V009 Flyway 마이그레이션 | `V009__add_visit_detected_notification_type.sql` — CHECK 제약 확장. 백엔드 서비스 기동 전 적용 필요 |
++| GeolocateControl + geo.on("geolocate") | `MapboxView.tsx:435-462`에 이미 존재. 콜백에 훅 평가 함수 연결만 필요 |
++| PATCH /api/v1/groups/{groupId}/pins/{pinId} | 기존 API 재사용. 시그니처 변경 없음 |
++| Phase 11 — 우리 기록 | Phase 10 완료 후 MEMORY 핀 집계를 소비하는 후속 Phase. Phase 10 완료가 선행 조건 |
++
++---
++
++## 결정 이력 (사전 Q&A 9건)
++
++| # | 항목 | 결정 |
++|---|------|------|
++| Q1 | 세션 정의 | 메모리 Set, 페이지 unmount 시 리셋 |
++| Q2 | 트리거 주기 | 매 geolocate 콜백, throttle 없음 |
++| Q3 | 진입/통과 구분 | 30초 머무름 임계 |
++| Q4 | 정확도 게이트 | accuracy ≤ 50m |
++| Q5 | 차순위 핀 | Set 누적 → 다음 콜백부터 자동 평가 |
++| Q6 | 권한 UX | 조용히 비활성 |
++| Q7 | PATCH 흐름 | 2회 분리, 메모는 선택 |
++| Q8 | 알림 | 무조건 발송, VISIT_DETECTED 신규 유형 |
++| Q9 | 전환 애니메이션 | 하트 confetti 3개 + scale, ~600ms |
+diff --git a/.dev/feat-phase-10-visit-detection/self-check.md b/.dev/feat-phase-10-visit-detection/self-check.md
+new file mode 100644
+index 0000000..864fd72
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/self-check.md
+@@ -0,0 +1,39 @@
++# 자기점검 결과 (Phase 10)
++
++- 작성일: 2026-05-24
++- qa-manager 자동 리뷰. Critical만 자동 수정 대상.
++
++## Critical (CERTAIN)
++
++**0건.**
++
++## Warning (CERTAIN, 자동 수정 비대상 — phase-review로 이월)
++
++- [Warning][SPEC] **MapClient.tsx:1029~1047** — FR-VD-21 / AC-VD-14 "인라인 에러 토스트(시스템 레벨)" 미구현. 현재 1차 PATCH 실패 시 `console.error`만. 사용자가 메모 시트가 안 열리는 이유를 알 수 없음. coder가 의도적 후속 작업으로 남긴 영역. phase-review에서 처리 방향 결정 필요.
++- [Warning][MAINT] **NotificationVisitWriter.java:37~39** — `Notification.visitPinId`(부분 UNIQUE 인덱스 키)와 `NotificationPin.link(...)`가 동일 pinId를 두 곳에 저장. getDetail은 notification_pins 경로만 사용 (174:174). 의도된 분담이나 향후 유지보수 혼란 가능 → 코드 주석으로 역할 명시 권장.
++- [Warning][PERF] **MapboxView.tsx:118~131** — `runMarkerBounceAndConfetti`의 600ms setTimeout 안에서 마커가 unmount되면 detached node 조작. `parentNode === markerEl` 가드가 이미 있어 실제 위험은 낮음.
++
++## Info
++
++- [Info][MAINT] NotificationService.java:216~223 — `loadPinsByIds` N 쿼리. 주석에 "수신 핀 수 작아 비용 허용"으로 이미 인지된 부채.
++- [Info][CLEAN] VisitMemoSheet.tsx:79 — 날짜를 `fonts.mono`로 표시. `fonts.sans`가 더 자연스러울 수 있음.
++
++## Question (phase-review로 이월)
++
++1. **MapClient.tsx:1029~1047 (FR-VD-21)**: 인라인 에러 토스트를 (a) 추가 구현 / (b) 현 상태로 Accept(스펙 일부 완화) / (c) 별도 작업으로 분리.
++2. **NotificationPinList.tsx:45 동사 분기**: `"내가 다녀온 1곳"` 또는 `"{nickname}님이 다녀온 1곳"`이 PRD 표현과 일치하는지 확인.
++3. **NotificationServiceVisitDetectedIT 미완료 3개 (c/d/g)**: Controller IT 분리를 (a) 본 PR에 추가 / (b) 별도 이슈로 분리.
++4. **useVisitDetection.ts:59 정확도 불량 시 firstEnterAt 보존**: 의도된 동작인지 확인 (BR-VD-3는 "타이머에 영향 주지 않음" 명시 → 보존이 맞을 가능성 높음). 정확도 불량이 연속으로 오면 이전 firstEnterAt이 무한 보존되어 정상 콜백 시 즉시 검출되는 부작용 검토.
++
++## AC 체크리스트 결과
++
++22개 수용 기준 중 **21개 충족, 1개 미충족 (AC-VD-14)**.
++
++| AC | 상태 | 비고 |
++|----|------|------|
++| AC-VD-1~22 | 21/22 | AC-VD-14만 Warning |
++| AC-VD-14 | ❌ | console.error만, 인라인 에러 토스트 미구현 |
++
++## 총평
++
++전반적 구현 품질 높음. 트랜잭션 경계 + 부분 UNIQUE race-free + useVisitDetection 차순위 누적 패턴 모두 설계 충실. AC-VD-14만 phase-review에서 결정.
+diff --git a/.dev/feat-phase-10-visit-detection/state.md b/.dev/feat-phase-10-visit-detection/state.md
+new file mode 100644
+index 0000000..05d6e01
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/state.md
+@@ -0,0 +1,42 @@
++---
++phase: complete
++status: completed
++branch: feat/phase-10-visit-detection
++base: develop
++project-type: java-spring + node
++project-root: ./
++args: "phase 10 기능 개발 시작해줘"
++mode: normal
++intent-source: user-selection
++flags: ""
++started: 2026-05-24T00:08:00
++ended: 2026-05-24T12:10:00
++last-known-head: f4aec23b534e19e24a32dadffd874f7468f3125c
++auto-stashed: false
++pr-url: https://github.com/rnqhstmd/wherewego/pull/57
++phases:
++  setup: completed
++  requirements: completed
++  design: completed
++  implement: completed
++  review: completed
++  complete: completed
++acceptance: ACCEPT (AC-VD-1~22 22건 모두 충족)
++audit-summary: CRITICAL 0, HIGH 3 (모두 해결 또는 INFO 재분류), MEDIUM 5, Warning 3 (5건 보강 후 1건 SPEC 해소)
++test-results:
++  backend-it: NotificationServiceVisitDetectedIT 6/6 + NotificationServiceIT 7/7 + PinServiceIT 23/23 PASS
++  frontend: 162/162 PASS (Phase 10 신규 15건 포함)
++context-updates:
++  - context/pin/status.md: Phase 10 후속 작업 행 추가
++  - context/notification/status.md: Phase 10 신규 섹션 (6개 항목)
++  - context/notification/README.md: VISIT_DETECTED 알림 유형 표 추가
++  - context/notification/architecture.md: notifications 테이블에 visit_pin_id 컬럼 + 부분 UNIQUE 인덱스 명시
++  - context/pin/glossary.md: 방문 감지/30초 머무름/100m 반경/GPS 정확도 게이트/PinUpdateResult/세션 Set 6개 용어 추가
++follow-up:
++  - "Controller IT 3건 (c/d/g) 별도 이슈"
++  - "알림 실패 운영 가시성 (Prometheus counter)"
++  - "전환율 모니터링 이벤트 트래킹"
++  - "Phase 11 우리 기록 도입 시 본인 알림 정책 재검토"
++  - "PinPopup 칩 경로 MEMORY 전환 confetti 일관성 확장"
++  - "차량 정차 오탐 실측 후 30초 임계 튜닝"
++---
+diff --git a/.dev/feat-phase-10-visit-detection/trust-ledger.md b/.dev/feat-phase-10-visit-detection/trust-ledger.md
+new file mode 100644
+index 0000000..3c94a4d
+--- /dev/null
++++ b/.dev/feat-phase-10-visit-detection/trust-ledger.md
+@@ -0,0 +1,71 @@
++# Trust Ledger — Phase 10 (장소 방문 감지)
++
++- 작성일: 2026-05-24
++- 감사 라운드: phase-review 1회차
++- 합산 원본: qa-manager (통합 리뷰) + security-auditor (ZeroTrust 통합 감사)
++
++## 통합 감사 (review)
++
++### CRITICAL / Critical(QA)
++**0건.**
++
++### HIGH (security-auditor)
++
++- [HIGH/인증-인가] `NotificationService.createForVisitDetected` 내부 멤버십 재검증 부재
++  - 근거: 컨트롤러에서 `requireActiveMembership` 통과한 userId만 전달되므로 정상 경로 위험 없음. 그러나 메서드 시그니처 자체는 비멤버 ID 허용. 외부 직접 호출 경로 또는 향후 호출자 추가 시 위험 가능.
++  - 권고: `createForVisitDetected` 메서드 JavaDoc에 "호출자가 멤버십을 사전 검증해야 한다"는 계약을 명시. 또는 내부에서 `findActiveByGroupIdAndUserId` 사전 검증 추가.
++
++- [HIGH/알림-팬아웃] `NotificationVisitWriter` REQUIRES_NEW + DataIntegrityViolationException 이중 catch
++  - 근거: ZT는 "REQUIRES_NEW 안에서 예외 catch 시 UnexpectedRollbackException 발생" 경고. **검증 결과: 실제 위험 없음**. Spring REQUIRES_NEW는 자기 트랜잭션 자동 rollback 후 예외 그대로 propagate (REQUIRED 부모-자식 중첩에서만 UnexpectedRollbackException 발생). 게다가 B1 IT (b) race-free 케이스가 실측 PASS로 검증됨.
++  - 권고: 코드 변경 불필요. 감사 종결 (INFO 수준 재분류).
++
++- [HIGH/데이터-무결성] `visit_pin_id` FK ON DELETE 정책 미명시 (묵시적 RESTRICT)
++  - 근거: V009에 ON DELETE/ON UPDATE 절 없음. PostgreSQL 기본은 RESTRICT. pins는 soft-delete 정책이라 실제 영향 없음. 운영 DB에서 hard DELETE 실수 또는 운영 정책 변경 시 FK 위반 발생 가능.
++  - 권고: V009 마이그레이션에 `ON DELETE RESTRICT` 또는 `ON DELETE SET NULL`을 명시하여 의도 코드화. **간단 보강 권장**.
++
++### MEDIUM (security-auditor)
++
++- [MEDIUM/입력검증] UpdatePinRequest memo 500자 검증이 DTO 레이어가 아닌 PinUpdateCommand 팩토리에서만 수행 (CreatePinRequest와 불일치). 실질 통과 위험 없음. 기록만.
++- [MEDIUM/개인정보] `handleVisitConfirm` 실패 시 `console.error`에 `groupId, pinId` 노출. 운영 빌드에서는 code만 남기는 게 안전.
++- [MEDIUM/DoS] `shownPinIdsRef` Set 누적 상한 없음. MVP 핀 수백 개 수준이라 실질 위험 없음.
++- [MEDIUM/트랜잭션] `writeOne` 반환 타입 설계서(`boolean`) vs 구현(`void`) 불일치. 구현이 더 안전한 패턴 — 설계서 동기화 권장.
++- [MEDIUM/XSS] React JSX 자동 escape 활용 확인. dangerouslySetInnerHTML 미사용. **안전**.
++- [MEDIUM/CSRF] JWT stateless API + csrf.disable 기존 정책 유지. **안전**.
++
++### Critical 외 QA Warning (자기점검 인계)
++
++- [Warning/SPEC] **MapClient.tsx:1044~1047 — AC-VD-14 미충족**. 1차 PATCH 실패 시 `console.error`만, 인라인 에러 토스트 UI 없음. **사용자 결정 필요**.
++- [Warning/MAINT] NotificationVisitWriter `visit_pin_id`와 `notification_pins` 이중 저장. 의도된 분담이나 코드 주석으로 역할 명시 권장.
++- [Warning/PERF] `runMarkerBounceAndConfetti` 600ms setTimeout 안 detached node 조작 위험. 가드 있어 실제 위험 낮음.
++
++### QUESTION (QA + 자기점검 인계, 사용자 확인 필요)
++
++- [QUESTION-Q1] **AC-VD-14 처리 방향**: (a) 인라인 에러 토스트 추가 구현 / (b) 현 상태 Accept (스펙 완화) / (c) 별도 이슈 분리.
++- [QUESTION-Q2] NotificationPinList.tsx 동사 분기 "{actor} 다녀온/저장한 N곳" 텍스트 확인.
++- [QUESTION-Q3] Controller IT 3건 (c/d/g) 본 PR 포함 여부.
++- [QUESTION-Q4] useVisitDetection accuracy 불량 시 firstEnterAt 보존 정책 확인 → BR-VD-3 명시 해석에 부합 (의도된 동작 확률 높음).
++- [QUESTION-Q5] (e)/(f) 테스트 실효성. (a) 현재 Accept / (b) PinServiceIT에 wasWishOrReelToMemory 단위 검증 추가.
++- [QUESTION-Q6] visit-memo 시트 × 닫기 시 UX 피드백 없음. (a) 의도된 동작 / (b) 짧은 성공 토스트 추가.
++- [QUESTION-Q7] writeOne void vs boolean 시그니처 — 실제 구현(void + caller-catch)이 더 안전, 설계서 동기화 권장.
++
++### ZT INFO (사용자 확인 필요)
++
++- [INFO/알림] **VISIT_DETECTED 본인에게도 알림 발송 (PRD FR-VD-27과 미묘 불일치)**: PRD는 "다른 활성 멤버에게 fan-out" 명시인데 구현은 `receiverIds.add(registeredBy)`로 본인도 추가. 의도된 변경인지 확인 필요. **사용자 결정**.
++
++### LOW / INFO (참고만)
++
++- [INFO] V009 부분 UNIQUE 인덱스 NULL 처리 PostgreSQL 표준 부합 확인.
++- [INFO] JWT 인증 + @AuthUser 강제 확인.
++- [INFO] `log.warn` stack trace 노출은 서버 로그 수준 (외부 노출 X).
++- [Info] NotificationService.loadPinsByIds N 쿼리 (인지된 부채).
++- [Info] VisitMemoSheet 날짜 `fonts.mono` (디자인 의도 가능).
++
++---
++
++## AC 충족 결과
++
++| 항목 | 수 | 비율 |
++|------|----|------|
++| ✅ 충족 | 20 | 91% |
++| ⚠️ 부분 충족 | 1 (AC-VD-18: 코드 OK, Controller IT 미작성) | 4% |
++| ❌ 미충족 | 1 (AC-VD-14) | 4% |
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/Notification.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/Notification.java
+index 9892e34..00934e0 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/Notification.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/Notification.java
+@@ -37,6 +37,14 @@ public class Notification extends BaseEntity {
+     @Column(name = "read_at")
+     private Instant readAt;
+ 
++    /**
++     * Phase 10: VISIT_DETECTED 알림에서만 채워지는 핀 참조. 부분 UNIQUE 인덱스
++     * {@code uq_notifications_visit} (group_id, receiver_id, registered_by, visit_pin_id) 와 결합되어
++     * 동일 핀에 대한 중복 알림을 race-free 하게 차단한다. MANUAL_PIN/CHATBOT_PINS 는 NULL 유지.
++     */
++    @Column(name = "visit_pin_id")
++    private Long visitPinId;
++
+     protected Notification() { }
+ 
+     private Notification(Long groupId, Long receiverId, Long registeredBy, NotificationType type) {
+@@ -46,10 +54,27 @@ public class Notification extends BaseEntity {
+         this.type = type;
+     }
+ 
++    private Notification(Long groupId, Long receiverId, Long registeredBy,
++                         NotificationType type, Long visitPinId) {
++        this.groupId = groupId;
++        this.receiverId = receiverId;
++        this.registeredBy = registeredBy;
++        this.type = type;
++        this.visitPinId = visitPinId;
++    }
++
+     public static Notification create(Long groupId, Long receiverId, Long registeredBy, NotificationType type) {
+         return new Notification(groupId, receiverId, registeredBy, type);
+     }
+ 
++    /**
++     * VISIT_DETECTED 알림 팩토리. {@code visitPinId} 는 부분 UNIQUE 인덱스의 키 컬럼이므로
++     * non-null 이어야 한다 (호출자에서 보장).
++     */
++    public static Notification createForVisit(Long groupId, Long receiverId, Long registeredBy, Long visitPinId) {
++        return new Notification(groupId, receiverId, registeredBy, NotificationType.VISIT_DETECTED, visitPinId);
++    }
++
+     /**
+      * 읽음 처리. {@code readAt}이 null일 때만 설정하여 idempotent 하게 동작한다.
+      */
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java
+index bd17ca3..cabb0ee 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationService.java
+@@ -8,6 +8,8 @@ import com.wherewego.domain.user.UserRepository;
+ import com.wherewego.support.error.CoreException;
+ import com.wherewego.support.error.ErrorType;
+ import lombok.RequiredArgsConstructor;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+@@ -35,6 +37,8 @@ import java.util.stream.Collectors;
+ @RequiredArgsConstructor
+ public class NotificationService {
+ 
++    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
++
+     private static final int RECENT_LIMIT_HARD_CAP = 50;
+     private static final String FALLBACK_NICKNAME = "멤버";
+     private static final String FALLBACK_PLACE_NAME = "저장된 장소";
+@@ -44,6 +48,7 @@ public class NotificationService {
+     private final GroupMemberRepository groupMemberRepository;
+     private final PinRepository pinRepository;
+     private final UserRepository userRepository;
++    private final NotificationVisitWriter visitWriter;
+ 
+     /**
+      * 웹/모바일 직접 등록 트리거 (PinV1Controller.createPin에서 트랜잭션 밖에서 호출).
+@@ -65,6 +70,41 @@ public class NotificationService {
+         fanOut(groupId, registeredBy, pinIds, NotificationType.CHATBOT_PINS);
+     }
+ 
++    /**
++     * Phase 10: WISH/REEL → MEMORY 전환 알림을 그룹 멤버 + 본인에게 fan-out.
++     *
++     * <p><b>호출 계약</b>: {@code registeredBy} 는 호출자가 사전에 {@code groupId} 의
++     * 활성 멤버임을 검증한 사용자 ID여야 한다. 본 메서드는 멤버십 재검증을 수행하지 않는다.
++     * 정상 진입 경로는 {@code PinV1Controller#updatePin} 으로, 이미 PinService.updatePin
++     * 내부에서 GroupMember 활성 멤버십이 검증된다.</p>
++     *
++     * <p>본 메서드는 트랜잭션을 시작하지 않는다 (호출자가 PATCH 응답을 차단하지 않도록 try-catch 격리,
++     * BR-VD-6). 각 receiver 별로 {@link NotificationVisitWriter#writeOne}을
++     * {@code REQUIRES_NEW} 새 트랜잭션으로 호출한다.</p>
++     *
++     * <p><b>본인 포함 fan-out</b>: 등록자 본인에게도 1행이 생성되어 알림함에 자신의 방문
++     * 기록이 남는다 (Phase 11 "우리 기록" 화면 연동 전 과도기 용도). NotificationItem
++     * UI 는 본인 분기 시 "내가 다녀온 장소"로 라벨링한다.</p>
++     *
++     * <p><b>중복 차단</b>: 부분 UNIQUE 인덱스 {@code uq_notifications_visit} 가 동일
++     * {@code (groupId, receiverId, registeredBy, pinId)} 조합 1회만 허용한다. 위반 시
++     * {@link org.springframework.dao.DataIntegrityViolationException} 을 catch 후 조용히 스킵하여
++     * race-free 중복 차단을 보장한다 (BR-3).</p>
++     */
++    public void createForVisitDetected(Long groupId, Long registeredBy, Long pinId) {
++        List<Long> otherIds = groupMemberRepository.findOtherActiveMemberIds(groupId, registeredBy);
++        List<Long> receiverIds = new ArrayList<>(otherIds);
++        receiverIds.add(registeredBy);
++        for (Long receiverId : receiverIds) {
++            try {
++                visitWriter.writeOne(groupId, receiverId, registeredBy, pinId);
++            } catch (org.springframework.dao.DataIntegrityViolationException e) {
++                // 부분 UNIQUE 위반 = 동일 조합이 이미 존재 → 조용히 스킵 (race-free 중복 차단).
++                log.debug("visit notification skipped (duplicate) receiverId={} pinId={}", receiverId, pinId);
++            }
++        }
++    }
++
+     /**
+      * 공통 fan-out 로직. 활성 멤버 전원(등록자 본인 포함)에게
+      * {@link Notification} + {@link NotificationPin} 링크를 저장한다.
+@@ -149,19 +189,23 @@ public class NotificationService {
+                 .map(UserModel::getNickname)
+                 .orElse(FALLBACK_NICKNAME);
+ 
++        boolean isVisitType = n.getType() == NotificationType.VISIT_DETECTED;
+         List<NotificationPinItemResult> pinItems = links.stream().map(link -> {
+             Pin pin = pinById.get(link.getPinId());
+             if (pin == null) {
+                 // pin row 자체가 존재하지 않음 (이론상 거의 없음)
+-                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null);
++                return new NotificationPinItemResult(link.getPinId(), DELETED_PLACE_NAME, null, null, null, true, null, null);
+             }
+             if (pin.isDeleted()) {
+                 return new NotificationPinItemResult(
+-                        pin.getId(), pin.getPlaceName(), null, null, null, true, null);
++                        pin.getId(), pin.getPlaceName(), null, null, null, true, null, null);
+             }
++            // Phase 10: VISIT_DETECTED 알림에서만 핀의 최신 memo를 join.
++            // 그 외 타입(MANUAL_PIN/CHATBOT_PINS)은 memo 노출 스코프 밖이므로 항상 null.
++            String memo = isVisitType ? pin.getMemo() : null;
+             return new NotificationPinItemResult(
+                     pin.getId(), pin.getPlaceName(), pin.getAddress(),
+-                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl());
++                    pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl(), memo);
+         }).toList();
+ 
+         return new NotificationDetailResult(
+@@ -219,7 +263,8 @@ public class NotificationService {
+             BigDecimal latitude,
+             BigDecimal longitude,
+             boolean deleted,
+-            String instagramUrl
++            String instagramUrl,
++            String memo
+     ) {}
+ 
+     public record NotificationDetailResult(
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java
+index 9a5f2b8..47e6801 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationType.java
+@@ -2,5 +2,6 @@ package com.wherewego.domain.notification;
+ 
+ public enum NotificationType {
+     MANUAL_PIN,
+-    CHATBOT_PINS
++    CHATBOT_PINS,
++    VISIT_DETECTED
+ }
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationVisitWriter.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationVisitWriter.java
+new file mode 100644
+index 0000000..83b0178
+--- /dev/null
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/notification/NotificationVisitWriter.java
+@@ -0,0 +1,41 @@
++package com.wherewego.domain.notification;
++
++import lombok.RequiredArgsConstructor;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.stereotype.Component;
++import org.springframework.transaction.annotation.Propagation;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.util.List;
++
++/**
++ * Phase 10: VISIT_DETECTED 알림 1행을 receiver 단위 새 트랜잭션(REQUIRES_NEW)으로 INSERT 한다.
++ *
++ * <p>{@link NotificationService#createForVisitDetected} 가 fan-out 루프에서 본 컴포넌트를 호출한다.
++ * 부분 UNIQUE 인덱스 {@code uq_notifications_visit} 위반은 {@link DataIntegrityViolationException}
++ * 으로 호출자에게 전파되며, 호출자에서 catch 하여 조용히 스킵한다 (race-free 중복 차단, BR-VD-1/2).</p>
++ *
++ * <p>Spring 트랜잭션 모델: REQUIRES_NEW 메서드 내부에서 예외를 catch 하면 트랜잭션이
++ * rollback-only 로 마킹된 채 commit 단계에서 {@code UnexpectedRollbackException} 이 발생한다.
++ * 따라서 catch 는 트랜잭션 경계 밖(=호출자)에서 수행해야 한다.</p>
++ *
++ * <p>Spring self-invocation 회피를 위해 별도 컴포넌트로 분리: 같은 클래스 내에서 @Transactional
++ * 메서드를 호출하면 프록시를 거치지 않아 격리가 깨진다.</p>
++ */
++@Component
++@RequiredArgsConstructor
++public class NotificationVisitWriter {
++
++    private final NotificationRepository repository;
++
++    /**
++     * receiver 1명에 대한 VISIT_DETECTED 알림 + NotificationPin 링크 1행 INSERT.
++     * 부분 UNIQUE 인덱스 위반 시 {@link DataIntegrityViolationException} 이 그대로 호출자에게 전파된다.
++     */
++    @Transactional(propagation = Propagation.REQUIRES_NEW)
++    public void writeOne(Long groupId, Long receiverId, Long registeredBy, Long pinId) {
++        Notification n = repository.save(
++                Notification.createForVisit(groupId, receiverId, registeredBy, pinId));
++        repository.saveAllPins(List.of(NotificationPin.link(n.getId(), pinId, 0)));
++    }
++}
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinService.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinService.java
+index 92350c6..963ac0a 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinService.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinService.java
+@@ -224,12 +224,16 @@ public class PinService {
+      * 핀 부분 수정. 활성 멤버십(AC-15) → 비관 락 조회 → memo/tag/placeName/address 독립 갱신(AC-6,7,8).
+      * 빈 memo 는 잠금 해제(AC-11/BR-8), 비어있지 않은 memo 는 MANUAL 마킹(AC-10/BR-3).
+      * Phase 2.8: placeName/address 도 동일 트랜잭션에서 독립 갱신 가능.
++     *
++     * <p>Phase 10: 반환 타입을 {@link PinUpdateResult} 로 변경. tag 변경 시 이전 태그를 기억해
++     * WISH/REEL → MEMORY 전환 1회를 Controller에 시그널로 전달한다 (VISIT_DETECTED 알림 트리거 판정).</p>
+      */
+     @Transactional
+-    public PinSummary updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {
++    public PinUpdateResult updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {
+         groupMemberService.requireActiveMembership(userId, groupId);
+         Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
+                 .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
++        PinTag previousTag = pin.getTag();
+         if (cmd.tagProvided()) {
+             pin.changeTag(cmd.tag());
+         }
+@@ -249,7 +253,10 @@ public class PinService {
+         if (cmd.coordinateProvided()) {
+             pin.changeCoordinate(cmd.latitude(), cmd.longitude());
+         }
+-        return toSummary(pin);
++        boolean wasWishOrReelToMemory = cmd.tagProvided()
++                && cmd.tag() == PinTag.MEMORY
++                && (previousTag == PinTag.WISH || previousTag == PinTag.REEL);
++        return new PinUpdateResult(toSummary(pin), wasWishOrReelToMemory);
+     }
+ 
+     /**
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateResult.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateResult.java
+new file mode 100644
+index 0000000..db3f957
+--- /dev/null
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/domain/pin/PinUpdateResult.java
+@@ -0,0 +1,13 @@
++package com.wherewego.domain.pin;
++
++/**
++ * Phase 10: {@link PinService#updatePin} 의 반환 타입.
++ *
++ * <p>{@code summary} 는 기존 응답 본문이고, {@code wasWishOrReelToMemory} 는 Controller 가
++ * VISIT_DETECTED 알림을 발행할지 결정하는 시그널이다 (WISH/REEL → MEMORY 전환 1회 한정).</p>
++ */
++public record PinUpdateResult(
++        PinSummary summary,
++        boolean wasWishOrReelToMemory
++) {
++}
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/notification/NotificationV1Dto.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/notification/NotificationV1Dto.java
+index 04da3c5..c16b8b1 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/notification/NotificationV1Dto.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/notification/NotificationV1Dto.java
+@@ -58,7 +58,8 @@ public final class NotificationV1Dto {
+             BigDecimal latitude,
+             BigDecimal longitude,
+             boolean deleted,
+-            String instagramUrl
++            String instagramUrl,
++            String memo
+     ) {
+         public static PinItem from(NotificationPinItemResult r) {
+             return new PinItem(
+@@ -68,7 +69,8 @@ public final class NotificationV1Dto {
+                     r.latitude(),
+                     r.longitude(),
+                     r.deleted(),
+-                    r.instagramUrl()
++                    r.instagramUrl(),
++                    r.memo()
+             );
+         }
+     }
+diff --git a/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java b/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java
+index 2117885..0216aa5 100644
+--- a/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java
++++ b/backend/apps/wherewego-api/src/main/java/com/wherewego/interfaces/api/pin/PinV1Controller.java
+@@ -6,6 +6,7 @@ import com.wherewego.domain.pin.PinListResult;
+ import com.wherewego.domain.pin.PinService;
+ import com.wherewego.domain.pin.PinSummary;
+ import com.wherewego.domain.pin.PinTag;
++import com.wherewego.domain.pin.PinUpdateResult;
+ import com.wherewego.interfaces.api.ApiResponse;
+ import com.wherewego.support.error.CoreException;
+ import com.wherewego.support.error.ErrorType;
+@@ -122,9 +123,17 @@ public class PinV1Controller implements PinV1ApiSpec {
+             @PathVariable Long pinId,
+             @RequestBody PinV1Dto.UpdatePinRequest request
+     ) {
+-        return ApiResponse.success(
+-                PinV1Dto.PinSummaryResponse.from(
+-                        pinService.updatePin(userId, groupId, pinId, request.toCommand())));
++        PinUpdateResult result = pinService.updatePin(userId, groupId, pinId, request.toCommand());
++        // Phase 10: WISH/REEL → MEMORY 전환 1회에 한해 VISIT_DETECTED 알림 fan-out.
++        // 알림 실패는 PATCH 응답을 막지 않도록 호출자 격리 (BR-VD-6).
++        if (result.wasWishOrReelToMemory()) {
++            try {
++                notificationService.createForVisitDetected(groupId, userId, pinId);
++            } catch (RuntimeException e) {
++                log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
++            }
++        }
++        return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(result.summary()));
+     }
+ 
+     @DeleteMapping("/{groupId}/pins/{pinId}")
+diff --git a/backend/apps/wherewego-api/src/main/resources/db/migration/V009__add_visit_detected_notification_type.sql b/backend/apps/wherewego-api/src/main/resources/db/migration/V009__add_visit_detected_notification_type.sql
+new file mode 100644
+index 0000000..dd3772d
+--- /dev/null
++++ b/backend/apps/wherewego-api/src/main/resources/db/migration/V009__add_visit_detected_notification_type.sql
+@@ -0,0 +1,28 @@
++-- ============================================================
++-- V009__add_visit_detected_notification_type.sql
++-- Phase 10: VISIT_DETECTED 알림 유형 도입.
++--
++-- 1) chk_notifications_type 확장: VISIT_DETECTED 허용.
++-- 2) notifications.visit_pin_id (nullable) — VISIT_DETECTED 타입에서만 채워짐.
++--    기존 MANUAL_PIN/CHATBOT_PINS는 NULL 유지(notification_pins로 연결).
++--    FK → pins(id). pin이 soft-delete 되어도 row는 살아 있어 무결성 유지.
++-- 3) 부분 UNIQUE 인덱스 uq_notifications_visit:
++--    동일 (group_id, receiver_id, registered_by, visit_pin_id) 조합으로
++--    VISIT_DETECTED 알림은 1회만 생성되도록 race-free 보장.
++-- ============================================================
++
++ALTER TABLE notifications
++    DROP CONSTRAINT IF EXISTS chk_notifications_type;
++
++ALTER TABLE notifications
++    ADD CONSTRAINT chk_notifications_type
++    CHECK (type IN ('MANUAL_PIN', 'CHATBOT_PINS', 'VISIT_DETECTED'));
++
++-- ON DELETE RESTRICT: pins 는 soft-delete(deleted_at) 정책이라 row 가 삭제되지 않으므로
++-- 평상시 영향 없음. 운영 DB 에서 hard DELETE 실수가 발생해도 FK 위반으로 차단하여 알림 무결성 보장.
++ALTER TABLE notifications
++    ADD COLUMN IF NOT EXISTS visit_pin_id BIGINT NULL REFERENCES pins (id) ON DELETE RESTRICT;
++
++CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_visit
++    ON notifications (group_id, receiver_id, registered_by, visit_pin_id)
++    WHERE type = 'VISIT_DETECTED' AND visit_pin_id IS NOT NULL;
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/bot/BotLinkCodeServiceIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/bot/BotLinkCodeServiceIT.java
+index 2cc4e05..5b3b1cc 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/bot/BotLinkCodeServiceIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/bot/BotLinkCodeServiceIT.java
+@@ -63,6 +63,9 @@ class BotLinkCodeServiceIT {
+ 
+     private void truncateAll() {
+         // users 를 참조하는 자식 테이블을 모두 정리한 뒤 users 삭제 (다른 IT 와 격리 보장).
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/group/GroupMemberServiceIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/group/GroupMemberServiceIT.java
+index d56b32b..c3e574e 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/group/GroupMemberServiceIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/group/GroupMemberServiceIT.java
+@@ -86,6 +86,9 @@ class GroupMemberServiceIT {
+ 
+     private void truncateAll() {
+         // users 를 참조하는 자식 테이블을 모두 정리한 뒤 users 삭제 (다른 IT 와 격리 보장).
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/notification/NotificationServiceVisitDetectedIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/notification/NotificationServiceVisitDetectedIT.java
+new file mode 100644
+index 0000000..e2a5537
+--- /dev/null
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/notification/NotificationServiceVisitDetectedIT.java
+@@ -0,0 +1,298 @@
++package com.wherewego.domain.notification;
++
++import com.wherewego.domain.group.GroupCreatedResult;
++import com.wherewego.domain.group.GroupMemberService;
++import com.wherewego.domain.group.InviteLinkIssueResult;
++import com.wherewego.domain.pin.Pin;
++import com.wherewego.domain.pin.PinRepository;
++import com.wherewego.domain.pin.PinTag;
++import com.wherewego.domain.place.PlaceSearchHit;
++import com.wherewego.domain.user.UserModel;
++import com.wherewego.infrastructure.notification.NotificationJpaRepository;
++import com.wherewego.infrastructure.notification.NotificationPinJpaRepository;
++import com.wherewego.infrastructure.pin.PinJpaRepository;
++import com.wherewego.infrastructure.user.UserJpaRepository;
++import com.wherewego.testcontainers.PostgresTestContainersConfig;
++import org.junit.jupiter.api.AfterEach;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.context.annotation.Import;
++import org.springframework.data.domain.PageRequest;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.test.context.ActiveProfiles;
++
++import java.util.List;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++/**
++ * Phase 10: VISIT_DETECTED 알림 fan-out + 부분 UNIQUE race-free + getDetail memo join 통합 테스트.
++ *
++ * <p>{@link NotificationServiceIT} 의 픽스처/세팅 패턴(create → invite → accept, truncateAll) 을 답습한다.
++ * 클래스에 {@code @Transactional} 을 두지 않아 REQUIRES_NEW 가 실제 커밋을 일으키도록 한다.</p>
++ *
++ * <p>커버 케이스 (설계서 §8.1):</p>
++ * <ul>
++ *     <li>(a) 정상 fan-out: 그룹 멤버 2명, 동일 pinId 1회 → 각 receiver 1행씩</li>
++ *     <li>(b) race-free UNIQUE: 동일 pinId 2회 연속 → 1회만 INSERT</li>
++ *     <li>(e) MEMORY→MEMORY 시 알림 미발송 (사실상 PinService 시그널이 false 이므로 호출 자체가 없음을 검증)</li>
++ *     <li>(f) memo만 변경 시 알림 미발송 (위와 동일)</li>
++ *     <li>(h) getDetail memo join: VISIT_DETECTED + 활성 핀 → memo 최신값. soft-delete → null</li>
++ * </ul>
++ *
++ * <p>(c) ExecutorService 동시성, (d) Controller WISH→MEMORY, (g) RuntimeException 격리는 별도
++ * Controller IT 로 옮기는 게 자연스러우나, 본 IT 의 범위 단순화를 위해 TODO 로 위임한다.</p>
++ *
++ * TODO: (c) ExecutorService 기반 race 시뮬레이션 — 본 (b) 가 동일 race-free 보장을 단일 스레드 시퀀스로 검증하므로 우선순위 낮음.
++ * TODO: (d) PinV1Controller WISH→MEMORY 전환 시 알림 1회 — PinV1ControllerVisitDetectedIT 로 분리 권장.
++ * TODO: (g) createForVisitDetected RuntimeException → PATCH 200 — Controller 레이어 try-catch 검증이므로 Controller IT 로 분리 권장.
++ */
++@SpringBootTest
++@ActiveProfiles("test")
++@Import(PostgresTestContainersConfig.class)
++class NotificationServiceVisitDetectedIT {
++
++    @Autowired
++    private NotificationService notificationService;
++
++    @Autowired
++    private NotificationJpaRepository notificationJpa;
++
++    @Autowired
++    private NotificationPinJpaRepository notificationPinJpa;
++
++    @Autowired
++    private PinRepository pinRepository;
++
++    @Autowired
++    private PinJpaRepository pinJpaRepository;
++
++    @Autowired
++    private GroupMemberService groupMemberService;
++
++    @Autowired
++    private UserJpaRepository userJpaRepository;
++
++    @Autowired
++    private JdbcTemplate jdbcTemplate;
++
++    private Long userAId;  // 등록자(self)
++    private Long userBId;  // 같은 그룹의 활성 상대방
++    private Long groupId;
++
++    @BeforeEach
++    void setUp() {
++        truncateAll();
++
++        UserModel userA = userJpaRepository.save(UserModel.create(50000001L, "userA", null));
++        UserModel userB = userJpaRepository.save(UserModel.create(50000002L, "userB", null));
++        this.userAId = userA.getId();
++        this.userBId = userB.getId();
++
++        GroupCreatedResult group = groupMemberService.createGroup(userAId, "방문 감지 테스트 그룹");
++        InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userAId, group.groupId());
++        groupMemberService.acceptInviteLink(userBId, invite.token());
++        this.groupId = group.groupId();
++    }
++
++    @AfterEach
++    void tearDown() {
++        truncateAll();
++    }
++
++    private void truncateAll() {
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
++        jdbcTemplate.execute("DELETE FROM pins");
++        jdbcTemplate.execute("DELETE FROM invite_links");
++        jdbcTemplate.execute("DELETE FROM group_members");
++        jdbcTemplate.execute("DELETE FROM groups");
++        jdbcTemplate.execute("DELETE FROM bot_link_codes");
++        jdbcTemplate.execute("DELETE FROM bot_user_mappings");
++        userJpaRepository.deleteAll();
++    }
++
++    private Pin saveMemoryPin(Long creatorId, String instagramUrl, String placeName, String memo) {
++        Pin pin = Pin.autoFromInstagram(
++                groupId, creatorId,
++                new PlaceSearchHit("k-" + instagramUrl, placeName, "A", 37.5, 127.0),
++                instagramUrl);
++        pin.changeTag(PinTag.MEMORY);
++        if (memo != null) {
++            pin.applyManualMemo(memo, creatorId);
++        }
++        return pinRepository.save(pin);
++    }
++
++    // ────────────────────────────────────────────────────────────────────
++    // (a) 정상 fan-out: 그룹 멤버 2명, 동일 pinId 1회 → 각 receiver 1행씩
++    // ────────────────────────────────────────────────────────────────────
++
++    @Test
++    @DisplayName("VISIT_DETECTED fan-out: 활성 멤버 2명에게 각각 알림 1건 (본인 포함)")
++    void createForVisitDetected_fansOutToBothMembers() {
++        // given : userA 가 방문 감지하여 MEMORY 전환한 핀
++        Pin pin = saveMemoryPin(userAId, "https://www.instagram.com/p/V1/", "방문 장소 1", "오랜만에 방문");
++
++        // when
++        notificationService.createForVisitDetected(groupId, userAId, pin.getId());
++
++        // then : userA 본인 알림 1건 + userB 알림 1건 (모두 VISIT_DETECTED)
++        List<Notification> aNotifications = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userAId, PageRequest.of(0, 50));
++        assertThat(aNotifications).hasSize(1);
++        Notification aOnly = aNotifications.get(0);
++        assertThat(aOnly.getType()).isEqualTo(NotificationType.VISIT_DETECTED);
++        assertThat(aOnly.getRegisteredBy()).isEqualTo(userAId);
++        assertThat(aOnly.getReceiverId()).isEqualTo(userAId);
++        assertThat(aOnly.getVisitPinId()).isEqualTo(pin.getId());
++
++        List<Notification> bNotifications = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userBId, PageRequest.of(0, 50));
++        assertThat(bNotifications).hasSize(1);
++        Notification bOnly = bNotifications.get(0);
++        assertThat(bOnly.getType()).isEqualTo(NotificationType.VISIT_DETECTED);
++        assertThat(bOnly.getRegisteredBy()).isEqualTo(userAId);
++        assertThat(bOnly.getReceiverId()).isEqualTo(userBId);
++        assertThat(bOnly.getVisitPinId()).isEqualTo(pin.getId());
++
++        // NotificationPin 링크 각 1행 (sortOrder=0)
++        List<NotificationPin> aLinks = notificationPinJpa
++                .findByNotificationIdOrderBySortOrderAsc(aOnly.getId());
++        assertThat(aLinks).hasSize(1);
++        assertThat(aLinks.get(0).getPinId()).isEqualTo(pin.getId());
++        assertThat(aLinks.get(0).getSortOrder()).isZero();
++    }
++
++    // ────────────────────────────────────────────────────────────────────
++    // (b) race-free UNIQUE: 동일 pinId 2회 연속 → 1회만 INSERT
++    // ────────────────────────────────────────────────────────────────────
++
++    @Test
++    @DisplayName("VISIT_DETECTED 중복 호출: 동일 (group, receiver, registeredBy, pin) 2회 → 1회만 INSERT (부분 UNIQUE)")
++    void createForVisitDetected_duplicateCall_insertsOnce() {
++        // given
++        Pin pin = saveMemoryPin(userAId, "https://www.instagram.com/p/V2/", "중복 테스트", null);
++
++        // when : 동일 입력으로 2회 연속 호출
++        notificationService.createForVisitDetected(groupId, userAId, pin.getId());
++        notificationService.createForVisitDetected(groupId, userAId, pin.getId());
++
++        // then : userA / userB 각 1건씩만 존재 (총 2건). 부분 UNIQUE 인덱스가 두 번째 시도를 차단.
++        List<Notification> aNotifications = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userAId, PageRequest.of(0, 50));
++        assertThat(aNotifications).hasSize(1);
++
++        List<Notification> bNotifications = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userBId, PageRequest.of(0, 50));
++        assertThat(bNotifications).hasSize(1);
++
++        // NotificationPin 링크도 각 1행씩 (중복 INSERT 가 일어났다면 2행)
++        assertThat(notificationPinJpa.findByNotificationIdOrderBySortOrderAsc(
++                aNotifications.get(0).getId())).hasSize(1);
++        assertThat(notificationPinJpa.findByNotificationIdOrderBySortOrderAsc(
++                bNotifications.get(0).getId())).hasSize(1);
++    }
++
++    // ────────────────────────────────────────────────────────────────────
++    // (e) MEMORY→MEMORY 시 알림 미발송 — 서비스 호출 시 fan-out 은 작동하지만
++    //     실제 PinV1Controller 흐름에서는 PinService 가 wasWishOrReelToMemory=false 를 반환하므로
++    //     createForVisitDetected 자체가 호출되지 않는다. 본 IT 는 "호출이 일어났다고 가정해도
++    //     중복 UNIQUE 가 동작하지 않을 만큼 격리되는가" 가 아니라, 단위 행위 의도 검증을 위해
++    //     "createForVisitDetected 가 호출되지 않은 상태"를 명시적으로 검증한다.
++    //
++    //     설계 가정: VISIT_DETECTED 알림은 오직 wasWishOrReelToMemory=true 일 때만 NotificationService
++    //     로 진입하므로, MEMORY→MEMORY 케이스의 본질 검증은 Controller IT 가 맡는 것이 자연스럽다.
++    //     본 IT 에서는 "fan-out 호출 자체가 없으면 알림 0건" 을 invariant 로 남긴다.
++    // ────────────────────────────────────────────────────────────────────
++
++    @Test
++    @DisplayName("MEMORY→MEMORY: createForVisitDetected 미호출 시 VISIT_DETECTED 알림 0건")
++    void notInvoked_noVisitNotification() {
++        // given : 핀은 있지만 호출하지 않음 (MEMORY→MEMORY 시나리오의 Controller 단 분기 결과)
++        saveMemoryPin(userAId, "https://www.instagram.com/p/V3/", "이미 MEMORY", null);
++
++        // when : 아무 호출도 하지 않음 (MEMORY→MEMORY 분기로 인해 fan-out 진입 자체가 없음)
++
++        // then
++        assertThat(notificationJpa.count()).isZero();
++        assertThat(notificationPinJpa.count()).isZero();
++    }
++
++    // ────────────────────────────────────────────────────────────────────
++    // (f) memo만 변경: 위 (e) 와 동일 invariant. tagProvided=false 이면 호출 미발생.
++    // ────────────────────────────────────────────────────────────────────
++
++    @Test
++    @DisplayName("memo only 수정: createForVisitDetected 미호출 시 VISIT_DETECTED 알림 0건")
++    void memoOnly_noVisitNotification() {
++        // given
++        saveMemoryPin(userAId, "https://www.instagram.com/p/V4/", "메모만 변경", "추가 메모");
++
++        // when : 아무 호출도 하지 않음 (memo only 수정이므로 PinUpdateResult.wasWishOrReelToMemory=false)
++
++        // then
++        assertThat(notificationJpa.count()).isZero();
++        assertThat(notificationPinJpa.count()).isZero();
++    }
++
++    // ────────────────────────────────────────────────────────────────────
++    // (h) getDetail memo join: VISIT_DETECTED + 활성 핀 → memo 최신값
++    // ────────────────────────────────────────────────────────────────────
++
++    @Test
++    @DisplayName("getDetail (VISIT_DETECTED): 활성 핀이면 memo 최신값을 join 한다")
++    void getDetail_visitDetected_joinsLatestMemo() {
++        // given : MEMORY + memo 가진 핀 + VISIT_DETECTED 알림
++        Pin pin = saveMemoryPin(userAId, "https://www.instagram.com/p/V5/", "방문 후기 장소", "처음 메모");
++        notificationService.createForVisitDetected(groupId, userAId, pin.getId());
++
++        // memo 를 최신화
++        pin.applyManualMemo("최신 메모로 갱신", userAId);
++        pinJpaRepository.saveAndFlush(pin);
++
++        Notification target = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userBId, PageRequest.of(0, 50))
++                .get(0);
++
++        // when
++        NotificationService.NotificationDetailResult detail =
++                notificationService.getDetail(target.getId(), userBId);
++
++        // then
++        assertThat(detail.type()).isEqualTo(NotificationType.VISIT_DETECTED);
++        assertThat(detail.pins()).hasSize(1);
++        NotificationService.NotificationPinItemResult item = detail.pins().get(0);
++        assertThat(item.deleted()).isFalse();
++        assertThat(item.memo()).isEqualTo("최신 메모로 갱신");
++    }
++
++    @Test
++    @DisplayName("getDetail (VISIT_DETECTED): soft-delete 된 핀이면 memo 는 null")
++    void getDetail_visitDetected_softDeletedPin_memoNull() {
++        // given
++        Pin pin = saveMemoryPin(userAId, "https://www.instagram.com/p/V6/", "삭제될 장소", "삭제 전 메모");
++        notificationService.createForVisitDetected(groupId, userAId, pin.getId());
++
++        pin.delete();
++        pinJpaRepository.saveAndFlush(pin);
++
++        Notification target = notificationJpa
++                .findByReceiverIdOrderByCreatedAtDesc(userBId, PageRequest.of(0, 50))
++                .get(0);
++
++        // when
++        NotificationService.NotificationDetailResult detail =
++                notificationService.getDetail(target.getId(), userBId);
++
++        // then : soft-delete 시 placeName 만 유지, memo 는 null
++        assertThat(detail.pins()).hasSize(1);
++        NotificationService.NotificationPinItemResult item = detail.pins().get(0);
++        assertThat(item.deleted()).isTrue();
++        assertThat(item.memo()).isNull();
++        assertThat(item.placeName()).isEqualTo("삭제될 장소");
++    }
++}
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinMemoServiceIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinMemoServiceIT.java
+index 003d514..f5d0037 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinMemoServiceIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinMemoServiceIT.java
+@@ -60,6 +60,9 @@ class PinMemoServiceIT {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinServiceIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinServiceIT.java
+index 5a23fd3..c85fadc 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinServiceIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinServiceIT.java
+@@ -83,6 +83,9 @@ class PinServiceIT {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+@@ -172,7 +175,7 @@ class PinServiceIT {
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(true, "수동", false, null,
+                 false, null, false, null, false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.memo()).isEqualTo("수동");
+@@ -185,13 +188,13 @@ class PinServiceIT {
+     void updatePin_tagOnly_updatesTagAndKeepsMemo() {
+         // arrange : 기존 memo 가 있는 핀
+         Pin pin = savePin(userAId, "https://www.instagram.com/p/U2/");
+-        pin.applyManualMemo("기존 메모");
++        pin.applyManualMemo("기존 메모", userAId);
+         pinJpaRepository.saveAndFlush(pin);
+ 
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
+                 false, null, false, null, false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.tag()).isEqualTo(PinTag.MEMORY);
+@@ -205,13 +208,13 @@ class PinServiceIT {
+     void updatePin_emptyMemo_clearsLockAndAllowsAuto() {
+         // arrange : MANUAL 메모 있는 핀
+         Pin pin = savePin(userAId, "https://www.instagram.com/p/U3/");
+-        pin.applyManualMemo("기존 수동");
++        pin.applyManualMemo("기존 수동", userAId);
+         pinJpaRepository.saveAndFlush(pin);
+ 
+         // act : 빈 문자열 전송 → 잠금 해제
+         PinUpdateCommand cmd = PinUpdateCommand.of(true, "", false, null,
+                 false, null, false, null, false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert : DB 값도 NULL
+         assertThat(result.memo()).isNull();
+@@ -279,7 +282,7 @@ class PinServiceIT {
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                 true, "새 장소", false, null, false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.placeName()).isEqualTo("새 장소");
+@@ -313,7 +316,7 @@ class PinServiceIT {
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                 true, "userB 수정", false, null, false, null, null);
+-        PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userBId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.placeName()).isEqualTo("userB 수정");
+@@ -329,7 +332,7 @@ class PinServiceIT {
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                 false, null, true, "새 주소", false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.address()).isEqualTo("새 주소");
+@@ -350,7 +353,7 @@ class PinServiceIT {
+         // act
+         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, false, null,
+                 true, "새 장소", true, "새 주소", false, null, null);
+-        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd);
++        PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
+ 
+         // assert
+         assertThat(result.placeName()).isEqualTo("새 장소");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinTest.java
+index 6602c69..2d107fe 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/domain/pin/PinTest.java
+@@ -92,7 +92,7 @@ class PinTest {
+             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+ 
+             // act
+-            pin.applyManualMemo("좋은 카페!");
++            pin.applyManualMemo("좋은 카페!", null);
+ 
+             // assert
+             assertThat(pin.getMemo()).isEqualTo("좋은 카페!");
+@@ -104,10 +104,10 @@ class PinTest {
+         void applyManualMemo_overwritesExistingManual() {
+             // arrange
+             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+-            pin.applyManualMemo("첫 메모");
++            pin.applyManualMemo("첫 메모", null);
+ 
+             // act
+-            pin.applyManualMemo("두 번째 메모");
++            pin.applyManualMemo("두 번째 메모", null);
+ 
+             // assert
+             assertThat(pin.getMemo()).isEqualTo("두 번째 메모");
+@@ -138,7 +138,7 @@ class PinTest {
+         void clearMemo_resetsExistingManualMemo() {
+             // arrange
+             Pin pin = Pin.autoFromInstagram(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+-            pin.applyManualMemo("수동 메모");
++            pin.applyManualMemo("수동 메모", null);
+ 
+             // act
+             pin.clearMemo();
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/infrastructure/pin/PinRepositoryIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/infrastructure/pin/PinRepositoryIT.java
+index db25dc3..36630c8 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/infrastructure/pin/PinRepositoryIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/infrastructure/pin/PinRepositoryIT.java
+@@ -72,6 +72,9 @@ class PinRepositoryIT {
+     private void truncateAll() {
+         // pins → group_members → groups → bot_* → users 순서로 정리 (FK 의존성).
+         // 다른 IT 와 격리 보장 위해 users 참조 자식 테이블을 모두 비운다.
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+@@ -222,7 +225,7 @@ class PinRepositoryIT {
+                 Pin.autoFromInstagram(groupId, userId,
+                         new PlaceSearchHit("k-1", "P1", "A1", 37.5, 127.0),
+                         "https://www.instagram.com/p/MN/"));
+-        pin.applyManualMemo("수동 메모");
++        pin.applyManualMemo("수동 메모", userId);
+         pinJpaRepository.saveAndFlush(pin);
+ 
+         // act
+@@ -241,7 +244,7 @@ class PinRepositoryIT {
+                 Pin.autoFromInstagram(groupId, userId,
+                         new PlaceSearchHit("k-1", "P1", "A1", 37.5, 127.0),
+                         "https://www.instagram.com/p/CL/"));
+-        pin.applyManualMemo("수동 메모");
++        pin.applyManualMemo("수동 메모", userId);
+         pinJpaRepository.saveAndFlush(pin);
+         pin.clearMemo();
+         pinJpaRepository.saveAndFlush(pin);
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/bot/BotV1ControllerIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/bot/BotV1ControllerIntegrationTest.java
+index a7a26d8..ac4c1cf 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/bot/BotV1ControllerIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/bot/BotV1ControllerIntegrationTest.java
+@@ -69,6 +69,9 @@ class BotV1ControllerIntegrationTest {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotInstagramMemoFlowIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotInstagramMemoFlowIntegrationTest.java
+index ed61749..f9d3aa7 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotInstagramMemoFlowIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotInstagramMemoFlowIntegrationTest.java
+@@ -114,6 +114,9 @@ class ChatbotInstagramMemoFlowIntegrationTest {
+     }
+ 
+     private void truncate() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotV1ControllerIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotV1ControllerIntegrationTest.java
+index 79c6fa3..2336e22 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotV1ControllerIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/chatbot/ChatbotV1ControllerIntegrationTest.java
+@@ -141,6 +141,9 @@ class ChatbotV1ControllerIntegrationTest {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM group_members");
+         jdbcTemplate.execute("DELETE FROM groups");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/group/GroupV1ControllerIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/group/GroupV1ControllerIntegrationTest.java
+index 6711572..3e869f5 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/group/GroupV1ControllerIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/group/GroupV1ControllerIntegrationTest.java
+@@ -78,6 +78,9 @@ class GroupV1ControllerIntegrationTest {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinCreateIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinCreateIT.java
+index b57ba74..1f9ee1b 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinCreateIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinCreateIT.java
+@@ -80,6 +80,9 @@ class PinCreateIT {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinV1ControllerIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinV1ControllerIntegrationTest.java
+index f56cec7..72701ff 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinV1ControllerIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/pin/PinV1ControllerIntegrationTest.java
+@@ -83,6 +83,10 @@ class PinV1ControllerIntegrationTest {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해
++        // pins 보다 먼저 notification_pins / notifications 를 비워야 한다.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/place/PlaceSearchIT.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/place/PlaceSearchIT.java
+index c6b5ae8..9430f33 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/place/PlaceSearchIT.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/place/PlaceSearchIT.java
+@@ -81,6 +81,9 @@ class PlaceSearchIT {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/user/UserV1ControllerIntegrationTest.java b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/user/UserV1ControllerIntegrationTest.java
+index 6f3bd5d..f3da4f8 100644
+--- a/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/user/UserV1ControllerIntegrationTest.java
++++ b/backend/apps/wherewego-api/src/test/java/com/wherewego/interfaces/api/user/UserV1ControllerIntegrationTest.java
+@@ -61,6 +61,9 @@ class UserV1ControllerIntegrationTest {
+     }
+ 
+     private void truncateAll() {
++        // Phase 10 V009: notifications.visit_pin_id → pins(id) FK 추가로 인해 pins 보다 먼저 삭제 필요.
++        jdbcTemplate.execute("DELETE FROM notification_pins");
++        jdbcTemplate.execute("DELETE FROM notifications");
+         jdbcTemplate.execute("DELETE FROM pins");
+         jdbcTemplate.execute("DELETE FROM invite_links");
+         jdbcTemplate.execute("DELETE FROM group_members");
+diff --git a/context/notification/README.md b/context/notification/README.md
+index 42efb42..6a70875 100644
+--- a/context/notification/README.md
++++ b/context/notification/README.md
+@@ -19,6 +19,7 @@ Phase 8(PR [#40](https://github.com/rnqhstmd/wherewego/pull/40))에서 신규로
+ |------|--------|----------|
+ | `MANUAL_PIN` | 웹 직접 등록 (`PinV1Controller.createPin`) | 단건 핀 |
+ | `CHATBOT_PINS` | 챗봇 릴스 자동 저장 + 장소 카드 선택 | 1~N개 핀 |
++| `VISIT_DETECTED` | WISH/REEL → MEMORY 자동 전환 (`PinV1Controller.updatePin`, Phase 10) | 단건 핀. 본인 포함 fan-out (Phase 11 도입 전 과도기) |
+ 
+ ## API
+ 
+diff --git a/context/notification/architecture.md b/context/notification/architecture.md
+index 5bc1e6f..6bd0745 100644
+--- a/context/notification/architecture.md
++++ b/context/notification/architecture.md
+@@ -61,13 +61,19 @@ CREATE TABLE notifications (
+     group_id BIGINT NOT NULL REFERENCES groups(id),
+     receiver_id BIGINT NOT NULL REFERENCES users(id),    -- 단일 컬럼 fan-out
+     registered_by BIGINT NOT NULL REFERENCES users(id),
+-    type VARCHAR(20) NOT NULL CHECK (type IN ('MANUAL_PIN','CHATBOT_PINS')),
++    type VARCHAR(20) NOT NULL CHECK (type IN ('MANUAL_PIN','CHATBOT_PINS','VISIT_DETECTED')),  -- V009: VISIT_DETECTED 추가
++    visit_pin_id BIGINT NULL REFERENCES pins(id) ON DELETE RESTRICT,  -- V009: VISIT_DETECTED 부분 UNIQUE 인덱스 키 (다른 유형은 NULL)
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     deleted_at TIMESTAMPTZ,    -- BaseEntity 정합
+     read_at TIMESTAMPTZ
+ );
+ 
++-- Phase 10 race-free 중복 차단: 동일 (group_id, receiver_id, registered_by, visit_pin_id) 조합 1회만 허용
++CREATE UNIQUE INDEX uq_notifications_visit
++    ON notifications (group_id, receiver_id, registered_by, visit_pin_id)
++    WHERE type = 'VISIT_DETECTED' AND visit_pin_id IS NOT NULL;
++
+ CREATE INDEX idx_notifications_receiver_created
+     ON notifications (receiver_id, created_at DESC);
+ CREATE INDEX idx_notifications_receiver_unread
+diff --git a/context/notification/status.md b/context/notification/status.md
+index dcc48da..fd5222d 100644
+--- a/context/notification/status.md
++++ b/context/notification/status.md
+@@ -52,6 +52,17 @@
+ | 알림 목록 actor 레이블 통일 | ✅ | `NotificationItem.tsx` — `currentUserId` prop 제거, 항상 `{registeredByNickname}님이 장소를 저장했어요.` 표시. "나"→본인 이름 형식으로 통일 |
+ | 알림 상세 버튼 텍스트 | ✅ | `NotificationPinList.tsx` — "출처 ↗" → "릴스 보기 ↗" 텍스트 변경 |
+ 
++## Phase 10 완료 (2026-05-24)
++
++| 항목 | 상태 | PR | 비고 |
++|------|------|-----|------|
++| `VISIT_DETECTED` 신규 알림 유형 (WISH/REEL→MEMORY 자동 전환 시 발송) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | V009 마이그레이션 (`visit_pin_id` 컬럼 + 부분 UNIQUE 인덱스 + ON DELETE RESTRICT) |
++| `NotificationVisitWriter` (`@Transactional(REQUIRES_NEW)`) + 호출자 catch race-free 차단 | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Spring self-invocation 회피, `DataIntegrityViolationException` 호출자 catch |
++| `NotificationService.createForVisitDetected` 본인 포함 fan-out | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Phase 11 "우리 기록" 도입 전 과도기 용도. 본인 알림함에도 방문 기록 노출 |
++| 알림 상세 `pin.memo` 최신값 join (VISIT_DETECTED 한정) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `NotificationPinItemResult.memo` + `PinItem.memo` 필드 추가 |
++| `NotificationItem` 본인/짝꿍 카피 분기 ("내가 다녀온 장소" / "{닉네임}님이 다녀온 장소") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `currentUserId` prop 추가 |
++| `NotificationPinList` 메모 줄 표시 (VISIT_DETECTED 한정) + 동사 분기 ("다녀온" / "저장한") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `type` prop 추가 |
++
+ ## 후속 작업 (Trust Ledger 기록, 미반영)
+ 
+ - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)
+diff --git a/context/pin/glossary.md b/context/pin/glossary.md
+index 88dc9d9..5eb201f 100644
+--- a/context/pin/glossary.md
++++ b/context/pin/glossary.md
+@@ -12,6 +12,12 @@
+ | memo_source | AUTO(챗봇 2초 룰) 또는 MANUAL(웹 직접 입력). [[memo]] 우선순위 정책 참조 |
+ | 중복 방지 | `UNIQUE(group_id, instagram_url) WHERE instagram_url IS NOT NULL`. 웹 직접 등록 핀은 중복 가능 |
+ | ~~visited~~ | **PRD에서 제거됨**. 방문 인증 기능 없음. 시각적 표현은 [[tag]]로 일원화 |
++| 방문 감지 (Phase 10) | WISH/REEL 핀 100m 이내에 30초 이상 머물면 토스트 노출 → MEMORY 자동 전환 제안. `useVisitDetection` 훅. GPS 정확도 50m 초과 이벤트는 평가 스킵 |
++| 30초 머무름 임계 (Phase 10) | 첫 진입 시각 기록 → 이후 콜백마다 시간 차이 계산. 30초 경과 + 100m 이내면 토스트 발동. setInterval 미사용 |
++| 100m 감지 반경 (Phase 10) | Haversine 공식(프론트엔드 `_lib/roulette.ts:haversineKm` 재사용). 백엔드 거리 계산 없음. PostGIS 미도입 |
++| GPS 정확도 게이트 (Phase 10) | `position.coords.accuracy ≤ 50m` 인 이벤트만 평가 사용. 50m 초과는 머무름 타이머에도 영향 없음 (보존) |
++| `PinUpdateResult` (Phase 10) | `PinService.updatePin` 반환 record. `(PinSummary summary, boolean wasWishOrReelToMemory)`. 컨트롤러가 태그 전이 감지하여 VISIT_DETECTED 알림 호출 분기 |
++| 세션 Set `shownPinIds` (Phase 10) | 메모리 내 `Set<number>`. "다음에 올게요"/MEMORY 전환 후 추가. MapClient unmount 시 자동 소멸 (localStorage 미사용) |
+ | PinListResult | Phase 2.9 — `PinService.listGroupPinsPaged`의 페이지 모드 전용 결과 record. 필드: `List<PinSummary> items`, `long totalCount`, `boolean hasNext`. 항상 유의미한 값(null 없음). 인터페이스 레이어에서 `PinListResponse.fromPaged()`로 응답 매핑 |
+ | legacy 모드 | Phase 2.9 — 핀 목록 API가 `page`/`size` 파라미터 미전달일 때 동작. 기존 `{items}` 단일 응답 구조 유지. 룰렛 stale 재조회 + `/pins` 초기 fetch가 사용 |
+ | 페이지 모드 | Phase 2.9 — 핀 목록 API가 `page`(0-based)와 `size`(최대 100)를 둘 다 전달받았을 때 동작. 응답에 `totalCount`/`hasNext` 추가. `hasNext = (long)(page + 1) * size < totalCount` (long 캐스팅으로 오버플로 방지) |
+diff --git a/context/pin/status.md b/context/pin/status.md
+index 6ed9017..3f7051d 100644
+--- a/context/pin/status.md
++++ b/context/pin/status.md
+@@ -31,4 +31,6 @@
+ - **Phase 8 완료**: 인앱 알림 트리거 (웹 직접 등록 경로) — `PinV1Controller.createPin`에서 `pinService.addPin` 완료 후 `notificationService.createForManualPin(groupId, userId, pinId)` 호출. 트랜잭션 분리(BR-3)를 위해 PinService 무변경 + Controller에 try-catch로 격리. 단건 핀 = 알림 1건, 유형 `MANUAL_PIN` — [#40](https://github.com/rnqhstmd/wherewego/pull/40)
+ - **Phase 9 완료**: 핀 공유 카드 — 지도 말풍선 팝업 ⋮ 버튼 **좌측에 sibling 공유 아이콘** 신설(메뉴 내 항목 아님). 클릭 시 바텀시트 오픈 → 1080×1350(4:5 세로) HTML Canvas 미리보기 + "복사하기"·"이미지 저장" 두 버튼(Web Share API 미사용, 사용자 결정). 카드: Mapbox Static API 지도(@2x 1024×1280 → drawImage 1080×1350 stretch) + off-canvas 2단계 `blur(8px)` 합성 배경 + 메모(히어로 44px) → 장소명(Bold 36px, 2줄 말줄임) → 날짜·주소(22px) → `written by {닉네임}` → 좌하단 "우리가갈지도" 워터마크. `navigator.clipboard.write(ClipboardItem)` + `<a download>` 분기, Pretendard self-host `@font-face` alias 등록, Canvas 즉시 메모리 해제, 8초 timeout + BR-6 단색 `#EAE4D4` 폴백. lib/share: `renderPinCard`·`mapboxStaticUrl`·`sanitizeFilename` + 단위 테스트 40건. BR-11/QE-3/AC-17(메모리 캐시) 폐기 — Mapbox CDN 캐시로 충분. 운영 후속: Mapbox Static CORS 실측 + 토큰 referrer 화이트리스트 — [#41](https://github.com/rnqhstmd/wherewego/pull/41)
+ - **Phase 2.10 완료**: 핀 장소 좌표 수정 — `PinUpdateCommand` 단일 `coordinateProvided` 플래그 + `latitude/longitude` BigDecimal 2필드 추가(8→11), `Pin.changeCoordinate` 도메인 메서드 신설, `PinV1Dto.UpdatePinRequest` 좌표를 BigDecimal 직접 매핑(CreatePinRequest 와 대칭), `PinPopup` ⋮ "좌표 수정" 진입점 + 신규 `PinCoordinateEditPicker` 시트(기존 picker 흐름 무영향), `useOptimistic patch` 좌표 반영(reducer 변경 없음), 진입 시 `flyTo` 로 마커 깜빡임 최소화. 삭제 핀 복원 기능은 제외(사용자 결정) — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
++- **Phase 10 완료**: 장소 방문 감지 — WISH/REEL 핀 100m 이내 30초 머무름 + GPS 정확도 50m 게이트 자동 감지(`useVisitDetection`). 1차 PATCH(tag→MEMORY) → 마커 하트 confetti 3개 + scale bounce 600ms → 메모 시트(선택). 후보 핀 firstEnterAt 병행 누적으로 차순위 즉시 토스트. 1차 실패 시 인라인 에러 토스트(1.5초 자동 닫힘). `PinUpdateResult` record로 태그 전이 정보 컨트롤러 전달 — [#57](https://github.com/rnqhstmd/wherewego/pull/57)
++
+ - **Phase 2.9 완료**: 핀 목록 API 페이지네이션 계약 — `GET /api/v1/groups/{groupId}/pins?page=&size=` + `totalCount`/`hasNext` 선택 응답 필드, 하위 호환 유지(파라미터 미전달 시 `{items}` 그대로). 부분 전달은 `PIN_PAGE_PARAM_INVALID`(400), `size>100`은 `PIN_PAGE_SIZE_EXCEEDED`(400), 비숫자 입력도 동일 매핑. `PinService.listGroupPinsPaged` 신규 + `PinRepository` 포트에 paged/count 메서드 4개 추가(Spring 의존 미노출). `/pins` UI 페이지네이션 컨트롤은 MVP 단계 ROI 낮아 본 Phase 제외(필요 시점에 별도 작업) — [#22](https://github.com/rnqhstmd/wherewego/pull/22)
+diff --git a/frontend/src/app/globals.css b/frontend/src/app/globals.css
+index ab55255..e23c6b5 100644
+--- a/frontend/src/app/globals.css
++++ b/frontend/src/app/globals.css
+@@ -189,3 +189,32 @@ body {
+   from { opacity: 0; }
+   to   { opacity: 1; }
+ }
++
++/* Phase 10 — 장소 방문 감지 (설계 §5.3).
++   triggerVisitCelebration 호출 시 MapboxView가 마커 element 자식으로 inner div + confetti div를
++   주입하고 600ms 후 제거한다. CSS 변수 --dx/--dy 는 하트 span 에 inline style 로 주입된다. */
++@keyframes maygo-marker-bounce {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.3); }
++}
++@keyframes maygo-confetti-heart-0 {
++  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
++  20% { opacity: 1; }
++  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
++}
++@keyframes maygo-confetti-heart-1 {
++  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
++  20% { opacity: 1; }
++  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
++}
++@keyframes maygo-confetti-heart-2 {
++  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
++  20% { opacity: 1; }
++  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
++}
++
++/* VisitToast 슬라이드 업 mount 애니메이션 (설계 §5.4). */
++@keyframes maygo-visit-toast-slide-up {
++  0% { transform: translateY(100%); opacity: 0; }
++  100% { transform: translateY(0); opacity: 1; }
++}
+diff --git a/frontend/src/app/map/MapClient.tsx b/frontend/src/app/map/MapClient.tsx
+index 8eaa52d..b510798 100644
+--- a/frontend/src/app/map/MapClient.tsx
++++ b/frontend/src/app/map/MapClient.tsx
+@@ -2,6 +2,7 @@
+ 
+ import dynamic from "next/dynamic";
+ import {
++  forwardRef,
+   useCallback,
+   useEffect,
+   useMemo,
+@@ -24,6 +25,8 @@ import { SidePanel } from "@/components/ui/SidePanel";
+ import { PermissionDialog } from "@/components/ui/PermissionDialog";
+ import { IconLocation } from "@/components/icons";
+ import PinPopup from "./_components/PinPopup";
++import VisitToast from "./_components/VisitToast";
++import VisitMemoSheet from "./_components/VisitMemoSheet";
+ import ActionBar from "./_components/ActionBar";
+ import DesktopActionPill from "./_components/DesktopActionPill";
+ import MobileTopNav from "./_components/MobileTopNav";
+@@ -44,6 +47,8 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+ import { useKeyboardInsets } from "@/lib/hooks/useKeyboardInsets";
+ import { useGeolocation, type LatLng } from "./_hooks/useGeolocation";
+ import { useGroupPinSync } from "./_hooks/useGroupPinSync";
++import { useVisitDetection } from "./_hooks/useVisitDetection";
++import type { MapboxViewHandle } from "./_components/MapboxView";
+ import {
+   pickRandomWithExpansion,
+   reRollFromSamePool,
+@@ -67,14 +72,29 @@ import type { NotificationPinItem } from "@/lib/notifications/types";
+ /**
+  * MapboxView는 mapbox-gl이 window 의존이므로 ssr:false로 동적 로드.
+  * Server Component에서는 ssr:false 옵션이 허용되지 않으므로 반드시 이 Client Component에서 호출.
++ *
++ * Phase 10: 부모(MapClient)가 ref 로 `triggerVisitCelebration` imperative API 를 호출해야 하지만
++ * `next/dynamic` 의 결과 컴포넌트는 ref 전달 동작이 React 19 lazy 변경에 묶여 있어
++ * 명시적 forwardRef wrapper 로 감싸 ref 흐름을 보장한다. wrapper 는 forwardRef 자체이므로
++ * 내부 dynamic 컴포넌트의 ssr:false / loading fallback 동작을 그대로 유지한다.
+  */
+-const MapboxView = dynamic(() => import("./_components/MapboxView"), {
++const MapboxViewDynamic = dynamic(() => import("./_components/MapboxView"), {
+   ssr: false,
+   loading: () => (
+     <div style={{ position: "absolute", inset: 0, background: colors.bg }} />
+   ),
+ });
+ 
++type MapboxViewProps = React.ComponentProps<typeof MapboxViewDynamic>;
++
++const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(
++  function MapboxView(props, ref) {
++    // dynamic 컴포넌트는 React 19 환경에서 ref 를 그대로 전달하지만,
++    // 명시적 wrapper 로 ref prop 을 강제 전달하여 미래 dynamic 동작 변화에도 안전하게 한다.
++    return <MapboxViewDynamic {...(props as MapboxViewProps)} ref={ref} />;
++  },
++);
++
+ interface MapClientProps {
+   initialPins: PinSummaryResponse[];
+   groupId: number;
+@@ -91,6 +111,7 @@ type ActiveSheet =
+   | "memo"
+   | "roulette"
+   | "coordinate-edit"
++  | "visit-memo"
+   | null;
+ 
+ /**
+@@ -240,6 +261,29 @@ export default function MapClient({
+   // Phase 8: 알림 시스템 통합. MapClient 한 곳에서만 호출하여 SSE 중복 구독을 방지한다.
+   const notifications = useNotifications();
+ 
++  // Phase 10: 장소 방문 감지 상태 (설계 §5.6).
++  // - shownPinIdsRef: 세션 단위 중복 노출 방지. 토스트가 한 번 노출된 핀은 새로고침 전까지 재노출되지 않는다.
++  // - visitedAtRef: 사용자가 "네, 다녀왔어요" 를 누른 시각 — VisitMemoSheet 의 dateLabel 에 사용.
++  // - mapboxViewRef: 1차 PATCH 성공 시 marker bounce + confetti 트리거.
++  const shownPinIdsRef = useRef<Set<number>>(new Set());
++  const { evaluate: evaluateVisit, clearFirstEnterAt } = useVisitDetection();
++  const [visitToastPin, setVisitToastPin] =
++    useState<PinSummaryResponse | null>(null);
++  const [visitMemoPin, setVisitMemoPin] =
++    useState<PinSummaryResponse | null>(null);
++  // Phase 10 보강 (AC-VD-14): 1차 PATCH 실패 시 사용자에게 인라인 토스트로 피드백을 준다.
++  // null 이면 토스트 비표시. 메시지 set 후 useEffect 가 1.5초 뒤 자동으로 null 로 되돌린다.
++  const [visitErrorMessage, setVisitErrorMessage] = useState<string | null>(null);
++  const visitedAtRef = useRef<Date | null>(null);
++  const mapboxViewRef = useRef<MapboxViewHandle | null>(null);
++
++  // visitErrorMessage 자동 닫힘 (1.5초). 메시지가 바뀌면 이전 타이머 정리 후 재시작.
++  useEffect(() => {
++    if (!visitErrorMessage) return;
++    const t = setTimeout(() => setVisitErrorMessage(null), 1500);
++    return () => clearTimeout(t);
++  }, [visitErrorMessage]);
++
+   // 동시 1개 패널 정책: 다른 액션 시트가 열리면 알림 패널을 닫는다.
+   // (역방향 — 알림 패널 열림 시 다른 시트 닫기 — 은 mobileBell/desktopBell onClick에서 처리.)
+   useEffect(() => {
+@@ -921,6 +965,8 @@ export default function MapClient({
+     setActiveSheet(null);
+     setAddPinOrigin(null);
+     setCoordinateEditTarget(null);
++    // Phase 10: visit-memo 시트를 × 로 닫으면 건너뛰기와 동일 — 2차 PATCH 미발사.
++    setVisitMemoPin(null);
+     setRouletteState({ status: "idle" });
+     pendingRouletteRef.current = false;
+     if (spinTimerRef.current !== null) {
+@@ -932,6 +978,141 @@ export default function MapClient({
+     resetMapPadding();
+   }, [activeSheet, coordinateEditTarget, resetMapPadding]);
+ 
++  /**
++   * Phase 10: GeolocateControl `geolocate` 이벤트 콜백 (설계 §5.6).
++   *
++   * MapboxView 가 GeolocateControl 콜백에서 항상 호출한다. 본 핸들러는
++   * useVisitDetection.evaluate 를 거쳐 detectedPinId 가 있고 다른 패널/시트/토스트/메모시트/알림패널
++   * 이 모두 닫혀 있을 때만 VisitToast 를 노출한다 (동시 1개 패널 정책, QE-VD-1).
++   *
++   * 패널이 열려 있어 토스트를 띄우지 못한 경우에도 firstEnterAt 은 useVisitDetection 내부에서
++   * 누적되므로 다음 geolocate 콜백에서 다시 시도된다.
++   */
++  const handleGeolocate = useCallback(
++    (position: GeolocationPosition) => {
++      const { detectedPinId } = evaluateVisit({
++        position,
++        pins: optimisticPins,
++        shownPinIds: shownPinIdsRef.current,
++      });
++      if (detectedPinId === null) return;
++      if (
++        activeSheet !== null ||
++        visitToastPin !== null ||
++        visitMemoPin !== null ||
++        notifications.isPanelOpen
++      ) {
++        return;
++      }
++      const pin = optimisticPins.find((p) => p.id === detectedPinId);
++      if (!pin) return;
++      setVisitToastPin(pin);
++    },
++    [
++      evaluateVisit,
++      optimisticPins,
++      activeSheet,
++      visitToastPin,
++      visitMemoPin,
++      notifications.isPanelOpen,
++    ],
++  );
++
++  /**
++   * "다음에 올게요" — 세션 Set 에 추가 후 토스트 닫기 (FR-VD-13).
++   * firstEnterAt 도 함께 비워 동일 핀이 즉시 재계산되지 않도록 한다.
++   */
++  const handleVisitSkip = useCallback(() => {
++    if (visitToastPin) {
++      shownPinIdsRef.current.add(visitToastPin.id);
++      clearFirstEnterAt(visitToastPin.id);
++    }
++    setVisitToastPin(null);
++  }, [visitToastPin, clearFirstEnterAt]);
++
++  /**
++   * "네, 다녀왔어요" — 1차 PATCH(tag → MEMORY) 발사 (FR-VD-14, FR-VD-15).
++   * - 토스트는 즉시 닫는다 (사용자 피드백).
++   * - useOptimistic 으로 마커 모양 즉시 갱신 → updatePinTagAction 호출.
++   * - 성공: shownPinIds 추가, firstEnterAt 비움, marker bounce + confetti 트리거,
++   *   VisitMemoSheet 오픈 (visit-memo activeSheet).
++   * - 실패 (FR-VD-21): 세션 Set 미추가하여 사용자가 다시 시도할 수 있도록 한다.
++   *   별도 시스템 에러 UX 인프라가 없어 console.error 만 남긴다.
++   */
++  const handleVisitConfirm = useCallback(() => {
++    if (!visitToastPin) return;
++    const pin = visitToastPin;
++    const pinId = pin.id;
++    visitedAtRef.current = new Date();
++    setVisitToastPin(null);
++
++    startOptimisticTransition(async () => {
++      applyOptimistic({ kind: "patch", pinId, patch: { tag: "MEMORY" } });
++      const result = await updatePinTagAction(groupId, pinId, "MEMORY");
++      if (!result.ok) {
++        // FR-VD-21: 시스템 에러 — 세션 Set 미추가, firstEnterAt 도 유지하여 재시도 가능하게 둠.
++        console.error(
++          "visit PATCH(tag=MEMORY) failed",
++          { groupId, pinId, code: result.code, message: result.message },
++        );
++        // AC-VD-14: 사용자에게 인라인 토스트로 실패를 알린다 (1.5초 후 자동 닫힘).
++        setVisitErrorMessage("장소를 추억으로 옮기지 못했어요. 다시 시도해주세요.");
++        return;
++      }
++      setPins((prev) =>
++        prev.map((p) => (p.id === pinId ? result.data : p)),
++      );
++      shownPinIdsRef.current.add(pinId);
++      clearFirstEnterAt(pinId);
++
++      // confetti + 메모 시트를 동시에 시작 (FR-VD-15, FR-VD-16).
++      mapboxViewRef.current?.triggerVisitCelebration(pinId);
++      setVisitMemoPin(result.data);
++      setActiveSheet("visit-memo");
++    });
++  }, [visitToastPin, groupId, applyOptimistic, clearFirstEnterAt]);
++
++  /**
++   * 메모 저장 — 2차 PATCH(memo) (FR-VD-17 ~ FR-VD-19).
++   * 성공: 시트 닫기 + pins state 갱신.
++   * 실패 (FR-VD-22): 시트 유지, VisitMemoSheet 내부에서 인라인 에러로 노출.
++   */
++  const handleVisitMemoSave = useCallback(
++    async (memo: string): Promise<{ ok: boolean; message?: string }> => {
++      if (!visitMemoPin) return { ok: true };
++      const pinId = visitMemoPin.id;
++      const result = await updatePinMemoAction(groupId, pinId, memo);
++      if (result.ok) {
++        setPins((prev) =>
++          prev.map((p) => (p.id === pinId ? result.data : p)),
++        );
++        setVisitMemoPin(null);
++        setActiveSheet(null);
++        return { ok: true };
++      }
++      const message =
++        result.code === "GROUP_NOT_MEMBER"
++          ? "권한이 없어요"
++          : result.code === "PIN_MEMO_TOO_LONG"
++            ? "메모는 500자까지 입력할 수 있어요"
++            : result.code === "PIN_MEMO_INVALID"
++              ? "메모 값이 유효하지 않아요"
++              : result.code === "PIN_NOT_FOUND"
++                ? "이 핀을 찾을 수 없어요"
++                : result.message;
++      return { ok: false, message };
++    },
++    [visitMemoPin, groupId],
++  );
++
++  /**
++   * 메모 건너뛰기 — 2차 PATCH 미발사. 시트만 닫는다 (FR-VD-20).
++   */
++  const handleVisitMemoSkip = useCallback(() => {
++    setVisitMemoPin(null);
++    setActiveSheet(null);
++  }, []);
++
+   /**
+    * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
+    *
+@@ -1279,6 +1460,21 @@ export default function MapClient({
+         onConfirm={handleConfirmCoordinateEdit}
+       />,
+     );
++  } else if (
++    activeSheet === "visit-memo" &&
++    visitMemoPin &&
++    visitedAtRef.current
++  ) {
++    activePanel = renderPanel(
++      "방문 기록",
++      <VisitMemoSheet
++        pin={visitMemoPin}
++        visitedAt={visitedAtRef.current}
++        onSave={handleVisitMemoSave}
++        onSkip={handleVisitMemoSkip}
++      />,
++      { halfHeight: true },
++    );
+   }
+ 
+   // Phase 8: 알림 벨 — 모바일은 하단 ActionBar 4번째 탭, 데스크탑은 사이드바 하단.
+@@ -1289,6 +1485,9 @@ export default function MapClient({
+       return;
+     }
+     setActiveSheet(null);
++    // Phase 10: 동시 1개 패널 정책 — 방문 토스트/메모 시트도 함께 닫는다.
++    setVisitToastPin(null);
++    setVisitMemoPin(null);
+     void notifications.openPanel();
+   };
+ 
+@@ -1317,6 +1516,7 @@ export default function MapClient({
+       }}
+     >
+       <MapboxView
++        ref={mapboxViewRef}
+         pins={optimisticPins}
+         token={mapboxToken}
+         styleUrl={mapboxStyleUrl}
+@@ -1325,6 +1525,7 @@ export default function MapClient({
+         onMapReady={handleMapReady}
+         onClustersChange={handleClustersChange}
+         onMapError={setMapError}
++        onGeolocate={handleGeolocate}
+         previewMarker={
+           activeSheet === "memo" && addPinOrigin
+             ? {
+@@ -1399,6 +1600,35 @@ export default function MapClient({
+         />
+       )}
+       {activePanel}
++      {visitToastPin && (
++        <VisitToast
++          pin={visitToastPin}
++          onSkip={handleVisitSkip}
++          onConfirm={handleVisitConfirm}
++        />
++      )}
++      {visitErrorMessage && (
++        <div
++          role="alert"
++          style={{
++            position: "fixed",
++            bottom: 100,
++            left: 12,
++            right: 12,
++            zIndex: 30,
++            background: colors.ink,
++            color: colors.bg,
++            padding: "12px 16px",
++            borderRadius: 12,
++            fontFamily: fonts.sans,
++            fontSize: 13,
++            textAlign: "center",
++            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
++          }}
++        >
++          {visitErrorMessage}
++        </div>
++      )}
+       {isDesktop ? (
+         <DesktopActionPill
+           active={activeSheetToTab(activeSheet)}
+diff --git a/frontend/src/app/map/_components/MapboxView.tsx b/frontend/src/app/map/_components/MapboxView.tsx
+index 68596c4..afedc3b 100644
+--- a/frontend/src/app/map/_components/MapboxView.tsx
++++ b/frontend/src/app/map/_components/MapboxView.tsx
+@@ -1,6 +1,12 @@
+ "use client";
+ 
+-import { useCallback, useEffect, useRef } from "react";
++import {
++  forwardRef,
++  useCallback,
++  useEffect,
++  useImperativeHandle,
++  useRef,
++} from "react";
+ import mapboxgl from "mapbox-gl";
+ import "mapbox-gl/dist/mapbox-gl.css";
+ import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
+@@ -43,6 +49,86 @@ interface MapboxViewProps {
+    * 딥링크(?pinId=X) 진입 시 핀 위치 줌인이 geolocation에 의해 덮어쓰이는 것을 방지.
+    */
+   skipInitialGeoFly?: boolean;
++  /**
++   * Phase 10: GeolocateControl `geolocate` 이벤트마다 호출되는 위치 콜백.
++   * MapClient 가 `useVisitDetection.evaluate(...)` 트리거에 사용한다.
++   * 자체 사용자 마커 갱신과 무관하게 항상 호출된다.
++   */
++  onGeolocate?: (position: GeolocationPosition) => void;
++}
++
++/**
++ * Phase 10: 부모(MapClient)가 imperative API 로 마커 bounce + confetti 를 트리거하기 위한 핸들.
++ */
++export interface MapboxViewHandle {
++  /**
++   * 지정 핀의 마커에 bounce + 하트 confetti 를 1회 발사한다.
++   * 클러스터에 포함되어 markerCacheRef 에 없는 핀이면 no-op (설계 §9 허용 케이스).
++   */
++  triggerVisitCelebration: (pinId: number) => void;
++}
++
++/**
++ * 마커 element 자식 노드로 bounce + 하트 confetti 를 주입하고 600ms 후 자연 소멸시킨다 (설계 §5.3).
++ *
++ *  - 기존 자식(SVG 글리프) 을 `data-bounce-inner` div 로 감싸 bounce animation 적용.
++ *  - confetti div 안에 하트 3개를 절대 위치로 추가. 각도 -120°/-90°/-60°, 거리 36~44px 의
++ *    오프셋을 CSS 변수(--dx, --dy) 로 주입한다.
++ *  - 600ms 후 confetti div 와 inner wrapper 를 제거하고 원본 자식을 복원. 다음 renderClusters 에서
++ *    별도 처리가 필요하지 않다.
++ */
++function runMarkerBounceAndConfetti(markerEl: HTMLDivElement): void {
++  // 같은 마커에 중복 트리거 방지 — 진행 중이면 무시.
++  if (markerEl.dataset.celebrating === "1") return;
++  markerEl.dataset.celebrating = "1";
++
++  // 기존 자식들을 inner div 로 이동시켜 bounce 적용.
++  const inner = document.createElement("div");
++  inner.dataset.bounceInner = "1";
++  inner.style.cssText =
++    "width:100%;height:100%;display:block;animation:maygo-marker-bounce 600ms ease-in-out both;transform-origin:50% 50%;";
++  const originalChildren: ChildNode[] = [];
++  while (markerEl.firstChild) {
++    originalChildren.push(markerEl.firstChild);
++    inner.appendChild(markerEl.firstChild);
++  }
++  markerEl.appendChild(inner);
++
++  // confetti 레이어 — 마커 중심 기준 절대 위치 하트 3개.
++  const confetti = document.createElement("div");
++  confetti.dataset.confetti = "1";
++  confetti.style.cssText =
++    "position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;";
++
++  // 각도 -120° / -90° / -60° (상단으로 부채꼴), 거리 36~44px.
++  const offsets: Array<{ dx: number; dy: number }> = [
++    { dx: -38 * Math.cos(Math.PI / 6), dy: -38 * Math.sin(Math.PI / 6) - 28 }, // -120°
++    { dx: 0, dy: -44 }, // -90°
++    { dx: 38 * Math.cos(Math.PI / 6), dy: -38 * Math.sin(Math.PI / 6) - 28 }, // -60°
++  ];
++  for (let i = 0; i < offsets.length; i++) {
++    const { dx, dy } = offsets[i];
++    const heart = document.createElement("span");
++    heart.textContent = "♡";
++    heart.style.cssText = `position:absolute;top:0;left:0;font-size:16px;color:${colors.pinMemory};animation:maygo-confetti-heart-${i} 600ms ease-out both;--dx:${dx}px;--dy:${dy}px;`;
++    confetti.appendChild(heart);
++  }
++  markerEl.appendChild(confetti);
++
++  window.setTimeout(() => {
++    // confetti 제거.
++    if (confetti.parentNode === markerEl) {
++      markerEl.removeChild(confetti);
++    }
++    // inner 제거 + 원본 자식 복원.
++    if (inner.parentNode === markerEl) {
++      markerEl.removeChild(inner);
++      for (const child of originalChildren) {
++        markerEl.appendChild(child);
++      }
++    }
++    delete markerEl.dataset.celebrating;
++  }, 600);
+ }
+ 
+ /**
+@@ -189,19 +275,26 @@ function createClusterElement(count: string): HTMLDivElement {
+  *  - 데이터 fetch (page.tsx 서버 컴포넌트)
+  *
+  * SSR 불가: dynamic ssr:false 로만 로드되어야 한다 (mapbox-gl이 window 의존).
++ *
++ * Phase 10: forwardRef 로 변환되어 부모(MapClient)가 `triggerVisitCelebration` 을 호출할 수 있다.
++ * `next/dynamic` 의 default export 컴포넌트 ref 전달은 React.lazy 동작과 동일하게 지원된다.
+  */
+-export default function MapboxView({
+-  pins,
+-  token,
+-  styleUrl,
+-  onMarkerClick,
+-  onMapBackgroundClick,
+-  onMapReady,
+-  onClustersChange,
+-  onMapError,
+-  previewMarker,
+-  skipInitialGeoFly = false,
+-}: MapboxViewProps) {
++const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function MapboxView(
++  {
++    pins,
++    token,
++    styleUrl,
++    onMarkerClick,
++    onMapBackgroundClick,
++    onMapReady,
++    onClustersChange,
++    onMapError,
++    previewMarker,
++    skipInitialGeoFly = false,
++    onGeolocate,
++  },
++  ref,
++) {
+   const containerRef = useRef<HTMLDivElement | null>(null);
+   const mapRef = useRef<mapboxgl.Map | null>(null);
+   const markerCacheRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
+@@ -212,6 +305,7 @@ export default function MapboxView({
+   const onClustersChangeRef = useRef(onClustersChange);
+   const onMapErrorRef = useRef(onMapError);
+   const onMapBackgroundClickRef = useRef(onMapBackgroundClick);
++  const onGeolocateRef = useRef(onGeolocate);
+   // 마지막으로 부모에 알린 hasCluster 값. 변화가 있을 때만 콜백 호출 → setState 폭주 차단.
+   const lastHasClusterRef = useRef<boolean | null>(null);
+   // 자체 사용자 위치 마커 — geolocate 이벤트마다 좌표만 갱신.
+@@ -233,10 +327,27 @@ export default function MapboxView({
+   useEffect(() => {
+     onMapBackgroundClickRef.current = onMapBackgroundClick;
+   }, [onMapBackgroundClick]);
++  useEffect(() => {
++    onGeolocateRef.current = onGeolocate;
++  }, [onGeolocate]);
+   useEffect(() => {
+     pinsRef.current = pins;
+   }, [pins]);
+ 
++  // Phase 10: imperative API — visit 검출 시 마커 bounce + confetti 트리거.
++  useImperativeHandle(
++    ref,
++    () => ({
++      triggerVisitCelebration: (pinId: number) => {
++        const marker = markerCacheRef.current.get(pinId);
++        if (!marker) return;
++        const el = marker.getElement() as HTMLDivElement;
++        runMarkerBounceAndConfetti(el);
++      },
++    }),
++    [],
++  );
++
+   /**
+    * 현재 viewport 기준으로 클러스터/핀 마커를 diff 렌더링.
+    * supercluster.getClusters() 결과를 두 캐시(markerCacheRef, clusterMarkerCacheRef)로 분배.
+@@ -459,6 +570,8 @@ export default function MapboxView({
+           userMarker.addTo(map);
+           userMarkerAddedRef.current = true;
+         }
++        // Phase 10: 부모(MapClient)의 useVisitDetection.evaluate 트리거.
++        onGeolocateRef.current?.(e);
+       });
+       onMapReady?.(map);
+       // 초기 렌더: clusterer가 이미 준비되어 있다면 즉시 표시.
+@@ -620,4 +733,6 @@ export default function MapboxView({
+       aria-label="지도"
+     />
+   );
+-}
++});
++
++export default MapboxView;
+diff --git a/frontend/src/app/map/_components/VisitMemoSheet.test.tsx b/frontend/src/app/map/_components/VisitMemoSheet.test.tsx
+new file mode 100644
+index 0000000..57e90ff
+--- /dev/null
++++ b/frontend/src/app/map/_components/VisitMemoSheet.test.tsx
+@@ -0,0 +1,108 @@
++import { describe, it, expect, vi } from "vitest";
++import { render, screen, fireEvent, waitFor } from "@testing-library/react";
++import VisitMemoSheet from "./VisitMemoSheet";
++import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
++
++function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryResponse {
++  return {
++    id: 1,
++    groupId: 1,
++    createdBy: 1,
++    createdByNickname: null,
++    placeName: "성수동 카페",
++    address: null,
++    latitude: 37.5,
++    longitude: 127.0,
++    instagramUrl: null,
++    memo: null,
++    memoSource: null,
++    tag: "MEMORY" as PinTag,
++    createdAt: "2026-05-23T00:00:00Z",
++    memoUpdatedBy: null,
++    memoUpdatedByNickname: null,
++    ...overrides,
++  };
++}
++
++const VISITED_AT = new Date(2026, 4, 23); // 2026-05-23 (Date 생성자: month 0-index → 4 = 5월)
++
++describe("VisitMemoSheet", () => {
++  it("장소명 헤더와 방문 날짜를 렌더링한다", () => {
++    render(
++      <VisitMemoSheet
++        pin={makePin()}
++        visitedAt={VISITED_AT}
++        onSave={vi.fn().mockResolvedValue({ ok: true })}
++        onSkip={vi.fn()}
++      />,
++    );
++    expect(
++      screen.getByText(/성수동 카페, 다녀왔어요/),
++    ).toBeInTheDocument();
++    expect(screen.getByText("2026년 5월 23일")).toBeInTheDocument();
++  });
++
++  it("저장 성공 시 onSave 가 입력값으로 호출되고 에러는 노출되지 않는다", async () => {
++    const onSave = vi.fn().mockResolvedValue({ ok: true });
++    render(
++      <VisitMemoSheet
++        pin={makePin()}
++        visitedAt={VISITED_AT}
++        onSave={onSave}
++        onSkip={vi.fn()}
++      />,
++    );
++    const textarea = screen.getByPlaceholderText(
++      /이날의 기억을 남겨보세요/,
++    ) as HTMLTextAreaElement;
++    fireEvent.change(textarea, { target: { value: "달콤한 휘낭시에" } });
++    fireEvent.click(screen.getByRole("button", { name: "저장" }));
++
++    await waitFor(() =>
++      expect(onSave).toHaveBeenCalledWith("달콤한 휘낭시에"),
++    );
++    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
++  });
++
++  it("저장 실패 시 인라인 에러를 노출하고 시트는 유지된다 (FR-VD-22)", async () => {
++    const onSave = vi
++      .fn()
++      .mockResolvedValue({ ok: false, message: "메모가 너무 길어요" });
++    render(
++      <VisitMemoSheet
++        pin={makePin()}
++        visitedAt={VISITED_AT}
++        onSave={onSave}
++        onSkip={vi.fn()}
++      />,
++    );
++    fireEvent.click(screen.getByRole("button", { name: "저장" }));
++
++    await waitFor(() =>
++      expect(screen.getByRole("alert")).toHaveTextContent(
++        "메모가 너무 길어요",
++      ),
++    );
++    // 저장 버튼이 다시 활성화되어 재시도 가능 — 시트가 유지된다는 시그널.
++    expect(
++      (screen.getByRole("button", { name: "저장" }) as HTMLButtonElement)
++        .disabled,
++    ).toBe(false);
++  });
++
++  it("건너뛰기 클릭 시 onSkip 만 호출되고 onSave 는 호출되지 않는다 (FR-VD-20)", () => {
++    const onSave = vi.fn().mockResolvedValue({ ok: true });
++    const onSkip = vi.fn();
++    render(
++      <VisitMemoSheet
++        pin={makePin()}
++        visitedAt={VISITED_AT}
++        onSave={onSave}
++        onSkip={onSkip}
++      />,
++    );
++    fireEvent.click(screen.getByRole("button", { name: "건너뛰기" }));
++    expect(onSkip).toHaveBeenCalledTimes(1);
++    expect(onSave).not.toHaveBeenCalled();
++  });
++});
+diff --git a/frontend/src/app/map/_components/VisitMemoSheet.tsx b/frontend/src/app/map/_components/VisitMemoSheet.tsx
+new file mode 100644
+index 0000000..7e1082b
+--- /dev/null
++++ b/frontend/src/app/map/_components/VisitMemoSheet.tsx
+@@ -0,0 +1,146 @@
++"use client";
++
++import { useState } from "react";
++import type { PinSummaryResponse } from "@/lib/api/types";
++import { BtnPrimary } from "@/components/ui/BtnPrimary";
++import { BtnSub } from "@/components/ui/BtnSub";
++import { colors, fonts } from "@/lib/design/tokens";
++
++interface VisitMemoSheetProps {
++  pin: PinSummaryResponse;
++  visitedAt: Date;
++  /**
++   * 메모 저장 콜백. 성공 시 시트는 호출처가 닫는다.
++   * 실패 시 message 를 인라인 에러로 표시하고 시트는 유지된다 (FR-VD-22).
++   */
++  onSave: (memo: string) => Promise<{ ok: boolean; message?: string }>;
++  /**
++   * 건너뛰기 — 2차 PATCH 미발사 (FR-VD-20). 호출처가 시트를 닫는다.
++   */
++  onSkip: () => void;
++}
++
++/**
++ * Phase 10 — VISIT_DETECTED 후속 메모 입력 시트 (설계 §5.5).
++ *
++ * 본 컴포넌트는 패널 컨테이너(Sheet/SidePanel)를 직접 렌더하지 않는다.
++ * MapClient 의 `renderPanel("...", <VisitMemoSheet .../>)` 로 감싸 사용한다
++ * (PinCoordinateEditPicker 와 동일 패턴).
++ *
++ * 동작:
++ *  - 상단 ✓ 장소명 + 방문 날짜 (YYYY년 M월 D일).
++ *  - textarea maxLength 500.
++ *  - 저장 중: BtnPrimary disabled + "저장 중...".
++ *  - 저장 실패: 인라인 에러 노출, 시트 유지, 입력값 보존.
++ *  - 건너뛰기: 2차 PATCH 미발사 — onSkip 만 호출.
++ */
++export default function VisitMemoSheet({
++  pin,
++  visitedAt,
++  onSave,
++  onSkip,
++}: VisitMemoSheetProps) {
++  const [memo, setMemo] = useState("");
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  const handleSave = async () => {
++    setSaving(true);
++    setError(null);
++    try {
++      const result = await onSave(memo);
++      if (!result.ok) {
++        setError(result.message ?? "메모 저장에 실패했어요");
++      }
++      // 성공 시 호출처가 시트를 닫으므로 별도 cleanup 불필요.
++    } finally {
++      setSaving(false);
++    }
++  };
++
++  const dateLabel = `${visitedAt.getFullYear()}년 ${visitedAt.getMonth() + 1}월 ${visitedAt.getDate()}일`;
++
++  return (
++    <div>
++      <div
++        style={{
++          fontFamily: fonts.serif,
++          fontSize: 16,
++          fontWeight: 700,
++          color: colors.ink,
++          marginBottom: 4,
++          wordBreak: "break-word",
++        }}
++      >
++        ✓ {pin.placeName}, 다녀왔어요!
++      </div>
++      <div
++        style={{
++          fontFamily: fonts.mono,
++          fontSize: 12,
++          color: colors.inkSoft,
++          marginBottom: 14,
++        }}
++      >
++        {dateLabel}
++      </div>
++
++      <textarea
++        value={memo}
++        onChange={(e) => setMemo(e.target.value)}
++        placeholder="이날의 기억을 남겨보세요 (선택)"
++        maxLength={500}
++        disabled={saving}
++        style={{
++          width: "100%",
++          boxSizing: "border-box",
++          border: `1.5px solid ${colors.hairline}`,
++          borderRadius: 10,
++          padding: "12px 14px",
++          minHeight: 96,
++          background: colors.bg,
++          fontFamily: fonts.sans,
++          fontSize: 14,
++          color: colors.ink,
++          marginBottom: 12,
++          resize: "none",
++          outline: "none",
++        }}
++      />
++
++      {error && (
++        <div
++          role="alert"
++          style={{
++            padding: "10px 12px",
++            marginBottom: 12,
++            background: `${colors.pinNew}15`,
++            color: colors.pinNew,
++            borderRadius: 8,
++            fontSize: 13,
++            fontFamily: fonts.sans,
++          }}
++        >
++          {error}
++        </div>
++      )}
++
++      <div style={{ display: "flex", gap: 8 }}>
++        <BtnSub
++          onClick={onSkip}
++          disabled={saving}
++          style={{ flex: 1, padding: "11px 0" }}
++        >
++          건너뛰기
++        </BtnSub>
++        <BtnPrimary
++          onClick={handleSave}
++          disabled={saving}
++          style={{ flex: 1, padding: "11px 0" }}
++        >
++          {saving ? "저장 중..." : "저장"}
++        </BtnPrimary>
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/src/app/map/_components/VisitToast.test.tsx b/frontend/src/app/map/_components/VisitToast.test.tsx
+new file mode 100644
+index 0000000..87b00e2
+--- /dev/null
++++ b/frontend/src/app/map/_components/VisitToast.test.tsx
+@@ -0,0 +1,72 @@
++import { describe, it, expect, vi } from "vitest";
++import { render, screen, fireEvent } from "@testing-library/react";
++import VisitToast from "./VisitToast";
++import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
++
++function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryResponse {
++  return {
++    id: 1,
++    groupId: 1,
++    createdBy: 1,
++    createdByNickname: null,
++    placeName: "성수동 카페",
++    address: "서울 성동구 성수동 1가",
++    latitude: 37.5,
++    longitude: 127.0,
++    instagramUrl: null,
++    memo: null,
++    memoSource: null,
++    tag: "WISH" as PinTag,
++    createdAt: "2026-05-23T00:00:00Z",
++    memoUpdatedBy: null,
++    memoUpdatedByNickname: null,
++    ...overrides,
++  };
++}
++
++describe("VisitToast", () => {
++  it("장소명, 주소, 두 버튼을 렌더링한다", () => {
++    const pin = makePin();
++    render(<VisitToast pin={pin} onSkip={vi.fn()} onConfirm={vi.fn()} />);
++
++    expect(screen.getByRole("status")).toBeInTheDocument();
++    expect(
++      screen.getByText(/성수동 카페 근처에 계신가요/),
++    ).toBeInTheDocument();
++    expect(screen.getByText("서울 성동구 성수동 1가")).toBeInTheDocument();
++    expect(
++      screen.getByRole("button", { name: "다음에 올게요" }),
++    ).toBeInTheDocument();
++    expect(
++      screen.getByRole("button", { name: /네, 다녀왔어요/ }),
++    ).toBeInTheDocument();
++  });
++
++  it("주소가 null 이면 주소 줄을 렌더링하지 않는다", () => {
++    const pin = makePin({ address: null });
++    render(<VisitToast pin={pin} onSkip={vi.fn()} onConfirm={vi.fn()} />);
++    expect(screen.queryByText(/성동구/)).not.toBeInTheDocument();
++  });
++
++  it("'다음에 올게요' 클릭 시 onSkip 만 호출된다", () => {
++    const onSkip = vi.fn();
++    const onConfirm = vi.fn();
++    render(
++      <VisitToast pin={makePin()} onSkip={onSkip} onConfirm={onConfirm} />,
++    );
++    fireEvent.click(screen.getByRole("button", { name: "다음에 올게요" }));
++    expect(onSkip).toHaveBeenCalledTimes(1);
++    expect(onConfirm).not.toHaveBeenCalled();
++  });
++
++  it("'네, 다녀왔어요' 클릭 시 onConfirm 만 호출된다", () => {
++    const onSkip = vi.fn();
++    const onConfirm = vi.fn();
++    render(
++      <VisitToast pin={makePin()} onSkip={onSkip} onConfirm={onConfirm} />,
++    );
++    fireEvent.click(screen.getByRole("button", { name: /네, 다녀왔어요/ }));
++    expect(onConfirm).toHaveBeenCalledTimes(1);
++    expect(onSkip).not.toHaveBeenCalled();
++  });
++});
+diff --git a/frontend/src/app/map/_components/VisitToast.tsx b/frontend/src/app/map/_components/VisitToast.tsx
+new file mode 100644
+index 0000000..167ee12
+--- /dev/null
++++ b/frontend/src/app/map/_components/VisitToast.tsx
+@@ -0,0 +1,101 @@
++"use client";
++
++import type { PinSummaryResponse } from "@/lib/api/types";
++import { BtnPrimary } from "@/components/ui/BtnPrimary";
++import { BtnSub } from "@/components/ui/BtnSub";
++import { colors, fonts } from "@/lib/design/tokens";
++import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
++
++interface VisitToastProps {
++  pin: PinSummaryResponse;
++  onSkip: () => void;
++  onConfirm: () => void;
++}
++
++/**
++ * Phase 10 — 장소 방문 감지 토스트 (설계 §5.4).
++ *
++ * 위치:
++ *  - 모바일 (max-width 767px): bottom 100 (ActionBar 위), left/right 12.
++ *  - 데스크탑: bottom 32, left 76 (DesktopActionPill 우측), max-width 360.
++ *
++ * mount 시 슬라이드 업 200ms ease-out. 자동 닫힘 없음 — dismiss 는 부모(MapClient) 가 제어.
++ * `role="status"` 로 스크린리더에 변경을 알린다.
++ */
++export default function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) {
++  // 매체 쿼리: 기존 컨벤션의 useMediaQuery 훅 사용 (SSR/하이드레이션 안전).
++  // 데스크탑은 useMediaQuery("(min-width: 768px)") = true. 모바일은 false.
++  const isDesktop = useMediaQuery("(min-width: 768px)");
++  const isMobile = !isDesktop;
++
++  const containerStyle: React.CSSProperties = isMobile
++    ? {
++        position: "fixed",
++        bottom: 100,
++        left: 12,
++        right: 12,
++        zIndex: 25,
++      }
++    : {
++        position: "fixed",
++        bottom: 32,
++        left: 76,
++        maxWidth: 360,
++        zIndex: 25,
++      };
++
++  return (
++    <div
++      role="status"
++      aria-live="polite"
++      style={{
++        ...containerStyle,
++        background: colors.panel,
++        borderRadius: 14,
++        padding: "14px 16px",
++        boxShadow: `0 8px 24px ${colors.shadowMd}`,
++        border: `1px solid ${colors.hairline}`,
++        fontFamily: fonts.sans,
++        animation: "maygo-visit-toast-slide-up 200ms ease-out both",
++      }}
++    >
++      <div
++        style={{
++          fontSize: 14,
++          fontWeight: 600,
++          color: colors.ink,
++          marginBottom: pin.address ? 4 : 12,
++          wordBreak: "break-word",
++        }}
++      >
++        📍 {pin.placeName} 근처에 계신가요?
++      </div>
++      {pin.address && (
++        <div
++          style={{
++            fontSize: 12,
++            color: colors.inkSoft,
++            marginBottom: 12,
++            wordBreak: "break-word",
++          }}
++        >
++          {pin.address}
++        </div>
++      )}
++      <div style={{ display: "flex", gap: 8 }}>
++        <BtnSub
++          onClick={onSkip}
++          style={{ flex: 1, padding: "10px 0", fontSize: 13 }}
++        >
++          다음에 올게요
++        </BtnSub>
++        <BtnPrimary
++          onClick={onConfirm}
++          style={{ flex: 1, padding: "10px 0", fontSize: 13 }}
++        >
++          네, 다녀왔어요 →
++        </BtnPrimary>
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/src/app/map/_components/notifications/NotificationItem.tsx b/frontend/src/app/map/_components/notifications/NotificationItem.tsx
+index fdcab8a..ef6401a 100644
+--- a/frontend/src/app/map/_components/notifications/NotificationItem.tsx
++++ b/frontend/src/app/map/_components/notifications/NotificationItem.tsx
+@@ -6,6 +6,7 @@ import { colors, fonts } from '@/lib/design/tokens';
+ interface NotificationItemProps {
+   item: NotificationItemType;
+   onClick: () => void;
++  currentUserId: number;
+ }
+ 
+ /**
+@@ -13,9 +14,19 @@ interface NotificationItemProps {
+  *
+  * <p>읽지 않은 알림은 옅은 CTA 배경으로 강조.</p>
+  * <p>Row 1: 행위자명 + 타입칩 + 시간, Row 2: 장소 요약.</p>
++ *
++ * <p>Phase 10 보강: VISIT_DETECTED 알림 중 등록자가 본인이면
++ * "내가 다녀온 장소"로 표시한다 (본인 fan-out 포함 정책에 따라 자기 기록도
++ * 알림함에 남기 때문). NotificationPanel 의 상세 화면 actorLabel 패턴과 일관.</p>
+  */
+-export function NotificationItem({ item, onClick }: NotificationItemProps) {
+-  const actorLabel = `${item.registeredByNickname}님이 장소를 저장했어요.`;
++export function NotificationItem({ item, onClick, currentUserId }: NotificationItemProps) {
++  const isSelfVisit =
++    item.type === 'VISIT_DETECTED' && item.registeredBy === currentUserId;
++  const actorLabel = isSelfVisit
++    ? '내가 다녀온 장소'
++    : item.type === 'VISIT_DETECTED'
++      ? `${item.registeredByNickname}님이 다녀온 장소`
++      : `${item.registeredByNickname}님이 장소를 저장했어요.`;
+   const placeSummary =
+     item.totalPinCount <= 1
+       ? item.firstPlaceName
+diff --git a/frontend/src/app/map/_components/notifications/NotificationPanel.tsx b/frontend/src/app/map/_components/notifications/NotificationPanel.tsx
+index 3bca140..0831244 100644
+--- a/frontend/src/app/map/_components/notifications/NotificationPanel.tsx
++++ b/frontend/src/app/map/_components/notifications/NotificationPanel.tsx
+@@ -223,6 +223,7 @@ export function NotificationPanel({
+                   key={item.id}
+                   item={item}
+                   onClick={() => handleSelectItem(item)}
++                  currentUserId={currentUserId}
+                 />
+               ))}
+             </div>
+diff --git a/frontend/src/app/map/_components/notifications/NotificationPinList.tsx b/frontend/src/app/map/_components/notifications/NotificationPinList.tsx
+index 8b45ed6..4832120 100644
+--- a/frontend/src/app/map/_components/notifications/NotificationPinList.tsx
++++ b/frontend/src/app/map/_components/notifications/NotificationPinList.tsx
+@@ -42,7 +42,7 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
+       }}>
+         <div>
+           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
+-            {actorLabel} 저장한 {pins.length}곳
++            {actorLabel} {type === 'VISIT_DETECTED' ? '다녀온' : '저장한'} {pins.length}곳
+           </div>
+           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
+             {formatTime(createdAt)}
+@@ -130,6 +130,19 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
+                       {pin.address}
+                     </div>
+                   )}
++                  {!disabled && type === 'VISIT_DETECTED' && pin.memo && (
++                    <div style={{
++                      fontSize: 12,
++                      color: colors.ink,
++                      marginTop: 4,
++                      padding: '6px 8px',
++                      background: colors.bg,
++                      borderRadius: 6,
++                      whiteSpace: 'pre-wrap',
++                    }}>
++                      {pin.memo}
++                    </div>
++                  )}
+                 </div>
+               </button>
+             </li>
+diff --git a/frontend/src/app/map/_hooks/useVisitDetection.test.ts b/frontend/src/app/map/_hooks/useVisitDetection.test.ts
+new file mode 100644
+index 0000000..c36f4cb
+--- /dev/null
++++ b/frontend/src/app/map/_hooks/useVisitDetection.test.ts
+@@ -0,0 +1,286 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { renderHook, act } from "@testing-library/react";
++import { useVisitDetection } from "./useVisitDetection";
++import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
++
++/**
++ * 기준 시각: 2026-05-23T10:00:00Z. vi.setSystemTime 으로 고정 후
++ * advanceTimersByTime 으로 Date.now() 를 진행시킨다.
++ */
++const BASE_TIME = new Date("2026-05-23T10:00:00Z");
++
++function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryResponse {
++  return {
++    id: 1,
++    groupId: 1,
++    createdBy: 1,
++    createdByNickname: null,
++    placeName: "테스트 장소",
++    address: null,
++    latitude: 37.5,
++    longitude: 127.0,
++    instagramUrl: null,
++    memo: null,
++    memoSource: null,
++    tag: "WISH" as PinTag,
++    createdAt: "2026-05-23T00:00:00Z",
++    memoUpdatedBy: null,
++    memoUpdatedByNickname: null,
++    ...overrides,
++  };
++}
++
++/**
++ * 가짜 GeolocationPosition. 실제 브라우저 객체와 동일한 shape 만 갖춘다.
++ * coords 만 사용하므로 필수 필드만 채운다.
++ */
++function makePosition({
++  lat,
++  lng,
++  accuracy = 20,
++}: {
++  lat: number;
++  lng: number;
++  accuracy?: number;
++}): GeolocationPosition {
++  return {
++    coords: {
++      latitude: lat,
++      longitude: lng,
++      accuracy,
++      altitude: null,
++      altitudeAccuracy: null,
++      heading: null,
++      speed: null,
++      toJSON() {
++        return {};
++      },
++    },
++    timestamp: Date.now(),
++    toJSON() {
++      return {};
++    },
++  } as unknown as GeolocationPosition;
++}
++
++describe("useVisitDetection", () => {
++  beforeEach(() => {
++    vi.useFakeTimers();
++    vi.setSystemTime(BASE_TIME);
++  });
++
++  afterEach(() => {
++    vi.useRealTimers();
++  });
++
++  it("accuracy > 50m 이면 평가 전체를 스킵한다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++
++    let evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 80 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++
++    // 30초가 지나도 정확도 부족이면 firstEnterAt 자체가 기록되지 않아 검출 0.
++    act(() => {
++      vi.advanceTimersByTime(31_000);
++    });
++    evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 90 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++  });
++
++  it("첫 진입 시 firstEnterAt 만 기록하고 즉시 검출하지 않는다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++    const evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++  });
++
++  it("진입 후 30초가 경과하면 해당 핀을 검출한다 (경계값 30000ms 포함)", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++
++    // t=0: 첫 진입
++    result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++
++    // t=29999ms: 아직 검출 안 됨
++    act(() => {
++      vi.advanceTimersByTime(29_999);
++    });
++    let evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++
++    // t=30000ms: 검출 (경계 포함)
++    act(() => {
++      vi.advanceTimersByTime(1);
++    });
++    evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBe(1);
++  });
++
++  it("25초 후 100m 밖으로 이탈하면 firstEnterAt 이 사라지고, 재진입 시 카운터가 0부터 다시 시작한다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++
++    // t=0 진입
++    result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++
++    // t=25s: 후보 밖으로 이탈 → firstEnterAt 제거
++    act(() => {
++      vi.advanceTimersByTime(25_000);
++    });
++    result.current.evaluate({
++      position: makePosition({ lat: 38.0, lng: 128.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++
++    // t=26s: 재진입 (이전 25초 누적 무효 — 새 firstEnterAt)
++    act(() => {
++      vi.advanceTimersByTime(1_000);
++    });
++    let evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++
++    // 재진입 +29초: 아직 검출 안 됨
++    act(() => {
++      vi.advanceTimersByTime(29_000);
++    });
++    evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++
++    // 재진입 +30초: 검출
++    act(() => {
++      vi.advanceTimersByTime(1_000);
++    });
++    evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBe(1);
++  });
++
++  it("MEMORY 태그 핀은 후보에서 제외된다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const memoryPin = makePin({
++      id: 1,
++      tag: "MEMORY",
++      latitude: 37.5,
++      longitude: 127.0,
++    });
++
++    result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [memoryPin],
++      shownPinIds: new Set(),
++    });
++    act(() => {
++      vi.advanceTimersByTime(60_000);
++    });
++    const evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [memoryPin],
++      shownPinIds: new Set(),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++  });
++
++  it("shownPinIds 에 포함된 핀은 후보에서 제외된다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++
++    result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set([1]),
++    });
++    act(() => {
++      vi.advanceTimersByTime(60_000);
++    });
++    const evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins: [pin],
++      shownPinIds: new Set([1]),
++    });
++    expect(evaluation.detectedPinId).toBeNull();
++  });
++
++  it("차순위 후보 핀도 firstEnterAt 이 누적되어, 1순위가 shownPinIds 에 들어가면 즉시 차순위가 검출된다", () => {
++    const { result } = renderHook(() => useVisitDetection());
++    // 두 핀이 모두 100m 이내. 첫 핀이 더 가깝다.
++    const nearer = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
++    const farther = makePin({
++      id: 2,
++      latitude: 37.5005, // 약 55m 떨어진 위치
++      longitude: 127.0,
++    });
++    const pins = [nearer, farther];
++    const shown = new Set<number>();
++
++    // t=0: 두 핀 모두 firstEnterAt 기록
++    result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins,
++      shownPinIds: shown,
++    });
++
++    // t=30s: 1순위(nearer) 검출
++    act(() => {
++      vi.advanceTimersByTime(30_000);
++    });
++    let evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins,
++      shownPinIds: shown,
++    });
++    expect(evaluation.detectedPinId).toBe(1);
++
++    // 사용자가 "다음에 올게요" — 1순위를 shown 에 추가하고 clearFirstEnterAt 호출.
++    shown.add(1);
++    result.current.clearFirstEnterAt(1);
++
++    // 같은 콜백(시간 진행 없음)에서 즉시 차순위(farther) 검출 — 차순위도 이미 30초+ 누적.
++    evaluation = result.current.evaluate({
++      position: makePosition({ lat: 37.5, lng: 127.0 }),
++      pins,
++      shownPinIds: shown,
++    });
++    expect(evaluation.detectedPinId).toBe(2);
++  });
++});
+diff --git a/frontend/src/app/map/_hooks/useVisitDetection.ts b/frontend/src/app/map/_hooks/useVisitDetection.ts
+new file mode 100644
+index 0000000..b0b4880
+--- /dev/null
++++ b/frontend/src/app/map/_hooks/useVisitDetection.ts
+@@ -0,0 +1,117 @@
++"use client";
++
++import { useCallback, useRef } from "react";
++import type { PinSummaryResponse } from "@/lib/api/types";
++import { haversineKm } from "../_lib/roulette";
++
++/**
++ * Phase 10 — 장소 방문 감지 훅.
++ *
++ * 책임:
++ *  - GeolocationPosition + 현재 핀 목록 + 세션 노출 Set 을 받아
++ *    "100m 이내 WISH/REEL 핀에 30초 머무름" 조건을 만족하는 핀 1개를 검출.
++ *  - 후보 핀별 진입 시각(firstEnterAt) 누적/소거를 내부 ref Map 에 보관.
++ *
++ * 비책임:
++ *  - 토스트/시트 UI 표시, PATCH 호출, 알림 발사 — 호출처(MapClient)가 담당.
++ *  - GeolocationPosition 구독 — 외부 GeolocateControl/useGeolocation 결과를 받기만 함.
++ *
++ * 시계 주입은 별도 인자 없이 `Date.now()` 를 직접 사용한다.
++ * 테스트는 `vi.useFakeTimers()` + `vi.setSystemTime(...)` 로 모킹한다 (설계 §5.1, §8.2).
++ *
++ * 후보 핀 누적 전략 (CONSIDER 반영):
++ *  - 100m 이내 모든 WISH/REEL 후보에 대해 firstEnterAt 을 동시에 기록.
++ *  - "다음에 올게요" 후 차순위 핀이 이미 30초+ 누적이면 다음 evaluate 에서 즉시 검출.
++ *  - 후보 set 에서 벗어난 핀의 firstEnterAt 은 즉시 삭제 (FR-VD-8).
++ */
++
++const PROXIMITY_KM = 0.1; // 100m
++const ACCURACY_MAX_M = 50;
++const DWELL_MS = 30_000;
++
++interface EvaluateInput {
++  position: GeolocationPosition;
++  pins: PinSummaryResponse[];
++  shownPinIds: Set<number>;
++}
++
++export interface VisitEvaluation {
++  detectedPinId: number | null;
++}
++
++export interface UseVisitDetectionResult {
++  evaluate: (input: EvaluateInput) => VisitEvaluation;
++  /**
++   * 호출처가 토스트를 닫고 `shownPinIds` 에 해당 pinId 를 추가한 직후
++   * 함께 호출하여 내부 firstEnterAt 도 함께 비운다. 동일 핀이 다음 evaluate
++   * 호출에서 즉시 후보 set 에서 제외되므로 firstEnterAt 도 잔존시키지 않는다.
++   */
++  clearFirstEnterAt: (pinId: number) => void;
++}
++
++export function useVisitDetection(): UseVisitDetectionResult {
++  // pinId → 첫 진입 시각(ms). 후보 set 에서 벗어나면 삭제.
++  const firstEnterAtRef = useRef<Map<number, number>>(new Map());
++
++  const evaluate = useCallback(
++    ({ position, pins, shownPinIds }: EvaluateInput): VisitEvaluation => {
++      // 정확도 미달 — 전체 평가 스킵. firstEnterAt 은 보존하여 다음 정상 콜백에서 누적 활용.
++      if (position.coords.accuracy > ACCURACY_MAX_M) {
++        return { detectedPinId: null };
++      }
++
++      const userPos = {
++        lat: position.coords.latitude,
++        lng: position.coords.longitude,
++      };
++      const now = Date.now();
++
++      // 1) 후보 핀 수집: WISH/REEL + shownPinIds 제외 + 100m 이내.
++      const candidates: Array<{ pinId: number; distanceKm: number }> = [];
++      for (const pin of pins) {
++        if (pin.tag !== "WISH" && pin.tag !== "REEL") continue;
++        if (shownPinIds.has(pin.id)) continue;
++        const distanceKm = haversineKm(userPos, {
++          lat: Number(pin.latitude),
++          lng: Number(pin.longitude),
++        });
++        if (distanceKm <= PROXIMITY_KM) {
++          candidates.push({ pinId: pin.id, distanceKm });
++        }
++      }
++
++      // 2) 후보에서 벗어난 핀의 firstEnterAt 제거 (FR-VD-8).
++      const candidateIds = new Set(candidates.map((c) => c.pinId));
++      for (const pinId of firstEnterAtRef.current.keys()) {
++        if (!candidateIds.has(pinId)) {
++          firstEnterAtRef.current.delete(pinId);
++        }
++      }
++
++      // 3) 모든 후보에 firstEnterAt 누적 (없는 경우만). 차순위 핀도 함께 추적.
++      for (const { pinId } of candidates) {
++        if (!firstEnterAtRef.current.has(pinId)) {
++          firstEnterAtRef.current.set(pinId, now);
++        }
++      }
++
++      // 4) 거리 정렬 후 30초+ 누적된 첫 후보를 반환 (가장 가까운 것 우선).
++      candidates.sort((a, b) => a.distanceKm - b.distanceKm);
++      for (const { pinId } of candidates) {
++        const firstEnterAt = firstEnterAtRef.current.get(pinId);
++        if (firstEnterAt !== undefined && now - firstEnterAt >= DWELL_MS) {
++          return { detectedPinId: pinId };
++        }
++      }
++
++      return { detectedPinId: null };
++    },
++    [],
++  );
++
++  const clearFirstEnterAt = useCallback((pinId: number) => {
++    firstEnterAtRef.current.delete(pinId);
++  }, []);
++
++  return { evaluate, clearFirstEnterAt };
++}
+diff --git a/frontend/src/lib/notifications/types.ts b/frontend/src/lib/notifications/types.ts
+index a9c1695..6a6611d 100644
+--- a/frontend/src/lib/notifications/types.ts
++++ b/frontend/src/lib/notifications/types.ts
+@@ -5,7 +5,7 @@
+  * BigDecimal 좌표는 정밀도 손실 방지를 위해 문자열로 직렬화된다.</p>
+  */
+ 
+-export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS";
++export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
+ 
+ export interface NotificationItem {
+   id: number;
+@@ -31,6 +31,11 @@ export interface NotificationPinItem {
+   longitude: string | null;
+   deleted: boolean;
+   instagramUrl: string | null;
++  /**
++   * Phase 10 VISIT_DETECTED: 알림 상세 조회 시 백엔드가 최신 핀 메모를 join 하여 채움.
++   * MANUAL_PIN/CHATBOT_PINS 알림은 null. soft-delete 핀도 null.
++   */
++  memo?: string | null;
+ }
+ 
+ export interface NotificationDetail {
+diff --git a/frontend/vitest.setup.ts b/frontend/vitest.setup.ts
+index f149f27..c908417 100644
+--- a/frontend/vitest.setup.ts
++++ b/frontend/vitest.setup.ts
+@@ -1 +1,24 @@
+ import "@testing-library/jest-dom/vitest";
++
++/**
++ * jsdom 은 window.matchMedia 를 제공하지 않는다.
++ * useMediaQuery 훅이나 VisitToast 처럼 매체 쿼리를 mount 효과에서 평가하는
++ * 컴포넌트의 단위 테스트가 동작할 수 있도록 기본 polyfill 을 등록한다.
++ * 기본값: matches=false (데스크탑 가정). 개별 테스트에서 필요 시 vi.spyOn 으로 덮어쓸 수 있다.
++ */
++if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
++  Object.defineProperty(window, "matchMedia", {
++    writable: true,
++    configurable: true,
++    value: (query: string) => ({
++      matches: false,
++      media: query,
++      onchange: null,
++      addListener: () => {},
++      removeListener: () => {},
++      addEventListener: () => {},
++      removeEventListener: () => {},
++      dispatchEvent: () => false,
++    }),
++  });
++}

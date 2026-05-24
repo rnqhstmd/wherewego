@@ -119,6 +119,20 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
                         삭제됨
                       </span>
                     )}
+                    {/* Phase 10 FR-VD-29/31: VISIT_DETECTED 알림에서 현재 MEMORY 태그인 활성 핀에 추억 배지 표시. */}
+                    {!disabled && type === 'VISIT_DETECTED' && pin.tag === 'MEMORY' && (
+                      <span style={{
+                        fontSize: 10,
+                        color: '#FFB3C6',
+                        background: 'rgba(255,179,198,0.15)',
+                        padding: '2px 6px',
+                        borderRadius: 99,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                        ● 추억
+                      </span>
+                    )}
                   </div>
                   {!disabled && pin.address && (
                     <div style={{
