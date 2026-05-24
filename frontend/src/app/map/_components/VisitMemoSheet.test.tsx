@@ -18,6 +18,7 @@ function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryRespons
     memoSource: null,
     tag: "MEMORY" as PinTag,
     createdAt: "2026-05-23T00:00:00Z",
+    visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
     ...overrides,
@@ -37,9 +38,9 @@ describe("VisitMemoSheet", () => {
       />,
     );
     expect(
-      screen.getByText(/성수동 카페, 다녀왔어요/),
+      screen.getByText(/성수동 카페, 다녀온 흔적을 남겨볼까요/),
     ).toBeInTheDocument();
-    expect(screen.getByText("2026년 5월 23일")).toBeInTheDocument();
+    expect(screen.getByText("다녀온 날 · 2026.05.23")).toBeInTheDocument();
   });
 
   it("저장 성공 시 onSave 가 입력값으로 호출되고 에러는 노출되지 않는다", async () => {
@@ -53,7 +54,7 @@ describe("VisitMemoSheet", () => {
       />,
     );
     const textarea = screen.getByPlaceholderText(
-      /이날의 기억을 남겨보세요/,
+      /오늘의 순간을 짧게 남겨두세요/,
     ) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "달콤한 휘낭시에" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));

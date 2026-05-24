@@ -3,8 +3,8 @@
 import type { PinSummaryResponse } from "@/lib/api/types";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
+import { PinDot, type PinDotType } from "@/components/ui/PinDot";
 import { colors, fonts } from "@/lib/design/tokens";
-import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 
 interface VisitToastProps {
   pin: PinSummaryResponse;
@@ -13,75 +13,154 @@ interface VisitToastProps {
 }
 
 /**
- * Phase 10 — 장소 방문 감지 토스트 (설계 §5.4).
+ * Phase 10 — 장소 방문 감지 토스트.
  *
- * 위치:
- *  - 모바일 (max-width 767px): bottom 100 (ActionBar 위), left/right 12.
- *  - 데스크탑: bottom 32, left 76 (DesktopActionPill 우측), max-width 360.
+ * 디자인: PinPopup(SpeechBubblePopup) 톤 그대로 — 메모, 장소+주소, 날짜+written by 를
+ * 동일한 폰트/사이즈/순서로 표시한다. 인용부호 없이 자연 텍스트.
  *
- * mount 시 슬라이드 업 200ms ease-out. 자동 닫힘 없음 — dismiss 는 부모(MapClient) 가 제어.
+ * 위치: 데스크탑/모바일 모두 화면 정중앙. max-width 380.
+ * mount 시 페이드인 + scale 200ms ease-out. 자동 닫힘 없음.
  * `role="status"` 로 스크린리더에 변경을 알린다.
  */
 export default function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) {
-  // 매체 쿼리: 기존 컨벤션의 useMediaQuery 훅 사용 (SSR/하이드레이션 안전).
-  // 데스크탑은 useMediaQuery("(min-width: 768px)") = true. 모바일은 false.
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-  const isMobile = !isDesktop;
-
-  const containerStyle: React.CSSProperties = isMobile
-    ? {
-        position: "fixed",
-        bottom: 100,
-        left: 12,
-        right: 12,
-        zIndex: 25,
-      }
-    : {
-        position: "fixed",
-        bottom: 32,
-        left: 76,
-        maxWidth: 360,
-        zIndex: 25,
-      };
+  const hasMemo = pin.memo != null && pin.memo.trim().length > 0;
+  const hasAddress = pin.address != null && pin.address.length > 0;
+  const authorLabel = pin.createdByNickname ?? String(pin.createdBy);
+  const dateLabel = formatDate(pin.createdAt);
+  const pinDotType: PinDotType =
+    pin.tag === "REEL" ? "reel" : pin.tag === "MEMORY" ? "memory" : "wish";
 
   return (
     <div
       role="status"
       aria-live="polite"
       style={{
-        ...containerStyle,
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "calc(100% - 24px)",
+        maxWidth: 380,
+        zIndex: 25,
         background: colors.panel,
-        borderRadius: 14,
-        padding: "14px 16px",
-        boxShadow: `0 8px 24px ${colors.shadowMd}`,
+        borderRadius: 16,
+        padding: "16px 18px 14px",
+        boxShadow: `0 10px 28px ${colors.shadowMd}`,
         border: `1px solid ${colors.hairline}`,
         fontFamily: fonts.sans,
-        animation: "maygo-visit-toast-slide-up 200ms ease-out both",
+        animation: "maygo-visit-toast-fade-in 200ms ease-out both",
       }}
     >
+      {/* 헤더 — 짧고 감성적 카피. 장소명은 본문에서 PinDot 과 함께 표시. */}
       <div
         style={{
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: 600,
-          color: colors.ink,
-          marginBottom: pin.address ? 4 : 12,
-          wordBreak: "break-word",
+          color: colors.cta,
+          marginBottom: 14,
+          letterSpacing: -0.1,
         }}
       >
-        📍 {pin.placeName} 근처에 계신가요?
+        🌸 함께 방문하셨나요?
       </div>
-      {pin.address && (
+
+      {/* 메모 — PinPopup 과 동일 톤 (큰 글씨, 자연 텍스트). */}
+      {hasMemo && (
         <div
           style={{
-            fontSize: 12,
-            color: colors.inkSoft,
+            fontSize: 15,
+            fontWeight: 500,
+            color: colors.ink,
+            lineHeight: 1.5,
+            letterSpacing: -0.2,
             marginBottom: 12,
             wordBreak: "break-word",
+            whiteSpace: "pre-wrap",
           }}
         >
-          {pin.address}
+          {pin.memo}
         </div>
       )}
+
+      {/* 장소 + 주소 — PinPopup 스타일 (PinDot + 굵은 장소명 + mono 주소). */}
+      <div style={{ marginBottom: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            marginBottom: 3,
+          }}
+        >
+          <PinDot type={pinDotType} size={pinDotType === "memory" ? 11 : 8} />
+          <span
+            style={{
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: colors.ink,
+              letterSpacing: -0.2,
+            }}
+          >
+            {pin.placeName}
+          </span>
+        </div>
+        {hasAddress && (
+          <div
+            style={{
+              fontFamily: fonts.mono,
+              fontSize: 11.5,
+              color: colors.inkSoft,
+              letterSpacing: -0.1,
+              paddingLeft: 18,
+              wordBreak: "break-word",
+            }}
+          >
+            {pin.address}
+          </div>
+        )}
+      </div>
+
+      {/* 하단: 날짜 + written by — PinPopup 의 bottom row 그대로. */}
+      <div
+        style={{
+          marginTop: 12,
+          paddingTop: 10,
+          borderTop: `1px solid ${colors.hairline}`,
+          fontFamily: fonts.mono,
+          fontSize: 12,
+          color: colors.inkSoft,
+          fontStyle: "italic",
+          marginBottom: 14,
+        }}
+      >
+        {dateLabel}&nbsp;&nbsp;
+        <span style={{ whiteSpace: "nowrap" }}>
+          <span
+            style={{
+              fontFamily: fonts.sans,
+              fontStyle: "italic",
+              color: colors.inkSoft,
+              fontWeight: 400,
+              fontSize: 11,
+              marginRight: 6,
+            }}
+          >
+            written by
+          </span>
+          <span
+            style={{
+              fontFamily: fonts.sans,
+              fontStyle: "normal",
+              color: colors.ink,
+              fontWeight: 600,
+            }}
+          >
+            {authorLabel}
+          </span>
+        </span>
+      </div>
+
+      {/* 버튼 */}
       <div style={{ display: "flex", gap: 8 }}>
         <BtnSub
           onClick={onSkip}
@@ -98,4 +177,17 @@ export default function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) 
       </div>
     </div>
   );
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}.${m}.${day}`;
+  } catch {
+    return "";
+  }
 }

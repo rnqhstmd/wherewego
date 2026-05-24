@@ -42,7 +42,9 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
       }}>
         <div>
           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
-            {actorLabel} {type === 'VISIT_DETECTED' ? '다녀온' : '저장한'} {pins.length}곳
+            {type === 'VISIT_DETECTED'
+              ? `함께 만든 추억 ${pins.length}곳`
+              : `${actorLabel} 저장한 ${pins.length}곳`}
           </div>
           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
             {formatTime(createdAt)}

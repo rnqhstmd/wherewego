@@ -183,15 +183,16 @@ class PinServiceIT {
         assertThat(result.tag()).isEqualTo(originalTag);
     }
 
-    @DisplayName("updatePin - tag 만 전달하면 tag 만 갱신되고 memo/memoSource 는 유지된다 (AC-8).")
+    @DisplayName("updatePin - tag 만 전달하면 tag 만 갱신되고 memo/memoSource 는 유지된다 (AC-8). REEL→MEMORY 전환 시 visitedAt 이 기록된다 (Phase 10 후속).")
     @Test
     void updatePin_tagOnly_updatesTagAndKeepsMemo() {
-        // arrange : 기존 memo 가 있는 핀
+        // arrange : 기존 memo 가 있는 핀 (savePin → REEL)
         Pin pin = savePin(userAId, "https://www.instagram.com/p/U2/");
         pin.applyManualMemo("기존 메모", userAId);
         pinJpaRepository.saveAndFlush(pin);
+        assertThat(pin.getVisitedAt()).isNull();
 
-        // act
+        // act : REEL → MEMORY
         PinUpdateCommand cmd = PinUpdateCommand.of(false, null, true, PinTag.MEMORY,
                 false, null, false, null, false, null, null);
         PinSummary result = pinService.updatePin(userAId, groupId, pin.getId(), cmd).summary();
@@ -200,6 +201,8 @@ class PinServiceIT {
         assertThat(result.tag()).isEqualTo(PinTag.MEMORY);
         assertThat(result.memo()).isEqualTo("기존 메모");
         assertThat(result.memoSource()).isEqualTo(MemoSource.MANUAL);
+        // Phase 10 후속: REEL → MEMORY 전환 시 visitedAt 이 NOW() 로 기록되어야 한다.
+        assertThat(result.visitedAt()).isNotNull();
     }
 
     @DisplayName("updatePin - 빈 문자열 memo 는 memo=null/memoSource=null 로 리셋하고 이후 updateAutoMemoIfNotManual 이 1행을 갱신한다 (AC-11).")

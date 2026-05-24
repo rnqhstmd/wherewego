@@ -117,7 +117,7 @@ public class PinV1Controller implements PinV1ApiSpec {
 
     @PatchMapping("/{groupId}/pins/{pinId}")
     @Override
-    public ApiResponse<PinV1Dto.PinSummaryResponse> updatePin(
+    public ApiResponse<PinV1Dto.UpdatePinResponse> updatePin(
             @AuthUser Long userId,
             @PathVariable Long groupId,
             @PathVariable Long pinId,
@@ -133,7 +133,10 @@ public class PinV1Controller implements PinV1ApiSpec {
                 log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
             }
         }
-        return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(result.summary()));
+        // Phase 10 보강 (2026-05-24): 동시 수정 분기를 위해 응답을 UpdatePinResponse 로 감싸 반환.
+        // transitionedToMemoryNow 는 두 번째 PATCH 에서 false 로 내려가 클라이언트가 confetti/메모 시트 발사를 건너뛴다.
+        return ApiResponse.success(
+                PinV1Dto.UpdatePinResponse.from(result.summary(), result.wasWishOrReelToMemory()));
     }
 
     @DeleteMapping("/{groupId}/pins/{pinId}")

@@ -69,3 +69,35 @@
 | ✅ 충족 | 20 | 91% |
 | ⚠️ 부분 충족 | 1 (AC-VD-18: 코드 OK, Controller IT 미작성) | 4% |
 | ❌ 미충족 | 1 (AC-VD-14) | 4% |
+
+---
+
+## 추가 보강 (2026-05-24)
+
+cross-review 이후 식별된 엣지 케이스 3건을 본 PR 에 합산하여 처리한다. 모두 사용자 보고 UX 문제(오탐, 즉발 발동, 동시 수정 어색 흐름) 해결이 목적이며 PRD 의 AC-VD-23/24/25 신규 항목으로 표기된다.
+
+### [A] AC-VD-25 — 동시 수정 두 번째 PATCH 분기
+
+- **문제**: 두 사용자가 같은 핀에 거의 동시에 "다녀왔어요" 를 누를 때, 두 번째 PATCH 는 백엔드에서 prev=MEMORY/next=MEMORY 로 처리되어 `wasWishOrReelToMemory=false`. 알림 미발송/visited_at 미갱신은 정상이지만, 클라이언트는 응답에서 이를 분간할 수 없어 confetti + 메모 시트가 그대로 발사되어 UX 가 어색했다.
+- **해결**: 백엔드 PATCH 응답을 신규 `UpdatePinResponse {summary, transitionedToMemoryNow}` record 로 래핑. 클라이언트는 transitionedToMemoryNow=false 면 confetti/메모 시트를 스킵하고 "이미 추억으로 기록된 곳이에요" 안내 토스트(2초 자동 닫힘) 만 노출.
+- **영향 범위**:
+  - BE: `PinV1Dto.UpdatePinResponse` 신규 record, `PinV1Controller.updatePin` 반환 타입 변경, `PinV1ApiSpec` 시그니처 동기화, `PinV1ControllerIntegrationTest` 의 PATCH 응답 단언 6건(`data.get(...)` → `data.get("summary").get(...)`) 갱신.
+  - FE: `lib/api/types.ts::UpdatePinResponse` 추가, `lib/api/pin.ts::updatePin` 반환 타입 변경, `map/actions.ts` 5종 PATCH 액션 결과 타입을 `UpdatePinActionResult` 로 통일, `pins/actions.ts::updatePinAction` 은 호환성 보존을 위해 summary 만 추출 반환, `MapClient.tsx` 의 모든 PATCH 응답 소비를 `result.data.summary` 로 갱신 + handleVisitConfirm 분기 + visitInfoMessage state + 토스트 렌더 추가.
+- **위험/완화**: 응답 구조 변경은 명백한 비호환 변경이나 클라이언트와 백엔드가 한 번에 갱신되므로 운영 영향 없음. 외부 컨슈머 없음을 확인.
+
+### [B] AC-VD-23 — speed 게이트 (이동 중 오탐 차단)
+
+- **문제**: 차량이 100m 안에서 신호 대기로 30초+ 정차 시 머무름으로 간주되어 토스트 오탐 발생.
+- **해결**: `useVisitDetection` 의 evaluate 안에서 `position.coords.speed > 1.4 m/s (≈5 km/h)` 면 평가 스킵 + `firstEnterAtRef.clear()`. speed 가 null/undefined 인 디바이스(iOS Safari 등)는 통과(안전 fallback).
+- **테스트**: useVisitDetection.test.ts 에 3건 추가 — (i) speed=2.0 m/s 면 스킵 + firstEnterAt 비워짐, (ii) speed=null 정상 평가, (iii) speed=0.5 m/s 정상 평가.
+
+### [C] AC-VD-24 — visibilitychange (슬립/탭전환 후 즉시 발동 방지)
+
+- **문제**: 페이지 hidden 동안 firstEnterAt 이 유지되어 다시 visible 됐을 때 30초 초과 누적으로 즉시 토스트 발동 가능.
+- **해결**: `useVisitDetection` 에 `clearAllFirstEnterAt()` 메서드 추가. MapClient.tsx 의 useEffect 에서 `document.visibilitychange` 구독, visible 진입 시 `clearAllFirstEnterAt()` 호출.
+
+### 검증
+
+- BE: `(cd backend && ./gradlew build -x test)` + IT 회귀 (PinV1ControllerIntegrationTest 의 PATCH 응답 단언 6건이 신규 구조와 호환).
+- FE: `(cd frontend && npm run build)` + `(cd frontend && npm test)` — 162 기존 테스트 + Phase 10 신규 IT 6건 + speed 게이트 신규 3건 모두 PASS 목표.
+- BE 재시작은 사용자 책임 (orchestrator 가 별도 처리).

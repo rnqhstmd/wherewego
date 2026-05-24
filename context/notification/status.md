@@ -52,6 +52,17 @@
 | 알림 목록 actor 레이블 통일 | ✅ | `NotificationItem.tsx` — `currentUserId` prop 제거, 항상 `{registeredByNickname}님이 장소를 저장했어요.` 표시. "나"→본인 이름 형식으로 통일 |
 | 알림 상세 버튼 텍스트 | ✅ | `NotificationPinList.tsx` — "출처 ↗" → "릴스 보기 ↗" 텍스트 변경 |
 
+## Phase 10 완료 (2026-05-24)
+
+| 항목 | 상태 | PR | 비고 |
+|------|------|-----|------|
+| `VISIT_DETECTED` 신규 알림 유형 (WISH/REEL→MEMORY 자동 전환 시 발송) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | V009 마이그레이션 (`visit_pin_id` 컬럼 + 부분 UNIQUE 인덱스 + ON DELETE RESTRICT) |
+| `NotificationVisitWriter` (`@Transactional(REQUIRES_NEW)`) + 호출자 catch race-free 차단 | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Spring self-invocation 회피, `DataIntegrityViolationException` 호출자 catch |
+| `NotificationService.createForVisitDetected` 본인 포함 fan-out | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | Phase 11 "우리 기록" 도입 전 과도기 용도. 본인 알림함에도 방문 기록 노출 |
+| 알림 상세 `pin.memo` 최신값 join (VISIT_DETECTED 한정) | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `NotificationPinItemResult.memo` + `PinItem.memo` 필드 추가 |
+| `NotificationItem` 본인/짝꿍 카피 분기 ("내가 다녀온 장소" / "{닉네임}님이 다녀온 장소") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `currentUserId` prop 추가 |
+| `NotificationPinList` 메모 줄 표시 (VISIT_DETECTED 한정) + 동사 분기 ("다녀온" / "저장한") | ✅ | [#57](https://github.com/rnqhstmd/wherewego/pull/57) | `type` prop 추가 |
+
 ## 후속 작업 (Trust Ledger 기록, 미반영)
 
 - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)

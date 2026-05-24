@@ -212,6 +212,9 @@
 | AC-VD-20 | 알림 상세에서 VISIT_DETECTED 알림 클릭 시 장소명, 주소, MEMORY 태그, 현재 메모(없으면 비움)가 표시된다 | FR-VD-29, FR-VD-31 |
 | AC-VD-21 | MapClient 페이지 unmount 시 세션 Set이 소멸하여, 재방문 시 동일 핀에 대해 방문 감지가 재시작된다 | FR-VD-5, BR-VD-5 |
 | AC-VD-22 | 동시에 100m 이내에 2개 이상의 WISH·REEL 핀이 있을 때, 토스트는 1개만 표시되며 닫힌 후 다음 가까운 핀에 대한 평가가 자동 재개된다 | FR-VD-13, Q5 |
+| AC-VD-23 | `position.coords.speed` 가 1.4 m/s (≈5 km/h) 초과면 머무름 평가가 실행되지 않고 기존 firstEnterAt 이 모두 비워진다. speed 가 null/undefined 인 디바이스는 통과(안전 fallback). | useVisitDetection — 차량/자전거 이동 중 신호 대기 오탐 차단 (보강 2026-05-24) |
+| AC-VD-24 | 탭/앱이 hidden 상태에서 visible 로 전환될 때 useVisitDetection 내부 firstEnterAt 전체가 비워진다. | MapClient visibilitychange useEffect — 슬립/탭전환 후 즉시 발동 방지 (보강 2026-05-24) |
+| AC-VD-25 | 동시 수정으로 두 번째 PATCH 의 응답 `transitionedToMemoryNow=false` 인 경우 confetti/메모 시트를 발사하지 않고 "이미 추억으로 기록된 곳이에요" 안내 토스트만 노출한다 (2초 자동 닫힘). | MapClient.handleVisitConfirm + visitInfoMessage (보강 2026-05-24) |
 
 ---
 

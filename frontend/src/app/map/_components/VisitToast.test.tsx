@@ -18,6 +18,7 @@ function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryRespons
     memoSource: null,
     tag: "WISH" as PinTag,
     createdAt: "2026-05-23T00:00:00Z",
+    visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
     ...overrides,
@@ -30,9 +31,8 @@ describe("VisitToast", () => {
     render(<VisitToast pin={pin} onSkip={vi.fn()} onConfirm={vi.fn()} />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(
-      screen.getByText(/성수동 카페 근처에 계신가요/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/함께 방문하셨나요/)).toBeInTheDocument();
+    expect(screen.getByText("성수동 카페")).toBeInTheDocument();
     expect(screen.getByText("서울 성동구 성수동 1가")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "다음에 올게요" }),

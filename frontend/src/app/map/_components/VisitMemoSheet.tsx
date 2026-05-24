@@ -58,7 +58,8 @@ export default function VisitMemoSheet({
     }
   };
 
-  const dateLabel = `${visitedAt.getFullYear()}년 ${visitedAt.getMonth() + 1}월 ${visitedAt.getDate()}일`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dateLabel = `다녀온 날 · ${visitedAt.getFullYear()}.${pad(visitedAt.getMonth() + 1)}.${pad(visitedAt.getDate())}`;
 
   return (
     <div>
@@ -72,7 +73,7 @@ export default function VisitMemoSheet({
           wordBreak: "break-word",
         }}
       >
-        ✓ {pin.placeName}, 다녀왔어요!
+        🌸 {pin.placeName}, 다녀온 흔적을 남겨볼까요?
       </div>
       <div
         style={{
@@ -88,7 +89,7 @@ export default function VisitMemoSheet({
       <textarea
         value={memo}
         onChange={(e) => setMemo(e.target.value)}
-        placeholder="이날의 기억을 남겨보세요 (선택)"
+        placeholder="오늘의 순간을 짧게 남겨두세요 (선택)"
         maxLength={500}
         disabled={saving}
         style={{

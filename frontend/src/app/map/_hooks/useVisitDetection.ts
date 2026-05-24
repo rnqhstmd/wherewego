@@ -26,12 +26,30 @@ import { haversineKm } from "../_lib/roulette";
  */
 
 const PROXIMITY_KM = 0.1; // 100m
+const PROXIMITY_METERS = 100;
 const ACCURACY_MAX_M = 50;
 const DWELL_MS = 30_000;
+// BBox 사전 필터 (성능): 위도 1도 ≈ 111,320m. 경도는 cos(lat) 가중.
+// 100m 반경 BBox 안에 들지 않는 핀은 Haversine 정밀 계산 생략.
+const LAT_DEG_PER_METER = 1 / 111_320;
+/**
+ * Phase 10 보강 (AC-VD-23, 2026-05-24): 걷는 속도 상한 (m/s).
+ *
+ * <p>차량/자전거 이동 중에는 100m 안에서 신호 대기로 30초+ 정차해도 머무름으로 간주되지 않도록
+ * 평가 자체를 건너뛰고 firstEnterAt 을 모두 비운다.
+ * 1.4 m/s ≈ 5 km/h. 이 값을 초과하면 이동 중으로 간주한다.
+ * iOS Safari 등 {@code position.coords.speed} 가 null/undefined 인 디바이스는 이 가드를
+ * 통과(안전 fallback)하여 기존 동작을 유지한다.</p>
+ */
+const WALKING_SPEED_MAX_MS = 1.4;
 
 interface EvaluateInput {
   position: GeolocationPosition;
-  pins: PinSummaryResponse[];
+  /**
+   * 호출자가 미리 WISH/REEL 핀만 필터링하여 전달한다 (성능 — pins prop 변경이 잦으니
+   * useMemo 로 캐시 권장). evaluate 내부에서는 tag 검사를 다시 하지 않는다.
+   */
+  wishReelPins: PinSummaryResponse[];
   shownPinIds: Set<number>;
 }
 
@@ -47,6 +65,12 @@ export interface UseVisitDetectionResult {
    * 호출에서 즉시 후보 set 에서 제외되므로 firstEnterAt 도 잔존시키지 않는다.
    */
   clearFirstEnterAt: (pinId: number) => void;
+  /**
+   * Phase 10 보강 (AC-VD-24, 2026-05-24): 탭/앱 hidden 동안 firstEnterAt 이 유지되면
+   * visible 진입 시 30초 초과 누적으로 즉시 토스트 발동 가능. MapClient 의 visibilitychange
+   * 핸들러가 호출하여 firstEnterAt 을 전체 비운다.
+   */
+  clearAllFirstEnterAt: () => void;
 }
 
 export function useVisitDetection(): UseVisitDetectionResult {
@@ -54,27 +78,48 @@ export function useVisitDetection(): UseVisitDetectionResult {
   const firstEnterAtRef = useRef<Map<number, number>>(new Map());
 
   const evaluate = useCallback(
-    ({ position, pins, shownPinIds }: EvaluateInput): VisitEvaluation => {
+    ({ position, wishReelPins, shownPinIds }: EvaluateInput): VisitEvaluation => {
       // 정확도 미달 — 전체 평가 스킵. firstEnterAt 은 보존하여 다음 정상 콜백에서 누적 활용.
       if (position.coords.accuracy > ACCURACY_MAX_M) {
         return { detectedPinId: null };
       }
 
-      const userPos = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      };
+      // Phase 10 보강 (AC-VD-23, 2026-05-24): 이동 중(차량/자전거)에는 머무름으로 카운트하지 않는다.
+      // 신호 대기로 30초+ 정차해도 firstEnterAt 누적을 막아 오탐을 차단한다.
+      // speed 가 null/undefined 인 디바이스(iOS Safari 등)는 통과하여 기존 동작 유지(안전 fallback).
+      if (
+        position.coords.speed !== null &&
+        position.coords.speed !== undefined &&
+        position.coords.speed > WALKING_SPEED_MAX_MS
+      ) {
+        firstEnterAtRef.current.clear();
+        return { detectedPinId: null };
+      }
+
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+      const userPos = { lat: userLat, lng: userLng };
       const now = Date.now();
 
-      // 1) 후보 핀 수집: WISH/REEL + shownPinIds 제외 + 100m 이내.
+      // BBox 사전 필터 (성능): 사용자 위치 기준 100m 반경의 경위도 BBox 계산.
+      // 대부분의 핀은 BBox 밖이라 Haversine 정밀 계산 없이 빠르게 거른다.
+      const latDelta = PROXIMITY_METERS * LAT_DEG_PER_METER;
+      const cosLat = Math.cos((userLat * Math.PI) / 180);
+      // 적도 근접/극단값 안전: cos 가 0 이 되지 않도록 하한.
+      const lngDelta = PROXIMITY_METERS * LAT_DEG_PER_METER / Math.max(Math.abs(cosLat), 0.01);
+
+      // 1) 후보 핀 수집 (호출자가 WISH/REEL 만 필터링하여 전달).
+      //    shownPinIds 제외 → BBox 사전 필터 → Haversine 정밀 계산.
       const candidates: Array<{ pinId: number; distanceKm: number }> = [];
-      for (const pin of pins) {
-        if (pin.tag !== "WISH" && pin.tag !== "REEL") continue;
+      for (const pin of wishReelPins) {
         if (shownPinIds.has(pin.id)) continue;
-        const distanceKm = haversineKm(userPos, {
-          lat: Number(pin.latitude),
-          lng: Number(pin.longitude),
-        });
+        const pinLat = Number(pin.latitude);
+        const pinLng = Number(pin.longitude);
+        // BBox 컷 — 대다수 핀이 여기서 거리됨.
+        if (Math.abs(pinLat - userLat) > latDelta) continue;
+        if (Math.abs(pinLng - userLng) > lngDelta) continue;
+        // 정밀 계산.
+        const distanceKm = haversineKm(userPos, { lat: pinLat, lng: pinLng });
         if (distanceKm <= PROXIMITY_KM) {
           candidates.push({ pinId: pin.id, distanceKm });
         }
@@ -113,5 +158,10 @@ export function useVisitDetection(): UseVisitDetectionResult {
     firstEnterAtRef.current.delete(pinId);
   }, []);
 
-  return { evaluate, clearFirstEnterAt };
+  // Phase 10 보강 (AC-VD-24, 2026-05-24): visibilitychange visible 진입 시 호출.
+  const clearAllFirstEnterAt = useCallback(() => {
+    firstEnterAtRef.current.clear();
+  }, []);
+
+  return { evaluate, clearFirstEnterAt, clearAllFirstEnterAt };
 }

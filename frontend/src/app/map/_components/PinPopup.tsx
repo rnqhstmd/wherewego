@@ -118,7 +118,11 @@ export default function PinPopup({
 
   if (!screenPos) return null;
 
-  const formattedDate = new Date(pin.createdAt)
+  // Phase 10 후속: MEMORY + visitedAt 이면 "다녀온 날", 그 외 createdAt 폴백.
+  // WISH/REEL 은 항상 visitedAt=null 이므로 createdAt 사용.
+  const dateSource =
+    pin.tag === "MEMORY" && pin.visitedAt ? pin.visitedAt : pin.createdAt;
+  const formattedDate = new Date(dateSource)
     .toLocaleDateString("ko-KR", {
       year: "numeric",
       month: "2-digit",

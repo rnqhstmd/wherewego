@@ -82,11 +82,11 @@ function runMarkerBounceAndConfetti(markerEl: HTMLDivElement): void {
   if (markerEl.dataset.celebrating === "1") return;
   markerEl.dataset.celebrating = "1";
 
-  // 기존 자식들을 inner div 로 이동시켜 bounce 적용.
+  // 기존 자식들을 inner div 로 이동시켜 bounce 적용 (900ms, 더 큰 scale 4단 키프레임).
   const inner = document.createElement("div");
   inner.dataset.bounceInner = "1";
   inner.style.cssText =
-    "width:100%;height:100%;display:block;animation:maygo-marker-bounce 600ms ease-in-out both;transform-origin:50% 50%;";
+    "width:100%;height:100%;display:block;animation:maygo-marker-bounce 900ms cubic-bezier(0.22,1.2,0.36,1) both;transform-origin:50% 50%;";
   const originalChildren: ChildNode[] = [];
   while (markerEl.firstChild) {
     originalChildren.push(markerEl.firstChild);
@@ -94,23 +94,27 @@ function runMarkerBounceAndConfetti(markerEl: HTMLDivElement): void {
   }
   markerEl.appendChild(inner);
 
-  // confetti 레이어 — 마커 중심 기준 절대 위치 하트 3개.
+  // confetti 레이어 — 마커 중심 기준 절대 위치 하트 6개 (더 풍성한 이펙트).
   const confetti = document.createElement("div");
   confetti.dataset.confetti = "1";
   confetti.style.cssText =
     "position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;";
 
-  // 각도 -120° / -90° / -60° (상단으로 부채꼴), 거리 36~44px.
-  const offsets: Array<{ dx: number; dy: number }> = [
-    { dx: -38 * Math.cos(Math.PI / 6), dy: -38 * Math.sin(Math.PI / 6) - 28 }, // -120°
-    { dx: 0, dy: -44 }, // -90°
-    { dx: 38 * Math.cos(Math.PI / 6), dy: -38 * Math.sin(Math.PI / 6) - 28 }, // -60°
+  // 상단 반원형 부채꼴 6개. 거리/크기 다양화 + 인덱스별 stagger delay 로 자연스러움.
+  // 가장 위쪽 하트가 가장 크고 멀리 — 시선 유도.
+  const offsets: Array<{ dx: number; dy: number; size: number; delay: number }> = [
+    { dx: -82, dy: -42, size: 22, delay: 40 },   // -150°
+    { dx: -50, dy: -78, size: 26, delay: 20 },   // -120°
+    { dx: -16, dy: -96, size: 30, delay: 0 },    // -100°
+    { dx: 16,  dy: -96, size: 30, delay: 0 },    // -80°
+    { dx: 50,  dy: -78, size: 26, delay: 20 },   // -60°
+    { dx: 82,  dy: -42, size: 22, delay: 40 },   // -30°
   ];
   for (let i = 0; i < offsets.length; i++) {
-    const { dx, dy } = offsets[i];
+    const { dx, dy, size, delay } = offsets[i];
     const heart = document.createElement("span");
     heart.textContent = "♡";
-    heart.style.cssText = `position:absolute;top:0;left:0;font-size:16px;color:${colors.pinMemory};animation:maygo-confetti-heart-${i} 600ms ease-out both;--dx:${dx}px;--dy:${dy}px;`;
+    heart.style.cssText = `position:absolute;top:0;left:0;font-size:${size}px;color:${colors.pinMemory};text-shadow:0 1px 2px rgba(0,0,0,0.12);animation:maygo-confetti-heart 1000ms ease-out ${delay}ms both;--dx:${dx}px;--dy:${dy}px;`;
     confetti.appendChild(heart);
   }
   markerEl.appendChild(confetti);
@@ -128,7 +132,7 @@ function runMarkerBounceAndConfetti(markerEl: HTMLDivElement): void {
       }
     }
     delete markerEl.dataset.celebrating;
-  }, 600);
+  }, 1100);
 }
 
 /**

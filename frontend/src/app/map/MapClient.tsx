@@ -266,7 +266,11 @@ export default function MapClient({
   // - visitedAtRef: 사용자가 "네, 다녀왔어요" 를 누른 시각 — VisitMemoSheet 의 dateLabel 에 사용.
   // - mapboxViewRef: 1차 PATCH 성공 시 marker bounce + confetti 트리거.
   const shownPinIdsRef = useRef<Set<number>>(new Set());
-  const { evaluate: evaluateVisit, clearFirstEnterAt } = useVisitDetection();
+  const {
+    evaluate: evaluateVisit,
+    clearFirstEnterAt,
+    clearAllFirstEnterAt,
+  } = useVisitDetection();
   const [visitToastPin, setVisitToastPin] =
     useState<PinSummaryResponse | null>(null);
   const [visitMemoPin, setVisitMemoPin] =
@@ -274,6 +278,9 @@ export default function MapClient({
   // Phase 10 보강 (AC-VD-14): 1차 PATCH 실패 시 사용자에게 인라인 토스트로 피드백을 준다.
   // null 이면 토스트 비표시. 메시지 set 후 useEffect 가 1.5초 뒤 자동으로 null 로 되돌린다.
   const [visitErrorMessage, setVisitErrorMessage] = useState<string | null>(null);
+  // Phase 10 보강 (AC-VD-25, 2026-05-24): 동시 수정으로 본 디바이스 PATCH 가 전환을 발생시키지 못한
+  // 케이스에서 confetti/메모 시트 대신 표시할 안내 토스트. 2초 후 자동 닫힘.
+  const [visitInfoMessage, setVisitInfoMessage] = useState<string | null>(null);
   const visitedAtRef = useRef<Date | null>(null);
   const mapboxViewRef = useRef<MapboxViewHandle | null>(null);
 
@@ -283,6 +290,25 @@ export default function MapClient({
     const t = setTimeout(() => setVisitErrorMessage(null), 1500);
     return () => clearTimeout(t);
   }, [visitErrorMessage]);
+
+  // Phase 10 보강 (AC-VD-25, 2026-05-24): visitInfoMessage 자동 닫힘 (2초).
+  useEffect(() => {
+    if (!visitInfoMessage) return;
+    const t = setTimeout(() => setVisitInfoMessage(null), 2000);
+    return () => clearTimeout(t);
+  }, [visitInfoMessage]);
+
+  // Phase 10 보강 (AC-VD-24, 2026-05-24): 탭/앱 hidden 동안 firstEnterAt 이 유지되면 깨어났을 때
+  // 30초 초과 누적으로 즉시 토스트 발동 가능. visible 진입 시 firstEnterAt 전체를 비운다.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        clearAllFirstEnterAt();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [clearAllFirstEnterAt]);
 
   // 동시 1개 패널 정책: 다른 액션 시트가 열리면 알림 패널을 닫는다.
   // (역방향 — 알림 패널 열림 시 다른 시트 닫기 — 은 mobileBell/desktopBell onClick에서 처리.)
@@ -373,8 +399,9 @@ export default function MapClient({
           applyOptimistic({ kind: "patch", pinId, patch: { tag: nextTag } });
           const result = await updatePinTagAction(groupId, pinId, nextTag);
           if (result.ok) {
+            // Phase 10 보강: UpdatePinResponse — summary 만 사용한다.
             setPins((prev) =>
-              prev.map((p) => (p.id === pinId ? result.data : p)),
+              prev.map((p) => (p.id === pinId ? result.data.summary : p)),
             );
             resolve({ ok: true });
             return;
@@ -406,8 +433,9 @@ export default function MapClient({
           applyOptimistic({ kind: "patch", pinId, patch: { memo: nextMemo } });
           const result = await updatePinMemoAction(groupId, pinId, nextMemo);
           if (result.ok) {
+            // Phase 10 보강: UpdatePinResponse — summary 만 사용한다.
             setPins((prev) =>
-              prev.map((p) => (p.id === pinId ? result.data : p)),
+              prev.map((p) => (p.id === pinId ? result.data.summary : p)),
             );
             if (pinsCacheRef.current) {
               pinsCacheRef.current.fetchedAt = Date.now();
@@ -451,8 +479,9 @@ export default function MapClient({
             nextPlaceName,
           );
           if (result.ok) {
+            // Phase 10 보강: UpdatePinResponse — summary 만 사용한다.
             setPins((prev) =>
-              prev.map((p) => (p.id === pinId ? result.data : p)),
+              prev.map((p) => (p.id === pinId ? result.data.summary : p)),
             );
             if (pinsCacheRef.current) {
               pinsCacheRef.current.fetchedAt = Date.now();
@@ -588,8 +617,9 @@ export default function MapClient({
           roundedLng,
         );
         if (result.ok) {
+          // Phase 10 보강: UpdatePinResponse — summary 만 사용한다.
           setPins((prev) =>
-            prev.map((p) => (p.id === pinId ? result.data : p)),
+            prev.map((p) => (p.id === pinId ? result.data.summary : p)),
           );
           if (pinsCacheRef.current) {
             pinsCacheRef.current.fetchedAt = Date.now();
@@ -988,11 +1018,19 @@ export default function MapClient({
    * 패널이 열려 있어 토스트를 띄우지 못한 경우에도 firstEnterAt 은 useVisitDetection 내부에서
    * 누적되므로 다음 geolocate 콜백에서 다시 시도된다.
    */
+  // Phase 10 성능: WISH/REEL 핀만 미리 필터링하여 useVisitDetection 에 전달.
+  // optimisticPins 변경 시에만 재계산되며 evaluate 호출마다의 중복 필터링을 제거.
+  const wishReelPins = useMemo(
+    () =>
+      optimisticPins.filter((p) => p.tag === "WISH" || p.tag === "REEL"),
+    [optimisticPins],
+  );
+
   const handleGeolocate = useCallback(
     (position: GeolocationPosition) => {
       const { detectedPinId } = evaluateVisit({
         position,
-        pins: optimisticPins,
+        wishReelPins,
         shownPinIds: shownPinIdsRef.current,
       });
       if (detectedPinId === null) return;
@@ -1004,19 +1042,79 @@ export default function MapClient({
       ) {
         return;
       }
-      const pin = optimisticPins.find((p) => p.id === detectedPinId);
+      const pin = wishReelPins.find((p) => p.id === detectedPinId);
       if (!pin) return;
       setVisitToastPin(pin);
     },
     [
       evaluateVisit,
-      optimisticPins,
+      wishReelPins,
       activeSheet,
       visitToastPin,
       visitMemoPin,
       notifications.isPanelOpen,
     ],
   );
+
+  // Phase 10 자동 폴링 (PRD §11 (b) 후속 튜닝 후보 일부 구현):
+  // GeolocateControl 의 trackUserLocation watchPosition 은 정지 시 콜백이 드물게 발화하여
+  // 30초 머무름 측정이 사실상 어렵다. 위치 권한이 이미 'granted' 인 경우에 한해
+  // 5초마다 강제로 navigator.geolocation.getCurrentPosition 을 호출해 evaluate 를 트리거한다.
+  // 'prompt'/'denied' 상태에서는 폴링을 시작하지 않아 iOS 의 자동 권한 다이얼로그 발생을 회피한다.
+  const handleGeolocateRef = useRef(handleGeolocate);
+  useEffect(() => {
+    handleGeolocateRef.current = handleGeolocate;
+  }, [handleGeolocate]);
+
+  useEffect(() => {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.geolocation ||
+      !navigator.permissions
+    ) {
+      return;
+    }
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const startPolling = () => {
+      if (intervalId !== undefined) return;
+      intervalId = setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => handleGeolocateRef.current(pos),
+          undefined,
+          { enableHighAccuracy: true, timeout: 5_000, maximumAge: 0 },
+        );
+      }, 5_000);
+    };
+
+    const stopPolling = () => {
+      if (intervalId !== undefined) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
+
+    navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((status) => {
+        if (cancelled) return;
+        if (status.state === "granted") startPolling();
+        status.addEventListener("change", () => {
+          if (cancelled) return;
+          if (status.state === "granted") startPolling();
+          else stopPolling();
+        });
+      })
+      .catch(() => {
+        // Permissions API 미지원/오류 — 폴링 시작 안 함. watchPosition 콜백에만 의존.
+      });
+
+    return () => {
+      cancelled = true;
+      stopPolling();
+    };
+  }, []);
 
   /**
    * "다음에 올게요" — 세션 Set 에 추가 후 토스트 닫기 (FR-VD-13).
@@ -1046,9 +1144,39 @@ export default function MapClient({
     visitedAtRef.current = new Date();
     setVisitToastPin(null);
 
+    // Phase 10 UX 개선: 사용자가 줌아웃/줌인 상태일 때 confetti 가 화면 밖에서 발사되지
+    // 않도록 핀 위치로 flyTo 후 confetti 를 띄운다. flyTo 와 PATCH 를 병렬 시작하여
+    // 둘 다 완료된 시점에 confetti + 시트를 노출한다.
+    const flyToPromise = new Promise<void>((resolve) => {
+      if (!map) {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        map.off("moveend", settle);
+        resolve();
+      };
+      map.once("moveend", settle);
+      map.flyTo({
+        center: [Number(pin.longitude), Number(pin.latitude)],
+        zoom: Math.max(map.getZoom(), 16),
+        essential: true,
+        duration: 1500,
+      });
+      // safety: flyTo 가 어떤 이유로 moveend 를 발화 안 하더라도 강제 해소.
+      setTimeout(settle, 2200);
+    });
+
     startOptimisticTransition(async () => {
       applyOptimistic({ kind: "patch", pinId, patch: { tag: "MEMORY" } });
-      const result = await updatePinTagAction(groupId, pinId, "MEMORY");
+      // PATCH 와 flyTo 병렬 — 둘 다 완료 후 confetti 발사.
+      const [result] = await Promise.all([
+        updatePinTagAction(groupId, pinId, "MEMORY"),
+        flyToPromise,
+      ]);
       if (!result.ok) {
         // FR-VD-21: 시스템 에러 — 세션 Set 미추가, firstEnterAt 도 유지하여 재시도 가능하게 둠.
         console.error(
@@ -1059,18 +1187,28 @@ export default function MapClient({
         setVisitErrorMessage("장소를 추억으로 옮기지 못했어요. 다시 시도해주세요.");
         return;
       }
+      // Phase 10 보강 (2026-05-24): UpdatePinResponse — summary + transitionedToMemoryNow.
+      const updatedPin = result.data.summary;
+      const transitioned = result.data.transitionedToMemoryNow;
       setPins((prev) =>
-        prev.map((p) => (p.id === pinId ? result.data : p)),
+        prev.map((p) => (p.id === pinId ? updatedPin : p)),
       );
       shownPinIdsRef.current.add(pinId);
       clearFirstEnterAt(pinId);
 
-      // confetti + 메모 시트를 동시에 시작 (FR-VD-15, FR-VD-16).
-      mapboxViewRef.current?.triggerVisitCelebration(pinId);
-      setVisitMemoPin(result.data);
-      setActiveSheet("visit-memo");
+      if (transitioned) {
+        // 정상 케이스 — 본 디바이스에서 전환 발생: confetti + 메모 시트 (FR-VD-15, FR-VD-16).
+        // flyTo 가 끝나고 사용자가 핀 위치를 인지할 짧은 호흡을 위해 250ms pause 후 발사.
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        mapboxViewRef.current?.triggerVisitCelebration(pinId);
+        setVisitMemoPin(updatedPin);
+        setActiveSheet("visit-memo");
+      } else {
+        // AC-VD-25: 짝꿍이 먼저 메모리로 전환한 핀 — confetti/시트 스킵 + 안내 토스트.
+        setVisitInfoMessage("이미 추억으로 기록된 곳이에요");
+      }
     });
-  }, [visitToastPin, groupId, applyOptimistic, clearFirstEnterAt]);
+  }, [visitToastPin, groupId, applyOptimistic, clearFirstEnterAt, map]);
 
   /**
    * 메모 저장 — 2차 PATCH(memo) (FR-VD-17 ~ FR-VD-19).
@@ -1083,11 +1221,14 @@ export default function MapClient({
       const pinId = visitMemoPin.id;
       const result = await updatePinMemoAction(groupId, pinId, memo);
       if (result.ok) {
+        // Phase 10 보강: UpdatePinResponse — summary 만 사용한다.
         setPins((prev) =>
-          prev.map((p) => (p.id === pinId ? result.data : p)),
+          prev.map((p) => (p.id === pinId ? result.data.summary : p)),
         );
         setVisitMemoPin(null);
         setActiveSheet(null);
+        // Phase 10 UX 개선: 저장 직후 핀 상세 팝업 자동 표시 → 사용자가 전환 결과를 즉시 확인.
+        setSelectedPinId(pinId);
         return { ok: true };
       }
       const message =
@@ -1106,12 +1247,17 @@ export default function MapClient({
   );
 
   /**
-   * 메모 건너뛰기 — 2차 PATCH 미발사. 시트만 닫는다 (FR-VD-20).
+   * 메모 건너뛰기 — 2차 PATCH 미발사. 시트만 닫고 핀 상세 팝업을 자동 표시한다.
+   * (FR-VD-20 + Phase 10 UX 개선: 전환 결과 즉시 확인)
    */
   const handleVisitMemoSkip = useCallback(() => {
+    const pinId = visitMemoPin?.id;
     setVisitMemoPin(null);
     setActiveSheet(null);
-  }, []);
+    if (pinId != null) {
+      setSelectedPinId(pinId);
+    }
+  }, [visitMemoPin]);
 
   /**
    * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
@@ -1627,6 +1773,29 @@ export default function MapClient({
           }}
         >
           {visitErrorMessage}
+        </div>
+      )}
+      {visitInfoMessage && !visitErrorMessage && (
+        <div
+          role="status"
+          style={{
+            // AC-VD-25: 동시 수정으로 짝꿍이 먼저 메모리로 전환한 핀 안내 (중립 톤).
+            position: "fixed",
+            bottom: 100,
+            left: 12,
+            right: 12,
+            zIndex: 30,
+            background: colors.ink,
+            color: colors.bg,
+            padding: "12px 16px",
+            borderRadius: 12,
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            textAlign: "center",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          }}
+        >
+          {visitInfoMessage}
         </div>
       )}
       {isDesktop ? (
