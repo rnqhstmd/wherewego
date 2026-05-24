@@ -32,4 +32,13 @@
 - **+ 크로스헤어 좌표 mismatch 수정 (2026-05-20)**: 이전 검색 흐름의 `flyTo({ padding })` 잔여로 `AddPinPickerContent` 의 `map.getCenter()` 가 optical center 를 반환해 의도와 다른 위치가 저장되던 버그 해소. `handleTabChange("add")` 진입 시 `resetMapPadding()` 호출로 시각 viewport 중앙 = `map.getCenter()` 보장 — [#33](https://github.com/rnqhstmd/wherewego/pull/33)
 - **iOS GeolocateControl 버튼 비활성화 버그 수정 (2026-05-23)**: `MapboxView.tsx` `map.on("load")` 내 자동 `getCurrentPosition` 호출 전 `navigator.permissions.query({name:'geolocation'})` 로 권한 상태 사전 확인. `'granted'`일 때만 자동 flyTo 실행 — iOS Safari/Chrome에서 blocking 권한 modal 후 거부 시 Mapbox `GeolocateControl._checkGeolocationSupport`가 `'denied'` 상태를 받아 버튼이 disabled 되는 버그 수정. `'prompt'`·`'denied'`는 자동 요청 건너뜀 → 버튼 활성 유지. Permissions API 미지원 구형 브라우저는 기존 동작 유지 — [PR #54](https://github.com/rnqhstmd/wherewego/pull/54)
 
+- **Phase 10 완료 (2026-05-24)**: 장소 방문 감지 + MEMORY 자동 전환 — [PR #57](https://github.com/rnqhstmd/wherewego/pull/57)
+  - `VisitToast`: PinPopup 스타일 카드 리디자인. 화면 정중앙(`top:50% + translate(-50%,-50%)`, max-width 380px), `{장소명}에 함께 방문하셨나요?` 카피 + 주소 + 메모 미리보기(있을 때만) + `written by` 표시. CTA "네, 다녀왔어요 →" / "다음에 올게요".
+  - `VisitMemoSheet`: "🌸 다녀온 흔적" + "다녀온 날 · YYYY.MM.DD" + 자유 입력. 저장/건너뛰기 후 해당 핀 PinPopup 자동 오픈.
+  - `MapboxView`: `forwardRef` + `useImperativeHandle`로 `triggerVisitCelebration(pinId)` 노출. `runMarkerBounceAndConfetti` = 마커 4-stage cubic-bezier bounce 900ms (`scale 1.0 → 1.5 → 1.0`) + 6개 하트 22~30px confetti 1000ms (CSS keyframe + `--dx/--dy` 위치 분산). granted 권한 시 5초 자동 폴링으로 `geolocate` 콜백 희소성 보완.
+  - `MapClient`: `useMemo`로 `wishReelPins` 캐싱. `handleVisitConfirm` = `Promise.all([flyTo 1500ms (moveend 또는 안전 timeout 대기), PATCH tag=MEMORY])` → 250ms 일시 정지 → `triggerVisitCelebration` → `setVisitMemoPin`. visibilitychange 리스너로 폴링 일시 정지/재개.
+  - `NotificationPanel`: 600px 고정 높이 + `bodyRef`/`listScrollRef`로 패널 닫기/다시 열기 사이 스크롤 위치 보존 (최대 50건 누적 시에도 사용자 위치 유지).
+  - `NotificationItem`: "추억이 한 곳 더 쌓였어요" 통일 카피. `NotificationPinList`: "함께 만든 추억 N곳" + VISIT_DETECTED MEMORY 핀에 "● 추억" 배지.
+  - 성능: BBox prefilter (`LAT_DEG_PER_METER` 기반 ±0.001도 박스) 통과 핀만 Haversine 호출 — 1000핀 환경에서 99% 컷.
+
 - **사이트 파비콘 교체 (2026-05-20)**: App Router 컨벤션(`app/icon.png` + `app/apple-icon.png`)으로 디자인 시스템의 하트 핀 + 지구본 PNG 적용. 기존 `app/favicon.ico` (Next.js 기본 삼각형) 삭제 — [#33](https://github.com/rnqhstmd/wherewego/pull/33)
