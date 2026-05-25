@@ -334,8 +334,11 @@ public class InstagramLinkHandler implements MessageHandler {
                         // 카카오 1001 타임아웃으로 callbackUrl이 만료된 경우 push가 실패함.
                         // 실패 시 pendingNotificationSession에 저장해 다음 발화 시 prepend로 전달.
                         boolean pushed = kakaoCallbackClient.push(callbackUrl, result);
-                        if (!pushed && bodyText != null && !bodyText.isBlank()) {
-                            pendingNotificationSession.put(botUserKey, "📋 이전 링크 처리 결과\n" + bodyText);
+                        if (!pushed) {
+                            String fallbackText = (bodyText != null && !bodyText.isBlank())
+                                    ? "📋 이전 링크 처리 결과\n" + bodyText
+                                    : "❗ 장소 저장 처리 중 문제가 발생했어요. 잠시 후 다시 확인해 주세요.";
+                            pendingNotificationSession.put(botUserKey, fallbackText);
                         }
                     } catch (RuntimeException e) {
                         log.error("Async candidates processing failed url={} cause={}",
