@@ -359,7 +359,8 @@ class GroupMemberServiceTest {
     @Nested
     class LeaveGroup {
 
-        @DisplayName("정상 탈퇴 시 markLeft 가 호출되고 마지막 멤버가 아니면 group.markDeleted 는 호출되지 않는다 (AC-11).")
+        @DisplayName("정상 탈퇴 시 markLeft 가 호출되고 마지막 멤버가 아니면 group.markDeleted 는 호출되지 않는다 (AC-11). " +
+                "Phase 11 PR-A: 탈퇴 시점에 미수락 초대를 일괄 만료한다 (R-2).")
         @Test
         void leaveGroup_notLastMember_keepsGroupActive() {
             // arrange
@@ -378,7 +379,8 @@ class GroupMemberServiceTest {
             assertThat(member.getLeftAt()).isNotNull();
             assertThat(group.getDeletedAt()).isNull();
             verify(groupRepository, never()).save(any(Group.class));
-            verify(inviteLinkRepository, never()).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
+            // Phase 11 PR-A (R-2): 탈퇴 시점에 미수락 초대를 일괄 만료한다.
+            verify(inviteLinkRepository).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
             // AC-B6: 탈퇴 시 봇 매핑도 해제되어야 한다 (Phase 2.6 B-4)
             verify(botUserMappingService).unlink(USER_ID);
         }
