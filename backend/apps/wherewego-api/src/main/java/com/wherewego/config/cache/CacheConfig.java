@@ -22,6 +22,7 @@ public class CacheConfig {
     public static final String GEMINI_USER_QUOTA = "geminiUserQuota";
     public static final String GEMINI_RESPONSE_CACHE = "geminiResponseCache";
     public static final String GOOGLE_PLACES_RESPONSE_CACHE = "googlePlacesResponseCache";
+    public static final String ONBOARDING_STATUS = "onboardingStatus";
 
     @Bean
     public CacheManager cacheManager(
@@ -72,6 +73,12 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(Duration.ofHours(24))
                         .maximumSize(1_000)
+                        .build());
+        // Phase 11 PR-B: 온보딩 진입 상태 (활성 그룹 / 멤버 수 / 봇 매핑) 사용자별 60초 캐시.
+        manager.registerCustomCache(ONBOARDING_STATUS,
+                Caffeine.newBuilder()
+                        .expireAfterWrite(Duration.ofSeconds(60))
+                        .maximumSize(10_000)
                         .build());
         return manager;
     }
