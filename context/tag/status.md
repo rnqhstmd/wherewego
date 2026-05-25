@@ -5,6 +5,7 @@
 ## 범례
 
 - ✅ 반영됨 — 코드에 구현 완료
+- 🚧 진행 중 — 로컬 작업 완료, 커밋/PR 대기
 - ⬜ 미반영 — 정책/설계만 확정, 코드 미구현
 
 ## 요구사항
@@ -22,3 +23,4 @@
 | FR-TAG-9 | 웹 직접 등록 UI — REEL 제외, WISH/MEMORY 2종 선택 (REEL은 챗봇 전용). 핀 편집 다이얼로그는 3종 모두 허용 (소급 수정 가능) | ✅ | [#38](https://github.com/rnqhstmd/wherewego/pull/38) |
 | FR-TAG-10 | 지도 마커 3종 시각 구분 — REEL(하늘색 `#7BB3E8` 동그라미) / WISH(노랑 `#F4C842` 별모양) / MEMORY(핑크 `#FFB3C6` 하트) | ✅ | [#38](https://github.com/rnqhstmd/wherewego/pull/38) |
 | FR-TAG-11 | 룰렛 후보 풀 갱신 — PLACE→REEL+WISH 포함, MEMORY 제외 기본 (기존 `includeMemory` 토글 로직 연동). MapClient 토글 부분버그(Phase 2.6 PR #17 잔존) 정합화 | ✅ | [#38](https://github.com/rnqhstmd/wherewego/pull/38) |
+| FR-TAG-12 | 지도 좌하단 태그 필터 버튼 — 깔때기 아이콘 클릭 시 팝오버(전체/추억/위시/발견 체크박스). 기본 전체 선택. 체크 해제된 태그는 지도 마커뿐 아니라 룰렛 후보 풀에서도 제외(`computeTagsAllowed(includeMemory, visibleTags)` 교집합). 필터링 중 버튼 우상단에 점 인디케이터 표시 | 🚧 | WIP (local, 미커밋) — `TagFilterButton.tsx` + `MapClient.tsx` `visibleTags` 상태 |
