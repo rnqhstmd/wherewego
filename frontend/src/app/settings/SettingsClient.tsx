@@ -9,12 +9,15 @@ import { IconBack } from "@/components/icons";
 import type { UserResponse } from "@/lib/api/auth";
 import { postLogout } from "@/lib/api/auth";
 import { leaveGroup } from "@/lib/api/group-client";
+import type { OnboardingStatusResponse } from "@/lib/api/me-client";
 import type { ActiveGroupResponse } from "@/lib/api/types";
 import { colors, fonts } from "@/lib/design/tokens";
 
 interface SettingsClientProps {
   user: UserResponse;
   activeGroup: ActiveGroupResponse | null;
+  /** Phase 11 PR-C: 챗봇/초대 항목 강등 표시용 사용자 진입 상태. */
+  onboardingStatus: OnboardingStatusResponse;
 }
 
 /**
@@ -28,10 +31,13 @@ interface SettingsClientProps {
  *
  * 친구 초대는 그룹 컨텍스트가 명확한 /groups 화면에서 처리한다.
  */
-export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
+export function SettingsClient({ user, activeGroup, onboardingStatus }: SettingsClientProps) {
   const router = useRouter();
   const [busy, setBusy] = useState<"leave" | "logout" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Phase 11 PR-C AC-8: 정원 도달 시 초대 행은 숨기고, 봇 매핑 있으면 ✅ 강등 표시.
+  const groupIsFull = onboardingStatus.activeGroupMemberCount >= 2;
+  const botLinked = onboardingStatus.hasBotMapping;
 
   const onLeaveGroup = async () => {
     if (!activeGroup || busy) return;
@@ -217,16 +223,19 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
                 <span aria-hidden="true">👥</span>
                 <span>{activeGroup.memberCount}명 참여 중</span>
               </div>
-              <Row
-                label="📨 초대 링크 보내기"
-                onClick={() => router.push("/groups/invite")}
-                style={{ marginTop: 14 }}
-              />
+              {groupIsFull ? null : (
+                <Row
+                  label="📨 초대 링크 보내기"
+                  onClick={() => router.push("/groups/invite")}
+                  style={{ marginTop: 14 }}
+                />
+              )}
               <Row
                 label="그룹 탈퇴"
                 onClick={onLeaveGroup}
                 danger
                 disabled={busy !== null}
+                style={groupIsFull ? { marginTop: 14 } : undefined}
               />
             </div>
           </section>
@@ -235,31 +244,75 @@ export function SettingsClient({ user, activeGroup }: SettingsClientProps) {
         {/* 3) 챗봇 연동 */}
         <section>
           <PanelLabel>챗봇 연동</PanelLabel>
-          <div
-            style={{
-              fontSize: 12,
-              color: colors.inkSoft,
-              lineHeight: 1.5,
-              margin: "4px 4px 8px",
-            }}
-          >
-            카카오톡 챗봇에 인스타 릴스 링크를 보내면 자동으로 핀이 등록돼요.
-            6자리 코드를 발급받아 챗봇에 한 번 입력하면 내 계정과 연결됩니다.
-          </div>
-          <div
-            style={{
-              background: colors.panel,
-              borderRadius: 14,
-              border: `1px solid ${colors.hairline}`,
-              padding: "6px 22px",
-              boxShadow: `0 2px 8px ${colors.shadow}`,
-            }}
-          >
-            <Row
-              label="챗봇 연동 코드 발급"
-              onClick={() => router.push("/bot/connect")}
-            />
-          </div>
+          {botLinked ? (
+            // 연동 완료 상태 — 정보 텍스트 + 작은 "재발급" 링크로 강등 (AC-8).
+            <div
+              style={{
+                background: colors.panel,
+                borderRadius: 14,
+                border: `1px solid ${colors.hairline}`,
+                padding: "16px 22px",
+                boxShadow: `0 2px 8px ${colors.shadow}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: colors.ink,
+                }}
+              >
+                ✅ 챗봇 연동됨
+              </span>
+              <button
+                type="button"
+                onClick={() => router.push("/bot/connect")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: colors.inkFaint,
+                  fontSize: 12,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                재발급
+              </button>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: colors.inkSoft,
+                  lineHeight: 1.5,
+                  margin: "4px 4px 8px",
+                }}
+              >
+                카카오톡 챗봇에 인스타 릴스 링크를 보내면 자동으로 핀이 등록돼요.
+                6자리 코드를 발급받아 챗봇에 한 번 입력하면 내 계정과 연결됩니다.
+              </div>
+              <div
+                style={{
+                  background: colors.panel,
+                  borderRadius: 14,
+                  border: `1px solid ${colors.hairline}`,
+                  padding: "6px 22px",
+                  boxShadow: `0 2px 8px ${colors.shadow}`,
+                }}
+              >
+                <Row
+                  label="챗봇 연동 코드 발급"
+                  onClick={() => router.push("/bot/connect")}
+                />
+              </div>
+            </>
+          )}
         </section>
 
         {/* 4) 계정 */}

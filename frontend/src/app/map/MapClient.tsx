@@ -41,6 +41,10 @@ import ClusterBanner from "./_components/ClusterBanner";
 import EmptyMapCard from "./_components/EmptyMapCard";
 import { TagLegendButton } from "./_components/TagLegendButton";
 import { TagFilterButton } from "./_components/TagFilterButton";
+import { InvitePartnerHintCard } from "./_components/onboarding/InvitePartnerHintCard";
+import { ConnectBotHintCard } from "./_components/onboarding/ConnectBotHintCard";
+import { isHintSnoozed } from "./_lib/hintSnooze";
+import type { OnboardingStatusResponse } from "@/lib/api/me-client";
 import MapLoadError, {
   type MapLoadErrorReason,
 } from "./_components/MapLoadError";
@@ -104,6 +108,8 @@ interface MapClientProps {
   mapboxStyleUrl: string | null;
   myNickname: string;
   myId: number;
+  /** Phase 11 PR-C: /map 발견성 카드 노출 결정용 사용자 진입 상태. */
+  onboardingStatus: OnboardingStatusResponse;
 }
 
 type ActiveSheet =
@@ -172,7 +178,19 @@ export default function MapClient({
   mapboxStyleUrl,
   myNickname,
   myId,
+  onboardingStatus,
 }: MapClientProps) {
+  // Phase 11 PR-C: 발견성 카드 dismiss 상태. mount 시 localStorage snooze 동기화.
+  const [hintDismissed, setHintDismissed] = useState<{ invite: boolean; bot: boolean }>({
+    invite: false,
+    bot: false,
+  });
+  useEffect(() => {
+    setHintDismissed({
+      invite: isHintSnoozed("invite-partner"),
+      bot: isHintSnoozed("connect-bot"),
+    });
+  }, []);
   // 딥링크(?pinId=X) 진입 시 초기 geolocation flyTo를 건너뜀 — 핀 줌인 유지.
   const skipInitialGeoFly = useMemo(
     () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pinId"),
@@ -1725,6 +1743,26 @@ export default function MapClient({
           onAddPin={() => handleTabChange("add")}
         />
       )}
+      {/* Phase 11 PR-C: 발견성 안내 카드 — 핀 0개 + 진행 미완 상태에서 한 번에 하나만. */}
+      {pins.length === 0 &&
+      !activeSheet &&
+      onboardingStatus.activeGroupMemberCount === 1 &&
+      !hintDismissed.invite ? (
+        <InvitePartnerHintCard
+          groupId={groupId}
+          onDismiss={() =>
+            setHintDismissed((s) => ({ ...s, invite: true }))
+          }
+        />
+      ) : pins.length === 0 &&
+        !activeSheet &&
+        onboardingStatus.activeGroupMemberCount >= 2 &&
+        !onboardingStatus.hasBotMapping &&
+        !hintDismissed.bot ? (
+        <ConnectBotHintCard
+          onDismiss={() => setHintDismissed((s) => ({ ...s, bot: true }))}
+        />
+      ) : null}
       {(activeSheet === "add" || activeSheet === "coordinate-edit") && (
         <CrosshairOverlay />
       )}
