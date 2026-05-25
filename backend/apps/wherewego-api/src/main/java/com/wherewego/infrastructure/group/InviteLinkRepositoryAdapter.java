@@ -27,6 +27,11 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
     }
 
     @Override
+    public Optional<InviteLink> findActiveBySlug(String slug, Instant now) {
+        return inviteLinkJpaRepository.findActiveBySlug(slug, now);
+    }
+
+    @Override
     public int expirePendingByGroupId(Long groupId, Instant now) {
         return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
     }

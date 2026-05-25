@@ -104,6 +104,18 @@ chatbot:
 mapbox:
   token: ${MAPBOX_TOKEN}
 
+app:
+  invite:
+    # 초대 링크 TTL (ISO-8601 duration). 7일.
+    ttl: ${APP_INVITE_TTL:P7D}
+    # 단축 공유 URL 베이스. `${baseUrl}/invite/{slug}` 형태로 결합된다.
+    share-base-url: ${APP_INVITE_SHARE_BASE_URL:http://localhost:3000}
+    rate-limit:
+      # /api/v1/groups/invite-links/by-slug/** 의 IP 분당 허용 요청 수.
+      capacity: 30
+      refill-seconds: 60
+      max-keys: 10000
+
 google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY}

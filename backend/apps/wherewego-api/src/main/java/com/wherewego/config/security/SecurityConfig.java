@@ -3,6 +3,7 @@ package com.wherewego.config.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -19,6 +20,7 @@ public class SecurityConfig {
     private final KakaoSkillSecretFilter kakaoSkillSecretFilter;
     private final ChatbotRateLimitFilter chatbotRateLimitFilter;
     private final ActuatorIpRestrictionFilter actuatorIpRestrictionFilter;
+    private final InviteLinkRateLimitFilter inviteLinkRateLimitFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -42,12 +44,14 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/groups/invite-links/by-slug/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(kakaoSkillSecretFilter, JwtAuthenticationFilter.class)
                 .addFilterAfter(chatbotRateLimitFilter, KakaoSkillSecretFilter.class)
-                .addFilterBefore(actuatorIpRestrictionFilter, JwtAuthenticationFilter.class);
+                .addFilterBefore(actuatorIpRestrictionFilter, JwtAuthenticationFilter.class)
+                .addFilterBefore(inviteLinkRateLimitFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 }

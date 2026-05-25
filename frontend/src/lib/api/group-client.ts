@@ -29,10 +29,27 @@ export async function createGroup(name: string): Promise<GroupCreatedResponse> {
 
 /**
  * 그룹 초대 링크 발급 응답.
- * 백엔드 `GroupV1Dto.InviteLinkResponse`와 1:1 대응. 24h TTL.
+ * 백엔드 `GroupV1Dto.InviteLinkResponse`와 1:1 대응.
+ *
+ * - `token`: 기존 UUID 토큰 (accept API 호출 키, BC).
+ * - `slug`: base56 8자 단축 슬러그.
+ * - `shareUrl`: `${app.invite.share-base-url}/invite/{slug}` 단축 공유 URL.
+ * - `expiresAt`: 만료 시각 (UTC ISO). TTL 7일.
  */
 export interface InviteLinkResponse {
   token: string;
+  slug: string;
+  expiresAt: string;
+  shareUrl: string;
+}
+
+/**
+ * 초대 링크 공개 미리보기 응답. 백엔드 `GroupV1Dto.InviteLinkPreviewResponse`.
+ */
+export interface InviteLinkPreviewResponse {
+  token: string;
+  groupName: string;
+  inviterNickname: string;
   expiresAt: string;
 }
 
@@ -46,7 +63,7 @@ export interface InviteLinkAcceptResponse {
 }
 
 /**
- * 활성 그룹에 대한 초대 링크 발급. 클라이언트 컴포넌트 전용. (24h TTL)
+ * 활성 그룹에 대한 초대 링크 발급. 클라이언트 컴포넌트 전용. (TTL 7일)
  */
 export async function issueInviteLink(
   groupId: number,
@@ -81,4 +98,17 @@ export async function leaveGroup(groupId: number): Promise<void> {
   await apiFetch<void>(`/groups/${groupId}/members/me`, {
     method: "DELETE",
   });
+}
+
+/**
+ * 단축 슬러그로 초대 링크 미리보기. 인증 불필요(공개).
+ * 만료/소진/없음 → ApiError(404 INVITE_LINK_NOT_FOUND), 레이트리밋 → 429 INVITE_LINK_RATE_LIMITED.
+ */
+export async function getInviteLinkPreview(
+  slug: string,
+): Promise<InviteLinkPreviewResponse> {
+  return apiFetch<InviteLinkPreviewResponse>(
+    `/groups/invite-links/by-slug/${encodeURIComponent(slug)}`,
+    { method: "GET" },
+  );
 }

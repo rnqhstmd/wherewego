@@ -19,7 +19,7 @@ import type { ActiveGroupResponse } from "@/lib/api/types";
  * 3) postKakaoCallback → 실패 시 /login?error=oauth_failed.
  * 4) 활성 그룹 조회 → 분기:
  *    - 그룹 있음: returnUrl(/map|/pins) 또는 /map
- *    - 그룹 없음 + 닉네임 설정 완료: /onboarding/group-start
+ *    - 그룹 없음 + 닉네임 설정 완료: /onboarding/welcome (Phase 11 PR-B — 위저드 진입)
  *    - 그룹 없음 + 닉네임 미설정: /onboarding/nickname
  */
 async function fetchActiveGroupClient(): Promise<ActiveGroupResponse | null> {
@@ -82,7 +82,9 @@ function CallbackInner() {
         // 백엔드(AuthService.java)는 카카오 닉네임을 그대로 채워 식별 가능한 기본값 패턴이 없으므로
         // 서버 응답의 user.nickname으로 신규/기존을 구분할 수 없음. 추후 백엔드에
         // `nicknameConfirmed: boolean` 필드 추가 시 그것을 1차 기준으로 사용하도록 교체할 것.
-        target = "/onboarding/group-start";
+        // Phase 11 PR-B: 그룹 없는 신규 사용자는 3단계 위저드로 진입한다.
+        // 위저드 내부에서 그룹 만들기/합류, 초대 링크 공유, 챗봇 연동을 안내한다.
+        target = "/onboarding/welcome";
       } else {
         target = "/onboarding/nickname";
       }

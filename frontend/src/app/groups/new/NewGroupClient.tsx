@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
 import { BackButton } from "@/components/ui/BackButton";
@@ -10,10 +10,13 @@ import { colors, fonts } from "@/lib/design/tokens";
 
 /**
  * 그룹 생성 입력 화면 (디자인 시스템 일관 유지: Gowun Batang 헤딩 + Pretendard 본문).
- * 성공 시 `/groups` 로 이동하여 새 그룹을 활성 그룹으로 표시.
+ * 성공 시 기본은 `/groups` 로 이동(거기서 /map 으로 자동 redirect),
+ * `?from=welcome` 으로 진입한 경우는 위저드의 Step 2(초대 단계)로 복귀.
  */
-export function NewGroupClient() {
+function NewGroupInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromWelcome = searchParams.get("from") === "welcome";
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -28,8 +31,15 @@ export function NewGroupClient() {
     setSubmitting(true);
     try {
       await createGroup(trimmed);
-      router.replace("/groups");
-      router.refresh();
+      if (fromWelcome) {
+        // 위저드에서 진입한 경우 Step 2(초대) 로 복귀. router.refresh 로 서버 컴포넌트의
+        // onboardingStatus 가 최신화되어 자동으로 Step 2 가 노출된다.
+        router.replace("/onboarding/welcome?step=2");
+        router.refresh();
+      } else {
+        router.replace("/groups");
+        router.refresh();
+      }
     } catch (e) {
       const message =
         e instanceof Error && e.message
@@ -163,5 +173,23 @@ export function NewGroupClient() {
       </div>
       </div>
     </div>
+  );
+}
+
+export function NewGroupClient() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            width: "100%",
+            minHeight: "100vh",
+            background: colors.bg,
+          }}
+        />
+      }
+    >
+      <NewGroupInner />
+    </Suspense>
   );
 }

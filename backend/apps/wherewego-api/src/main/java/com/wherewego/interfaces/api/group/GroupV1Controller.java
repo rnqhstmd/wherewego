@@ -1,5 +1,6 @@
 package com.wherewego.interfaces.api.group;
 
+import com.wherewego.config.env.InviteProperties;
 import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.interfaces.api.ApiResponse;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GroupV1Controller implements GroupV1ApiSpec {
 
     private final GroupMemberService groupMemberService;
+    private final InviteProperties inviteProperties;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -42,7 +44,8 @@ public class GroupV1Controller implements GroupV1ApiSpec {
     ) {
         return ApiResponse.success(
                 GroupV1Dto.InviteLinkResponse.from(
-                        groupMemberService.issueInviteLink(userId, groupId)));
+                        groupMemberService.issueInviteLink(userId, groupId),
+                        inviteProperties.shareBaseUrl()));
     }
 
     @PostMapping("/invite-links/{token}/accept")
@@ -54,6 +57,16 @@ public class GroupV1Controller implements GroupV1ApiSpec {
         return ApiResponse.success(
                 GroupV1Dto.InviteAcceptResponse.from(
                         groupMemberService.acceptInviteLink(userId, token)));
+    }
+
+    @GetMapping("/invite-links/by-slug/{slug}")
+    @Override
+    public ApiResponse<GroupV1Dto.InviteLinkPreviewResponse> previewInviteLinkBySlug(
+            @PathVariable String slug
+    ) {
+        return ApiResponse.success(
+                GroupV1Dto.InviteLinkPreviewResponse.from(
+                        groupMemberService.previewBySlug(slug)));
     }
 
     @DeleteMapping("/{groupId}/members/me")
