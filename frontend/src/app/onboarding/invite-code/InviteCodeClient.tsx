@@ -50,15 +50,24 @@ function InviteCodeInner() {
   return (
     <div
       style={{
-        padding: "80px 32px 32px",
         background: colors.bg,
         minHeight: "100vh",
         fontFamily: fonts.sans,
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
         boxSizing: "border-box",
       }}
     >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          padding: "80px 32px 32px",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+        }}
+      >
       {/* Heading */}
       <div
         style={{
@@ -145,6 +154,7 @@ function InviteCodeInner() {
         >
           취소
         </BtnSub>
+      </div>
       </div>
     </div>
   );

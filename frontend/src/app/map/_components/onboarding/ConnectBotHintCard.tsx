@@ -6,6 +6,8 @@ import { snoozeHint } from "../../_lib/hintSnooze";
 
 interface ConnectBotHintCardProps {
   onDismiss: () => void;
+  /** 데스크탑에서는 좌측 ActionBar 와 겹치지 않도록 left margin 을 늘린다. */
+  isDesktop: boolean;
 }
 
 /**
@@ -14,7 +16,7 @@ interface ConnectBotHintCardProps {
  * - "챗봇 연동하기" CTA → /bot/connect 라우트로 이동 (기존 화면).
  * - "×" 닫기 → 3일 snooze + 부모 통지.
  */
-export function ConnectBotHintCard({ onDismiss }: ConnectBotHintCardProps) {
+export function ConnectBotHintCard({ onDismiss, isDesktop }: ConnectBotHintCardProps) {
   const router = useRouter();
 
   const onClose = () => {
@@ -29,7 +31,7 @@ export function ConnectBotHintCard({ onDismiss }: ConnectBotHintCardProps) {
       style={{
         position: "absolute",
         top: 16,
-        left: 16,
+        left: isDesktop ? 80 : 16,
         right: 16,
         maxWidth: 360,
         zIndex: 25,
