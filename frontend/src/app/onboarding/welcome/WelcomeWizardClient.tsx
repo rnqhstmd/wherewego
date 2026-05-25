@@ -128,10 +128,7 @@ function WelcomeWizardInner({ initialStatus }: WelcomeWizardClientProps) {
 
         <div style={{ marginTop: 32, flex: 1 }}>
           {step === 1 ? (
-            <Step1Group
-              onCompleted={() => goStep(2)}
-              onSkip={() => goStep(2)}
-            />
+            <Step1Group onSkip={() => goStep(2)} />
           ) : null}
           {step === 2 ? (
             <Step2Invite

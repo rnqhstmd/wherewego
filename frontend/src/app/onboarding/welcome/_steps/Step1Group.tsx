@@ -7,17 +7,17 @@ import { BtnSub } from "@/components/ui/BtnSub";
 import { colors, fonts } from "@/lib/design/tokens";
 
 interface Step1GroupProps {
-  onCompleted: () => void;
   onSkip: () => void;
 }
 
 /**
  * 위저드 Step 1 — 그룹 시작.
  *
- * - "새 그룹 만들기" → /groups/new (생성 완료 시 redirect 흐름이 /onboarding/welcome?step=2 로 복귀하도록 별도 처리 필요할 수 있음).
- *   현재는 /groups/new 에서 생성 후 기존 redirect 그대로 두고, 사용자가 위저드 재진입 시 step=2 부터 자동 노출.
+ * - "새 그룹 만들기" → /groups/new. 생성 완료 후 사용자가 위저드 재진입 시 자동 Step 2 노출.
  * - "초대 코드로 합류" → /onboarding/invite-code (기존 흐름 그대로 — 합류 성공 시 /groups).
- * - "다음에 할게요" → onSkip (step 2 로 진행).
+ * - "다음에 할게요" → onSkip (Step 2 로 진행).
+ *
+ * onCompleted prop 은 다른 Step 과의 인터페이스 일관성용이지만 현재 구현은 라우팅으로 자체 종결되므로 제외.
  */
 export function Step1Group({ onSkip }: Step1GroupProps) {
   const router = useRouter();

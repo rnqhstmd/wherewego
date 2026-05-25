@@ -28,14 +28,14 @@ public class UserOnboardingService {
     @Cacheable(value = CACHE_NAME, key = "#userId")
     @Transactional(readOnly = true)
     public OnboardingStatus getStatus(Long userId) {
-        boolean hasActiveGroup = groupMemberRepository.existsActiveByUserId(userId);
-        long memberCount = 0L;
-        if (hasActiveGroup) {
-            memberCount = groupMemberRepository.findLatestActiveGroupIdByUserId(userId)
-                    .map(groupMemberRepository::countActiveByGroupId)
-                    .orElse(0L);
-        }
+        // findLatestActiveGroupIdByUserId 만으로 존재 여부 + 그룹 ID 를 동시에 얻는다.
+        // (이전엔 existsActiveByUserId 와 findLatestActiveGroupIdByUserId 를 모두 호출하여 DB 왕복이 1회 더 발생했음.)
         boolean hasBotMapping = botUserMappingRepository.findByUserId(userId).isPresent();
-        return new OnboardingStatus(hasActiveGroup, memberCount, hasBotMapping);
+        return groupMemberRepository.findLatestActiveGroupIdByUserId(userId)
+                .map(groupId -> new OnboardingStatus(
+                        true,
+                        groupMemberRepository.countActiveByGroupId(groupId),
+                        hasBotMapping))
+                .orElseGet(() -> new OnboardingStatus(false, 0L, hasBotMapping));
     }
 }
