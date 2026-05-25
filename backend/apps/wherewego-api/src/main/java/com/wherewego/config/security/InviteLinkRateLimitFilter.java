@@ -68,7 +68,7 @@ public class InviteLinkRateLimitFilter extends OncePerRequestFilter {
     private void writeRateLimited(HttpServletResponse response) throws IOException {
         ErrorType type = ErrorType.INVITE_LINK_RATE_LIMITED;
         response.setStatus(type.getStatus().value());
-        response.setHeader("Retry-After", "60");
+        response.setHeader("Retry-After", String.valueOf(rateLimiter.getRefillSeconds()));
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         objectMapper.writeValue(

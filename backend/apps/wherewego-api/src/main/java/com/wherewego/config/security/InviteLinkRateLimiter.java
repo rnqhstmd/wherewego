@@ -21,15 +21,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class InviteLinkRateLimiter {
 
     private final int capacity;
+    private final long refillSeconds;
     private final Cache<String, AtomicInteger> cache;
 
     public InviteLinkRateLimiter(InviteProperties properties) {
         InviteProperties.RateLimit rl = properties.rateLimit();
         this.capacity = rl.capacity();
+        this.refillSeconds = rl.refillSeconds();
         this.cache = Caffeine.newBuilder()
                 .maximumSize(rl.maxKeys())
-                .expireAfterWrite(Duration.ofSeconds(rl.refillSeconds()))
+                .expireAfterWrite(Duration.ofSeconds(this.refillSeconds))
                 .build();
+    }
+
+    /**
+     * Retry-After 헤더 등에서 사용하기 위한 윈도우 길이(초).
+     */
+    public long getRefillSeconds() {
+        return refillSeconds;
     }
 
     /**
