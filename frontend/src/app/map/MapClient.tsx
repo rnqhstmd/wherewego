@@ -1750,6 +1750,7 @@ export default function MapClient({
       !hintDismissed.invite ? (
         <InvitePartnerHintCard
           groupId={groupId}
+          isDesktop={isDesktop}
           onDismiss={() =>
             setHintDismissed((s) => ({ ...s, invite: true }))
           }
@@ -1760,6 +1761,7 @@ export default function MapClient({
         !onboardingStatus.hasBotMapping &&
         !hintDismissed.bot ? (
         <ConnectBotHintCard
+          isDesktop={isDesktop}
           onDismiss={() => setHintDismissed((s) => ({ ...s, bot: true }))}
         />
       ) : null}

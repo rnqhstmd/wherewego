@@ -8,6 +8,8 @@ import { InviteSharePanel } from "./InviteSharePanel";
 interface InvitePartnerHintCardProps {
   groupId: number;
   onDismiss: () => void;
+  /** 데스크탑에서는 좌측 ActionBar 와 겹치지 않도록 left margin 을 늘린다. */
+  isDesktop: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ interface InvitePartnerHintCardProps {
 export function InvitePartnerHintCard({
   groupId,
   onDismiss,
+  isDesktop,
 }: InvitePartnerHintCardProps) {
   const [openShare, setOpenShare] = useState(false);
 
@@ -36,7 +39,7 @@ export function InvitePartnerHintCard({
         style={{
           position: "absolute",
           top: 16,
-          left: 16,
+          left: isDesktop ? 80 : 16,
           right: 16,
           maxWidth: 360,
           zIndex: 25,
