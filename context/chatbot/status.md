@@ -19,6 +19,10 @@
 | FR-BOT-6 | 검색 결과 복수 시 리스트 카드(최대 5개) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — `PlaceSearchOutcome.Multiple` + `placeSelectionCandidate` Caffeine 10m |
 | FR-BOT-7 | 장소명 추출 실패 시 폴백 메시지 | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — Phase 2.5([#15](https://github.com/rnqhstmd/wherewego/pull/15))에서 Gemini로 추출 정확도 ↑ |
 | FR-BOT-8 | 핀 등록 완료 알림 응답 (자동 태그=PLACE 명시) | ✅ | [#5](https://github.com/rnqhstmd/wherewego/pull/5) — `Pin.autoFromInstagram()` tag=PLACE 고정 |
+| FR-BOT-9 | UnknownHandler 상태별 분기 — 미연동/연동·pending 없음/연동·pending 있음/연동·최근 자동저장 4가지로 응답·QuickReply 분기. 연동된 사용자에게 "🔗 그룹 연동하기" QuickReply 미노출 | ✅ | [#60](https://github.com/rnqhstmd/wherewego/pull/60) — commit 0a03e11 (`UnknownHandler.java`) |
+| FR-BOT-10 | `InstagramLinkHandler.processWithMemoAsync` useCallback push 실패 시 `bodyText` 무관하게 `PendingNotificationSession`에 fallback 텍스트 강제 적재 — silent failure 차단 | ✅ | [#60](https://github.com/rnqhstmd/wherewego/pull/60) — commit 0a03e11 (`InstagramLinkHandler.java`) |
+| FR-BOT-11 | `InstagramPendingMemoHandler` pending 만료 후 메모 silent drop 차단 — utterance echo back + 900자 길이 가드. `RecentlyAutoSavedSession` 있으면 함께 안내 | ✅ | [#60](https://github.com/rnqhstmd/wherewego/pull/60) — commit 0a03e11 (`InstagramPendingMemoHandler.java`) |
+| FR-BOT-12 | 메모 입력 중 "그룹 연동하기" QuickReply 메모 오용 차단 — utterance 정확 일치 시 메모 저장 skip, pending 유지 + "지금은 메모 입력 중이에요" 안내 | ✅ | [#60](https://github.com/rnqhstmd/wherewego/pull/60) — commit 0a03e11 (`InstagramPendingMemoHandler.java`) |
 
 ## 후속 작업
 
@@ -29,3 +33,4 @@
 - **Phase 2.7 완료**: PLACE_SELECTION E2E IT 5케이스 보강 (정상/만료/미연동/그룹 미가입/중복 핀) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
 - **Phase 2.11 계획**: 챗봇 흐름이 의존하는 외부 API의 관제는 [[observability]] 도메인에서 통합 — Instagram scraper 차단 감지(FR-OBS-11), Google Places 일일 한도 사전 경고(FR-OBS-10), `KakaoCallbackClient` 재시도 보강(FR-OBS-14). 챗봇 응답 SLA(5초)와 핀 자동 등록 70% 성공률을 사후 발견에서 사전 감지로 전환
 - **Phase 8 완료**: 인앱 알림 트리거 — `InstagramLinkHandler`의 `handleCandidates`/`handleLegacySingle`/`handleGoogleFallback` 3곳 + `PlaceSelectionHandler` 단건 저장 분기에서 `notificationService.createForChatbotBatch(groupId, userId, savedPinIds)` 호출. 4경로(`autoSaveOnExpiry`/`autoSavePreviousImmediately` 포함) 자동 커버. 릴스 1건 = 알림 1건 묶음, 유형 `CHATBOT_PINS`. 카카오톡 푸시 대신 앱 내 알림함으로 대체 — [#40](https://github.com/rnqhstmd/wherewego/pull/40)
+- **hotfix/chatbot-response-edges 완료 (2026-05-25)**: 챗봇 응답 엣지 케이스 4건 (FR-BOT-9~12) — UnknownHandler 상태별 분기, useCallback push 실패 가시화, pending 만료 메모 silent drop 차단, 그룹연동 QuickReply 메모 오용 차단. PRD/AC는 `.dev/hotfix-chatbot-response-edges/prd.md` (FR 4건·AC 9건). 보안 감사 1회차 HIGH 1건(utterance 1000자 가드 누락) → 900자 절단 가드 추가로 해소 — [#60](https://github.com/rnqhstmd/wherewego/pull/60) — commit 0a03e11
