@@ -1,6 +1,8 @@
 package com.wherewego.domain.group;
 
+import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,7 @@ class GroupMemberServiceTest {
     private static final Long OTHER_USER_ID = 8L;
     private static final Long GROUP_ID = 10L;
     private static final String TOKEN = "11111111-2222-3333-4444-555555555555";
+    private static final String SLUG = "Ab23CdEf";
 
     @Mock
     private GroupMemberRepository groupMemberRepository;
@@ -50,6 +53,18 @@ class GroupMemberServiceTest {
     @Mock
     private BotUserMappingService botUserMappingService;
 
+    @Mock
+    private InviteLinkSlugGenerator slugGenerator;
+
+    @Mock
+    private UserRepository userRepository;
+
+    // record 는 mock 어렵기 때문에 실제 인스턴스를 직접 주입한다.
+    private final InviteProperties inviteProperties = new InviteProperties(
+            Duration.ofDays(7),
+            "http://localhost:3000",
+            new InviteProperties.RateLimit(30, 60, 10000));
+
     @InjectMocks
     private GroupMemberService groupMemberService;
 
@@ -58,6 +73,11 @@ class GroupMemberServiceTest {
         when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
         when(groupMemberRepository.save(any(GroupMember.class))).thenAnswer(inv -> inv.getArgument(0));
         when(inviteLinkRepository.save(any(InviteLink.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(slugGenerator.generate()).thenReturn(SLUG);
+        // InviteProperties 가 record 라 @InjectMocks 가 자동 주입하지 못한다 (생성자 시그니처 일치 시는 성공).
+        // @RequiredArgsConstructor 가 전체 필드 생성자를 만들고 inviteProperties 도 그 자리에 포함되므로,
+        // Mockito 가 매칭 타입을 찾지 못해 null 주입한다. ReflectionTestUtils 로 수동 주입한다.
+        ReflectionTestUtils.setField(groupMemberService, "inviteProperties", inviteProperties);
     }
 
     /** 테스트용 Group 생성 + id 강제 주입. BaseEntity.id 가 final 이라 ReflectionTestUtils 로는 set 불가하므로
@@ -217,7 +237,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_valid_marksAcceptedAndSavesMember() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
@@ -239,7 +259,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_expired_throwsExpired() {
             // arrange: 발급 후 TTL 보다 오래 지난 시점에서 사용
             Instant issuedAt = Instant.now().minus(Duration.ofHours(48));
-            InviteLink expired = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink expired = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(expired));
 
             // act & assert
@@ -254,7 +274,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_alreadyUsed_throwsAlreadyUsed() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             link.markAccepted(Instant.now().minus(Duration.ofMinutes(5)));
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
 
@@ -270,7 +290,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_deletedGroup_throwsExpired() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group deletedGroup = newDeletedGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(deletedGroup));
@@ -287,7 +307,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_alreadyActive_throwsAlreadyActive() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
@@ -305,7 +325,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_selfAccept_throwsSelfAccept() {
             // arrange: inviterId == userId
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
 
             // act & assert
@@ -320,7 +340,7 @@ class GroupMemberServiceTest {
         void acceptInviteLink_capacityReached_throwsCapacityExceeded() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
-            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, issuedAt, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
@@ -339,7 +359,8 @@ class GroupMemberServiceTest {
     @Nested
     class LeaveGroup {
 
-        @DisplayName("정상 탈퇴 시 markLeft 가 호출되고 마지막 멤버가 아니면 group.markDeleted 는 호출되지 않는다 (AC-11).")
+        @DisplayName("정상 탈퇴 시 markLeft 가 호출되고 마지막 멤버가 아니면 group.markDeleted 는 호출되지 않는다 (AC-11). " +
+                "Phase 11 PR-A: 탈퇴 시점에 미수락 초대를 일괄 만료한다 (R-2).")
         @Test
         void leaveGroup_notLastMember_keepsGroupActive() {
             // arrange
@@ -358,7 +379,8 @@ class GroupMemberServiceTest {
             assertThat(member.getLeftAt()).isNotNull();
             assertThat(group.getDeletedAt()).isNull();
             verify(groupRepository, never()).save(any(Group.class));
-            verify(inviteLinkRepository, never()).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
+            // Phase 11 PR-A (R-2): 탈퇴 시점에 미수락 초대를 일괄 만료한다.
+            verify(inviteLinkRepository).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
             // AC-B6: 탈퇴 시 봇 매핑도 해제되어야 한다 (Phase 2.6 B-4)
             verify(botUserMappingService).unlink(USER_ID);
         }

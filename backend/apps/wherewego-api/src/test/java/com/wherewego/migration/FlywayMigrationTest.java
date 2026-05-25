@@ -58,7 +58,8 @@ class FlywayMigrationTest {
         Set<String> inviteLinksColumns = columnNames("invite_links");
         assertThat(inviteLinksColumns).containsExactlyInAnyOrder(
                 "id", "group_id", "inviter_id", "token", "expires_at", "accepted_at",
-                "created_at", "updated_at", "deleted_at" // V003: deleted_at 추가
+                "created_at", "updated_at", "deleted_at", // V003: deleted_at 추가
+                "slug" // V011: 단축 URL slug 추가
         );
 
         Set<String> pinsColumns = columnNames("pins");

@@ -23,6 +23,7 @@ interface InviteLinkClientProps {
 export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
       try {
         const res = await issueInviteLink(groupId);
         setToken(res.token);
+        setShareUrl(res.shareUrl);
         setExpiresAt(res.expiresAt);
       } catch (e) {
         const message =
@@ -58,18 +60,23 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
   }, [groupId]);
 
   const inviteUrl = useMemo(() => {
-    if (!token) return "";
-    if (typeof window === "undefined") return "";
+    if (shareUrl) return shareUrl;
+    // 백엔드 응답이 shareUrl 을 채우지 않은 예외 케이스의 안전한 폴백.
+    if (!token || typeof window === "undefined") return "";
     return `${window.location.origin}/onboarding/invite-code?token=${encodeURIComponent(token)}`;
-  }, [token]);
+  }, [shareUrl, token]);
 
   const remainingText = useMemo(() => {
     if (!expiresAt) return "";
     const diff = new Date(expiresAt).getTime() - now;
     if (Number.isNaN(diff) || diff <= 0) return "만료됨";
     const totalMin = Math.floor(diff / 60000);
-    const hours = Math.floor(totalMin / 60);
+    const days = Math.floor(totalMin / (60 * 24));
+    const hours = Math.floor((totalMin % (60 * 24)) / 60);
     const minutes = totalMin % 60;
+    if (days > 0) {
+      return `${days}일 ${hours}시간 남음`;
+    }
     if (hours > 0) {
       return `${hours}시간 ${minutes}분 남음`;
     }
@@ -212,7 +219,7 @@ export function InviteLinkClient({ groupId }: InviteLinkClientProps) {
             color: colors.inkFaint,
           }}
         >
-          24시간 동안 유효
+          7일 동안 유효
         </div>
         {expiresAt ? (
           <div

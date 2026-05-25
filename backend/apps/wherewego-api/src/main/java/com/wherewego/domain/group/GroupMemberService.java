@@ -1,6 +1,9 @@
 package com.wherewego.domain.group;
 
+import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.user.UserModel;
+import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -8,7 +11,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,13 +19,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GroupMemberService {
 
-    private static final Duration INVITE_TTL = Duration.ofHours(24);
     private static final int MAX_GROUP_MEMBERS = 2;
+    private static final int SLUG_GENERATION_MAX_RETRIES = 5;
 
     private final GroupMemberRepository groupMemberRepository;
     private final GroupRepository groupRepository;
     private final InviteLinkRepository inviteLinkRepository;
     private final BotUserMappingService botUserMappingService;
+    private final InviteLinkSlugGenerator slugGenerator;
+    private final UserRepository userRepository;
+    private final InviteProperties inviteProperties;
 
     /**
      * 사용자의 최근 활성 그룹 ID 를 반환한다. 활성 그룹이 없으면 {@link Optional#empty()}.
@@ -60,7 +65,8 @@ public class GroupMemberService {
 
     /**
      * 초대 링크 발급. 그룹에 대해 비관적 락을 잡고 멤버십 확인 후
-     * 동일 그룹의 미수락 토큰을 일괄 만료(BR-3)한 다음 신규 UUID 토큰을 발급한다.
+     * 동일 그룹의 미수락 토큰을 일괄 만료(BR-3)한 다음 신규 UUID 토큰 + base56 slug 를 발급한다.
+     * slug 충돌 시 최대 5회 재시도하며, 5회 모두 실패하면 INTERNAL_ERROR 를 던진다.
      */
     @Transactional
     public InviteLinkIssueResult issueInviteLink(Long userId, Long groupId) {
@@ -73,15 +79,32 @@ public class GroupMemberService {
         requireActiveMembership(userId, groupId);
         inviteLinkRepository.expirePendingByGroupId(groupId, now);
         String token = UUID.randomUUID().toString();
-        InviteLink saved = inviteLinkRepository.save(
-                InviteLink.issue(groupId, userId, token, now, INVITE_TTL));
-        return new InviteLinkIssueResult(saved.getToken(), saved.getExpiresAt());
+        InviteLink saved = saveWithSlugRetry(groupId, userId, token, now);
+        return new InviteLinkIssueResult(saved.getToken(), saved.getSlug(), saved.getExpiresAt());
+    }
+
+    private InviteLink saveWithSlugRetry(Long groupId, Long userId, String token, Instant now) {
+        for (int attempt = 0; attempt < SLUG_GENERATION_MAX_RETRIES; attempt++) {
+            String slug = slugGenerator.generate();
+            try {
+                return inviteLinkRepository.save(
+                        InviteLink.issue(groupId, userId, token, slug, now, inviteProperties.ttl()));
+            } catch (DataIntegrityViolationException e) {
+                // slug unique 제약 충돌 — 재시도. 마지막 시도에서도 실패하면 아래에서 throw.
+                if (attempt == SLUG_GENERATION_MAX_RETRIES - 1) {
+                    throw new CoreException(ErrorType.INTERNAL_ERROR);
+                }
+            }
+        }
+        // unreachable — loop 안에서 마지막 attempt 에 throw 함.
+        throw new CoreException(ErrorType.INTERNAL_ERROR);
     }
 
     /**
      * 초대 링크 수락. 토큰 유효성/만료/중복 사용/자기수락 검사 후
      * 그룹 잠금 → 정원 검사 → 멤버 등록 순으로 처리한다.
      * partial UNIQUE 충돌은 GROUP_ALREADY_ACTIVE 로 변환한다.
+     * 정원 도달 직후 미수락 초대를 일괄 만료하여 R-2(폐기된 초대 잔존) 를 차단한다.
      */
     @Transactional
     public InviteAcceptResult acceptInviteLink(Long userId, String token) {
@@ -118,7 +141,36 @@ public class GroupMemberService {
             }
             throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
         }
+        // 정원 도달 시 남은 미수락 초대 일괄 만료 (R-2).
+        if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
+            inviteLinkRepository.expirePendingByGroupId(group.getId(), now);
+        }
         return new InviteAcceptResult(group.getId(), now);
+    }
+
+    /**
+     * slug 로 초대 링크 미리보기. 공개 GET by-slug API 의 진입점.
+     * 만료/소진/존재하지 않음/그룹 삭제됨 모두 INVITE_LINK_NOT_FOUND 로 통일한다 (정보 노출 방지).
+     */
+    @Transactional(readOnly = true)
+    public InviteLinkPreviewResult previewBySlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            throw new CoreException(ErrorType.INVITE_LINK_NOT_FOUND);
+        }
+        Instant now = Instant.now();
+        InviteLink link = inviteLinkRepository.findActiveBySlug(slug, now)
+                .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
+        Group group = groupRepository.findById(link.getGroupId())
+                .filter(g -> g.getDeletedAt() == null)
+                .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
+        UserModel inviter = userRepository.findById(link.getInviterId())
+                .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
+        return new InviteLinkPreviewResult(
+                link.getToken(),
+                group.getName(),
+                inviter.getNickname(),
+                link.getExpiresAt()
+        );
     }
 
     /**
@@ -142,8 +194,9 @@ public class GroupMemberService {
         if (remaining == 0) {
             group.markDeleted();
             groupRepository.save(group);
-            inviteLinkRepository.expirePendingByGroupId(groupId, now);
         }
+        // 탈퇴 시점에 미수락 초대 일괄 만료 (R-2): 남은 멤버가 새 초대를 발급해야 한다.
+        inviteLinkRepository.expirePendingByGroupId(groupId, now);
         botUserMappingService.unlink(userId);
     }
 
