@@ -14,25 +14,27 @@ class InviteLinkTest {
     private static final Long GROUP_ID = 10L;
     private static final Long INVITER_ID = 7L;
     private static final String TOKEN = "11111111-2222-3333-4444-555555555555";
+    private static final String SLUG = "Ab23CdEf";
 
     @DisplayName("초대 링크를 발급할 때,")
     @Nested
     class Issue {
 
-        @DisplayName("expiresAt = now + ttl, acceptedAt = null, isPending() = true 가 된다.")
+        @DisplayName("expiresAt = now + ttl, slug 가 채워지고, acceptedAt = null, isPending() = true 가 된다.")
         @Test
         void issue_setsFields() {
             // arrange
             Instant now = Instant.parse("2026-01-01T00:00:00Z");
-            Duration ttl = Duration.ofHours(24);
+            Duration ttl = Duration.ofDays(7);
 
             // act
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, now, ttl);
+            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, now, ttl);
 
             // assert
             assertThat(link.getGroupId()).isEqualTo(GROUP_ID);
             assertThat(link.getInviterId()).isEqualTo(INVITER_ID);
             assertThat(link.getToken()).isEqualTo(TOKEN);
+            assertThat(link.getSlug()).isEqualTo(SLUG);
             assertThat(link.getExpiresAt()).isEqualTo(now.plus(ttl));
             assertThat(link.getAcceptedAt()).isNull();
             assertThat(link.isPending()).isTrue();
@@ -48,7 +50,7 @@ class InviteLinkTest {
         void markAccepted_setsAcceptedAt() {
             // arrange
             Instant now = Instant.parse("2026-01-01T00:00:00Z");
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, now, Duration.ofHours(24));
+            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, now, Duration.ofDays(7));
             Instant acceptedAt = now.plusSeconds(60);
 
             // act
@@ -69,7 +71,7 @@ class InviteLinkTest {
         void isExpired_expiresAfterNow_returnsFalse() {
             // arrange
             Instant now = Instant.parse("2026-01-01T00:00:00Z");
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, now, Duration.ofHours(1));
+            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, now, Duration.ofHours(1));
 
             // act & assert
             assertThat(link.isExpired(now)).isFalse();
@@ -80,7 +82,7 @@ class InviteLinkTest {
         void isExpired_expiresAtEqualsNow_returnsTrue() {
             // arrange: expiresAt = base + 0 = base
             Instant base = Instant.parse("2026-01-01T00:00:00Z");
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, base, Duration.ZERO);
+            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, base, Duration.ZERO);
 
             // act & assert: !expiresAt.isAfter(now) → !false → true
             assertThat(link.isExpired(base)).isTrue();
@@ -91,7 +93,7 @@ class InviteLinkTest {
         void isExpired_expiresBeforeNow_returnsTrue() {
             // arrange
             Instant base = Instant.parse("2026-01-01T00:00:00Z");
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, base, Duration.ofMinutes(5));
+            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, base, Duration.ofMinutes(5));
 
             // act & assert
             assertThat(link.isExpired(base.plus(Duration.ofMinutes(10)))).isTrue();

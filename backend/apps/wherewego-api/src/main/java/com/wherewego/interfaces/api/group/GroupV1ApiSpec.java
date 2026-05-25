@@ -20,7 +20,8 @@ public interface GroupV1ApiSpec {
 
     @Operation(
             summary = "초대 링크 발급",
-            description = "활성 멤버가 24시간 TTL 초대 링크를 발급합니다 (FR-GRP-2). " +
+            description = "활성 멤버가 7일 TTL 초대 링크를 발급합니다 (FR-GRP-2). " +
+                    "응답에는 UUID 토큰 외에 base56 8자 단축 슬러그 와 공유용 shareUrl 이 함께 포함됩니다. " +
                     "재발급 시 동일 그룹의 미수락 토큰은 일괄 만료됩니다 (BR-3)."
     )
     ApiResponse<GroupV1Dto.InviteLinkResponse> issueInviteLink(
@@ -37,6 +38,14 @@ public interface GroupV1ApiSpec {
             @Parameter(hidden = true) Long userId,
             String token
     );
+
+    @Operation(
+            summary = "초대 링크 미리보기 (공개)",
+            description = "단축 슬러그로 그룹명/초대자 닉네임/만료시각을 조회합니다. " +
+                    "로그인 전 카톡 미리보기 용. 만료/소진/존재하지 않음은 404 INVITE_LINK_NOT_FOUND. " +
+                    "IP 기반 분당 30회 레이트리밋이 적용되며, 초과 시 429 INVITE_LINK_RATE_LIMITED."
+    )
+    ApiResponse<GroupV1Dto.InviteLinkPreviewResponse> previewInviteLinkBySlug(String slug);
 
     @Operation(
             summary = "그룹 탈퇴",

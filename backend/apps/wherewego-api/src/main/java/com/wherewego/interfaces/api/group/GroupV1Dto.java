@@ -4,6 +4,7 @@ import com.wherewego.domain.group.ActiveGroupInfo;
 import com.wherewego.domain.group.GroupCreatedResult;
 import com.wherewego.domain.group.InviteAcceptResult;
 import com.wherewego.domain.group.InviteLinkIssueResult;
+import com.wherewego.domain.group.InviteLinkPreviewResult;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -22,9 +23,44 @@ public class GroupV1Dto {
         }
     }
 
-    public record InviteLinkResponse(String token, Instant expiresAt) {
-        public static InviteLinkResponse from(InviteLinkIssueResult result) {
-            return new InviteLinkResponse(result.token(), result.expiresAt());
+    /**
+     * 초대 링크 발급 응답.
+     * - token: 기존 UUID 토큰 (accept API 호출 키, BC).
+     * - slug: base56 8자 단축 슬러그.
+     * - shareUrl: `${app.invite.share-base-url}/invite/{slug}` 단축 공유 URL.
+     */
+    public record InviteLinkResponse(String token, String slug, Instant expiresAt, String shareUrl) {
+        public static InviteLinkResponse from(InviteLinkIssueResult result, String shareBaseUrl) {
+            String shareUrl = buildShareUrl(shareBaseUrl, result.slug());
+            return new InviteLinkResponse(result.token(), result.slug(), result.expiresAt(), shareUrl);
+        }
+
+        private static String buildShareUrl(String baseUrl, String slug) {
+            if (baseUrl == null || baseUrl.isBlank()) {
+                return "/invite/" + slug;
+            }
+            String trimmed = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            return trimmed + "/invite/" + slug;
+        }
+    }
+
+    /**
+     * 초대 링크 공개 미리보기 응답.
+     * 토큰은 로그인 후 기존 accept API 호출에 사용된다.
+     */
+    public record InviteLinkPreviewResponse(
+            String token,
+            String groupName,
+            String inviterNickname,
+            Instant expiresAt
+    ) {
+        public static InviteLinkPreviewResponse from(InviteLinkPreviewResult result) {
+            return new InviteLinkPreviewResponse(
+                    result.token(),
+                    result.groupName(),
+                    result.inviterNickname(),
+                    result.expiresAt()
+            );
         }
     }
 

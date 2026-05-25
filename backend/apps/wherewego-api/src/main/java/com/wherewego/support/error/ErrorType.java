@@ -45,6 +45,7 @@ public enum ErrorType {
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "INVITE_LINK_EXPIRED", "초대 링크가 만료되었습니다."),
     INVITE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "INVITE_LINK_ALREADY_USED", "이미 사용된 초대 링크입니다."),
     INVITE_LINK_SELF_ACCEPT(HttpStatus.BAD_REQUEST, "INVITE_LINK_SELF_ACCEPT", "본인이 발급한 초대 링크는 수락할 수 없습니다."),
+    INVITE_LINK_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "INVITE_LINK_RATE_LIMITED", "요청이 너무 많아요. 잠시 후 다시 시도해 주세요."),
 
     /** 핀 (Phase 4) */
     PIN_NOT_FOUND(HttpStatus.NOT_FOUND, "PIN_NOT_FOUND", "존재하지 않는 핀입니다."),
