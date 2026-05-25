@@ -40,6 +40,7 @@ import RouletteResultContent from "./_components/RouletteResultContent";
 import ClusterBanner from "./_components/ClusterBanner";
 import EmptyMapCard from "./_components/EmptyMapCard";
 import { TagLegendButton } from "./_components/TagLegendButton";
+import { TagFilterButton } from "./_components/TagFilterButton";
 import MapLoadError, {
   type MapLoadErrorReason,
 } from "./_components/MapLoadError";
@@ -195,6 +196,11 @@ export default function MapClient({
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
+  // 사용자가 좌하단 필터 버튼에서 선택한 가시 태그 집합. 기본값은 전체(3개 모두).
+  // 지도 마커와 룰렛 풀(computeTagsAllowed 결과와의 교집합) 모두에 영향을 준다.
+  const [visibleTags, setVisibleTags] = useState<Set<PinTag>>(
+    () => new Set<PinTag>(["REEL", "WISH", "MEMORY"]),
+  );
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [hasCluster, setHasCluster] = useState(false);
@@ -665,7 +671,7 @@ export default function MapClient({
    *
    * `tagsAllowed`로 풀 필터를 외부에서 제어한다. MEMORY 토글 ON 이면
    * `["REEL", "WISH", "MEMORY"]`를, OFF 이면 `["REEL", "WISH"]`를 전달한다 (FR-REC-6).
-   * 호출처에서는 `computeTagsAllowed(includeMemory)` 헬퍼로 일관성을 보장한다.
+   * 호출처에서는 `computeTagsAllowed(includeMemory, visibleTags)` 헬퍼로 일관성을 보장한다.
    */
   const runRoulette = useCallback(
     async (center: LatLng, tagsAllowed: PinTag[]) => {
@@ -743,7 +749,7 @@ export default function MapClient({
       });
       void runRoulette(
         geoState.coords,
-        computeTagsAllowed(includeMemory),
+        computeTagsAllowed(includeMemory, visibleTags),
       );
       return;
     }
@@ -778,7 +784,7 @@ export default function MapClient({
     }
     // idle 또는 prompting + permission이 prompt/unknown: 사전 다이얼로그 안내.
     setShowPermDialog(true);
-  }, [geoState, permissionState, geoRequest, runRoulette, includeMemory]);
+  }, [geoState, permissionState, geoRequest, runRoulette, includeMemory, visibleTags]);
 
   // geoState 전이 감지: pendingRouletteRef가 true면 진행.
   //
@@ -795,7 +801,7 @@ export default function MapClient({
       if (status === "granted") {
         void runRoulette(
           geoState.coords,
-          computeTagsAllowed(includeMemory),
+          computeTagsAllowed(includeMemory, visibleTags),
         );
       } else if (status === "denied") {
         setShowPermDialog(true);
@@ -818,7 +824,7 @@ export default function MapClient({
       }
     }, 0);
     return () => window.clearTimeout(handle);
-  }, [geoState, runRoulette, includeMemory]);
+  }, [geoState, runRoulette, includeMemory, visibleTags]);
 
   /**
    * 메모/검색 흐름에서 적용한 flyTo padding 을 초기화한다.
@@ -1024,6 +1030,14 @@ export default function MapClient({
     () =>
       optimisticPins.filter((p) => p.tag === "WISH" || p.tag === "REEL"),
     [optimisticPins],
+  );
+
+  // 좌하단 태그 필터 적용 결과 — 지도 마커/팝업/룰렛 모두 이 집합 기준.
+  // 필터로 숨겨진 핀이 selectedPinId 라면 selectedPin 조회가 자연히 null 이 되어
+  // 팝업이 닫힌다. 필터를 다시 켜면 selectedPinId 가 남아 있던 경우 팝업도 복귀한다.
+  const visibleOptimisticPins = useMemo(
+    () => optimisticPins.filter((p) => visibleTags.has(p.tag)),
+    [optimisticPins, visibleTags],
   );
 
   const handleGeolocate = useCallback(
@@ -1321,7 +1335,7 @@ export default function MapClient({
       }
       void runRoulette(
         center,
-        computeTagsAllowed(includeMemory),
+        computeTagsAllowed(includeMemory, visibleTags),
       );
       return;
     }
@@ -1352,12 +1366,13 @@ export default function MapClient({
         includeMemoryAtPick,
       });
     }, SPIN_DURATION_MS);
-  }, [rouletteState, includeMemory, runRoulette]);
+  }, [rouletteState, includeMemory, runRoulette, visibleTags]);
 
-  // 태그 변경 즉시 popup 도 갱신되도록 optimisticPins 에서 찾는다 (MUST-5).
+  // 태그 변경 즉시 popup 도 갱신되도록 visibleOptimisticPins 에서 찾는다 (MUST-5).
+  // 좌하단 필터로 숨겨진 핀은 자동으로 null 이 되어 팝업이 닫힌다.
   const selectedPin =
     selectedPinId !== null
-      ? (optimisticPins.find((p) => p.id === selectedPinId) ?? null)
+      ? (visibleOptimisticPins.find((p) => p.id === selectedPinId) ?? null)
       : null;
 
   // 패널 컨테이너 + 콘텐츠 분기 (CONSIDER-2: 컨테이너만 viewport로 갈라짐)
@@ -1662,7 +1677,7 @@ export default function MapClient({
     >
       <MapboxView
         ref={mapboxViewRef}
-        pins={optimisticPins}
+        pins={visibleOptimisticPins}
         token={mapboxToken}
         styleUrl={mapboxStyleUrl}
         onMarkerClick={handleMarkerClick}
@@ -1693,9 +1708,16 @@ export default function MapClient({
           bottom: isDesktop ? 24 : 92,
           left: 14,
           zIndex: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
         }}
       >
         <TagLegendButton />
+        <TagFilterButton
+          visibleTags={visibleTags}
+          onChange={setVisibleTags}
+        />
       </div>
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -1901,9 +1923,17 @@ function activeSheetToTab(sheet: ActiveSheet): ActionBarTab {
  * 무시하던 부분 버그가 있었다. Phase 7 에서 PinTag 가 REEL/WISH/MEMORY 로
  * 리뉴얼되면서 이 헬퍼로 호출처를 일관화한다.
  *
- * - includeMemory=true  → ["REEL", "WISH", "MEMORY"]
- * - includeMemory=false → ["REEL", "WISH"]
+ * - includeMemory=true  → ["REEL", "WISH", "MEMORY"] 와 visibleTags 의 교집합
+ * - includeMemory=false → ["REEL", "WISH"] 와 visibleTags 의 교집합
+ *
+ * 좌하단 태그 필터(visibleTags)에서 체크 해제된 태그는 룰렛 풀에서도 제외된다.
  */
-function computeTagsAllowed(includeMemory: boolean): PinTag[] {
-  return includeMemory ? ["REEL", "WISH", "MEMORY"] : ["REEL", "WISH"];
+function computeTagsAllowed(
+  includeMemory: boolean,
+  visibleTags: Set<PinTag>,
+): PinTag[] {
+  const base: PinTag[] = includeMemory
+    ? ["REEL", "WISH", "MEMORY"]
+    : ["REEL", "WISH"];
+  return base.filter((t) => visibleTags.has(t));
 }
