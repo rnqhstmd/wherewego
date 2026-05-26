@@ -5,8 +5,11 @@ import com.wherewego.domain.auth.jwt.JwtTokenProvider;
 import com.wherewego.domain.auth.jwt.RefreshTokenHasher;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
+import com.wherewego.infrastructure.auth.LoginRetryListener;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +71,17 @@ class UserLoginPersistenceRetryIT {
                                                   RefreshTokenHasher refreshTokenHasher) {
             return new UserLoginPersistence(userRepository, jwtTokenProvider, refreshTokenHasher);
         }
+
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+
+        // listeners = "loginRetryListener" 빈 lookup 만족용. retry 발동 시 counter 발급 검증도 함께.
+        @Bean("loginRetryListener")
+        LoginRetryListener loginRetryListener(MeterRegistry meterRegistry) {
+            return new LoginRetryListener(meterRegistry);
+        }
     }
 
     @Autowired
@@ -78,11 +92,14 @@ class UserLoginPersistenceRetryIT {
     JwtTokenProvider jwtTokenProvider;
     @Autowired
     RefreshTokenHasher refreshTokenHasher;
+    @Autowired
+    MeterRegistry meterRegistry;
 
     @BeforeEach
     void resetMocks() {
-        // 컨텍스트가 클래스 단위로 캐싱되므로 매 테스트 직전 mock 상태를 초기화한다.
+        // 컨텍스트가 클래스 단위로 캐싱되므로 매 테스트 직전 mock/메트릭 상태를 초기화한다.
         Mockito.reset(userRepository, jwtTokenProvider, refreshTokenHasher);
+        meterRegistry.clear();
         when(jwtTokenProvider.issueAccessToken(anyLong())).thenReturn("access-token");
         when(jwtTokenProvider.issueRefreshToken(anyLong())).thenReturn("refresh-token");
         when(refreshTokenHasher.sha256Hex(anyString())).thenReturn("hash");
@@ -107,6 +124,8 @@ class UserLoginPersistenceRetryIT {
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshToken()).isEqualTo("refresh-token");
         verify(userRepository, times(2)).findByKakaoUserId(1L);  // 재시도 발동 증거
+        assertThat(attempts("DataIntegrityViolationException")).isEqualTo(1.0);
+        assertThat(meterRegistry.find("auth.login.retry.exhausted").counter()).isNull();
     }
 
     @Test
@@ -142,6 +161,9 @@ class UserLoginPersistenceRetryIT {
                 .hasMessageContaining("잠시 후 다시 로그인해 주세요.")
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
         verify(userRepository, times(3)).findByKakaoUserId(1L);  // maxAttempts=3 검증
+        // onError 는 실패한 시도마다 호출(=3회), close(lastThrowable) 는 모든 시도 소진 후 1회 호출
+        assertThat(attempts("DataIntegrityViolationException")).isEqualTo(3.0);
+        assertThat(exhausted("DataIntegrityViolationException")).isEqualTo(1.0);
     }
 
     @Test
@@ -157,5 +179,17 @@ class UserLoginPersistenceRetryIT {
                 .isInstanceOf(CoreException.class)
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
         verify(userRepository, times(1)).findByKakaoUserId(1L);  // 재시도 없음
+    }
+
+    private double attempts(String exceptionName) {
+        return meterRegistry.get("auth.login.retry.attempts")
+                .tag("exception", exceptionName)
+                .counter().count();
+    }
+
+    private double exhausted(String exceptionName) {
+        return meterRegistry.get("auth.login.retry.exhausted")
+                .tag("exception", exceptionName)
+                .counter().count();
     }
 }
