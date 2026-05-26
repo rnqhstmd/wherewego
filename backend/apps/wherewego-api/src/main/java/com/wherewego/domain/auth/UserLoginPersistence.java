@@ -10,6 +10,7 @@ import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -60,5 +61,24 @@ public class UserLoginPersistence {
         userRepository.save(user);
 
         return AuthResultInfo.of(user, accessRaw, refreshRaw);
+    }
+
+    /**
+     * @Retryable 소진 시 호출. 두 예외 모두 사용자에겐 동일하게
+     * "잠시 후 다시 로그인" 안내로 변환 — raw DataIntegrityViolation/
+     * CannotCreateTransaction 이 5xx 일반 오류로 노출되는 회귀를 막는다.
+     */
+    @Recover
+    public AuthResultInfo recoverCannotCreateTransaction(
+            CannotCreateTransactionException e,
+            Long kakaoUserId, String nickname, String profileImageUrl) {
+        throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
+    }
+
+    @Recover
+    public AuthResultInfo recoverDataIntegrityViolation(
+            DataIntegrityViolationException e,
+            Long kakaoUserId, String nickname, String profileImageUrl) {
+        throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
     }
 }
