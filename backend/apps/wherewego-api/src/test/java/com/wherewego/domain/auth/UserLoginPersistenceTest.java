@@ -106,19 +106,20 @@ class UserLoginPersistenceTest {
                     .isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
         }
 
-        @DisplayName("동시 최초 로그인으로 unique constraint 위반 시, AUTH_KAKAO_API_FAILED 예외가 발생한다.")
+        @DisplayName("동시 최초 로그인으로 unique constraint 위반 시, DataIntegrityViolationException이 전파된다.")
         @Test
-        void concurrentFirstLogin_dataIntegrityViolation_throwsFriendlyError() {
+        void concurrentFirstLogin_dataIntegrityViolation_propagatesException() {
             // arrange
+            // 단위 테스트에서는 @Retryable AOP 프록시가 동작하지 않으므로 예외가 그대로 전파된다.
+            // 실제 운영에서는 @Retryable이 잡아 재시도 → findByKakaoUserId가 기존 사용자를 반환해 정상 처리된다.
+            // 재시도 후 정상 처리 경로는 existingActiveUser_updatesProfileAndIssuesTokens 테스트가 커버한다.
             when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.empty());
             when(userRepository.saveAndFlush(any()))
                     .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
 
             // act & assert
             assertThatThrownBy(() -> persistence.upsertAndIssueTokens(12345L, "닉네임", "img.png"))
-                    .isInstanceOf(CoreException.class)
-                    .extracting("errorType")
-                    .isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
+                    .isInstanceOf(DataIntegrityViolationException.class);
         }
     }
 }
