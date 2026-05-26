@@ -108,7 +108,8 @@ datasource:
       username: ${POSTGRES_USER}
       password: "${POSTGRES_PASSWORD}"
       maximum-pool-size: 10
-      minimum-idle: 5
+      minimum-idle: 0           # Neon suspend 시 stale 커넥션 방지 (idle 유지 안 함)
+      connection-timeout: 10000 # Neon cold start(3~8초) 대응
       data-source-properties:
         reWriteBatchedInserts: true
         ssl: true
