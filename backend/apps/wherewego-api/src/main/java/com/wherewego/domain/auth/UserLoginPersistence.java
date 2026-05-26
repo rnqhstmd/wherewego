@@ -33,29 +33,25 @@ public class UserLoginPersistence {
     private final RefreshTokenHasher refreshTokenHasher;
 
     @Retryable(
-            retryFor = {CannotCreateTransactionException.class},
+            retryFor = {CannotCreateTransactionException.class, DataIntegrityViolationException.class},
             maxAttempts = 2,
-            backoff = @Backoff(delay = 5000)
+            backoff = @Backoff(delay = 500)
     )
     @Transactional
     public AuthResultInfo upsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {
-        UserModel user;
-        try {
-            user = userRepository.findByKakaoUserId(kakaoUserId)
-                    .map(existing -> {
-                        if (!existing.isActive()) {
-                            throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED);
-                        }
-                        existing.updateProfile(nickname, profileImageUrl);
-                        return existing;
-                    })
-                    // saveAndFlush로 즉시 flush → 동시 최초 로그인 race 시 DataIntegrityViolationException 조기 감지
-                    .orElseGet(() -> userRepository.saveAndFlush(
-                            UserModel.create(kakaoUserId, nickname, profileImageUrl)));
-        } catch (DataIntegrityViolationException e) {
-            // 동시 최초 로그인 race: unique constraint 위반 → 사용자는 이미 저장됨. 재시도 시 정상 처리.
-            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
-        }
+        UserModel user = userRepository.findByKakaoUserId(kakaoUserId)
+                .map(existing -> {
+                    if (!existing.isActive()) {
+                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED);
+                    }
+                    existing.updateProfile(nickname, profileImageUrl);
+                    return existing;
+                })
+                // saveAndFlush로 즉시 flush → 동시 최초 로그인 race 시 DataIntegrityViolationException 조기 감지.
+                // 위반 시 트랜잭션이 rollback-only가 되므로 catch 후 복구가 불가능하다.
+                // @Retryable이 예외를 잡아 새 트랜잭션으로 재시도 → findByKakaoUserId가 기존 사용자 반환.
+                .orElseGet(() -> userRepository.saveAndFlush(
+                        UserModel.create(kakaoUserId, nickname, profileImageUrl)));
 
         String accessRaw = jwtTokenProvider.issueAccessToken(user.getId());
         String refreshRaw = jwtTokenProvider.issueRefreshToken(user.getId());
