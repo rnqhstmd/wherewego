@@ -48,7 +48,8 @@ public class UserLoginPersistence {
     @Retryable(
             retryFor = {CannotCreateTransactionException.class, DataIntegrityViolationException.class},
             maxAttempts = 3,
-            backoff = @Backoff(delay = 800, multiplier = 2.5, maxDelay = 3000)
+            backoff = @Backoff(delay = 800, multiplier = 2.5, maxDelay = 3000),
+            listeners = "loginRetryListener"
     )
     @Transactional
     public AuthResultInfo upsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {
