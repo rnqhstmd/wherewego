@@ -53,8 +53,9 @@ public class UserLoginPersistence {
                     .orElseGet(() -> userRepository.saveAndFlush(
                             UserModel.create(kakaoUserId, nickname, profileImageUrl)));
         } catch (DataIntegrityViolationException e) {
-            // 동시 최초 로그인 race: unique constraint 위반 → 사용자는 이미 저장됨. 재시도 시 정상 처리.
-            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
+            // 동시 최초 로그인 race: 다른 요청이 이미 저장 완료 → 재조회해서 토큰 발급
+            user = userRepository.findByKakaoUserId(kakaoUserId)
+                    .orElseThrow(() -> new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요."));
         }
 
         String accessRaw = jwtTokenProvider.issueAccessToken(user.getId());
