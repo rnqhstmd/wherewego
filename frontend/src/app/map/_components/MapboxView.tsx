@@ -66,6 +66,13 @@ interface MapboxViewProps {
    * 로 부착된 DOM element 에 직접 {@code style.opacity} 를 설정하면 의도한 시각 효과를 얻을 수 있다.</p>
    */
   dimmedPinIds?: Set<number>;
+  /**
+   * Phase 12 (FR-PIN-12-11, AC-12-18, §9.2): REEL → WISH 자동 전환 시 0.5초 동안
+   * 마커 DOM 에 `.pin-pulse-once` 클래스를 부착하여 펄스 keyframe(globals.css)을 1회 재생한다.
+   * 부모(MapClient) 가 wishConverted=true 시점에 pinId 를 set 하고 0.5초 뒤 null 로 되돌리므로
+   * 본 컴포넌트는 prop 변화에 맞춰 클래스만 토글한다.
+   */
+  pulsingPinId?: number | null;
 }
 
 /**
@@ -333,6 +340,7 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
     skipInitialGeoFly = false,
     onGeolocate,
     dimmedPinIds,
+    pulsingPinId,
   },
   ref,
 ) {
@@ -387,6 +395,25 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
       el.style.opacity = dim && dim.has(pinId) ? "0.3" : "1";
     }
   }, [dimmedPinIds]);
+
+  // Phase 12 (FR-PIN-12-11, AC-12-18, §9.2): pulsingPinId 변경에 맞춰 마커 DOM 에 `.pin-pulse-once`
+  // 클래스를 부착/해제한다. 부모(MapClient)가 wishConverted=true 시 0.5초 동안 pinId 를 set 했다가
+  // null 로 되돌리므로, 본 effect 는 prop 변화만 좇아 클래스 토글만 수행한다. cleanup 에서 명시 제거하여
+  // 동일 핀에 재트리거가 들어와도 keyframe 이 1회 재생되도록 보장.
+  useEffect(() => {
+    if (pulsingPinId === null || pulsingPinId === undefined) return;
+    const marker = markerCacheRef.current.get(pulsingPinId);
+    if (!marker) return;
+    const el = marker.getElement() as HTMLDivElement;
+    // 동일 노드 재트리거 대비 — 클래스 제거 후 reflow 강제로 keyframe 을 다시 1회 재생.
+    el.classList.remove("pin-pulse-once");
+    // reflow trigger (getBoundingClientRect 또는 offsetWidth 접근).
+    void el.offsetWidth;
+    el.classList.add("pin-pulse-once");
+    return () => {
+      el.classList.remove("pin-pulse-once");
+    };
+  }, [pulsingPinId]);
 
   // Phase 10: imperative API — visit 검출 시 마커 bounce + confetti 트리거.
   useImperativeHandle(

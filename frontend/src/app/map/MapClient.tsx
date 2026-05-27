@@ -1954,6 +1954,7 @@ export default function MapClient({
         }
         skipInitialGeoFly={skipInitialGeoFly}
         dimmedPinIds={dimmedPinIds}
+        pulsingPinId={pulsingPinId}
       />
       {mapError && <MapLoadError reason={mapError} />}
       <MobileTopNav
