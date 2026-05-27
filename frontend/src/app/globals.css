@@ -33,9 +33,9 @@
   --color-map-block: #f0ebe0;
   --color-map-road: #ffffff;
   --color-pin-reel: #7bb3e8;
-  /* Phase 12 D-13: REEL with want_count>=1 (관심 있는 발견). 진보라.
+  /* Phase 12 D-13 + 후속(UX 개선): REEL with want_count>=1 (관심 있는 발견). 파스텔 라벤더.
      마커 SVG의 fill은 markers.tsx에서 hex 직접 사용 컨벤션이라 본 변수는 보조 역할. */
-  --color-pin-interest: #7b68ee;
+  --color-pin-interest: #b5a8e6;
   --color-pin-wish: #f4c842;
   --color-pin-memory: #ffb3c6;
   --color-pin-new: #e05a5a;
@@ -221,6 +221,12 @@ body {
 @keyframes maygo-visit-toast-fade-in {
   0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* WishToast — 상단 슬라이드 다운 + 페이드인 (translateX 는 보존). */
+@keyframes maygo-wish-toast-in {
+  0% { transform: translateX(-50%) translateY(-12px); opacity: 0; }
+  100% { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
 
 /* Phase 12 — REEL → WISH 전환 1회 펄스 (설계 §9.2).

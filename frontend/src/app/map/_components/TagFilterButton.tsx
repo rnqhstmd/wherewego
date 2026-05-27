@@ -1,58 +1,75 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PinTag } from "@/lib/api/types";
 import { colors, fonts } from "@/lib/design/tokens";
-import { MemoryGlyph, PIN_COLORS, ReelGlyph, WishGlyph } from "@/lib/pin/markers";
+import {
+  InterestBadgeIcon,
+  MemoryGlyph,
+  PIN_COLORS,
+  ReelGlyph,
+  WishGlyph,
+} from "@/lib/pin/markers";
 
-const TAG_OPTIONS: Array<{
-  tag: PinTag;
+/**
+ * Phase 12 후속(UX 재반영): 체크박스 dropdown 필터 (이전 패턴 복귀).
+ *
+ * 항목은 4가지 + 전체:
+ *  - 추억(MEMORY) / 위시(WISH) / 발견(REEL, wantCount=0) / 관심(REEL && wantCount>=1)
+ *
+ * 관심은 발견과 **상호배타적인 서브셋** — 관심만 켜면 want_count>=1 인 발견 핀만 노출되고,
+ * 발견만 켜면 want_count=0 인 순수 발견 핀만 노출된다. 둘 다 켜면 모든 발견 핀이 노출된다.
+ * 체크박스 의미가 각자 독립적이 되어 사용자 직관에 부합한다.
+ */
+export type FilterKey = "MEMORY" | "WISH" | "REEL" | "INTEREST";
+
+export const ALL_FILTER_KEYS: ReadonlyArray<FilterKey> = [
+  "MEMORY",
+  "WISH",
+  "REEL",
+  "INTEREST",
+];
+
+interface OptionMeta {
+  key: FilterKey;
   label: string;
   color: string;
   Glyph: () => React.ReactNode;
-}> = [
+}
+
+// 설명 텍스트는 좌하단 ! (TagLegendButton) 에 위임. 본 필터는 라벨/아이콘만.
+const OPTIONS: ReadonlyArray<OptionMeta> = [
   {
-    tag: "MEMORY",
+    key: "MEMORY",
     label: "추억",
     color: PIN_COLORS.memory,
     Glyph: () => <MemoryGlyph w={14} h={14} color={PIN_COLORS.memory} />,
   },
   {
-    tag: "WISH",
+    key: "WISH",
     label: "위시",
     color: PIN_COLORS.wish,
     Glyph: () => <WishGlyph size={14} color={PIN_COLORS.wish} />,
   },
   {
-    tag: "REEL",
+    key: "REEL",
     label: "발견",
     color: PIN_COLORS.reel,
     Glyph: () => <ReelGlyph size={14} color={PIN_COLORS.reel} />,
   },
+  {
+    key: "INTEREST",
+    label: "관심",
+    color: PIN_COLORS.reel,
+    Glyph: () => <InterestBadgeIcon size={14} />,
+  },
 ];
 
 interface TagFilterButtonProps {
-  visibleTags: Set<PinTag>;
-  onChange: (next: Set<PinTag>) => void;
-  /**
-   * Phase 12 (FR-PIN-12-26, 설계 §9.6 + D-13): 발견 탭의 "관심 있는 발견" 필터.
-   *
-   * - false (기본): 모든 REEL 핀 표시.
-   * - true: REEL 핀 중 `wantCount >= 1` 인 핀만 표시 — "🙋 관심 있는 발견".
-   *
-   * UI 는 발견 탭 라벨에 inline 토글 칩으로 노출되며, 토글 ON 시 라벨이 "발견 (관심)" 으로 변경된다.
-   * 상위 컨테이너는 본 값을 URL 쿼리(`?interest=true`) 및 핀 fetch 옵션과 연결한다.
-   */
-  interestOnly?: boolean;
-  onInterestChange?: (next: boolean) => void;
+  selected: Set<FilterKey>;
+  onChange: (next: Set<FilterKey>) => void;
 }
 
-export function TagFilterButton({
-  visibleTags,
-  onChange,
-  interestOnly = false,
-  onInterestChange,
-}: TagFilterButtonProps) {
+export function TagFilterButton({ selected, onChange }: TagFilterButtonProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -71,25 +88,18 @@ export function TagFilterButton({
     };
   }, [open]);
 
-  const allChecked = visibleTags.size === TAG_OPTIONS.length;
-  // Phase 12: 발견 interest 토글도 활성 필터로 간주하여 dot indicator 를 띄운다.
-  const isFiltering = !allChecked || interestOnly;
+  const allChecked = selected.size === ALL_FILTER_KEYS.length;
+  const isFiltering = !allChecked;
 
   const toggleAll = () => {
-    if (allChecked) {
-      onChange(new Set());
-    } else {
-      onChange(new Set(TAG_OPTIONS.map((o) => o.tag)));
-    }
+    if (allChecked) onChange(new Set());
+    else onChange(new Set(ALL_FILTER_KEYS));
   };
 
-  const toggleTag = (tag: PinTag) => {
-    const next = new Set(visibleTags);
-    if (next.has(tag)) {
-      next.delete(tag);
-    } else {
-      next.add(tag);
-    }
+  const toggleKey = (key: FilterKey) => {
+    const next = new Set(selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     onChange(next);
   };
 
@@ -99,7 +109,7 @@ export function TagFilterButton({
     <div ref={wrapRef} style={{ position: "relative" }}>
       <button
         type="button"
-        aria-label="태그 필터"
+        aria-label="핀 필터"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -118,7 +128,6 @@ export function TagFilterButton({
           position: "relative",
         }}
       >
-        {/* 필터(깔때기) 아이콘 */}
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M4 5h16l-6 8v5l-4 2v-7L4 5z"
@@ -149,7 +158,7 @@ export function TagFilterButton({
       {open && (
         <div
           role="dialog"
-          aria-label="태그 필터"
+          aria-label="핀 필터"
           style={{
             position: "absolute",
             bottom: 52,
@@ -159,7 +168,7 @@ export function TagFilterButton({
             boxShadow: `0 8px 28px rgba(0,0,0,0.14)`,
             border: `1px solid ${colors.hairline}`,
             padding: "12px 14px 8px",
-            minWidth: 184,
+            minWidth: 220,
             zIndex: 60,
             fontFamily: fonts.sans,
             animation: "maygo-bubble-pop 200ms cubic-bezier(0.2,0.8,0.2,1) both",
@@ -186,7 +195,7 @@ export function TagFilterButton({
               letterSpacing: 0.3,
             }}
           >
-            보고 싶은 태그만 골라요
+            보고 싶은 핀을 골라요
           </p>
 
           <CheckboxRow
@@ -204,73 +213,31 @@ export function TagFilterButton({
             }}
           />
 
-          {TAG_OPTIONS.map(({ tag, label, color, Glyph }) => {
-            // Phase 12 (FR-PIN-12-26): 발견 항목은 라벨에 (관심) 접미사 + 토글 칩 부착.
-            const isReelRow = tag === "REEL";
-            const displayLabel =
-              isReelRow && interestOnly ? `${label} (관심)` : label;
-            const trailing =
-              isReelRow && onInterestChange ? (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={interestOnly}
-                  aria-label={
-                    interestOnly
-                      ? "관심 있는 발견만 보기 끄기"
-                      : "관심 있는 발견만 보기"
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onInterestChange(!interestOnly);
-                  }}
-                  title="🙋 관심 있는 발견 (가고 싶어요 1+)"
+          {OPTIONS.map(({ key, label, color, Glyph }) => (
+            <CheckboxRow
+              key={key}
+              label={label}
+              checked={selected.has(key)}
+              onToggle={() => toggleKey(key)}
+              accent={color}
+              leading={
+                <span
                   style={{
-                    padding: "3px 8px",
-                    borderRadius: 999,
-                    border: `1px solid ${
-                      interestOnly ? colors.cta : colors.hairline
-                    }`,
-                    background: interestOnly ? `${colors.cta}1A` : "transparent",
-                    color: interestOnly ? colors.cta : colors.inkSoft,
-                    fontFamily: fonts.sans,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    lineHeight: 1,
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: `${color}1A`,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     flexShrink: 0,
                   }}
                 >
-                  🙋 관심
-                </button>
-              ) : undefined;
-            return (
-              <CheckboxRow
-                key={tag}
-                label={displayLabel}
-                checked={visibleTags.has(tag)}
-                onToggle={() => toggleTag(tag)}
-                accent={color}
-                leading={
-                  <span
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      background: `${color}1A`,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Glyph />
-                  </span>
-                }
-                trailing={trailing}
-              />
-            );
-          })}
+                  <Glyph />
+                </span>
+              }
+            />
+          ))}
         </div>
       )}
     </div>
@@ -284,11 +251,6 @@ interface CheckboxRowProps {
   emphasize?: boolean;
   accent?: string;
   leading?: React.ReactNode;
-  /**
-   * Phase 12: 행 우측에 부가 액션(예: 발견 탭의 "🙋 관심" 토글)을 배치할 수 있는 슬롯.
-   * 부모 체크박스 토글과 충돌하지 않도록 trailing 의 onClick 은 stopPropagation 책임을 가진다.
-   */
-  trailing?: React.ReactNode;
 }
 
 function CheckboxRow({
@@ -298,7 +260,6 @@ function CheckboxRow({
   emphasize,
   accent,
   leading,
-  trailing,
 }: CheckboxRowProps) {
   const fill = accent ?? colors.cta;
   return (
@@ -312,7 +273,7 @@ function CheckboxRow({
         alignItems: "center",
         gap: 10,
         width: "100%",
-        padding: "6px 4px",
+        padding: "5px 4px",
         background: "transparent",
         border: "none",
         cursor: "pointer",
@@ -352,16 +313,16 @@ function CheckboxRow({
       {leading}
       <span
         style={{
+          flex: 1,
+          minWidth: 0,
           fontSize: 13,
           color: colors.ink,
-          fontWeight: emphasize ? 700 : 500,
+          fontWeight: emphasize ? 700 : 600,
           lineHeight: 1.3,
-          flex: 1,
         }}
       >
         {label}
       </span>
-      {trailing}
     </button>
   );
 }

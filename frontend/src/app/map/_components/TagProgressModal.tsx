@@ -270,6 +270,63 @@ export default function TagProgressModal({
           })}
         </ol>
 
+        <section
+          aria-label="아이콘 안내"
+          style={{
+            marginTop: 18,
+            paddingTop: 14,
+            borderTop: `1px solid ${colors.hairline}`,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <h3
+            style={{
+              fontFamily: fonts.sans,
+              fontSize: 12,
+              fontWeight: 700,
+              color: colors.inkSoft,
+              margin: 0,
+              letterSpacing: 0.3,
+            }}
+          >
+            아이콘 안내
+          </h3>
+          <LegendRow
+            glyph={<HeartIcon filled color={colors.cta} />}
+            title="채워진 하트"
+            desc="내가 가고 싶다고 표시한 곳"
+          />
+          <LegendRow
+            glyph={<HeartIcon color={colors.inkSoft} />}
+            title="빈 하트"
+            desc="아직 표시하지 않았어요. 누르면 ‘가고 싶어요’가 켜져요"
+          />
+          <LegendRow
+            glyph={
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  border: `1px solid ${colors.hairline}`,
+                  color: colors.inkSoft,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ?
+              </span>
+            }
+            title="도움말"
+            desc="이 모달처럼 아이콘 의미와 단계 변화를 한 번에 보여줘요"
+          />
+        </section>
+
         <footer
           style={{
             marginTop: 16,
@@ -299,5 +356,75 @@ export default function TagProgressModal({
         </footer>
       </div>
     </dialog>
+  );
+}
+
+function LegendRow({
+  glyph,
+  title,
+  desc,
+}: {
+  glyph: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <span
+        style={{
+          width: 28,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {glyph}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: colors.ink,
+            lineHeight: 1.3,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 11,
+            color: colors.inkSoft,
+            lineHeight: 1.45,
+            marginTop: 2,
+          }}
+        >
+          {desc}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeartIcon({ filled = false, color }: { filled?: boolean; color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.6-9.5-9.1C1 7.7 3.6 4 7.3 4c2 0 3.5 1.1 4.7 2.7C13.2 5.1 14.7 4 16.7 4c3.7 0 6.3 3.7 4.8 7.9C19.5 16.4 12 21 12 21z"
+        fill={filled ? color : "none"}
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

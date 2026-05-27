@@ -13,7 +13,6 @@ import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { colors } from "@/lib/design/tokens";
 import {
   getReelSvgString,
-  getInterestSvgString,
   getWishSvgString,
   getMemorySvgString,
   getMarkerVariant,
@@ -206,15 +205,18 @@ const DEFAULT_CENTER: [number, number] = [127.0, 37.5];
  *
  * 태그 변경 시에도 element 인스턴스를 재사용하기 위해 innerHTML/style만 갱신.
  *
- * Phase 12 (AC-12-16/17, D-13): (tag, wantCount) → MarkerVariant 단일 진입점
- * {@link getMarkerVariant} 를 사용하여 kind/size 를 결정한다.
- *  - REEL && wantCount >= 1 → INTEREST (진보라 #7B68EE, 1.1배)
+ * Phase 12 (AC-12-16/17, D-13) + 후속(UX 재반영3, 하트 뱃지 방식):
+ *  - REEL → 하늘색 원 1.0배
  *  - WISH → 노랑 별 1.2배
  *  - MEMORY → 핑크 하트 1.0배
- *  - REEL && wantCount == 0 → 하늘색 원 1.0배
+ *  - REEL && wantCount >= 1 → 위 REEL 마커 우상단에 빨간 하트 뱃지 오버레이 추가
  *
- * 베이스 사이즈: REEL/INTEREST/MEMORY = 22px, WISH = 18px. variant.size 계수를 곱해 최종 사이즈 결정.
+ * 베이스 사이즈: REEL/MEMORY = 22px, WISH = 18px. variant.size 계수를 곱해 최종 사이즈 결정.
+ * 뱃지는 12px, position absolute (top=-3, right=-4) — 컨테이너 중심은 그대로라 mapbox
+ * anchor("center") 가 가리키는 지리 좌표는 변하지 않는다.
  */
+const HEART_BADGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;top:-3px;right:-4px;pointer-events:none;"><path d="M12 21s-7.5-4.6-9.5-9.1C1 7.7 3.6 4 7.3 4c2 0 3.5 1.1 4.7 2.7C13.2 5.1 14.7 4 16.7 4c3.7 0 6.3 3.7 4.8 7.9C19.5 16.4 12 21 12 21z" fill="#FF2D55" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+
 function renderPinDotInto(
   el: HTMLDivElement,
   tag: PinTag,
@@ -229,6 +231,9 @@ function renderPinDotInto(
   el.style.border = "none";
   el.style.borderRadius = "0";
   el.style.boxShadow = "none";
+  // 뱃지가 우상단으로 살짝 비집고 나오므로 stacking/잘림 방지.
+  el.style.position = "relative";
+  el.style.overflow = "visible";
 
   const variant = getMarkerVariant(tag, wantCount);
 
@@ -237,14 +242,9 @@ function renderPinDotInto(
       const size = Math.round(22 * variant.size);
       el.style.width = `${size}px`;
       el.style.height = `${size}px`;
-      el.innerHTML = getReelSvgString(size);
-      break;
-    }
-    case "interest": {
-      const size = Math.round(22 * variant.size);
-      el.style.width = `${size}px`;
-      el.style.height = `${size}px`;
-      el.innerHTML = getInterestSvgString(size);
+      // REEL 핀에만 want_count>=1 시 빨간 하트 뱃지 오버레이를 합성.
+      el.innerHTML =
+        getReelSvgString(size) + (wantCount >= 1 ? HEART_BADGE_SVG : "");
       break;
     }
     case "wish": {

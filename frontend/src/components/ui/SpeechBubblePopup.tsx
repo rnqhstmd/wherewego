@@ -23,6 +23,12 @@ interface SpeechBubblePopupProps {
   onMenuClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** ⋮ 버튼 좌측 sibling 영역 (Phase 9 공유 버튼 등). undefined면 ⋮ 단독 렌더. */
   shareAction?: ReactNode;
+  /**
+   * Phase 12 후속(UX 개선): 본문 우측에 placeRow와 같은 라인에 떠 있는 액션 영역.
+   * WANT(하트) 토글을 무신사 스타일(카운트 + 하트)로 배치하기 위해 사용한다.
+   * place가 있으면 place 줄과 같은 row, 없으면 addr 줄과 같은 row 우측에 정렬된다.
+   */
+  bodyAction?: ReactNode;
   /** ⋮ 영역 아래 인라인 펼침 영역 (PinTag 칩 등) */
   footerContent?: ReactNode;
   /** 본문 하단 추가 children (커스텀 확장) */
@@ -59,6 +65,7 @@ export function SpeechBubblePopup({
   width = 296,
   onMenuClick,
   shareAction,
+  bodyAction,
   footerContent,
   children,
   collapseBody = false,
@@ -153,10 +160,17 @@ export function SpeechBubblePopup({
                       fontWeight: 700,
                       color: colors.ink,
                       letterSpacing: -0.2,
+                      flex: 1,
+                      minWidth: 0,
                     }}
                   >
                     {place}
                   </span>
+                  {bodyAction ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                      {bodyAction}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
               <div
@@ -179,7 +193,12 @@ export function SpeechBubblePopup({
                     }
                   />
                 ) : null}
-                <span>{addr}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>{addr}</span>
+                {!hasPlace && bodyAction ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                    {bodyAction}
+                  </span>
+                ) : null}
               </div>
               {instagramUrl ? (
                 <a

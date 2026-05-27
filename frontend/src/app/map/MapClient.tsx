@@ -29,6 +29,7 @@ import { PermissionDialog } from "@/components/ui/PermissionDialog";
 import { IconLocation } from "@/components/icons";
 import PinPopup from "./_components/PinPopup";
 import VisitToast from "./_components/VisitToast";
+import WishToast from "./_components/WishToast";
 import VisitMemoSheet from "./_components/VisitMemoSheet";
 import ActionBar from "./_components/ActionBar";
 import DesktopActionPill from "./_components/DesktopActionPill";
@@ -43,7 +44,11 @@ import RouletteResultContent from "./_components/RouletteResultContent";
 import ClusterBanner from "./_components/ClusterBanner";
 import EmptyMapCard from "./_components/EmptyMapCard";
 import { TagLegendButton } from "./_components/TagLegendButton";
-import { TagFilterButton } from "./_components/TagFilterButton";
+import {
+  TagFilterButton,
+  type FilterKey,
+  ALL_FILTER_KEYS,
+} from "./_components/TagFilterButton";
 import { InvitePartnerHintCard } from "./_components/onboarding/InvitePartnerHintCard";
 import { ConnectBotHintCard } from "./_components/onboarding/ConnectBotHintCard";
 import { isHintSnoozed } from "./_lib/hintSnooze";
@@ -241,26 +246,52 @@ export default function MapClient({
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
-  // Phase 12 (FR-PIN-12-26, §9.6): URL 쿼리 ?tag= / ?interest= 와 동기화되는 가시 태그 + 관심 필터.
-  // - ?tag=REEL 단일 전달 시 해당 태그만 표시(다중은 콤마 미지원, 기본 3종 모두 노출 정책 유지).
-  // - ?interest=true 시 발견 탭의 "관심 있는 발견" 모드 ON (wantCount>=1 필터 — 클라 사이드).
-  // - 둘 다 미전달 시 기본값(전체 표시 + interest=false).
+  // Phase 12 (FR-PIN-12-26, §9.6) + 후속(UX 재반영, 체크박스 dropdown 복귀):
+  // URL ?filter=KEY,KEY,... 콤마 다중값. 모든 키가 켜졌으면 쿼리 자체를 제거(=기본 전체 표시).
+  // 키 종류: MEMORY / WISH / REEL / INTEREST (4가지). 관심(INTEREST)은 발견과 상호배타적 서브셋.
+  // 기존 ?tag= / ?interest= 도 하위호환 1회 매핑.
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 초기값은 URL 에서 동기화. mount 이후 사용자 액션은 setVisibleTags / setInterestOnly 가 진실.
-  // URL 변화(브라우저 back 등) 추적은 본 컴포넌트가 SPA 라 별도 옵저버 불필요.
-  const [visibleTags, setVisibleTags] = useState<Set<PinTag>>(() => {
-    const tagParam = searchParams.get("tag");
-    if (tagParam === "REEL" || tagParam === "WISH" || tagParam === "MEMORY") {
-      return new Set<PinTag>([tagParam]);
+  const [selectedFilters, setSelectedFilters] = useState<Set<FilterKey>>(() => {
+    const raw = searchParams.get("filter");
+    if (raw) {
+      const tokens = raw
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t): t is FilterKey =>
+          (ALL_FILTER_KEYS as ReadonlyArray<string>).includes(t),
+        );
+      if (tokens.length > 0) return new Set<FilterKey>(tokens);
     }
-    return new Set<PinTag>(["REEL", "WISH", "MEMORY"]);
+    // 하위호환: 기존 ?tag= / ?interest=true 조합을 새 모델로 1회 매핑.
+    if (searchParams.get("interest") === "true") {
+      return new Set<FilterKey>(["INTEREST"]);
+    }
+    const tagParam = searchParams.get("tag");
+    if (tagParam === "REEL") {
+      return new Set<FilterKey>(["REEL", "INTEREST"]); // 발견 단독 = want 무관 모든 REEL
+    }
+    if (tagParam === "WISH" || tagParam === "MEMORY") {
+      return new Set<FilterKey>([tagParam]);
+    }
+    return new Set<FilterKey>(ALL_FILTER_KEYS);
   });
-  const [interestOnly, setInterestOnly] = useState<boolean>(
-    () => searchParams.get("interest") === "true",
-  );
+
+  // 룰렛 등 기존 헬퍼(computeTagsAllowed)와의 호환을 위해 PinTag set 을 파생.
+  // - MEMORY ∈ selected → "MEMORY" 허용
+  // - WISH   ∈ selected → "WISH" 허용
+  // - REEL 또는 INTEREST ∈ selected → "REEL" 허용 (룰렛은 want 필터 미적용)
+  const visibleTags = useMemo<Set<PinTag>>(() => {
+    const next = new Set<PinTag>();
+    if (selectedFilters.has("MEMORY")) next.add("MEMORY");
+    if (selectedFilters.has("WISH")) next.add("WISH");
+    if (selectedFilters.has("REEL") || selectedFilters.has("INTEREST")) {
+      next.add("REEL");
+    }
+    return next;
+  }, [selectedFilters]);
 
   // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle={notificationId}` 처리.
   // notificationId 가 있으면 해당 알림의 핀 ID 목록을 fetch 하여 Set 으로 보관.
@@ -275,6 +306,12 @@ export default function MapClient({
   // Phase 12 (FR-PIN-12-11): REEL → WISH 자동 전환 시 0.5초 동안 펄스를 표시할 핀 ID.
   // toggleWantAction 응답의 wishConverted=true 시 set 되고 0.5초 뒤 자동 null 로 리셋된다.
   const [pulsingPinId, setPulsingPinId] = useState<number | null>(null);
+  // Phase 12 후속(UX 재반영): WISH 자동 전환 직후 상단 토스트 노출.
+  // WishToast 가 자체 setTimeout 으로 onDismiss 호출 → 본 state null 처리.
+  const [wishToastPin, setWishToastPin] = useState<{
+    pinId: number;
+    placeName: string;
+  } | null>(null);
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [hasCluster, setHasCluster] = useState(false);
   const [mapError, setMapError] = useState<MapLoadErrorReason | null>(null);
@@ -545,9 +582,14 @@ export default function MapClient({
                   : p,
               ),
             );
-            // WISH 전환이 본 호출에서 일어났으면 0.5초 펄스 trigger (§9.2).
+            // WISH 전환이 본 호출에서 일어났으면 0.5초 펄스 trigger (§9.2) + 상단 토스트.
             if (result.data.wishConverted) {
               setPulsingPinId(pinId);
+              const converted = pins.find((p) => p.id === pinId);
+              setWishToastPin({
+                pinId,
+                placeName: converted?.placeName ?? "이 곳",
+              });
             }
             resolve({ ok: true, data: result.data });
             return;
@@ -621,37 +663,21 @@ export default function MapClient({
   }, [pathname, router, searchParams]);
 
   /**
-   * Phase 12 (§9.6): TagFilterButton 의 가시 태그 변경을 받아 state + URL 쿼리를 동기화.
-   * - 단일 태그만 선택된 경우 ?tag=XXX 로 노출, 그 외(전체/2개 등)는 쿼리 제거.
-   * - history.replace 로 스크롤 위치 보존.
+   * Phase 12 후속(UX 재반영): 체크박스 dropdown 의 다중 선택 → state + URL ?filter= 동기화.
+   * 모든 키 선택 시 쿼리 제거 (=기본 상태). 기존 ?tag=/?interest= 는 항상 제거.
    */
-  const handleVisibleTagsChange = useCallback(
-    (next: Set<PinTag>) => {
-      setVisibleTags(next);
+  const handleFilterChange = useCallback(
+    (next: Set<FilterKey>) => {
+      setSelectedFilters(next);
       const params = new URLSearchParams(searchParams.toString());
-      if (next.size === 1) {
-        const [only] = Array.from(next);
-        params.set("tag", only);
+      params.delete("tag");
+      params.delete("interest");
+      if (next.size === 0 || next.size === ALL_FILTER_KEYS.length) {
+        params.delete("filter");
       } else {
-        params.delete("tag");
-      }
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname);
-    },
-    [pathname, router, searchParams],
-  );
-
-  /**
-   * Phase 12 (§9.6): "관심 있는 발견" 토글 — state + ?interest= 동기화.
-   */
-  const handleInterestChange = useCallback(
-    (next: boolean) => {
-      setInterestOnly(next);
-      const params = new URLSearchParams(searchParams.toString());
-      if (next) {
-        params.set("interest", "true");
-      } else {
-        params.delete("interest");
+        // 안정적 URL을 위해 ALL_FILTER_KEYS 순서대로 직렬화.
+        const ordered = ALL_FILTER_KEYS.filter((k) => next.has(k));
+        params.set("filter", ordered.join(","));
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -1272,19 +1298,24 @@ export default function MapClient({
   // 필터로 숨겨진 핀이 selectedPinId 라면 selectedPin 조회가 자연히 null 이 되어
   // 팝업이 닫힌다. 필터를 다시 켜면 selectedPinId 가 남아 있던 경우 팝업도 복귀한다.
   //
-  // Phase 12 추가 필터:
-  //  - interestOnly (§9.6): REEL 핀 중 wantCount>=1 만 표시. WISH/MEMORY 는 영향 없음.
+  // Phase 12 후속(UX 재반영): 4개 필터키 상호배타적 서브셋.
+  //  - MEMORY 키 ON → pin.tag === "MEMORY" 포함
+  //  - WISH   키 ON → pin.tag === "WISH"   포함
+  //  - REEL   키 ON → pin.tag === "REEL" && wantCount == 0
+  //  - INTEREST 키 ON → pin.tag === "REEL" && wantCount >= 1
   //  - bundlePinIds (§9.7): 번들 모드에서도 비번들 핀을 지도에서 제거하지 않는다.
   //    PRD AC-12-36 + D-14 "비번들 핀 opacity 0.3" 요구를 충족하기 위해 visibleOptimisticPins
   //    에는 그대로 포함시키고, 아래 dimmedPinIds 로 MapboxView 에 전달하여 마커 element 의
   //    style.opacity 를 직접 분기 갱신한다.
   const visibleOptimisticPins = useMemo(() => {
     return optimisticPins.filter((p) => {
-      if (!visibleTags.has(p.tag)) return false;
-      if (interestOnly && p.tag === "REEL" && p.wantCount < 1) return false;
-      return true;
+      if (p.tag === "MEMORY") return selectedFilters.has("MEMORY");
+      if (p.tag === "WISH") return selectedFilters.has("WISH");
+      // REEL 분기
+      if (p.wantCount >= 1) return selectedFilters.has("INTEREST");
+      return selectedFilters.has("REEL");
     });
-  }, [optimisticPins, visibleTags, interestOnly]);
+  }, [optimisticPins, selectedFilters]);
 
   // Phase 12 (§9.7, AC-12-36): reel_bundle 모드에서 dim 처리할 비번들 핀 ID 집합.
   // 번들 비활성(bundlePinIds 비어있음) 이면 undefined 를 전달하여 dim 효과를 끈다.
@@ -2025,12 +2056,7 @@ export default function MapClient({
         }}
       >
         <TagLegendButton />
-        <TagFilterButton
-          visibleTags={visibleTags}
-          onChange={handleVisibleTagsChange}
-          interestOnly={interestOnly}
-          onInterestChange={handleInterestChange}
-        />
+        <TagFilterButton selected={selectedFilters} onChange={handleFilterChange} />
       </div>
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -2104,6 +2130,12 @@ export default function MapClient({
         />
       )}
       {activePanel}
+      {wishToastPin && (
+        <WishToast
+          placeName={wishToastPin.placeName}
+          onDismiss={() => setWishToastPin(null)}
+        />
+      )}
       {visitToastPin && (
         <VisitToast
           pin={visitToastPin}

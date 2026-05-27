@@ -14,7 +14,6 @@ import { IconShare } from "@/components/icons";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 import PinShareSheet from "./PinShareSheet";
-import TagProgressModal from "./TagProgressModal";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
@@ -103,9 +102,6 @@ export default function PinPopup({
   const [wantPending, setWantPending] = useState(false);
   const [wantError, setWantError] = useState<string | null>(null);
 
-  // Phase 12 (FR-PIN-12-28): 태그 진행 다이어그램 모달 노출 여부.
-  const [progressModalOpen, setProgressModalOpen] = useState(false);
-
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -135,7 +131,6 @@ export default function PinPopup({
     setShareOpen(false);
     setWantPending(false);
     setWantError(null);
-    setProgressModalOpen(false);
   }
 
   useEffect(() => {
@@ -225,7 +220,8 @@ export default function PinPopup({
    * 실패 시 transition 종료 → 자동 롤백된다. 본 컴포넌트는 pending/error 만 관리.
    */
   const handleWantToggle = async () => {
-    if (!onWantToggle || wantPending || pin.tag === "MEMORY") return;
+    // 후속(UX 재반영): WANT 토글은 REEL 핀에서만 동작. WISH/MEMORY 는 노출 자체 안 함.
+    if (!onWantToggle || wantPending || pin.tag !== "REEL") return;
     setWantPending(true);
     setWantError(null);
     const result = await onWantToggle(pin.id);
@@ -401,112 +397,26 @@ export default function PinPopup({
     </div>
   );
 
-  // Phase 12 (FR-PIN-12-2, 28): view 모드 footer — 출처 뱃지 + WANT 토글 + 태그 진행 다이어그램 트리거.
-  // MEMORY 핀은 WANT 버튼 미노출, 출처 뱃지와 ? 아이콘은 항상 노출.
-  const sourceBadgeLabel = pin.instagramUrl ? "📹" : "✏️";
-  const sourceBadgeTitle = pin.instagramUrl
-    ? "릴스에서 발견한 곳"
-    : "직접 추가한 곳";
-  const wantLabel = pin.myWant ? "❤️ 가고 싶음" : "🤍 가고 싶어요";
+  // Phase 12 후속(UX 개선, 재반영):
+  //  - 출처 뱃지(📹/✏️), 도움말(?) 모두 PinPopup 에서 제거 — 도움말은 좌하단 ! (TagLegendButton) 통합.
+  //  - WANT 하트는 무신사 스타일로 place row 우측에 배치 (좌측 count + 우측 하트 아이콘).
+  //  - WANT 에러는 view 모드 inline footer 가 더 이상 없으므로 본문 하단 별도 영역에 노출한다.
+  const viewFooter = wantError ? (
+    <div style={inlineErrorStyle}>{wantError}</div>
+  ) : null;
 
-  const viewFooter = (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span
-          aria-label={sourceBadgeTitle}
-          title={sourceBadgeTitle}
-          style={{
-            fontFamily: fonts.sans,
-            fontSize: 11,
-            fontWeight: 600,
-            color: colors.inkSoft,
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: colors.bg,
-            border: `1px solid ${colors.hairline}`,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            lineHeight: 1,
-          }}
-        >
-          {sourceBadgeLabel}
-        </span>
-        <button
-          type="button"
-          onClick={() => setProgressModalOpen(true)}
-          aria-label="태그 진행 안내"
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: "50%",
-            border: `1px solid ${colors.hairline}`,
-            background: "transparent",
-            color: colors.inkSoft,
-            cursor: "pointer",
-            fontFamily: fonts.sans,
-            fontSize: 11,
-            fontWeight: 700,
-            padding: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            lineHeight: 1,
-          }}
-        >
-          ?
-        </button>
-      </div>
-      {pin.tag !== "MEMORY" && onWantToggle && (
-        <button
-          type="button"
-          onClick={handleWantToggle}
-          disabled={wantPending}
-          aria-pressed={pin.myWant}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: `1px solid ${pin.myWant ? colors.cta : colors.hairline}`,
-            background: pin.myWant ? `${colors.cta}14` : colors.panel,
-            color: pin.myWant ? colors.cta : colors.ink,
-            fontFamily: fonts.sans,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: wantPending ? "wait" : "pointer",
-            opacity: wantPending ? 0.6 : 1,
-          }}
-        >
-          <span>{wantLabel}</span>
-          {pin.wantCount > 0 && (
-            <span
-              style={{
-                fontFamily: fonts.mono,
-                fontSize: 11,
-                fontWeight: 700,
-                color: pin.myWant ? colors.cta : colors.inkSoft,
-              }}
-            >
-              {pin.wantCount}
-            </span>
-          )}
-        </button>
-      )}
-      {wantError && (
-        <div style={{ ...inlineErrorStyle, width: "100%" }}>{wantError}</div>
-      )}
-    </div>
-  );
+  // place row 우측 하트 (WANT). 후속(UX 재반영): REEL 핀에만 노출(WISH/MEMORY 모두 숨김).
+  // - WISH 는 이미 둘 다 가고 싶어한 결과 상태라 추가 액션 불필요.
+  // - MEMORY 는 다녀온 곳이라 가고 싶어요 의미가 없음.
+  const bodyHeart =
+    pin.tag === "REEL" && onWantToggle ? (
+      <HeartAction
+        myWant={pin.myWant}
+        wantCount={pin.wantCount}
+        pending={wantPending}
+        onToggle={handleWantToggle}
+      />
+    ) : undefined;
 
   const footer = mode === "edit" ? editFooter : viewFooter;
 
@@ -610,6 +520,7 @@ export default function PinPopup({
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
         shareAction={shareButton}
+        bodyAction={mode === "view" ? bodyHeart : undefined}
         footerContent={footer}
       >
         {menuPopover}
@@ -621,14 +532,6 @@ export default function PinPopup({
           mapboxStyleUrl={mapboxStyleUrl}
           groupPins={groupPins}
           onClose={() => setShareOpen(false)}
-        />
-      )}
-      {progressModalOpen && (
-        <TagProgressModal
-          isOpen={progressModalOpen}
-          currentTag={pin.tag}
-          wantCount={pin.wantCount}
-          onClose={() => setProgressModalOpen(false)}
         />
       )}
     </>
@@ -677,6 +580,120 @@ const hintTextStyle = {
   color: colors.inkSoft,
   alignSelf: "center" as const,
 };
+
+/**
+ * Phase 12 후속(UX 재반영2): 무신사 스타일 WANT 하트 액션 — 작은 크기 + 얇은 선 + vivid red.
+ *  - 좌측: 받은 하트 카운트 (작은 회색 텍스트, 0 이면 미노출)
+ *  - 우측: 하트 아이콘 16px, strokeWidth 1.3, 활성 시 #FF2D55(vivid red)
+ *  - hover/focus 시 안내 툴팁 노출.
+ *  - MEMORY 핀에는 호출부에서 미노출.
+ */
+const WANT_RED = "#FF2D55";
+
+function HeartAction({
+  myWant,
+  wantCount,
+  pending,
+  onToggle,
+}: {
+  myWant: boolean;
+  wantCount: number;
+  pending: boolean;
+  onToggle: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  // 커플(2인) 그룹 톤 — count/내 상태별 자연어 분기.
+  // - 아무도 안 누름: "가고 싶어요" (기본 권유)
+  // - 애인만 누름:   "애인이 가고 싶어해요"
+  // - 나만 누름:     "가고 싶다고 표시했어요"
+  // - 둘 다:         "둘 다 가고 싶어해요" (WISH 직전 — 잠깐만 보임)
+  const tooltipText = myWant
+    ? wantCount > 1
+      ? "둘 다 가고 싶어해요"
+      : "가고 싶다고 표시했어요"
+    : wantCount > 0
+      ? "애인이 가고 싶어해요"
+      : "가고 싶어요";
+
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={pending}
+        aria-label={tooltipText}
+        aria-pressed={myWant}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "2px 2px",
+          background: "transparent",
+          border: "none",
+          cursor: pending ? "wait" : "pointer",
+          color: myWant ? WANT_RED : colors.inkSoft,
+          opacity: pending ? 0.6 : 1,
+        }}
+      >
+        {wantCount > 0 && (
+          <span
+            style={{
+              fontFamily: fonts.mono,
+              fontSize: 11,
+              fontWeight: 600,
+              color: myWant ? WANT_RED : colors.inkSoft,
+              lineHeight: 1,
+              minWidth: 6,
+              textAlign: "right",
+            }}
+          >
+            {wantCount}
+          </span>
+        )}
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 21s-7.5-4.6-9.5-9.1C1 7.7 3.6 4 7.3 4c2 0 3.5 1.1 4.7 2.7C13.2 5.1 14.7 4 16.7 4c3.7 0 6.3 3.7 4.8 7.9C19.5 16.4 12 21 12 21z"
+            fill={myWant ? WANT_RED : "none"}
+            stroke={myWant ? WANT_RED : "currentColor"}
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {hover && (
+        <span
+          role="tooltip"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            whiteSpace: "nowrap",
+            padding: "5px 9px",
+            borderRadius: 8,
+            background: colors.ink,
+            color: "#fff",
+            fontFamily: fonts.sans,
+            fontSize: 11,
+            fontWeight: 600,
+            boxShadow: `0 4px 12px ${colors.shadow}`,
+            pointerEvents: "none",
+            zIndex: 30,
+          }}
+        >
+          {tooltipText}
+        </span>
+      )}
+    </div>
+  );
+}
+
+
 
 function renderTabButton(
   target: EditTab,
