@@ -25,6 +25,12 @@ import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -131,6 +137,71 @@ class AuthServiceTest {
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
+        }
+
+        @DisplayName("Bulkhead: 5건 동시 점유 중 6번째 호출은 ~3s 내 친화 에러로 빠르게 실패한다.")
+        @Test
+        void loginWithKakao_bulkheadOverflow_returnsFriendlyError() throws InterruptedException, ExecutionException {
+            // arrange: 5건이 upsertAndIssueTokens 내부에서 블록되어 permit 5개를 점유.
+            CountDownLatch entered = new CountDownLatch(5);
+            CountDownLatch release = new CountDownLatch(1);
+            AuthResultInfo expected = new AuthResultInfo(1L, "닉네임", "http://img.example/p.png", "new-access", "new-refresh");
+            when(userLoginPersistence.upsertAndIssueTokens(anyLong(), anyString(), anyString()))
+                    .thenAnswer(inv -> {
+                        entered.countDown();
+                        release.await();
+                        return expected;
+                    });
+
+            ExecutorService es = Executors.newFixedThreadPool(6);
+            try {
+                for (int i = 0; i < 5; i++) {
+                    es.submit(() -> authService.loginWithKakao("code-123"));
+                }
+                assertThat(entered.await(5, TimeUnit.SECONDS))
+                        .as("5 holders must enter before testing overflow").isTrue();
+
+                // act: 6번째는 tryAcquire(3s) timeout → 친화 에러.
+                long startNs = System.nanoTime();
+                Future<AuthResultInfo> sixth = es.submit(() -> authService.loginWithKakao("code-123"));
+                Throwable cause;
+                try {
+                    sixth.get(6, TimeUnit.SECONDS);
+                    throw new AssertionError("6번째 호출은 실패해야 한다");
+                } catch (ExecutionException ee) {
+                    cause = ee.getCause();
+                } catch (java.util.concurrent.TimeoutException te) {
+                    throw new AssertionError("6번째 호출이 6s 내 반환되지 않음 — Bulkhead timeout 미동작", te);
+                }
+                long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
+
+                assertThat(cause).isInstanceOf(CoreException.class)
+                        .extracting("errorType").isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
+                assertThat(elapsedMs)
+                        .as("Bulkhead tryAcquire timeout ≈ 3s (CI 흔들림 흡수 상한)")
+                        .isBetween(2500L, 5000L);
+            } finally {
+                release.countDown();
+                es.shutdown();
+                //noinspection ResultOfMethodCallIgnored
+                es.awaitTermination(5, TimeUnit.SECONDS);
+            }
+        }
+
+        @DisplayName("Bulkhead: 예외 경로에서도 permit 이 항상 release 된다 (누수 없음).")
+        @Test
+        void loginWithKakao_bulkheadReleasesOnException() {
+            // arrange: 매 호출이 persistence 에서 예외 → release 가 정상 동작해야 모두 동일 예외.
+            when(userLoginPersistence.upsertAndIssueTokens(anyLong(), anyString(), anyString()))
+                    .thenThrow(new CoreException(ErrorType.AUTH_USER_DEACTIVATED));
+
+            // act: 순차 10회. release 누수 시 6번째부터 AUTH_KAKAO_API_FAILED 가 섞여 나옴.
+            for (int i = 0; i < 10; i++) {
+                assertThatThrownBy(() -> authService.loginWithKakao("code-123"))
+                        .as("iteration %d", i)
+                        .isInstanceOf(CoreException.class)
+                        .extracting("errorType").isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
+            }
         }
     }
 
