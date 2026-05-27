@@ -38,6 +38,9 @@ dependencies {
     // rate limiting (Bucket4j 토큰 버킷, Phase 2.6 PR-B B-3)
     implementation("com.bucket4j:bucket4j-core:${project.properties["bucket4jVersion"]}")
 
+    // retry (Neon cold start 대응 — UserLoginPersistence @Retryable)
+    implementation("org.springframework.retry:spring-retry")
+
     // jwt (jjwt 0.12.x)
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
