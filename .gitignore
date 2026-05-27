@@ -55,3 +55,5 @@ Thumbs.db
 dist/
 .env.bak
 .dev/
+
+*.stackdump
