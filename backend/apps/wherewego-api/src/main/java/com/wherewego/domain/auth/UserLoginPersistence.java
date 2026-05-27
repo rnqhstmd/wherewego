@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+
 /**
  * 카카오 로그인의 DB 쓰기 부분만 담당.
  * AuthService.loginWithKakao는 외부 HTTP 호출을 포함하므로 @Transactional을 붙이면
@@ -34,24 +37,49 @@ public class UserLoginPersistence {
     private final RefreshTokenHasher refreshTokenHasher;
 
     /**
-     * Backoff 정책 — 두 예외의 회복 시간 분포에 맞춰 exponential backoff 적용:
-     *  - DataIntegrityViolationException (동시 첫 로그인 race): 수십~수백 ms 안에 다른 TX 가 커밋 → 짧은 첫 대기로 충분
-     *  - CannotCreateTransactionException (Neon cold start): 3~8s 회복 → 두 번째/세 번째 대기가 길어야 잡힘
-     * 시도 사이 대기 800ms, 2000ms(cap, multiplier=2.5).
+     * Bulkhead — 카카오 로그인이 HikariCP main pool(10) 을 전부 점유하지 못하도록 동시 진입을 5건으로 제한.
+     * Neon cold start 시 retry 중 풀 슬롯을 길게 잡고 있을 때 일반 API 가 마비되는 것을 차단한다.
+     * tryAcquire(3s) 로 대기 상한을 두어 풀 고갈 직전 친화 에러로 빠르게 실패시킨다.
+     */
+    private static final int AUTH_BULKHEAD_PERMITS = 5;
+    private static final long AUTH_BULKHEAD_WAIT_MS = 3_000L;
+    private final Semaphore authBulkhead = new Semaphore(AUTH_BULKHEAD_PERMITS, true);
+
+    /**
+     * Backoff 정책 — connection-timeout(5s) 단축에 맞춰 retry 예산도 축소:
+     *  - DataIntegrityViolationException (동시 첫 로그인 race): 수십~수백 ms 안에 회복 → 500ms 1차 대기 충분
+     *  - CannotCreateTransactionException (Neon cold start): 1차 5s timeout 동안 cold start 흡수 시도
      * 응답 시간 추정:
      *  - 일반(Neon active): 수백 ms 안에 1차 성공.
-     *  - race 회복: ~1초 (1차 fail + 800ms + 2차 즉시 성공).
-     *  - cold start 회복(낙관): ~5~10s (Neon 이 1~2차 backoff 사이 깨어남).
-     *  - cold start 회복(worst): 약 32.8s (모든 시도가 HikariCP connection-timeout=10s 까지 대기).
-     *    — 카카오 OAuth 콜백/프론트 timeout 과의 트레이드오프를 운영 메트릭으로 재평가 필요.
+     *  - race 회복: ~0.5초 (1차 fail + 500ms + 2차 즉시 성공).
+     *  - cold start 회복(worst): 약 10.5s (5s + 500ms + 5s). 카카오 OAuth 콜백 SLA 와 정합.
      */
     @Retryable(
             retryFor = {CannotCreateTransactionException.class, DataIntegrityViolationException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 800, multiplier = 2.5, maxDelay = 3000)
+            maxAttempts = 2,
+            backoff = @Backoff(delay = 500, multiplier = 2.0)
     )
     @Transactional
     public AuthResultInfo upsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {
+        boolean acquired;
+        try {
+            acquired = authBulkhead.tryAcquire(AUTH_BULKHEAD_WAIT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
+        }
+        if (!acquired) {
+            // 인증 동시 처리 한도(5) 초과. 일반 API 풀 보호를 위해 즉시 친화 에러.
+            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "잠시 후 다시 로그인해 주세요.");
+        }
+        try {
+            return doUpsertAndIssueTokens(kakaoUserId, nickname, profileImageUrl);
+        } finally {
+            authBulkhead.release();
+        }
+    }
+
+    private AuthResultInfo doUpsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {
         UserModel user = userRepository.findByKakaoUserId(kakaoUserId)
                 .map(existing -> {
                     if (!existing.isActive()) {
