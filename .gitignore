@@ -54,6 +54,13 @@ Thumbs.db
 # ========================
 dist/
 .env.bak
-.dev/
+
+# .dev/ 내부 임시 산출물만 제외 (산출물 본문은 git 추적)
+.dev/**/build-*.log
+.dev/**/frontend-tsc*.log
+.dev/**/cross-review.raw.md
+.dev/**/cross-review-prompt.md
+.dev/**/extract.ps1
+.dev/**/diff.txt
 
 *.stackdump
