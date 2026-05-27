@@ -29,7 +29,7 @@ datasource:
       validation-timeout: 5000 # 커넥션 유효성 검사시간(ms) ( default: 5000 = 5sec )
       keepalive-time: 0 # 커넥션 최대 생존시간(ms) ( default: 0 )
       max-lifetime: 1800000 # 커넥션 최대 생존시간(ms) ( default: 1800000 = 30min )
-      leak-detection-threshold: 0  # 커넥션 누수 감지 (주어진 ms 내에 반환 안 하면 로그 경고) ( default: 0 = 비활성화 )
+      leak-detection-threshold: 15000  # 커넥션 누수 감지 (15s 내 미반환 시 WARN 로그) — @Retryable worst case ~10.5s 보다 약간 길게 잡아 정상 retry 는 통과, 진짜 leak 만 조기 감지 ( default: 0 = 비활성화 )
       initialization-fail-timeout: 1  # DB 연결 실패 시 즉시 예외 발생 ( default: -1 = 무한대기 )
       data-source-properties:
         reWriteBatchedInserts: true
