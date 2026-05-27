@@ -65,6 +65,13 @@ public class NotificationRepositoryAdapter implements NotificationRepository {
     }
 
     @Override
+    public boolean existsByGroupIdAndReceiverIdAndRegisteredByAndWishPinId(
+            Long groupId, Long receiverId, Long registeredBy, Long wishPinId) {
+        return notificationJpa.existsByGroupIdAndReceiverIdAndRegisteredByAndWishPinId(
+                groupId, receiverId, registeredBy, wishPinId);
+    }
+
+    @Override
     public int markAllReadByReceiverId(Long receiverId, Instant now) {
         // BaseEntity.updatedAt 은 ZonedDateTime 매핑이므로 JPQL UPDATE 시 동일 시점을 ZDT 로도 전달한다.
         ZonedDateTime nowZdt = now.atZone(ZoneId.systemDefault());

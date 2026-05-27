@@ -10,7 +10,6 @@ import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -142,15 +141,20 @@ public class NotificationService {
         List<Long> receiverIds = groupMemberRepository.findOtherActiveMemberIds(groupId, triggerUserId);
         for (Long receiverId : receiverIds) {
             try {
+                // PR #76 Gemini #3: 부분 UNIQUE 위반을 INSERT 후 catch 하면 같은 트랜잭션의
+                // 다른 receiver INSERT 가 모두 rollback-only 마크되어 커밋 시점에
+                // UnexpectedRollbackException 이 발생할 수 있다. 사전 조회로 race 가 아닌
+                // 일반 중복은 INSERT 자체를 회피한다. race 의 잔여 가능성은 아래 catch 가 차단.
+                if (repository.existsByGroupIdAndReceiverIdAndRegisteredByAndWishPinId(
+                        groupId, receiverId, triggerUserId, pinId)) {
+                    log.debug("WISH_CONVERTED notification skipped (duplicate) receiverId={} pinId={}",
+                            receiverId, pinId);
+                    continue;
+                }
                 repository.save(
                         Notification.createForWishConverted(groupId, receiverId, triggerUserId, pinId));
                 // NOTE: NotificationPin 링크 호출 없음. wish_pin_id 컬럼이 핀 참조를 직접 담당.
                 //       V009 visit_pin_id 와 동일한 정책.
-            } catch (DataIntegrityViolationException e) {
-                // 부분 UNIQUE 위반 = 동일 (group_id, receiver_id, registered_by, wish_pin_id) 가 이미 존재
-                // → race-free 중복 차단 (조용히 스킵).
-                log.debug("WISH_CONVERTED notification skipped (duplicate) receiverId={} pinId={}",
-                        receiverId, pinId);
             } catch (RuntimeException e) {
                 // V009 createForVisitDetected 와 동일하게 per-receiver best-effort 격리.
                 log.warn("WISH_CONVERTED notification per-receiver failed receiverId={} pinId={}",

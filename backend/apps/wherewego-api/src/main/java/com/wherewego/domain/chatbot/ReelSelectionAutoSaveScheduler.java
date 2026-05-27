@@ -152,7 +152,15 @@ public class ReelSelectionAutoSaveScheduler {
                         botUserKey, result.savedPinIds().size());
             }
         } finally {
-            reelSavedSelectionSession.invalidate(botUserKey);
+            // PR #76 Gemini #1: TTL 만료 처리 중 동일 botUserKey 로 새 인스타 URL 이 들어와
+            // 새 세션이 생성되었을 수 있다. 무조건 invalidate 하면 그 새 세션을 삭제하므로,
+            // 현재 캐시의 instagramUrl 이 본 task 가 다룬 snapshot 과 동일할 때에만 evict.
+            Optional<ReelSavedSelectionSession.Snapshot> currentOpt =
+                    reelSavedSelectionSession.peek(botUserKey);
+            if (currentOpt.isPresent()
+                    && currentOpt.get().instagramUrl().equals(snapshot.instagramUrl())) {
+                reelSavedSelectionSession.invalidate(botUserKey);
+            }
         }
     }
 

@@ -10,7 +10,9 @@
  *
  * REEL → WISH 자동 전환(과반 WANT) 시 발사되는 알림. 백엔드
  * `NotificationType.WISH_CONVERTED` enum 과 1:1 대응. 본 타입의 알림은
- * 항상 단일 핀(전환된 WISH 핀)이 NotificationPin 링크로 부착된다.
+ * 백엔드에서 `notifications.wish_pin_id` 컬럼으로 단일 핀을 직접 참조하며
+ * (`NotificationPin` 링크 테이블 미사용, V009 visit_pin_id 패턴 답습),
+ * 클라이언트 관점에서는 상세 응답의 `pins` 배열에 단일 핀으로 내려온다.
  */
 export type NotificationType =
   | "MANUAL_PIN"

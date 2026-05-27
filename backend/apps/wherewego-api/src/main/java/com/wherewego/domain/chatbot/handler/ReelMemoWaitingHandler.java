@@ -74,6 +74,7 @@ public class ReelMemoWaitingHandler implements MessageHandler {
     }
 
     @Override
+    @Transactional
     public ChatbotV1Dto.SkillResponse handle(ChatbotV1Dto.SkillRequest request, ChatbotContext ctx) {
         String botUserKey = request.userRequest().user().id();
         String utterance = request.userRequest().utterance() == null

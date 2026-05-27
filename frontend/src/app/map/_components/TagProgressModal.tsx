@@ -159,7 +159,7 @@ export default function TagProgressModal({
                 lineHeight: 1.5,
               }}
             >
-              그룹원이 모두 가고 싶어하면 위시로, 방문 후엔 추억으로 옮겨가요.
+              그룹원 과반(2인 그룹은 둘 다)이 가고 싶어하면 위시로, 방문 후엔 추억으로 옮겨가요.
             </p>
           </div>
           <button

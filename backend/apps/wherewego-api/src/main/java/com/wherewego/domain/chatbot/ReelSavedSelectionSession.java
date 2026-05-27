@@ -83,10 +83,10 @@ public class ReelSavedSelectionSession {
     }
 
     /**
-     * 세션 갱신. Caffeine 의 {@code expireAfterWrite} 특성상 매 put 마다 TTL 이 갱신된다.
-     * 단, 사용자 인-액션 중 TTL 을 리셋하지 않기로 한 단계(MULTI_SELECTING 재시도 등)에서는
-     * 호출자가 {@link Snapshot#expiresAt}을 직접 유지하더라도 캐시 TTL 은 새로 잡힘에 주의.
-     * (3분 TTL 자체가 충분히 길어 실용상 영향은 미미함 — D-4)
+     * 세션 갱신. TTL 은 최초 create 시점 기준으로 고정되며, 상태 전이 시 put 이 호출되어도
+     * TTL 이 갱신되지 않는다 ({@link com.wherewego.config.cache.CacheConfig} 의 REEL_SELECTION
+     * 커스텀 Expiry — expireAfterUpdate/expireAfterRead 모두 잔여 currentDuration 을 그대로 반환).
+     * NFR-12-5 "최초 URL 전송 후 3분" 만료 기준을 보존하기 위한 의도된 동작이다.
      */
     public void put(String botUserKey, Snapshot snapshot) {
         cache().put(botUserKey, snapshot);

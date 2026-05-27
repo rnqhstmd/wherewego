@@ -405,13 +405,18 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
     const marker = markerCacheRef.current.get(pulsingPinId);
     if (!marker) return;
     const el = marker.getElement() as HTMLDivElement;
+    // PR #76 Copilot #5: outer container 는 Mapbox 가 인라인 transform(translate3d) 으로 좌표를
+    // 주입하므로, keyframe 의 scale transform 이 그것을 덮어써 마커 위치 글리치가 발생한다.
+    // SVG 내부 노드에만 펄스 클래스를 부착하여 좌표 transform 과 분리한다.
+    const svg = el.querySelector("svg");
+    if (!svg) return;
     // 동일 노드 재트리거 대비 — 클래스 제거 후 reflow 강제로 keyframe 을 다시 1회 재생.
-    el.classList.remove("pin-pulse-once");
-    // reflow trigger (getBoundingClientRect 또는 offsetWidth 접근).
-    void el.offsetWidth;
-    el.classList.add("pin-pulse-once");
+    svg.classList.remove("pin-pulse-once");
+    // reflow trigger (offsetWidth 접근). SVGElement 는 HTMLElement 가 아니므로 캐스팅 필요.
+    void (svg as unknown as HTMLElement).offsetWidth;
+    svg.classList.add("pin-pulse-once");
     return () => {
-      el.classList.remove("pin-pulse-once");
+      svg.classList.remove("pin-pulse-once");
     };
   }, [pulsingPinId]);
 
