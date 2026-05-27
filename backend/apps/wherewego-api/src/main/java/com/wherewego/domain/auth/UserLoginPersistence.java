@@ -34,21 +34,22 @@ public class UserLoginPersistence {
     private final RefreshTokenHasher refreshTokenHasher;
 
     /**
-     * Backoff 정책 — 두 예외의 회복 시간 분포에 맞춰 exponential backoff 적용:
-     *  - DataIntegrityViolationException (동시 첫 로그인 race): 수십~수백 ms 안에 다른 TX 가 커밋 → 짧은 첫 대기로 충분
-     *  - CannotCreateTransactionException (Neon cold start): 3~8s 회복 → 두 번째/세 번째 대기가 길어야 잡힘
-     * 시도 사이 대기 800ms, 2000ms(cap, multiplier=2.5).
+     * Backoff 정책 — connection-timeout(5s) 단축에 맞춰 retry 예산도 축소:
+     *  - DataIntegrityViolationException (동시 첫 로그인 race): 수십~수백 ms 안에 회복 → 500ms 1차 대기 충분
+     *  - CannotCreateTransactionException (Neon cold start): 1차 5s timeout 동안 cold start 흡수 시도
      * 응답 시간 추정:
      *  - 일반(Neon active): 수백 ms 안에 1차 성공.
-     *  - race 회복: ~1초 (1차 fail + 800ms + 2차 즉시 성공).
-     *  - cold start 회복(낙관): ~5~10s (Neon 이 1~2차 backoff 사이 깨어남).
-     *  - cold start 회복(worst): 약 32.8s (모든 시도가 HikariCP connection-timeout=10s 까지 대기).
-     *    — 카카오 OAuth 콜백/프론트 timeout 과의 트레이드오프를 운영 메트릭으로 재평가 필요.
+     *  - race 회복: ~0.5초 (1차 fail + 500ms + 2차 즉시 성공).
+     *  - cold start 회복(worst): 약 10.5s (5s + 500ms + 5s). 카카오 OAuth 콜백 SLA 와 정합.
+     *
+     * 풀 점유 보호(Bulkhead)는 AuthService.loginWithKakao 호출부에 둔다.
+     * 이 메서드에 두면 @Transactional 인터셉터가 Semaphore 보다 먼저 DataSource.getConnection() 을
+     * 호출하므로 풀 고갈 상황에서 Semaphore 가 무효화된다.
      */
     @Retryable(
             retryFor = {CannotCreateTransactionException.class, DataIntegrityViolationException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 800, multiplier = 2.5, maxDelay = 3000)
+            maxAttempts = 2,
+            backoff = @Backoff(delay = 500, multiplier = 2.0)
     )
     @Transactional
     public AuthResultInfo upsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {

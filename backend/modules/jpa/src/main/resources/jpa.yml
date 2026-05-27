@@ -109,7 +109,10 @@ datasource:
       password: "${POSTGRES_PASSWORD}"
       maximum-pool-size: 10
       minimum-idle: 0           # Neon suspend 시 stale 커넥션 방지 (idle 유지 안 함)
-      connection-timeout: 10000 # Neon cold start(3~8초) 대응
+      # connection-timeout 5s: 카카오 OAuth 콜백 SLA(수 초) 와 정합.
+      # Neon cold start(3~8s) 평균은 1차에서 흡수, 못 잡으면 @Retryable 이 2차 시도.
+      # worst-case: 5s(1차) + 0.5s(backoff) + 5s(2차) ≈ 10.5s.
+      connection-timeout: 5000
       data-source-properties:
         reWriteBatchedInserts: true
         ssl: true

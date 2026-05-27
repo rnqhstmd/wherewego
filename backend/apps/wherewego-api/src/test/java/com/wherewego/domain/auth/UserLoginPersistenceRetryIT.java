@@ -129,7 +129,7 @@ class UserLoginPersistenceRetryIT {
     }
 
     @Test
-    @DisplayName("재시도(3회)가 모두 실패하면 @Recover 가 친화 메시지 CoreException 으로 변환한다.")
+    @DisplayName("재시도(2회)가 모두 실패하면 @Recover 가 친화 메시지 CoreException 으로 변환한다.")
     void retryExhausted_recoverConvertsToFriendlyError() {
         // arrange: 모든 시도에서 DataIntegrityViolation.
         when(userRepository.findByKakaoUserId(1L)).thenReturn(Optional.empty());
@@ -141,7 +141,7 @@ class UserLoginPersistenceRetryIT {
                 .isInstanceOf(CoreException.class)
                 .hasMessageContaining("잠시 후 다시 로그인해 주세요.")
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
-        verify(userRepository, times(3)).findByKakaoUserId(1L);  // maxAttempts=3 검증
+        verify(userRepository, times(2)).findByKakaoUserId(1L);  // maxAttempts=2 검증
     }
 
     @Test
