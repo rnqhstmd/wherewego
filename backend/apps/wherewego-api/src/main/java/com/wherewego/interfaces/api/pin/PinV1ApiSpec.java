@@ -16,14 +16,46 @@ public interface PinV1ApiSpec {
                     "deleted_at IS NULL 인 행만 반환합니다 (BR-2). " +
                     "page/size 둘 다 미전달 시 전체 목록(legacy 모드, items 만 반환). " +
                     "둘 다 전달 시 페이지 모드(items + totalCount + hasNext). " +
-                    "부분 전달은 400 PIN_PAGE_PARAM_INVALID. size > 100 은 400 PIN_PAGE_SIZE_EXCEEDED."
+                    "부분 전달은 400 PIN_PAGE_PARAM_INVALID. size > 100 은 400 PIN_PAGE_SIZE_EXCEEDED. " +
+                    "Phase 12: sort=created_at(default)|want_count 정렬 파라미터 (FR-PIN-12-8) — " +
+                    "알 수 없는 값은 PIN_SORT_PARAM_INVALID (400). " +
+                    "interest=true 이면 want_count >= 1 핀만 필터링 (FR-PIN-12-9). " +
+                    "응답 각 핀에는 wantCount(int), myWant(boolean) 가 포함됩니다 (FR-PIN-12-7)."
     )
     ApiResponse<PinV1Dto.PinListResponse> listPins(
             @Parameter(hidden = true) Long userId,
             Long groupId,
             String tag,
             String page,
-            String size
+            String size,
+            String sort,
+            boolean interest
+    );
+
+    @Operation(
+            summary = "WANT(가고 싶어요) 토글",
+            description = "Phase 12: 활성 그룹원이 핀에 WANT 를 토글합니다 (FR-PIN-12-2). " +
+                    "현재 myWant=false 이면 WANT INSERT + want_count+1, true 이면 DELETE + want_count-1. " +
+                    "REEL 핀이 토글 후 그룹원 과반 충족 시 자동으로 WISH 로 전환되며 응답 wishConverted=true. " +
+                    "MEMORY 핀에는 누를 수 없습니다 (PIN_WANT_FORBIDDEN_TAG 400). " +
+                    "비활성 멤버는 GROUP_NOT_MEMBER (403). 존재하지 않거나 삭제된 핀은 PIN_NOT_FOUND (404). " +
+                    "동시 클릭은 부분 UNIQUE 인덱스로 멱등 보장."
+    )
+    ApiResponse<PinV1Dto.WantToggleResponse> toggleWant(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            Long pinId
+    );
+
+    @Operation(
+            summary = "WANT 상태 조회",
+            description = "Phase 12: 활성 그룹원이 핀의 현재 want_count 와 본인의 누름 여부를 조회합니다 (FR-PIN-12-2). " +
+                    "비활성 멤버는 GROUP_NOT_MEMBER (403). 존재하지 않거나 삭제된 핀은 PIN_NOT_FOUND (404)."
+    )
+    ApiResponse<PinV1Dto.WantStatusResponse> getWantStatus(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            Long pinId
     );
 
     @Operation(

@@ -27,6 +27,8 @@ function makePin(overrides: Partial<PinSummaryResponse> = {}): PinSummaryRespons
     visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
+    wantCount: 0,
+    myWant: false,
     ...overrides,
   };
 }

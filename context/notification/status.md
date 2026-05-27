@@ -72,6 +72,17 @@
 | `MapClient.handleVisitConfirm` 에러 로그 단순화 | ✅ | `console.error` 페이로드를 `{groupId, pinId, code, message}` → `result.code`만으로 축소. 식별자 노출 최소화 |
 | `accuracy > 50m` 시 `firstEnterAt` clear (gemini 권고) | ⬜ | **의도적 미반영**. PRD BR-VD-3 "타이머에 영향을 주지 않는다"를 누적 보존으로 해석한 self-check Q4 결정 존중. 부작용(연속 불량 GPS 후 즉시 detect)은 trust-ledger 후속 관찰 항목 |
 
+## Phase 12 미시작 — WISH_CONVERTED 알림
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| `NotificationType.WISH_CONVERTED` enum + V012 CHECK 확장 (`MANUAL_PIN`, `CHATBOT_PINS`, `VISIT_DETECTED`, `WISH_CONVERTED`) | ⬜ | V012 단일 마이그레이션에 포함 |
+| `WishConvertedEvent(pinId, groupId, triggerUserId)` AFTER_COMMIT 리스너 → `NotificationService.createForWishConverted` | ⬜ | `WantService.toggle`에서 과반 도달 시 publish |
+| 본문 (간결형, D-16): `"🌟 '{placeName}'이 위시로 올라갔어요! 둘 다 가고 싶어해요"` | ⬜ | 채널 = 인앱 알림만 (FCM/카카오 푸시 미사용) |
+| 발송 범위: 본인 제외 그룹원 N-1명 (`findOtherActiveMemberIds`) | ⬜ | 멱등: 동일 핀 1회만 INSERT |
+
+상세: [pin/phase-12-pin-experience-v2.md](../pin/phase-12-pin-experience-v2.md) §WANT 시스템 / §알림
+
 ## 후속 작업 (Trust Ledger 기록, 미반영)
 
 - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)

@@ -100,6 +100,10 @@ chatbot:
     # 자동/메모 흐름으로 저장된 URL을 같은 사용자가 재전송했을 때 RESEND 안내를 띄울 윈도우.
     # 너무 길면 같은 인스타 게시물에 새 장소를 추가하려는 의도까지 차단된다.
     recently-saved-ttl-seconds: ${CHATBOT_INSTAGRAM_RECENTLY_SAVED_TTL_SECONDS:600}
+  reel:
+    # Phase 12: 릴스 저장 선택 상태머신 세션 TTL.
+    # 모든 단계(PROCESSING/SINGLE_WANT/MULTI_SELECTING/BULK_SAVE/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
+    selection-ttl-seconds: ${CHATBOT_REEL_SELECTION_TTL_SECONDS:180}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
@@ -166,6 +170,9 @@ chatbot:
     pending-ttl-seconds: 60
     # 로컬/테스트는 빠른 검증을 위해 짧게 (60초).
     recently-saved-ttl-seconds: 60
+  reel:
+    # Phase 12: 로컬/테스트도 운영과 동일한 3분 TTL 사용.
+    selection-ttl-seconds: 180
 
 ---
 spring:

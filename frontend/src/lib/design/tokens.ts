@@ -10,6 +10,9 @@ export const colors = {
   mapBlock: "#F0EBE0",
   mapRoad: "#FFFFFF",
   pinReel: "#7BB3E8",
+  // Phase 12 D-13: REEL with want_count>=1 (관심 있는 발견). 진보라 — REEL 하늘색 #7BB3E8과
+  // WISH 노랑 #F4C842 사이의 차분한 강조.
+  pinInterest: "#7B68EE",
   pinWish: "#F4C842",
   pinMemory: "#FFB3C6",
   pinNew: "#E05A5A",

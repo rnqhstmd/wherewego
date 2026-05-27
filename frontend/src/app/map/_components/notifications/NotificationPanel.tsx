@@ -210,6 +210,8 @@ export function NotificationPanel({
             actorLabel={selectedItem?.registeredBy === currentUserId ? '내가' : `${activeDetail.registeredByNickname}님이`}
             type={activeDetail.type}
             createdAt={activeDetail.createdAt}
+            notificationId={activeDetail.id}
+            onBundleNavigate={onClose}
           />
         ) : items.length === 0 ? (
           <div

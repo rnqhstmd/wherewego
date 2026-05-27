@@ -23,6 +23,9 @@
 
 ## 후속 작업
 
+- **Phase 12 미시작**: Pin Experience v2 — `pin_events` 테이블(P0=WANT만, D-19 영구 멱등 UNIQUE) + `pins.want_count` 캐시 컬럼 + `WantService` 토글(FOR UPDATE) + 과반 자동 WISH 전환 + `WishConvertedEvent` AFTER_COMMIT → `NotificationType.WISH_CONVERTED` 인앱 알림(본인 제외). 마커 3단계(하늘색→진보라 `#7B68EE` 1.1배→노랑 별 1.2배 + 펄스). 챗봇 v2 ReelSavedSelectionSession(MULTI/SINGLE/BULK, 31개+ 컷오프, 3분 TTL). 오래된 REEL 정리(`tag=REEL + AUTO + 30일+ + want_count=0`, 일괄 soft delete, DB `users.cleanup_snoozed_until` 7일 snooze). V012 단일 Flyway. 상세: [phase-12-pin-experience-v2.md](phase-12-pin-experience-v2.md)
+
+
 - **메모 수정자 추적 완료 (2026-05-23)**: `pins.memo_updated_by BIGINT NULL` 컬럼 추가 (V008 Flyway). `Pin.applyManualMemo(String memo, Long updatedBy)` 시그니처 변경 — 수정자 ID 저장. `clearMemo()`도 `memoUpdatedBy = null` 리셋. `PinSummary` + `PinSummaryResponse`에 `memoUpdatedBy` / `memoUpdatedByNickname` 필드 추가. `PinService.toSummaries`는 `createdBy` + `memoUpdatedBy` ID를 1회 배치 쿼리로 닉네임 일괄 조회(N+1 방지). 프론트 `MapClient.authorLabel`: 수정자 != 등록자이면 수정자 닉네임, 동일하거나 null이면 등록자 닉네임으로 표시 — 커밋 6426914
 
 - **Phase 2.8 완료**: 웹 등록 시 `instagramUrl` 명시 입력 UI (`MemoTagPanelContent` 공통, 검색·picker 양 경로 자동 커버). 클라이언트 `https://` 시작 검증 + 백엔드 `Pin.validateInstagramUrl` 양방향 보안 검증 + `PinCard.tsx` 조건부 href — [#21](https://github.com/rnqhstmd/wherewego/pull/21)

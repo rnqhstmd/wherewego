@@ -10,6 +10,7 @@ import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -118,6 +119,47 @@ public class NotificationService {
     }
 
     /**
+     * Phase 12: REEL → WISH 자동 전환 알림.
+     *
+     * <p><b>V009 createForVisitDetected 패턴 답습</b>: {@code Notification.createForWishConverted}
+     * 팩토리로 {@code wish_pin_id} 컬럼을 직접 채우고, {@link NotificationPin} 링크 테이블은
+     * 사용하지 않는다. 부분 UNIQUE 인덱스 {@code uq_notifications_wish_converted}
+     * (group_id, receiver_id, registered_by, wish_pin_id) 가 동일 핀에 대한 중복 알림을
+     * race-free 하게 차단한다.</p>
+     *
+     * <p>receiver = 본인(triggerUserId) 제외 활성 그룹원 전원 (1인 그룹이면 receiver=0 → 알림 무발송).</p>
+     *
+     * <p>호출 계약: {@link WishConvertedNotificationListener} 가 AFTER_COMMIT 단계에서 호출하며,
+     * 자체 try/catch 로 격리한다. 본 메서드는 REQUIRED (자체 트랜잭션) 로 동작한다.</p>
+     */
+    @Transactional
+    public void createForWishConverted(Long groupId, Long pinId, Long triggerUserId, String placeName) {
+        if (groupMemberRepository.findActiveByGroupIdAndUserId(groupId, triggerUserId).isEmpty()) {
+            log.warn("createForWishConverted skipped — trigger {} not active in group {}",
+                    triggerUserId, groupId);
+            return;
+        }
+        List<Long> receiverIds = groupMemberRepository.findOtherActiveMemberIds(groupId, triggerUserId);
+        for (Long receiverId : receiverIds) {
+            try {
+                repository.save(
+                        Notification.createForWishConverted(groupId, receiverId, triggerUserId, pinId));
+                // NOTE: NotificationPin 링크 호출 없음. wish_pin_id 컬럼이 핀 참조를 직접 담당.
+                //       V009 visit_pin_id 와 동일한 정책.
+            } catch (DataIntegrityViolationException e) {
+                // 부분 UNIQUE 위반 = 동일 (group_id, receiver_id, registered_by, wish_pin_id) 가 이미 존재
+                // → race-free 중복 차단 (조용히 스킵).
+                log.debug("WISH_CONVERTED notification skipped (duplicate) receiverId={} pinId={}",
+                        receiverId, pinId);
+            } catch (RuntimeException e) {
+                // V009 createForVisitDetected 와 동일하게 per-receiver best-effort 격리.
+                log.warn("WISH_CONVERTED notification per-receiver failed receiverId={} pinId={}",
+                        receiverId, pinId, e);
+            }
+        }
+    }
+
+    /**
      * 공통 fan-out 로직. 활성 멤버 전원(등록자 본인 포함)에게
      * {@link Notification} + {@link NotificationPin} 링크를 저장한다.
      */
@@ -187,6 +229,10 @@ public class NotificationService {
     /**
      * 알림 단건 상세. {@code receiverId} 와 일치하지 않으면 {@link ErrorType#NOT_FOUND}.
      * 핀 메타는 sort_order 보존, soft-delete 된 핀은 좌표/주소 마스킹.
+     *
+     * <p>Phase 12: {@link NotificationType#WISH_CONVERTED} 는 {@link NotificationPin} 링크
+     * 테이블을 사용하지 않고 {@code notifications.wish_pin_id} 컬럼이 핀 참조를 직접 담당하므로,
+     * 본 메서드에서 별도 분기로 단건 Pin 을 로드한다 (V009 visit_pin_id 패턴과 동일).</p>
      */
     @Transactional(readOnly = true)
     public NotificationDetailResult getDetail(Long notificationId, Long receiverId) {
@@ -195,13 +241,41 @@ public class NotificationService {
         groupMemberRepository.findActiveByGroupIdAndUserId(n.getGroupId(), receiverId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND));
 
-        List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
-        Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
-        Map<Long, Pin> pinById = loadPinsByIds(pinIds);
-
         String registeredByNickname = userRepository.findById(n.getRegisteredBy())
                 .map(UserModel::getNickname)
                 .orElse(FALLBACK_NICKNAME);
+
+        // Phase 12: WISH_CONVERTED 는 wish_pin_id 단건 로드 — NotificationPin 링크 사용 안 함.
+        if (n.getType() == NotificationType.WISH_CONVERTED) {
+            Long wishPinId = n.getWishPinId();
+            List<NotificationPinItemResult> wishPinItems;
+            if (wishPinId == null) {
+                wishPinItems = List.of();
+            } else {
+                Pin pin = pinRepository.findById(wishPinId).orElse(null);
+                NotificationPinItemResult item;
+                if (pin == null) {
+                    item = new NotificationPinItemResult(
+                            wishPinId, DELETED_PLACE_NAME, null, null, null, true, null, null, null);
+                } else if (pin.isDeleted()) {
+                    item = new NotificationPinItemResult(
+                            pin.getId(), pin.getPlaceName(), null, null, null, true, null, null, null);
+                } else {
+                    // WISH_CONVERTED 본문은 위시 전환된 핀의 placeName/태그를 노출하므로 memo 는 스코프 밖.
+                    item = new NotificationPinItemResult(
+                            pin.getId(), pin.getPlaceName(), pin.getAddress(),
+                            pin.getLatitude(), pin.getLongitude(), false, pin.getInstagramUrl(), null,
+                            pin.getTag().name());
+                }
+                wishPinItems = List.of(item);
+            }
+            return new NotificationDetailResult(
+                    n.getId(), n.getType(), registeredByNickname, toInstant(n.getCreatedAt()), wishPinItems);
+        }
+
+        List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
+        Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
+        Map<Long, Pin> pinById = loadPinsByIds(pinIds);
 
         boolean isVisitType = n.getType() == NotificationType.VISIT_DETECTED;
         List<NotificationPinItemResult> pinItems = links.stream().map(link -> {

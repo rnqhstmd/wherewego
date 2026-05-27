@@ -63,7 +63,7 @@ public final class ThresholdMonitorScheduler {
     @Scheduled(fixedRate = WINDOW_MS, initialDelay = WINDOW_MS)
     public void runMonitoringTick() {
         // NFR-4: 본문 최상위 try-catch(Exception) — MDC 조작이나 check 사이 외부 예외도 swallow.
-        // 다음 1h tick의 정상 재실행을 보장한다 (PendingInstagramAutoSaveScheduler 패턴).
+        // 다음 1h tick의 정상 재실행을 보장한다 (ReelSelectionAutoSaveScheduler 패턴).
         try {
             // MUST-ADDRESS 4: MDC SCHEDULER 마커는 진입부 1회. 두 check가 같은 MDC 컨텍스트 공유.
             MDC.put(RequestIdFilter.MDC_KEY, "SCHEDULER");

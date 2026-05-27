@@ -62,6 +62,7 @@
 
 | **Phase 10** | **장소 방문 감지**: WISH·REEL 핀 100m 이내 진입 시 "이 장소에 오셨나요?" 바텀 토스트 → 확인 시 MEMORY 전환 애니메이션 + 메모 바텀시트. 세션 중 동일 핀 중복 표시 없음. 프론트 Haversine 계산, 백엔드 신규 API 없음. [상세](pin/phase-10-visit-detection.md) | ⬜ 미시작 | — |
 | **Phase 11** | **우리 기록 (마이페이지)**: 커플 저장 핀 전체를 월별 타임라인으로 조회. 추억/위시/전체 탭 필터, 카드 탭 → 지도 flyTo + PinPopup. `written by` 수정자 반영. 기존 핀 목록 API 재사용. [상세](map/phase-11-our-records.md) | ⬜ 미시작 | — |
+| **Phase 12** | **Pin Experience v2**: 출처/상태 분리(REEL/WISH/MEMORY 의미 명확화), `pin_events.WANT` 누적 + 과반 자동 WISH 전환(인앱 알림), 마커 3단계(하늘/진보라 `#7B68EE`/노랑별 + 크기 1.0→1.1→1.2 + WISH 펄스). 챗봇 v2 재설계(토글 UX 불가 → 콤마 번호 입력, 31개+ BULK, 3분 TTL). 오래된 REEL 핀 일괄 정리 배너(`/pins` 하단, DB snooze). V012 단일 마이그레이션. [상세](pin/phase-12-pin-experience-v2.md) | ⬜ 미시작 | — |
 
 ## 고도화 로드맵
 

@@ -5,15 +5,21 @@ import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Skill 요청 → {@link MessageType} 분류. 우선순위 평가:
+ * Skill 요청 → {@link MessageType} 분류. 우선순위 평가 (Phase 12):
  * <ol>
  *     <li>PLACE_SELECTION       : {@code action.params.placeId != null}</li>
  *     <li>LINK_CODE             : {@code action.params.code != null} (i 오픈빌더 slot filling)</li>
- *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 pending 덮어씀)</li>
- *     <li>INSTAGRAM_PENDING_MEMO: 인스타 URL 아님 + {@link PendingInstagramSession#peek} 존재 → 메모/저장/취소 분기</li>
+ *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 세션 자동 저장 후 덮어씀)</li>
+ *     <li>SINGLE_WANT_YES / SINGLE_WANT_NO :
+ *         {@link ReelSavedSelectionSession} state = SINGLE_WANT 인 경우 발화 정확 매칭
+ *         ("가고 싶어요" / "발견으로만 저장")</li>
+ *     <li>REEL_PLACE_SELECTION  : state = MULTI_SELECTING / BULK_SAVE 인 경우 모든 발화
+ *         (콤마 숫자 / "전부" / "건너뛰기" — 핸들러에서 세부 분기)</li>
+ *     <li>REEL_MEMO_WAITING     : state = MEMO_WAITING 인 경우 모든 발화</li>
  *     <li>TEXT_2SEC_CANDIDATE   : 2초 메모 세션</li>
  *     <li>UNKNOWN               : 그 외</li>
  * </ol>
@@ -26,8 +32,12 @@ public class MessageClassifier {
             "^https?://(www\\.)?(instagram\\.com|instagr\\.am)/(p|reel|reels)/[A-Za-z0-9_-]+/?.*"
     );
 
+    /** SINGLE_WANT 단계 QuickReply 정확 매칭 텍스트. */
+    private static final String SINGLE_WANT_YES_TEXT = "가고 싶어요";
+    private static final String SINGLE_WANT_NO_TEXT = "발견으로만 저장";
+
     private final TwoSecondMemoSession twoSecondMemoSession;
-    private final PendingInstagramSession pendingInstagramSession;
+    private final ReelSavedSelectionSession reelSavedSelectionSession;
 
     public MessageType classify(ChatbotV1Dto.SkillRequest req, String botUserKey) {
         if (hasParam(req, "placeId")) {
@@ -41,15 +51,39 @@ public class MessageClassifier {
         if (utterance != null) {
             String trimmed = utterance.trim();
             if (INSTAGRAM_URL.matcher(trimmed).matches()) {
-                // 새 인스타 URL은 pending 여부와 무관하게 INSTAGRAM_LINK로 처리
-                // (핸들러에서 이전 pending 자동 덮어씀).
+                // 새 인스타 URL은 세션 여부와 무관하게 INSTAGRAM_LINK로 처리
+                // (핸들러에서 이전 세션 자동 저장 후 덮어씀).
                 return MessageType.INSTAGRAM_LINK;
             }
         }
 
-        // 인스타 URL이 아니고 pending 있으면 메모/저장/취소 분기 핸들러로
-        if (pendingInstagramSession.peek(botUserKey).isPresent()) {
-            return MessageType.INSTAGRAM_PENDING_MEMO;
+        // Phase 12: ReelSavedSelectionSession 상태 기반 분기
+        Optional<ReelSavedSelectionSession.Snapshot> reelSnapshot =
+                reelSavedSelectionSession.peek(botUserKey);
+        if (reelSnapshot.isPresent()) {
+            ReelSavedSelectionSession.State state = reelSnapshot.get().state();
+            String trimmed = utterance == null ? "" : utterance.trim();
+            switch (state) {
+                case SINGLE_WANT -> {
+                    if (SINGLE_WANT_YES_TEXT.equals(trimmed)) {
+                        return MessageType.SINGLE_WANT_YES;
+                    }
+                    if (SINGLE_WANT_NO_TEXT.equals(trimmed)) {
+                        return MessageType.SINGLE_WANT_NO;
+                    }
+                    // SINGLE_WANT 단계에서 두 정확 매칭 외 발화는 UNKNOWN 으로 흘려보내고
+                    // 핸들러/가드 측에서 안내 응답을 처리한다.
+                }
+                case MULTI_SELECTING, BULK_SAVE -> {
+                    return MessageType.REEL_PLACE_SELECTION;
+                }
+                case MEMO_WAITING -> {
+                    return MessageType.REEL_MEMO_WAITING;
+                }
+                default -> {
+                    // IDLE / PROCESSING / COMPLETE 는 사용자 입력으로 분기할 단계가 아니다.
+                }
+            }
         }
 
         if (twoSecondMemoSession.peek(botUserKey).isPresent()) {

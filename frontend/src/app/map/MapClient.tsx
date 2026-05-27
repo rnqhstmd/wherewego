@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   forwardRef,
   useCallback,
@@ -11,12 +12,14 @@ import {
   useState,
   useTransition,
 } from "react";
+import { fetchNotificationDetail } from "@/lib/notifications/api";
 import type mapboxgl from "mapbox-gl";
 import type {
   PinListResponse,
   PinSummaryResponse,
   PinTag,
   PlaceSearchItem,
+  WantToggleResponse,
 } from "@/lib/api/types";
 import { apiFetch } from "@/lib/api/http-client";
 import { colors, fonts } from "@/lib/design/tokens";
@@ -62,6 +65,7 @@ import {
 import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
 import {
   deletePinAction,
+  toggleWantAction,
   updatePinCoordinateAction,
   updatePinMemoAction,
   updatePinPlaceNameAction,
@@ -130,7 +134,18 @@ type ActiveSheet =
  */
 type OptimisticAction =
   | { kind: "patch"; pinId: number; patch: Partial<PinSummaryResponse> }
-  | { kind: "remove"; pinId: number };
+  | { kind: "remove"; pinId: number }
+  | {
+      /**
+       * Phase 12 (FR-PIN-12-2): WANT 토글 낙관 반영.
+       * - myWant 즉시 토글
+       * - wantCount 는 ±1 (서버 응답 도착 시 권위 값으로 확정)
+       */
+      kind: "wantUpdate";
+      pinId: number;
+      myWant: boolean;
+      wantCountDelta: number;
+    };
 
 /** 룰렛 시트 내부 상태 머신 (설계 §10). */
 type RouletteUIState =
@@ -208,18 +223,58 @@ export default function MapClient({
     if (action.kind === "remove") {
       return current.filter((p) => p.id !== action.pinId);
     }
+    if (action.kind === "wantUpdate") {
+      return current.map((p) =>
+        p.id === action.pinId
+          ? {
+              ...p,
+              myWant: action.myWant,
+              // race 방어: 음수 방지 (서버 권위 값으로 곧 덮어쓰여짐).
+              wantCount: Math.max(0, p.wantCount + action.wantCountDelta),
+            }
+          : p,
+      );
+    }
     return current.map((p) =>
       p.id === action.pinId ? { ...p, ...action.patch } : p,
     );
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
-  // 사용자가 좌하단 필터 버튼에서 선택한 가시 태그 집합. 기본값은 전체(3개 모두).
-  // 지도 마커와 룰렛 풀(computeTagsAllowed 결과와의 교집합) 모두에 영향을 준다.
-  const [visibleTags, setVisibleTags] = useState<Set<PinTag>>(
-    () => new Set<PinTag>(["REEL", "WISH", "MEMORY"]),
+  // Phase 12 (FR-PIN-12-26, §9.6): URL 쿼리 ?tag= / ?interest= 와 동기화되는 가시 태그 + 관심 필터.
+  // - ?tag=REEL 단일 전달 시 해당 태그만 표시(다중은 콤마 미지원, 기본 3종 모두 노출 정책 유지).
+  // - ?interest=true 시 발견 탭의 "관심 있는 발견" 모드 ON (wantCount>=1 필터 — 클라 사이드).
+  // - 둘 다 미전달 시 기본값(전체 표시 + interest=false).
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 초기값은 URL 에서 동기화. mount 이후 사용자 액션은 setVisibleTags / setInterestOnly 가 진실.
+  // URL 변화(브라우저 back 등) 추적은 본 컴포넌트가 SPA 라 별도 옵저버 불필요.
+  const [visibleTags, setVisibleTags] = useState<Set<PinTag>>(() => {
+    const tagParam = searchParams.get("tag");
+    if (tagParam === "REEL" || tagParam === "WISH" || tagParam === "MEMORY") {
+      return new Set<PinTag>([tagParam]);
+    }
+    return new Set<PinTag>(["REEL", "WISH", "MEMORY"]);
+  });
+  const [interestOnly, setInterestOnly] = useState<boolean>(
+    () => searchParams.get("interest") === "true",
   );
+
+  // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle={notificationId}` 처리.
+  // notificationId 가 있으면 해당 알림의 핀 ID 목록을 fetch 하여 Set 으로 보관.
+  // 본 Set 이 비어있지 않은 동안 (= 번들 모드) 비번들 핀은 지도에서 숨기지 않고
+  // opacity 0.3 으로 dim 처리한다 (PRD AC-12-36 + D-14). 실제 opacity 적용은
+  // MapboxView 의 dimmedPinIds prop 으로 위임되며, 마커 element 의 style.opacity 를
+  // 분기 갱신한다.
+  const reelBundleId = searchParams.get("reel_bundle");
+  const [bundlePinIds, setBundlePinIds] = useState<Set<number>>(new Set());
+  const [bundleLoadError, setBundleLoadError] = useState<string | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
+  // Phase 12 (FR-PIN-12-11): REEL → WISH 자동 전환 시 0.5초 동안 펄스를 표시할 핀 ID.
+  // toggleWantAction 응답의 wishConverted=true 시 set 되고 0.5초 뒤 자동 null 로 리셋된다.
+  const [pulsingPinId, setPulsingPinId] = useState<number | null>(null);
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [hasCluster, setHasCluster] = useState(false);
   const [mapError, setMapError] = useState<MapLoadErrorReason | null>(null);
@@ -439,6 +494,169 @@ export default function MapClient({
       });
     },
     [applyOptimistic, groupId],
+  );
+
+  /**
+   * Phase 12 (FR-PIN-12-2): PinPopup 의 [가고 싶어요] 토글 콜백.
+   *
+   * 흐름:
+   *  1) useOptimistic `wantUpdate` 액션으로 myWant 토글 + wantCount ±1 (즉시 마커/팝업 반영)
+   *  2) toggleWantAction 호출
+   *  3) 성공: 서버 권위 값(tag/wantCount/myWant)으로 pins state 갱신
+   *     wishConverted=true 면 0.5초 펄스 trigger (FR-PIN-12-11)
+   *  4) 실패: transition 종료로 자동 롤백 + PinPopup 인라인 에러 표시
+   */
+  const handleWantToggle = useCallback(
+    (
+      pinId: number,
+    ): Promise<{
+      ok: boolean;
+      data?: WantToggleResponse;
+      message?: string;
+    }> => {
+      return new Promise((resolve) => {
+        startOptimisticTransition(async () => {
+          // 낙관 반영: 현재 클라 상태에서 myWant 토글.
+          const current = pins.find((p) => p.id === pinId);
+          if (!current) {
+            resolve({ ok: false, message: "이 핀을 찾을 수 없어요" });
+            return;
+          }
+          const nextMyWant = !current.myWant;
+          const delta = nextMyWant ? 1 : -1;
+          applyOptimistic({
+            kind: "wantUpdate",
+            pinId,
+            myWant: nextMyWant,
+            wantCountDelta: delta,
+          });
+          const result = await toggleWantAction(groupId, pinId);
+          if (result.ok) {
+            // 서버 권위 값으로 확정. tag 변경(REEL → WISH)도 함께 반영된다.
+            setPins((prev) =>
+              prev.map((p) =>
+                p.id === pinId
+                  ? {
+                      ...p,
+                      tag: result.data.tag,
+                      wantCount: result.data.wantCount,
+                      myWant: result.data.myWant,
+                    }
+                  : p,
+              ),
+            );
+            // WISH 전환이 본 호출에서 일어났으면 0.5초 펄스 trigger (§9.2).
+            if (result.data.wishConverted) {
+              setPulsingPinId(pinId);
+            }
+            resolve({ ok: true, data: result.data });
+            return;
+          }
+          const message =
+            result.code === "PIN_WANT_FORBIDDEN_TAG"
+              ? "추억 핀에는 가고 싶어요를 누를 수 없어요"
+              : result.code === "GROUP_NOT_MEMBER"
+                ? "권한이 없어요"
+                : result.code === "PIN_NOT_FOUND"
+                  ? "이 핀을 찾을 수 없어요"
+                  : result.message;
+          resolve({ ok: false, message });
+        });
+      });
+    },
+    [applyOptimistic, groupId, pins],
+  );
+
+  // Phase 12 (FR-PIN-12-11): 펄스 자동 해제 (0.5초). pulsingPinId 가 set 되면
+  // 0.5초 뒤 null 로 되돌려 keyframe 이 1회만 재생되도록 보장한다.
+  useEffect(() => {
+    if (pulsingPinId === null) return;
+    const t = window.setTimeout(() => {
+      setPulsingPinId(null);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [pulsingPinId]);
+
+  // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle=` 쿼리 변경 시 알림 상세를 fetch 하여
+  // 번들 핀 ID Set 을 구성한다. 쿼리가 사라지면 Set 을 비워 번들 모드를 해제한다.
+  useEffect(() => {
+    if (!reelBundleId) {
+      setBundlePinIds(new Set());
+      setBundleLoadError(null);
+      return;
+    }
+    const notificationId = Number(reelBundleId);
+    if (Number.isNaN(notificationId)) {
+      setBundlePinIds(new Set());
+      setBundleLoadError("잘못된 번들 ID 입니다");
+      return;
+    }
+    const controller = new AbortController();
+    fetchNotificationDetail(notificationId, controller.signal)
+      .then((detail) => {
+        const ids = new Set<number>(
+          detail.pins.filter((p) => !p.deleted).map((p) => p.pinId),
+        );
+        setBundlePinIds(ids);
+        setBundleLoadError(null);
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("reel_bundle: fetchNotificationDetail failed", e);
+        setBundlePinIds(new Set());
+        setBundleLoadError("번들 정보를 불러올 수 없어요");
+      });
+    return () => controller.abort();
+  }, [reelBundleId]);
+
+  /**
+   * Phase 12: `?reel_bundle=` 해제 — 쿼리 제거 + 일반 모드 복귀.
+   * 다른 필터(tag/interest) 는 보존한다.
+   */
+  const handleReelBundleClear = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("reel_bundle");
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [pathname, router, searchParams]);
+
+  /**
+   * Phase 12 (§9.6): TagFilterButton 의 가시 태그 변경을 받아 state + URL 쿼리를 동기화.
+   * - 단일 태그만 선택된 경우 ?tag=XXX 로 노출, 그 외(전체/2개 등)는 쿼리 제거.
+   * - history.replace 로 스크롤 위치 보존.
+   */
+  const handleVisibleTagsChange = useCallback(
+    (next: Set<PinTag>) => {
+      setVisibleTags(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next.size === 1) {
+        const [only] = Array.from(next);
+        params.set("tag", only);
+      } else {
+        params.delete("tag");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+
+  /**
+   * Phase 12 (§9.6): "관심 있는 발견" 토글 — state + ?interest= 동기화.
+   */
+  const handleInterestChange = useCallback(
+    (next: boolean) => {
+      setInterestOnly(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next) {
+        params.set("interest", "true");
+      } else {
+        params.delete("interest");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
   );
 
   /**
@@ -1053,10 +1271,32 @@ export default function MapClient({
   // 좌하단 태그 필터 적용 결과 — 지도 마커/팝업/룰렛 모두 이 집합 기준.
   // 필터로 숨겨진 핀이 selectedPinId 라면 selectedPin 조회가 자연히 null 이 되어
   // 팝업이 닫힌다. 필터를 다시 켜면 selectedPinId 가 남아 있던 경우 팝업도 복귀한다.
-  const visibleOptimisticPins = useMemo(
-    () => optimisticPins.filter((p) => visibleTags.has(p.tag)),
-    [optimisticPins, visibleTags],
-  );
+  //
+  // Phase 12 추가 필터:
+  //  - interestOnly (§9.6): REEL 핀 중 wantCount>=1 만 표시. WISH/MEMORY 는 영향 없음.
+  //  - bundlePinIds (§9.7): 번들 모드에서도 비번들 핀을 지도에서 제거하지 않는다.
+  //    PRD AC-12-36 + D-14 "비번들 핀 opacity 0.3" 요구를 충족하기 위해 visibleOptimisticPins
+  //    에는 그대로 포함시키고, 아래 dimmedPinIds 로 MapboxView 에 전달하여 마커 element 의
+  //    style.opacity 를 직접 분기 갱신한다.
+  const visibleOptimisticPins = useMemo(() => {
+    return optimisticPins.filter((p) => {
+      if (!visibleTags.has(p.tag)) return false;
+      if (interestOnly && p.tag === "REEL" && p.wantCount < 1) return false;
+      return true;
+    });
+  }, [optimisticPins, visibleTags, interestOnly]);
+
+  // Phase 12 (§9.7, AC-12-36): reel_bundle 모드에서 dim 처리할 비번들 핀 ID 집합.
+  // 번들 비활성(bundlePinIds 비어있음) 이면 undefined 를 전달하여 dim 효과를 끈다.
+  // dim pin 클릭 시에도 PinPopup 정상 동작 — opacity 는 시각적 강조 차원이며 pointer events 는 유지.
+  const dimmedPinIds = useMemo<Set<number> | undefined>(() => {
+    if (bundlePinIds.size === 0) return undefined;
+    const dimmed = new Set<number>();
+    for (const p of visibleOptimisticPins) {
+      if (!bundlePinIds.has(p.id)) dimmed.add(p.id);
+    }
+    return dimmed;
+  }, [visibleOptimisticPins, bundlePinIds]);
 
   const handleGeolocate = useCallback(
     (position: GeolocationPosition) => {
@@ -1713,12 +1953,64 @@ export default function MapClient({
             : null
         }
         skipInitialGeoFly={skipInitialGeoFly}
+        dimmedPinIds={dimmedPinIds}
       />
       {mapError && <MapLoadError reason={mapError} />}
       <MobileTopNav
         myNickname={myNickname}
         showProfile={!isDesktop}
       />
+      {/* Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle=` 활성 시 상단 해제 배너.
+          번들에 묶인 핀의 개수와 해제 버튼을 노출하여 사용자가 일반 모드로 돌아갈 수 있게 한다.
+          fetch 실패 시 bundleLoadError 만 표시하고 즉시 해제 액션을 함께 제공. */}
+      {reelBundleId && (bundlePinIds.size > 0 || bundleLoadError) && (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            top: 60,
+            left: 12,
+            right: 12,
+            zIndex: 25,
+            background: colors.panel,
+            color: colors.ink,
+            padding: "8px 12px",
+            borderRadius: 10,
+            boxShadow: `0 4px 14px ${colors.shadow}`,
+            border: `1px solid ${colors.hairline}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+          }}
+        >
+          <span style={{ color: colors.ink, fontWeight: 600 }}>
+            {bundleLoadError
+              ? bundleLoadError
+              : `📍 릴스 저장 핀 ${bundlePinIds.size}개 표시 중`}
+          </span>
+          <button
+            type="button"
+            onClick={handleReelBundleClear}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: `1px solid ${colors.hairline}`,
+              background: "transparent",
+              color: colors.inkSoft,
+              fontFamily: fonts.sans,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            해제
+          </button>
+        </div>
+      )}
       <ClusterBanner visible={hasCluster} />
       <div
         style={{
@@ -1734,7 +2026,9 @@ export default function MapClient({
         <TagLegendButton />
         <TagFilterButton
           visibleTags={visibleTags}
-          onChange={setVisibleTags}
+          onChange={handleVisibleTagsChange}
+          interestOnly={interestOnly}
+          onInterestChange={handleInterestChange}
         />
       </div>
       {pins.length === 0 && !activeSheet && (
@@ -1797,6 +2091,8 @@ export default function MapClient({
           deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
           onRequestCoordinateEdit={handleRequestCoordinateEdit}
           coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
+          onWantToggle={handleWantToggle}
+          pulse={pulsingPinId === selectedPin.id}
         />
       )}
       {deleteCandidate && (

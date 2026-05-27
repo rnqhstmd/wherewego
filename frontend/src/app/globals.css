@@ -33,6 +33,9 @@
   --color-map-block: #f0ebe0;
   --color-map-road: #ffffff;
   --color-pin-reel: #7bb3e8;
+  /* Phase 12 D-13: REEL with want_count>=1 (관심 있는 발견). 진보라.
+     마커 SVG의 fill은 markers.tsx에서 hex 직접 사용 컨벤션이라 본 변수는 보조 역할. */
+  --color-pin-interest: #7b68ee;
   --color-pin-wish: #f4c842;
   --color-pin-memory: #ffb3c6;
   --color-pin-new: #e05a5a;
@@ -218,4 +221,16 @@ body {
 @keyframes maygo-visit-toast-fade-in {
   0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* Phase 12 — REEL → WISH 전환 1회 펄스 (설계 §9.2).
+   PinDot/MapClient가 wishConverted=true 시점에 .pin-pulse-once 클래스를 부착하면
+   0.5초 동안 scale(1.0 → 1.5 → 1.2) + opacity(0.8 → 1.0) 진행 후 종료. */
+@keyframes pin-pulse {
+  0% { transform: scale(1.0); opacity: 0.8; }
+  50% { transform: scale(1.5); opacity: 1.0; }
+  100% { transform: scale(1.2); opacity: 1.0; }
+}
+.pin-pulse-once {
+  animation: pin-pulse 0.5s ease-out 1;
 }

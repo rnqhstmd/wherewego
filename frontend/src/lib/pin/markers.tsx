@@ -11,8 +11,9 @@
  */
 
 import type { JSX } from "react";
+import type { PinTag } from "@/lib/api/types";
 
-export type PinKind = "reel" | "wish" | "memory";
+export type PinKind = "reel" | "interest" | "wish" | "memory";
 
 /**
  * 핀 종류별 기본 색상 — context/tag/README.md 정의대로 hex로 직접 박는다.
@@ -22,13 +23,15 @@ export type PinKind = "reel" | "wish" | "memory";
  * 토큰과 동일한 hex를 직접 사용해 모든 환경에서 정확한 파스텔 톤이 노출되도록 한다.
  *
  * - REEL: 하늘색 #7BB3E8 동그라미 (인스타 릴스에서 발견한 곳)
+ * - INTEREST (Phase 12 D-13): 진보라 #7B68EE 동그라미 (REEL + want_count>=1)
  * - WISH: 노랑 #F4C842 별모양 (가보고 싶은 곳)
  * - MEMORY: 파스텔 핑크 #FFB3C6 하트 (다녀온 곳)
  */
 export const PIN_COLORS: Record<PinKind, string> = {
-  reel: "#7BB3E8",   // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
-  wish: "#F4C842",   // 진한 파스텔 노랑 (머스타드 hint) — 흰 지도 배경에서 별이 또렷
-  memory: "#FFB3C6", // 파스텔 핑크 하트 — 그대로
+  reel: "#7BB3E8",     // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
+  interest: "#7B68EE", // 진보라 동그라미 — REEL with want_count>=1 (Phase 12)
+  wish: "#F4C842",     // 진한 파스텔 노랑 (머스타드 hint) — 흰 지도 배경에서 별이 또렷
+  memory: "#FFB3C6",   // 파스텔 핑크 하트 — 그대로
 };
 
 
@@ -48,6 +51,16 @@ function shadowFilter(color: string): string {
 export function getReelSvgString(size: number, color?: string): string {
   const c = color ?? PIN_COLORS.reel;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" aria-hidden="true" data-testid="pin-glyph-reel" style="filter:${shadowFilter(c)};flex-shrink:0;"><circle cx="5" cy="5" r="4" fill="${c}"/></svg>`;
+}
+
+/**
+ * INTEREST 글리프 (Phase 12) — REEL과 동일한 원 모양, 색만 진보라(#7B68EE).
+ * 실제 마커 전환은 색·크기 transition이고 모양 변경은 없다(설계 §3 참조).
+ * viewBox: 0 0 10 10. size param은 가로/세로 동시 적용.
+ */
+export function getInterestSvgString(size: number, color?: string): string {
+  const c = color ?? PIN_COLORS.interest;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" aria-hidden="true" data-testid="pin-glyph-interest" style="filter:${shadowFilter(c)};flex-shrink:0;"><circle cx="5" cy="5" r="4" fill="${c}"/></svg>`;
 }
 
 /**
@@ -88,6 +101,31 @@ export function ReelGlyph({
       viewBox="0 0 10 10"
       aria-hidden="true"
       data-testid="pin-glyph-reel"
+      style={{ filter: shadowFilter(c), flexShrink: 0 }}
+    >
+      <circle cx="5" cy="5" r="4" fill={c} />
+    </svg>
+  );
+}
+
+export function InterestGlyph({
+  size,
+  color,
+}: {
+  size: number;
+  color?: string;
+}): JSX.Element {
+  const c = color ?? PIN_COLORS.interest;
+  // Phase 12 — REEL과 동일한 원 모양, 색만 진보라(#7B68EE).
+  // 마커 전환은 색·크기 transition이고 모양 변경은 없음(설계 §3).
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      data-testid="pin-glyph-interest"
       style={{ filter: shadowFilter(c), flexShrink: 0 }}
     >
       <circle cx="5" cy="5" r="4" fill={c} />
@@ -150,4 +188,42 @@ export function MemoryGlyph({
       />
     </svg>
   );
+}
+
+// =====================================================================
+// Phase 12 — 마커 variant 결정 헬퍼 (단일 진입점)
+// =====================================================================
+
+/**
+ * 마커 시각화 결정 결과 (설계 §9.1).
+ *
+ * - kind: 글리프 종류 (color + 모양 — wish/memory만 모양이 다름)
+ * - size: 베이스 사이즈에 곱할 계수
+ *   · REEL = 1.0 (기본)
+ *   · INTEREST = 1.1 (강조)
+ *   · WISH = 1.2 (가장 큼)
+ *   · MEMORY = 1.0
+ * - pulse: 본 헬퍼는 항상 false를 반환. 펄스는 "REEL → WISH 즉시 전환 시점"에만 1회
+ *   트리거되는 일회성 효과이며, MapClient/PinDot에서 별도 prop으로 전달된다.
+ */
+export interface MarkerVariant {
+  kind: PinKind;
+  size: number;
+  pulse: boolean;
+}
+
+/**
+ * (tag, wantCount) → MarkerVariant 결정 (단일 진입점).
+ * PinDot/MapboxView가 모두 이 헬퍼를 통해 색·크기를 일관되게 결정한다.
+ *
+ *  - tag=MEMORY                       → memory, 1.0
+ *  - tag=WISH                         → wish, 1.2
+ *  - tag=REEL && wantCount >= 1       → interest, 1.1  (Phase 12 D-13)
+ *  - tag=REEL && wantCount == 0       → reel, 1.0
+ */
+export function getMarkerVariant(tag: PinTag, wantCount: number): MarkerVariant {
+  if (tag === "MEMORY") return { kind: "memory", size: 1.0, pulse: false };
+  if (tag === "WISH") return { kind: "wish", size: 1.2, pulse: false };
+  if (wantCount >= 1) return { kind: "interest", size: 1.1, pulse: false };
+  return { kind: "reel", size: 1.0, pulse: false };
 }

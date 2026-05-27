@@ -4,9 +4,10 @@
 
 ## 시스템 구조
 
-- 테이블: `pins (id, group_id FK, created_by FK, place_name, address, latitude, longitude, instagram_url NULLABLE, memo, memo_source, tag, created_at, updated_at, deleted_at)`
+- 테이블: `pins (id, group_id FK, created_by FK, place_name, address, latitude, longitude, instagram_url NULLABLE, memo, memo_source, tag, want_count, visited_at, created_at, updated_at, deleted_at)`
   - `CONSTRAINT chk_pins_tag CHECK (tag IN ('REEL', 'WISH', 'MEMORY'))` — V006(Phase 7)에서 PLACE 제거, REEL·WISH 신설
   - `CONSTRAINT chk_pins_memo_source CHECK (memo_source IN ('AUTO', 'MANUAL'))`
+  - `want_count INT NOT NULL DEFAULT 0` — V012(Phase 12) `pin_events.WANT` 캐시 카운트. 과반 자동 WISH 전환 + `?sort=want_count` 정렬 사용
 - 인덱스:
   - `UNIQUE(group_id, instagram_url)` — 챗봇 중복 방지. PostgreSQL 표준 동작으로 NULL distinct 처리 → instagram_url IS NULL 행(직접 등록)은 중복 허용, 비NULL만 차단
   - `INDEX(group_id, deleted_at)` — 기본 그룹 핀 조회
@@ -34,3 +35,5 @@
 
 | 주제 | 설명 |
 |------|------|
+| [Phase 10 — 장소 방문 감지](phase-10-visit-detection.md) | WISH/REEL 핀 100m·30초 머무름 → 자동 MEMORY 전환 |
+| [Phase 12 — Pin Experience v2](phase-12-pin-experience-v2.md) | WANT 시스템(`pin_events`)·과반 WISH 전환·마커 3단계·챗봇 v2(콤마 입력)·오래된 핀 정리 |

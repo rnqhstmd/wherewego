@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type mapboxgl from "mapbox-gl";
-import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
+import type {
+  PinSummaryResponse,
+  PinTag,
+  WantToggleResponse,
+} from "@/lib/api/types";
 import { SpeechBubblePopup } from "@/components/ui/SpeechBubblePopup";
 import { PinTag as PinTagChip } from "@/components/ui/PinTag";
 import type { PinDotType } from "@/components/ui/PinDot";
@@ -10,6 +14,7 @@ import { IconShare } from "@/components/icons";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 import PinShareSheet from "./PinShareSheet";
+import TagProgressModal from "./TagProgressModal";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
@@ -35,6 +40,22 @@ interface PinPopupProps {
   deleteError: string | null;
   onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
   coordinateError: string | null;
+  /**
+   * Phase 12 (FR-PIN-12-2): WANT(가고 싶어요) 토글 콜백. 부모(MapClient)가
+   * Server Action 호출 + useOptimistic 갱신을 책임진다. 응답의 `wishConverted: true`
+   * 시 부모가 마커 펄스 trigger 등 1회성 효과를 발사한다.
+   */
+  onWantToggle?: (pinId: number) => Promise<{
+    ok: boolean;
+    data?: WantToggleResponse;
+    message?: string;
+  }>;
+  /**
+   * Phase 12 (FR-PIN-12-11): REEL → WISH 자동 전환 시 0.5초 동안 true.
+   * 본 컴포넌트는 SpeechBubblePopup 내부 마커(글리프) 펄스 통합을 추후 배치에서
+   * 적용하도록 prop 만 정의해둔다. 현 배치 범위에서는 단순 patrhrough.
+   */
+  pulse?: boolean;
 }
 
 type PopupMode = "view" | "menu" | "edit";
@@ -54,6 +75,12 @@ export default function PinPopup({
   deleteError,
   onRequestCoordinateEdit,
   coordinateError,
+  onWantToggle,
+  // pulse: Phase 12 §9.2 펄스 효과. 본 배치에서는 SpeechBubblePopup 글리프 통합 미적용 —
+  // 추후 배치에서 SpeechBubblePopup pinType 자리 PinDot에 pulse prop 으로 전달 예정.
+  // 현 시점에서는 받기만 하여 호출부 (MapClient) 가 안정적으로 prop 을 전달할 수 있게 한다.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  pulse: _pulse,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
@@ -69,6 +96,15 @@ export default function PinPopup({
   const [placeError, setPlaceError] = useState<string | null>(null);
   // Phase 9: 공유 카드 시트 표시 여부.
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Phase 12 (FR-PIN-12-2): WANT 토글 진행 중 + 직전 에러 메시지.
+  // 토글은 부모(MapClient)가 useOptimistic 으로 pin.wantCount/myWant 를 즉시 갱신하므로
+  // 본 컴포넌트에서는 별도 옵티미스틱 상태를 유지하지 않고 pending 만 표시한다.
+  const [wantPending, setWantPending] = useState(false);
+  const [wantError, setWantError] = useState<string | null>(null);
+
+  // Phase 12 (FR-PIN-12-28): 태그 진행 다이어그램 모달 노출 여부.
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -97,6 +133,9 @@ export default function PinPopup({
     setPlacePending(false);
     setPlaceError(null);
     setShareOpen(false);
+    setWantPending(false);
+    setWantError(null);
+    setProgressModalOpen(false);
   }
 
   useEffect(() => {
@@ -178,6 +217,23 @@ export default function PinPopup({
     setMode((prev) =>
       prev === "menu" ? "view" : prev === "edit" ? "view" : "menu",
     );
+  };
+
+  /**
+   * Phase 12 (FR-PIN-12-2): WANT 토글.
+   * 부모(MapClient)가 useOptimistic 으로 pin.wantCount/myWant 를 즉시 반영하고,
+   * 실패 시 transition 종료 → 자동 롤백된다. 본 컴포넌트는 pending/error 만 관리.
+   */
+  const handleWantToggle = async () => {
+    if (!onWantToggle || wantPending || pin.tag === "MEMORY") return;
+    setWantPending(true);
+    setWantError(null);
+    const result = await onWantToggle(pin.id);
+    if (!mountedRef.current) return;
+    setWantPending(false);
+    if (!result.ok) {
+      setWantError(result.message ?? "처리에 실패했어요");
+    }
   };
 
   // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
@@ -345,7 +401,114 @@ export default function PinPopup({
     </div>
   );
 
-  const footer = mode === "edit" ? editFooter : null;
+  // Phase 12 (FR-PIN-12-2, 28): view 모드 footer — 출처 뱃지 + WANT 토글 + 태그 진행 다이어그램 트리거.
+  // MEMORY 핀은 WANT 버튼 미노출, 출처 뱃지와 ? 아이콘은 항상 노출.
+  const sourceBadgeLabel = pin.instagramUrl ? "📹" : "✏️";
+  const sourceBadgeTitle = pin.instagramUrl
+    ? "릴스에서 발견한 곳"
+    : "직접 추가한 곳";
+  const wantLabel = pin.myWant ? "❤️ 가고 싶음" : "🤍 가고 싶어요";
+
+  const viewFooter = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          aria-label={sourceBadgeTitle}
+          title={sourceBadgeTitle}
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 11,
+            fontWeight: 600,
+            color: colors.inkSoft,
+            padding: "3px 8px",
+            borderRadius: 999,
+            background: colors.bg,
+            border: `1px solid ${colors.hairline}`,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            lineHeight: 1,
+          }}
+        >
+          {sourceBadgeLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => setProgressModalOpen(true)}
+          aria-label="태그 진행 안내"
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: "50%",
+            border: `1px solid ${colors.hairline}`,
+            background: "transparent",
+            color: colors.inkSoft,
+            cursor: "pointer",
+            fontFamily: fonts.sans,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+          }}
+        >
+          ?
+        </button>
+      </div>
+      {pin.tag !== "MEMORY" && onWantToggle && (
+        <button
+          type="button"
+          onClick={handleWantToggle}
+          disabled={wantPending}
+          aria-pressed={pin.myWant}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: `1px solid ${pin.myWant ? colors.cta : colors.hairline}`,
+            background: pin.myWant ? `${colors.cta}14` : colors.panel,
+            color: pin.myWant ? colors.cta : colors.ink,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: wantPending ? "wait" : "pointer",
+            opacity: wantPending ? 0.6 : 1,
+          }}
+        >
+          <span>{wantLabel}</span>
+          {pin.wantCount > 0 && (
+            <span
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 11,
+                fontWeight: 700,
+                color: pin.myWant ? colors.cta : colors.inkSoft,
+              }}
+            >
+              {pin.wantCount}
+            </span>
+          )}
+        </button>
+      )}
+      {wantError && (
+        <div style={{ ...inlineErrorStyle, width: "100%" }}>{wantError}</div>
+      )}
+    </div>
+  );
+
+  const footer = mode === "edit" ? editFooter : viewFooter;
 
   // ⋮ 바로 아래에 뜨는 드롭다운형 popover (backdrop 없음, popup 내부에 absolute).
   const menuPopover =
@@ -458,6 +621,14 @@ export default function PinPopup({
           mapboxStyleUrl={mapboxStyleUrl}
           groupPins={groupPins}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {progressModalOpen && (
+        <TagProgressModal
+          isOpen={progressModalOpen}
+          currentTag={pin.tag}
+          wantCount={pin.wantCount}
+          onClose={() => setProgressModalOpen(false)}
         />
       )}
     </>

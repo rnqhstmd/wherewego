@@ -5,6 +5,8 @@ import type {
   PinSummaryResponse,
   PinTag,
   UpdatePinResponse,
+  WantStatusResponse,
+  WantToggleResponse,
 } from "./types";
 
 export interface PinPatch {
@@ -20,6 +22,16 @@ export interface ListPinsOptions {
   tag?: PinTag;
   page?: number;
   size?: number;
+  /**
+   * Phase 12 (FR-PIN-12-8): 정렬 기준. `want_count` 지정 시 want_count DESC.
+   * 미지정 또는 `created_at` 이면 기존 정렬(생성일 내림차순).
+   */
+  sort?: "want_count" | "created_at";
+  /**
+   * Phase 12 (FR-PIN-12-9): true 시 want_count >= 1 인 핀만 반환한다.
+   * 다른 필터(tag 등)와 AND 결합된다.
+   */
+  interest?: boolean;
 }
 
 /**
@@ -45,6 +57,8 @@ export async function listPins(
   if (options.tag) params.set("tag", options.tag);
   if (options.page !== undefined) params.set("page", String(options.page));
   if (options.size !== undefined) params.set("size", String(options.size));
+  if (options.sort) params.set("sort", options.sort);
+  if (options.interest) params.set("interest", "true");
 
   const query = params.toString();
   return apiFetchServer<PinListResponse>(
@@ -106,4 +120,41 @@ export async function deletePin(
   await apiFetchServer<void>(`/groups/${groupId}/pins/${pinId}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * Phase 12 (FR-PIN-12-2): WANT(가고 싶어요) 토글.
+ *
+ * 동일 (pin, user) 키로 멱등 UNIQUE 가 적용되어 동시 호출도 안전하다.
+ * 응답의 `wishConverted: true` 면 본 호출이 REEL → WISH 전환을 트리거한 것이며,
+ * 클라이언트는 마커 펄스/안내 등 1회성 효과를 발사한다.
+ *
+ * 백엔드 측 에러:
+ *  - PIN_WANT_FORBIDDEN_TAG (400): MEMORY 핀에는 WANT 불가
+ *  - PIN_NOT_FOUND (404)
+ *  - GROUP_NOT_MEMBER (403)
+ */
+export async function toggleWant(
+  groupId: number,
+  pinId: number,
+): Promise<WantToggleResponse> {
+  return apiFetchServer<WantToggleResponse>(
+    `/groups/${groupId}/pins/${pinId}/want`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * Phase 12 (FR-PIN-12-2): 현재 핀의 WANT 상태 단건 조회.
+ *
+ * 모달 등에서 최신 wantCount/myWant 를 다시 확인할 때 사용한다.
+ * 일반 핀 목록 조회는 `listPins` 응답에 이미 포함되어 있어 별도 호출 불요.
+ */
+export async function getWantStatus(
+  groupId: number,
+  pinId: number,
+): Promise<WantStatusResponse> {
+  return apiFetchServer<WantStatusResponse>(
+    `/groups/${groupId}/pins/${pinId}/want`,
+  );
 }

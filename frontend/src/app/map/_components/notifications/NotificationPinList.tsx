@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import type { NotificationPinItem, NotificationType } from '@/lib/notifications/types';
 import { colors, fonts } from '@/lib/design/tokens';
 
@@ -9,6 +11,13 @@ interface NotificationPinListProps {
   actorLabel: string;
   type: NotificationType;
   createdAt: string;
+  /**
+   * Phase 12 (FR-PIN-12-27): "📍 지도에서 보기" 버튼이 생성할 `?reel_bundle={id}` 쿼리에 사용.
+   * 본 알림의 핀들(번들)을 지도에서 강조 표시하고, 나머지 핀은 opacity 0.3 으로 흐리게 처리한다.
+   * `panelClose` 는 navigate 후 알림 패널을 닫기 위한 콜백.
+   */
+  notificationId: number;
+  onBundleNavigate?: () => void;
 }
 
 /**
@@ -16,8 +25,30 @@ interface NotificationPinListProps {
  *
  * <p>삭제된 핀은 disabled 처리. 릴스 출처 URL은 요약 카드 우측 링크로 표시.</p>
  */
-export function NotificationPinList({ pins, onSelectPin, actorLabel, type, createdAt }: NotificationPinListProps) {
+export function NotificationPinList({
+  pins,
+  onSelectPin,
+  actorLabel,
+  type,
+  createdAt,
+  notificationId,
+  onBundleNavigate,
+}: NotificationPinListProps) {
+  const router = useRouter();
   const sourceUrl = pins.find((p) => p.instagramUrl)?.instagramUrl ?? null;
+
+  // Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림만 "지도에서 보기" 버튼 노출.
+  //  - VISIT_DETECTED: 이미 사용자가 다녀온 핀이라 번들 강조가 의미 없음.
+  //  - MANUAL_PIN: 짝꿍이 직접 추가한 단건이므로 기존 핀 선택 흐름(flyTo)으로 충분.
+  //  - WISH_CONVERTED: 단일 핀의 과반 달성 알림이므로 번들 강조 의미 없음 — 기존 핀 클릭으로 flyTo.
+  //    MapClient 는 `?reel_bundle=` 만 처리하며 단일 핀은 onSelectPin → flyTo 경로로 자연 진입한다.
+  const showMapButton =
+    type === 'CHATBOT_PINS' && pins.some((p) => !p.deleted);
+
+  const handleMapNavigate = () => {
+    router.push(`/map?reel_bundle=${notificationId}`);
+    onBundleNavigate?.();
+  };
 
   if (pins.length === 0) {
     return (
@@ -44,7 +75,9 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
             {type === 'VISIT_DETECTED'
               ? `함께 만든 추억 ${pins.length}곳`
-              : `${actorLabel} 저장한 ${pins.length}곳`}
+              : type === 'WISH_CONVERTED'
+                ? `🌟 위시로 올라간 곳 ${pins.length}곳`
+                : `${actorLabel} 저장한 ${pins.length}곳`}
           </div>
           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
             {formatTime(createdAt)}
@@ -71,6 +104,36 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
           </a>
         )}
       </div>
+
+      {/* Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림에만 지도 번들 진입 버튼.
+          클릭 시 `/map?reel_bundle={notificationId}` 로 이동하여 본 알림에 묶인 핀을
+          강조 표시 (비번들 opacity 0.3) + 상단 해제 배너 노출. WISH_CONVERTED 는 단일 핀이므로
+          기존 핀 클릭 → flyTo 경로로 처리한다. */}
+      {showMapButton && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <button
+            type="button"
+            onClick={handleMapNavigate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 999,
+              border: `1px solid ${colors.hairline}`,
+              background: colors.panel,
+              color: colors.ink,
+              fontFamily: fonts.sans,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <span aria-hidden="true">📍</span>
+            <span>지도에서 보기</span>
+          </button>
+        </div>
+      )}
 
       {/* 핀 목록 */}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

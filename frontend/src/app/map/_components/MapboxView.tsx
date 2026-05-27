@@ -13,8 +13,10 @@ import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { colors } from "@/lib/design/tokens";
 import {
   getReelSvgString,
+  getInterestSvgString,
   getWishSvgString,
   getMemorySvgString,
+  getMarkerVariant,
 } from "@/lib/pin/markers";
 import {
   createClusterer,
@@ -55,6 +57,15 @@ interface MapboxViewProps {
    * 자체 사용자 마커 갱신과 무관하게 항상 호출된다.
    */
   onGeolocate?: (position: GeolocationPosition) => void;
+  /**
+   * Phase 12 (§9.7, AC-12-36 / D-14): reel_bundle 모드에서 비번들 핀을 시각적으로 dim 시키기 위한
+   * 핀 ID 집합. 본 집합에 포함된 핀의 마커 element 는 opacity 0.3 으로 렌더되며, 그 외는 1.0.
+   * 비어있거나 미전달이면 모든 마커가 정상 opacity 로 렌더된다.
+   *
+   * <p>Mapbox GL JS Marker 자체는 opacity prop 을 노출하지 않으나, {@code Marker({ element })}
+   * 로 부착된 DOM element 에 직접 {@code style.opacity} 를 설정하면 의도한 시각 효과를 얻을 수 있다.</p>
+   */
+  dimmedPinIds?: Set<number>;
 }
 
 /**
@@ -187,8 +198,21 @@ const DEFAULT_CENTER: [number, number] = [127.0, 37.5];
  * mapboxgl.Marker { element } 에 직접 부착할 수 있게 한다.
  *
  * 태그 변경 시에도 element 인스턴스를 재사용하기 위해 innerHTML/style만 갱신.
+ *
+ * Phase 12 (AC-12-16/17, D-13): (tag, wantCount) → MarkerVariant 단일 진입점
+ * {@link getMarkerVariant} 를 사용하여 kind/size 를 결정한다.
+ *  - REEL && wantCount >= 1 → INTEREST (진보라 #7B68EE, 1.1배)
+ *  - WISH → 노랑 별 1.2배
+ *  - MEMORY → 핑크 하트 1.0배
+ *  - REEL && wantCount == 0 → 하늘색 원 1.0배
+ *
+ * 베이스 사이즈: REEL/INTEREST/MEMORY = 22px, WISH = 18px. variant.size 계수를 곱해 최종 사이즈 결정.
  */
-function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
+function renderPinDotInto(
+  el: HTMLDivElement,
+  tag: PinTag,
+  wantCount: number,
+): void {
   el.innerHTML = "";
   el.style.cursor = "pointer";
   el.style.display = "block";
@@ -199,24 +223,39 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
   el.style.borderRadius = "0";
   el.style.boxShadow = "none";
 
-  switch (tag) {
-    case "REEL":
-      el.style.width = "22px";
-      el.style.height = "22px";
-      el.innerHTML = getReelSvgString(22);
+  const variant = getMarkerVariant(tag, wantCount);
+
+  switch (variant.kind) {
+    case "reel": {
+      const size = Math.round(22 * variant.size);
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.innerHTML = getReelSvgString(size);
       break;
-    case "WISH":
-      el.style.width = "18px";
-      el.style.height = "18px";
-      el.innerHTML = getWishSvgString(18);
+    }
+    case "interest": {
+      const size = Math.round(22 * variant.size);
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.innerHTML = getInterestSvgString(size);
       break;
-    case "MEMORY":
-      el.style.width = "22px";
-      el.style.height = "22px";
-      // material standard 하트 viewBox 0 0 24 24 정사각이라 22x22 동일 비율로 호출.
-      el.innerHTML = getMemorySvgString(22, 22);
+    }
+    case "wish": {
+      const size = Math.round(18 * variant.size);
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.innerHTML = getWishSvgString(size);
       break;
-    default:
+    }
+    case "memory": {
+      const size = Math.round(22 * variant.size);
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      // material standard 하트 viewBox 0 0 24 24 정사각이라 size x size 동일 비율로 호출.
+      el.innerHTML = getMemorySvgString(size, size);
+      break;
+    }
+    default: {
       // M1 fallback: 알 수 없는 enum → WISH 글리프.
       // Phase 7 사용자 확인된 안전장치 — 운영 관찰 목적
       console.warn(
@@ -227,6 +266,7 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
       el.style.height = "18px";
       el.innerHTML = getWishSvgString(18);
       break;
+    }
   }
 }
 
@@ -292,6 +332,7 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
     previewMarker,
     skipInitialGeoFly = false,
     onGeolocate,
+    dimmedPinIds,
   },
   ref,
 ) {
@@ -306,6 +347,8 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
   const onMapErrorRef = useRef(onMapError);
   const onMapBackgroundClickRef = useRef(onMapBackgroundClick);
   const onGeolocateRef = useRef(onGeolocate);
+  // Phase 12 (§9.7): dimmed 핀 ID 집합. 마커 element.style.opacity 를 분기 갱신하기 위해 ref 로 유지한다.
+  const dimmedPinIdsRef = useRef<Set<number> | null>(dimmedPinIds ?? null);
   // 마지막으로 부모에 알린 hasCluster 값. 변화가 있을 때만 콜백 호출 → setState 폭주 차단.
   const lastHasClusterRef = useRef<boolean | null>(null);
   // 자체 사용자 위치 마커 — geolocate 이벤트마다 좌표만 갱신.
@@ -333,6 +376,17 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
   useEffect(() => {
     pinsRef.current = pins;
   }, [pins]);
+
+  // Phase 12 (§9.7, AC-12-36): dimmedPinIds 변경 시 ref 갱신 + 캐시된 모든 핀 마커의 opacity 즉시 반영.
+  // 비번들 핀은 0.3, 번들 핀(또는 dim 비활성) 은 1.0 으로 element.style.opacity 를 분기 적용한다.
+  useEffect(() => {
+    dimmedPinIdsRef.current = dimmedPinIds && dimmedPinIds.size > 0 ? dimmedPinIds : null;
+    const dim = dimmedPinIdsRef.current;
+    for (const [pinId, marker] of markerCacheRef.current) {
+      const el = marker.getElement() as HTMLDivElement;
+      el.style.opacity = dim && dim.has(pinId) ? "0.3" : "1";
+    }
+  }, [dimmedPinIds]);
 
   // Phase 10: imperative API — visit 검출 시 마커 bounce + confetti 트리거.
   useImperativeHandle(
@@ -411,26 +465,43 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
         const pinId = f.properties.pinId;
         const tag = f.properties.tag;
         visiblePinIds.add(pinId);
+        const dim = dimmedPinIdsRef.current;
+        const shouldDim = dim != null && dim.has(pinId);
+        // Phase 12 (AC-12-16/17, D-13): wantCount 기반 INTEREST variant 분기를 위해
+        // pinsList 에서 최신 wantCount 를 조회. supercluster feature props 에는 wantCount 가
+        // 포함되지 않아 매 렌더 시 pinsList 로 룩업한다 (props 확장은 클러스터 재생성을 요구).
+        const pinData = pinsList.find((p) => p.id === pinId);
+        const wantCount = pinData?.wantCount ?? 0;
+        const variantKey = `${tag}|${wantCount >= 1 ? "wc1" : "wc0"}`;
         const existing = markerCacheRef.current.get(pinId);
         if (existing) {
           const cur = existing.getLngLat();
           if (cur.lng !== lng || cur.lat !== lat) {
             existing.setLngLat([lng, lat]);
           }
-          // 태그 변경 시 element 내부만 다시 그림 (DOM 인스턴스 재사용)
+          // 태그 또는 INTEREST 임계 변경 시 element 내부만 다시 그림 (DOM 인스턴스 재사용)
           const el = existing.getElement() as HTMLDivElement;
-          if (el.dataset.tag !== tag) {
-            renderPinDotInto(el, tag);
+          if (el.dataset.variant !== variantKey) {
+            renderPinDotInto(el, tag, wantCount);
             el.dataset.tag = tag;
+            el.dataset.variant = variantKey;
+          }
+          // Phase 12 (§9.7): viewport 재렌더 경로에서도 dim 상태가 일관되게 유지되도록 매번 분기 적용.
+          const nextOpacity = shouldDim ? "0.3" : "1";
+          if (el.style.opacity !== nextOpacity) {
+            el.style.opacity = nextOpacity;
           }
         } else {
           // pinsList에서 최신 핀 데이터 확인 (없으면 skip — race 방지)
-          const pinData = pinsList.find((p) => p.id === pinId);
           if (!pinData) continue;
           const el = document.createElement("div");
           el.dataset.tag = tag;
+          el.dataset.variant = variantKey;
           el.dataset.pinId = String(pinId);
-          renderPinDotInto(el, tag);
+          renderPinDotInto(el, tag, wantCount);
+          // Phase 12 (§9.7): 신규 마커 생성 시점에 dim 분기 적용. dim 상태에서 새로 등장한
+          // 비번들 핀도 즉시 opacity 0.3 으로 그려진다.
+          el.style.opacity = shouldDim ? "0.3" : "1";
           el.addEventListener("click", (e) => {
             e.stopPropagation();
             onMarkerClickRef.current(pinId);

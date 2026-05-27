@@ -20,14 +20,20 @@ interface NotificationItemProps {
  * 동일 카피로 노출된다. currentUserId prop 은 향후 분기 가능성을 위해 보존.</p>
  */
 export function NotificationItem({ item, onClick, currentUserId: _currentUserId }: NotificationItemProps) {
+  // Phase 12 (FR-PIN-12-6, D-16): WISH_CONVERTED 는 단일 핀 자동 전환 알림이므로
+  // 한 줄 카피에 placeName 을 함께 노출하고, 본문(placeSummary)은 부가 안내만 표시한다.
   const actorLabel =
     item.type === 'VISIT_DETECTED'
       ? '추억이 한 곳 더 쌓였어요'
-      : `${item.registeredByNickname}님이 장소를 저장했어요.`;
+      : item.type === 'WISH_CONVERTED'
+        ? `🌟 '${item.firstPlaceName}'이 위시로 올라갔어요!`
+        : `${item.registeredByNickname}님이 장소를 저장했어요.`;
   const placeSummary =
-    item.totalPinCount <= 1
-      ? item.firstPlaceName
-      : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
+    item.type === 'WISH_CONVERTED'
+      ? '둘 다 가고 싶어해요'
+      : item.totalPinCount <= 1
+        ? item.firstPlaceName
+        : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
 
   return (
     <button

@@ -5,7 +5,18 @@
  * BigDecimal 좌표는 정밀도 손실 방지를 위해 문자열로 직렬화된다.</p>
  */
 
-export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
+/**
+ * Phase 12 (FR-PIN-12-6): WISH_CONVERTED 알림 타입 추가.
+ *
+ * REEL → WISH 자동 전환(과반 WANT) 시 발사되는 알림. 백엔드
+ * `NotificationType.WISH_CONVERTED` enum 과 1:1 대응. 본 타입의 알림은
+ * 항상 단일 핀(전환된 WISH 핀)이 NotificationPin 링크로 부착된다.
+ */
+export type NotificationType =
+  | "MANUAL_PIN"
+  | "CHATBOT_PINS"
+  | "VISIT_DETECTED"
+  | "WISH_CONVERTED";
 
 export interface NotificationItem {
   id: number;

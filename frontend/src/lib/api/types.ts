@@ -38,12 +38,77 @@ export interface PinSummaryResponse {
   visitedAt: string | null;
   memoUpdatedBy: number | null;
   memoUpdatedByNickname: string | null;
+  /**
+   * Phase 12 (FR-PIN-12-7): 핀에 표시된 WANT(가고 싶어요) 누적 카운트. MEMORY 핀에서는 의미 없음.
+   * REEL 에서 wantCount >= 1 이면 마커가 진보라 INTEREST variant 로 표시된다.
+   */
+  wantCount: number;
+  /**
+   * Phase 12 (FR-PIN-12-7): 현재 사용자가 본 핀에 WANT 를 눌렀는지 여부.
+   * 토글 버튼의 active 상태/아이콘 분기에 사용된다.
+   */
+  myWant: boolean;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-2): `POST /api/v1/groups/{gid}/pins/{pid}/want` 응답.
+ *
+ * - tag: 토글 이후 핀의 현재 태그. REEL → WISH 자동 전환이 일어나면 WISH.
+ * - wantCount/myWant: 토글 결과 진실값 (서버 권위).
+ * - wishConverted: 이번 호출이 REEL → WISH 전환을 트리거했는지. true 면 클라이언트가
+ *   마커 펄스 trigger / 모달 안내 등 1회성 효과를 발사한다.
+ */
+export interface WantToggleResponse {
+  tag: PinTag;
+  wantCount: number;
+  myWant: boolean;
+  wishConverted: boolean;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-2): `GET /api/v1/groups/{gid}/pins/{pid}/want` 응답.
+ *
+ * 사용자가 모달 등에서 최신 WANT 상태를 재조회해야 할 때 사용한다.
+ */
+export interface WantStatusResponse {
+  wantCount: number;
+  myWant: boolean;
 }
 
 export interface PinListResponse {
   items: PinSummaryResponse[];
   totalCount?: number;
   hasNext?: boolean;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-23): `GET /api/v1/groups/{gid}/cleanup/candidates` 응답.
+ *
+ * - snooze 중인 사용자: totalCount=0, snoozedUntil=만료시각, items=[].
+ * - snooze 없음: totalCount=N, snoozedUntil=null, items=N개 후보.
+ */
+export interface CleanupCandidatesResponse {
+  totalCount: number;
+  snoozedUntil: string | null;
+  items: PinSummaryResponse[];
+}
+
+/**
+ * Phase 12 (FR-PIN-12-24): `POST /api/v1/groups/{gid}/cleanup/execute` 응답.
+ *
+ * `deletedCount` 는 이번 호출이 실제로 삭제한 핀 수 (이미 삭제됐던 행 제외).
+ */
+export interface CleanupExecuteResponse {
+  deletedCount: number;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-25): `POST /api/v1/users/me/cleanup-snooze` 응답.
+ *
+ * `snoozedUntil` 은 갱신된 cleanup_snoozed_until (NOW()+7일, ISO 8601).
+ */
+export interface CleanupSnoozeResponse {
+  snoozedUntil: string;
 }
 
 /**

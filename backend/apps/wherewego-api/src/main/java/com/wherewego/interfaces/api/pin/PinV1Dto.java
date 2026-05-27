@@ -7,6 +7,8 @@ import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
+import com.wherewego.domain.pin.want.WantStatusResult;
+import com.wherewego.domain.pin.want.WantToggleResult;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 
@@ -32,7 +34,9 @@ public final class PinV1Dto {
             ZonedDateTime createdAt,
             ZonedDateTime visitedAt,
             Long memoUpdatedBy,
-            String memoUpdatedByNickname
+            String memoUpdatedByNickname,
+            int wantCount,
+            boolean myWant
     ) {
         public static PinSummaryResponse from(PinSummary s) {
             return new PinSummaryResponse(
@@ -51,8 +55,44 @@ public final class PinV1Dto {
                     s.createdAt(),
                     s.visitedAt(),
                     s.memoUpdatedBy(),
-                    s.memoUpdatedByNickname()
+                    s.memoUpdatedByNickname(),
+                    s.wantCount(),
+                    s.myWant()
             );
+        }
+    }
+
+    /**
+     * Phase 12: WANT 토글 응답 (FR-PIN-12-2).
+     *
+     * @param tag           토글 결과 핀의 현재 태그 (WISH 전환 시 REEL → WISH)
+     * @param wantCount     갱신 후 want_count
+     * @param myWant        토글 결과 (방금 누른 경우 true, 취소한 경우 false)
+     * @param wishConverted 이번 호출이 REEL → WISH 를 트리거했으면 true
+     */
+    public record WantToggleResponse(
+            PinTag tag,
+            int wantCount,
+            boolean myWant,
+            boolean wishConverted
+    ) {
+        public static WantToggleResponse from(WantToggleResult r) {
+            return new WantToggleResponse(r.tag(), r.wantCount(), r.myWant(), r.wishConverted());
+        }
+    }
+
+    /**
+     * Phase 12: WANT 상태 조회 응답 (FR-PIN-12-2).
+     *
+     * @param wantCount 현재 핀의 want_count
+     * @param myWant    조회자 본인의 WANT 누름 여부
+     */
+    public record WantStatusResponse(
+            int wantCount,
+            boolean myWant
+    ) {
+        public static WantStatusResponse from(WantStatusResult r) {
+            return new WantStatusResponse(r.wantCount(), r.myWant());
         }
     }
 

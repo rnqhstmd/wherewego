@@ -33,6 +33,8 @@ function pin(id: number): PinSummaryResponse {
     visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
+    wantCount: 0,
+    myWant: false,
   };
 }
 
