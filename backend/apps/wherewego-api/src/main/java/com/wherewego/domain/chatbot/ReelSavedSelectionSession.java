@@ -16,15 +16,13 @@ import java.util.function.UnaryOperator;
  * Phase 12: 릴스 저장 선택 상태머신 세션.
  *
  * <p>key = botUserKey, value = {@link Snapshot}, TTL = {@code chatbot.reel.selection-ttl-seconds}
- * (기본 180초). PROCESSING/SINGLE_WANT/MULTI_SELECTING/BULK_SAVE/MEMO_WAITING 모든 단계의 상태를
- * 동일 TTL 윈도우로 통일한다 (D-3, D-4).</p>
+ * (기본 180초). 모든 단계의 상태를 동일 TTL 윈도우로 통일한다 (D-3, D-4).</p>
  *
- * <p>상태 전이:
+ * <p>상태 전이 (Phase 13):
  * <ol>
- *   <li>인스타 URL 도착 → {@code PROCESSING} 진입(Gemini 호출 useCallback=true)</li>
- *   <li>Gemini 결과 도착 → 장소 수에 따라 {@code SINGLE_WANT}(1) / {@code MULTI_SELECTING}(2~30) /
- *       {@code BULK_SAVE}(31+) 진입</li>
- *   <li>사용자 응답 → {@code MEMO_WAITING}</li>
+ *   <li>인스타 URL 도착 → {@code PROCESSING}</li>
+ *   <li>Gemini 결과 도착 → 1~30곳: {@code MULTI_SELECTING}(선택 단계) / 31곳+: 곧장 {@code MEMO_WAITING}(전부 발견)</li>
+ *   <li>선택/응답 → {@code MEMO_WAITING}</li>
  *   <li>메모 입력 → 저장 + {@code COMPLETE}로 invalidate</li>
  * </ol></p>
  */
@@ -42,8 +40,8 @@ public class ReelSavedSelectionSession {
         PROCESSING,
         // Phase 13: 1곳~30곳 선택 단계 통합 (구 SINGLE_WANT 폐기). 1곳은 [가고 싶어요]/[그냥 저장] 버튼,
         // 2~30곳은 콤마 번호/[전부]/[건너뛰기] 로 처리되지만 상태는 동일하게 MULTI_SELECTING 이다.
+        // 31곳+ 는 선택 단계 없이 곧장 MEMO_WAITING(전부 발견) 으로 진입하므로 별도 BULK_SAVE 상태가 없다.
         MULTI_SELECTING,
-        BULK_SAVE,
         MEMO_WAITING,
         COMPLETE
     }

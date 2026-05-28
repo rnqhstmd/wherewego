@@ -26,7 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Phase 12/13 MEMO_WAITING 상태 핸들러 — 모든 분기(SINGLE_WANT / MULTI_SELECTING / BULK_SAVE)의
+ * Phase 13 MEMO_WAITING 상태 핸들러 — 선택 단계(1~30곳) 및 31곳+ 직행 분기의
  * 핀 저장·메모 적용·알림 fan-out 을 단일 책임으로 수행한다.
  *
  * <p>처리 흐름 (Phase 13, §2.1):
@@ -99,7 +99,7 @@ public class ReelMemoWaitingHandler implements MessageHandler {
             if (userIdOpt.isEmpty()) {
                 reelSavedSelectionSession.invalidate(botUserKey);
                 return ChatbotV1Dto.SkillResponse.simple(
-                        "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러주세요.");
+                        "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러 앱에서 발급한 코드를 입력해주세요.");
             }
             userId = userIdOpt.get();
         }

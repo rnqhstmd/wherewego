@@ -18,15 +18,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * Phase 12 MULTI_SELECTING / BULK_SAVE 상태 핸들러.
+ * Phase 13 선택 단계(MULTI_SELECTING) 핸들러 — 1곳~30곳 통합 처리.
  *
  * <p>릴스에서 2~30개 장소가 추출된 경우(MULTI_SELECTING), 사용자는 콤마 인덱스 또는 "전부" /
  * "건너뛰기" QuickReply 로 응답한다. {@link ReelCommaParser} 가 콤마 파싱을 책임지고,
- * 본 핸들러는 분기·전이만 담당한다.</p>
- *
- * <p>BULK_SAVE(31+) 는 별도 {@link ReelBulkSaveHandler} 에서 처리한다. classifier 가 두 상태를
- * 동일 {@link MessageType#REEL_PLACE_SELECTION} 로 분류하지만, 본 핸들러는 MULTI_SELECTING
- * 만 처리하고 BULK_SAVE 는 위임한다.</p>
+ * 본 핸들러는 분기·전이만 담당한다. 1곳 케이스의 [가고 싶어요]/[그냥 저장] 도 동일하게 처리한다.</p>
  *
  * <p>FORMAT/OUT_OF_RANGE/EMPTY 케이스 모두 세션 상태와 TTL 을 그대로 유지하고 안내만 표시한다
  * (NFR-12-5: TTL 미리셋). Caffeine 의 {@code expireAfterWrite} 특성상 put 시 TTL 이 갱신되므로
@@ -46,7 +42,6 @@ public class ReelMultiSelectionHandler implements MessageHandler {
 
     private final ReelSavedSelectionSession reelSavedSelectionSession;
     private final ReelCommaParser reelCommaParser;
-    private final ReelBulkSaveHandler reelBulkSaveHandler;
 
     @Override
     public MessageType supports() {
@@ -69,10 +64,6 @@ public class ReelMultiSelectionHandler implements MessageHandler {
         }
 
         ReelSavedSelectionSession.Snapshot snapshot = snapshotOpt.get();
-        // BULK_SAVE 는 별도 핸들러로 위임. 동일 MessageType 으로 라우팅되므로 본 진입점에서 분기.
-        if (snapshot.state() == ReelSavedSelectionSession.State.BULK_SAVE) {
-            return reelBulkSaveHandler.handle(request, ctx);
-        }
         if (snapshot.state() != ReelSavedSelectionSession.State.MULTI_SELECTING) {
             log.warn("MULTI_SELECTING handler invoked but state={} botUserKey={}",
                     snapshot.state(), botUserKey);
@@ -147,7 +138,8 @@ public class ReelMultiSelectionHandler implements MessageHandler {
         log.info("MULTI_SELECTING transitioned to MEMO_WAITING botUserKey={} wishCount={}",
                 botUserKey, wishIndices.size());
         return ChatbotV1Dto.SkillResponse.simple(
-                prefix + "메모를 남기시겠어요? (3분 내 응답이 없으면 자동 저장됩니다)",
+                prefix + "함께 남길 메모가 있으면 보내주세요. 없으면 [건너뛰기]를 눌러주세요. "
+                        + "(3분 내 응답이 없으면 메모 없이 자동 저장돼요)",
                 memoQuickReplies());
     }
 

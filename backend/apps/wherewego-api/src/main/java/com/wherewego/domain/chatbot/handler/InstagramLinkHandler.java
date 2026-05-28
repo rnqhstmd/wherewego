@@ -33,7 +33,7 @@ import java.util.Optional;
  *     <li>0개: 안내 후 종료 (세션 진입 없음)</li>
  *     <li>1개: {@code MULTI_SELECTING} — [가고 싶어요]/[그냥 저장] QuickReply (선택=위시, 미선택=발견)</li>
  *     <li>2~30개: {@code MULTI_SELECTING} — 번호 목록 + [전부]/[건너뛰기] QuickReply (선택=위시, 나머지=발견)</li>
- *     <li>31개 이상: {@code BULK_SAVE} — 전체 발견 저장 안내 + 메모 직접 입력</li>
+ *     <li>31개 이상: 선택 없이 {@code MEMO_WAITING} 직행 — 전체 발견 저장 + 메모만 입력</li>
  * </ul>
  *
  * <p>새 URL 도착 시 활성 세션이 있으면 {@link com.wherewego.domain.chatbot.ChatbotWebhookService}
@@ -82,7 +82,7 @@ public class InstagramLinkHandler implements MessageHandler {
             Optional<Long> userIdOpt = botUserMappingService.resolveUserId(botUserKey);
             if (userIdOpt.isEmpty()) {
                 return ChatbotV1Dto.SkillResponse.simple(
-                        "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러주세요.");
+                        "먼저 그룹 연동이 필요해요. 챗봇 메뉴에서 [🔗 그룹 연동하기]를 눌러 앱에서 발급한 코드를 입력해주세요.");
             }
             userId = userIdOpt.get();
         }
@@ -192,7 +192,8 @@ public class InstagramLinkHandler implements MessageHandler {
         PlaceSearchHit hit = hits.get(0);
         return ChatbotV1Dto.SkillResponse.simple(
                 "릴스에서 장소 1개를 찾았어요:\n• " + hit.placeName() + "\n\n"
-                        + "가고 싶은 곳이면 위시로 저장할게요.",
+                        + "꼭 가보고 싶은 곳이면 [가고 싶어요]를 눌러주세요. 위시 핀으로 저장돼요.\n"
+                        + "아직 잘 모르겠으면 [그냥 저장]을 눌러주세요. 발견 핀으로 담아둘게요.",
                 List.of(
                         ChatbotV1Dto.QuickReply.message("가고 싶어요", "가고 싶어요"),
                         ChatbotV1Dto.QuickReply.message("그냥 저장", "그냥 저장")
@@ -211,8 +212,10 @@ public class InstagramLinkHandler implements MessageHandler {
         );
         reelSavedSelectionSession.put(botUserKey, snapshot);
         StringBuilder sb = new StringBuilder();
-        sb.append("릴스에서 장소 ").append(hits.size())
-                .append("개를 찾았어요. ✨ 가고 싶은 곳 번호를 콤마로 보내면 위시로 저장할게요. (나머지는 발견) 예: 1,3,5\n\n");
+        sb.append("릴스에서 장소 ").append(hits.size()).append("개를 찾았어요.\n\n")
+                .append("꼭 가보고 싶은 곳의 번호를 콤마로 보내주세요. (예: 1,3,5)\n")
+                .append("선택한 곳은 위시 핀, 나머지는 모두 발견 핀으로 저장돼요.\n")
+                .append("전부 가보고 싶으면 [전부], 발견 핀으로만 담으려면 [건너뛰기]를 눌러주세요.\n\n");
         for (int i = 0; i < hits.size(); i++) {
             sb.append(i + 1).append(". ").append(hits.get(i).placeName()).append('\n');
         }
@@ -225,9 +228,13 @@ public class InstagramLinkHandler implements MessageHandler {
         );
     }
 
+    /**
+     * Phase 13: 31개 이상은 선택 단계 없이 전체 발견 핀으로 저장한다. 곧장 {@code MEMO_WAITING} 으로
+     * 진입(wishIndices 비움 = 전부 발견)하여 메모만 입력받으므로 별도 BULK_SAVE 상태/핸들러가 필요 없다.
+     */
     private ChatbotV1Dto.SkillResponse enterBulkSave(String botUserKey, String url, List<PlaceSearchHit> hits) {
         ReelSavedSelectionSession.Snapshot snapshot = new ReelSavedSelectionSession.Snapshot(
-                ReelSavedSelectionSession.State.BULK_SAVE,
+                ReelSavedSelectionSession.State.MEMO_WAITING,
                 url,
                 hits,
                 new HashSet<>(),
@@ -236,8 +243,8 @@ public class InstagramLinkHandler implements MessageHandler {
         );
         reelSavedSelectionSession.put(botUserKey, snapshot);
         return ChatbotV1Dto.SkillResponse.simple(
-                "릴스에서 장소 " + hits.size() + "개를 찾았어요. 전체 발견으로 저장할게요.\n\n"
-                        + "함께 남길 메모를 입력해주세요. (메모가 없으면 [건너뛰기])",
+                "릴스에서 장소 " + hits.size() + "개를 찾았어요. 한 번에 전부 발견 핀으로 저장할게요.\n\n"
+                        + "함께 남길 메모가 있으면 보내주세요. 없으면 [건너뛰기]를 눌러주세요.",
                 List.of(ChatbotV1Dto.QuickReply.message("건너뛰기", "건너뛰기"))
         );
     }

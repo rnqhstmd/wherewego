@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  *     <li>SINGLE_WANT_YES / SINGLE_WANT_NO :
  *         {@link ReelSavedSelectionSession} state = SINGLE_WANT 인 경우 발화 정확 매칭
  *         (Phase 13: "위시로 저장" / "발견으로 저장")</li>
- *     <li>REEL_PLACE_SELECTION  : state = MULTI_SELECTING / BULK_SAVE 인 경우 모든 발화
+ *     <li>REEL_PLACE_SELECTION  : state = MULTI_SELECTING 인 경우 모든 발화
  *         (콤마 숫자 / "전부" / "건너뛰기" — 핸들러에서 세부 분기)</li>
  *     <li>REEL_MEMO_WAITING     : state = MEMO_WAITING 인 경우 모든 발화</li>
  *     <li>TEXT_2SEC_CANDIDATE   : 2초 메모 세션</li>
@@ -66,7 +66,8 @@ public class MessageClassifier {
             switch (state) {
                 // Phase 13: 1곳~30곳 모두 MULTI_SELECTING. [가고 싶어요]/[그냥 저장](1곳),
                 // 콤마 번호/[전부]/[건너뛰기](2~30곳) 발화를 핸들러가 통합 처리한다.
-                case MULTI_SELECTING, BULK_SAVE -> {
+                // (31곳+ 는 선택 단계 없이 MEMO_WAITING 직행이라 여기 분기가 없다.)
+                case MULTI_SELECTING -> {
                     return MessageType.REEL_PLACE_SELECTION;
                 }
                 case MEMO_WAITING -> {

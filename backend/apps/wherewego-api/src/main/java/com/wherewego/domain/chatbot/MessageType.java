@@ -7,7 +7,7 @@ package com.wherewego.domain.chatbot;
  *   PLACE_SELECTION
  *   > LINK_CODE
  *   > INSTAGRAM_LINK
- *   > REEL_PLACE_SELECTION   (ReelSavedSelectionSession.state = MULTI_SELECTING / BULK_SAVE)
+ *   > REEL_PLACE_SELECTION   (ReelSavedSelectionSession.state = MULTI_SELECTING)
  *   > REEL_MEMO_WAITING      (state = MEMO_WAITING)
  *   > TEXT_2SEC_CANDIDATE
  *   > UNKNOWN

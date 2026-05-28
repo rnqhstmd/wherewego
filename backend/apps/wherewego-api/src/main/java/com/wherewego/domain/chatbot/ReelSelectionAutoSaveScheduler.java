@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  * <p>botUserKey 단위로 단일 task. 동일 키에 schedule 재호출 시 이전 task 를 cancel(false) 후 새 task 등록.</p>
  *
  * <p>만료 시 처리 (Phase 13 §4.8, D-3/D-4 보수적): 모든 추출 핀을 저장하되 wishIndices 가 든 것만 WISH.
- * 미응답 단계(SINGLE_WANT/MULTI_SELECTING/BULK_SAVE)는 wishIndices 가 비어 있으므로 전체 발견(REEL)으로 저장된다.
+ * 미응답 단계(MULTI_SELECTING)는 wishIndices 가 비어 있으므로 전체 발견(REEL)으로 저장된다.
  * MEMO_WAITING 단계라면 사용자가 이미 결정한 wishIndices 를 존중한다.</p>
  */
 @Component
