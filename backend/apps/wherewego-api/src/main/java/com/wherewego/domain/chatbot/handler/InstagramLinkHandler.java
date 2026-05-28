@@ -31,7 +31,7 @@ import java.util.Optional;
  * <p>Gemini/카카오 추출 결과 개수에 따라 {@link ReelSavedSelectionSession} 상태머신의 초기 단계로 진입한다 (Phase 13):
  * <ul>
  *     <li>0개: 안내 후 종료 (세션 진입 없음)</li>
- *     <li>1개: {@code SINGLE_WANT} — "위시로 저장" / "발견으로 저장" QuickReply</li>
+ *     <li>1개: {@code MULTI_SELECTING} — [가고 싶어요]/[그냥 저장] QuickReply (선택=위시, 미선택=발견)</li>
  *     <li>2~30개: {@code MULTI_SELECTING} — 번호 목록 + [전부]/[건너뛰기] QuickReply (선택=위시, 나머지=발견)</li>
  *     <li>31개 이상: {@code BULK_SAVE} — 전체 발견 저장 안내 + 메모 직접 입력</li>
  * </ul>
@@ -107,7 +107,7 @@ public class InstagramLinkHandler implements MessageHandler {
                     "장소를 찾지 못했어요. 앱에서 직접 등록해 주세요.");
         }
         if (count == 1) {
-            return enterSingleWant(botUserKey, url, hits);
+            return enterSingleSelecting(botUserKey, url, hits);
         }
         if (count < BULK_THRESHOLD) {
             return enterMultiSelecting(botUserKey, url, hits);
@@ -174,9 +174,14 @@ public class InstagramLinkHandler implements MessageHandler {
         return List.of();
     }
 
-    private ChatbotV1Dto.SkillResponse enterSingleWant(String botUserKey, String url, List<PlaceSearchHit> hits) {
+    /**
+     * Phase 13 통합: 1곳 추출도 MULTI_SELECTING 선택 단계로 진입한다. 번호가 1개뿐이라 콤마 입력 대신
+     * [가고 싶어요](=전부 위시) / [그냥 저장](=전부 발견) QuickReply 로 단순화하며, 발화는
+     * {@link ReelMultiSelectionHandler} 가 통합 처리한다 (구 SINGLE_WANT 단계/핸들러 폐기).
+     */
+    private ChatbotV1Dto.SkillResponse enterSingleSelecting(String botUserKey, String url, List<PlaceSearchHit> hits) {
         ReelSavedSelectionSession.Snapshot snapshot = new ReelSavedSelectionSession.Snapshot(
-                ReelSavedSelectionSession.State.SINGLE_WANT,
+                ReelSavedSelectionSession.State.MULTI_SELECTING,
                 url,
                 hits,
                 new HashSet<>(),
@@ -187,10 +192,10 @@ public class InstagramLinkHandler implements MessageHandler {
         PlaceSearchHit hit = hits.get(0);
         return ChatbotV1Dto.SkillResponse.simple(
                 "릴스에서 장소 1개를 찾았어요:\n• " + hit.placeName() + "\n\n"
-                        + "가고 싶은 곳이면 위시로, 일단 둘러보기면 발견으로 저장할게요.",
+                        + "가고 싶은 곳이면 위시로 저장할게요.",
                 List.of(
-                        ChatbotV1Dto.QuickReply.message("위시로 저장", "위시로 저장"),
-                        ChatbotV1Dto.QuickReply.message("발견으로 저장", "발견으로 저장")
+                        ChatbotV1Dto.QuickReply.message("가고 싶어요", "가고 싶어요"),
+                        ChatbotV1Dto.QuickReply.message("그냥 저장", "그냥 저장")
                 )
         );
     }

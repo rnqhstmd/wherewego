@@ -40,7 +40,8 @@ public class ReelSavedSelectionSession {
     public enum State {
         IDLE,
         PROCESSING,
-        SINGLE_WANT,
+        // Phase 13: 1곳~30곳 선택 단계 통합 (구 SINGLE_WANT 폐기). 1곳은 [가고 싶어요]/[그냥 저장] 버튼,
+        // 2~30곳은 콤마 번호/[전부]/[건너뛰기] 로 처리되지만 상태는 동일하게 MULTI_SELECTING 이다.
         MULTI_SELECTING,
         BULK_SAVE,
         MEMO_WAITING,

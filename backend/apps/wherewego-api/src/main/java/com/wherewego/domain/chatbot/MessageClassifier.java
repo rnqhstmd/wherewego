@@ -33,13 +33,6 @@ public class MessageClassifier {
             "^https?://(www\\.)?(instagram\\.com|instagr\\.am)/(p|reel|reels)/[A-Za-z0-9_-]+/?.*"
     );
 
-    /**
-     * SINGLE_WANT 단계 QuickReply 정확 매칭 텍스트 (Phase 13).
-     * 위시로 저장 / 발견으로 저장. (enum 이름 SINGLE_WANT_YES/NO 는 의미 재해석으로 보존.)
-     */
-    private static final String SINGLE_WANT_YES_TEXT = "위시로 저장";
-    private static final String SINGLE_WANT_NO_TEXT = "발견으로 저장";
-
     /** 연동 코드 폴백 패턴 — 정확히 6자리 숫자 (카카오 slot 파라미터 code 누락 시 구제용). */
     private static final Pattern LINK_CODE_DIGITS = Pattern.compile("^\\d{6}$");
 
@@ -70,18 +63,9 @@ public class MessageClassifier {
                 reelSavedSelectionSession.peek(botUserKey);
         if (reelSnapshot.isPresent()) {
             ReelSavedSelectionSession.State state = reelSnapshot.get().state();
-            String trimmed = utterance == null ? "" : utterance.trim();
             switch (state) {
-                case SINGLE_WANT -> {
-                    if (SINGLE_WANT_YES_TEXT.equals(trimmed)) {
-                        return MessageType.SINGLE_WANT_YES;
-                    }
-                    if (SINGLE_WANT_NO_TEXT.equals(trimmed)) {
-                        return MessageType.SINGLE_WANT_NO;
-                    }
-                    // SINGLE_WANT 단계에서 두 정확 매칭 외 발화는 UNKNOWN 으로 흘려보내고
-                    // 핸들러/가드 측에서 안내 응답을 처리한다.
-                }
+                // Phase 13: 1곳~30곳 모두 MULTI_SELECTING. [가고 싶어요]/[그냥 저장](1곳),
+                // 콤마 번호/[전부]/[건너뛰기](2~30곳) 발화를 핸들러가 통합 처리한다.
                 case MULTI_SELECTING, BULK_SAVE -> {
                     return MessageType.REEL_PLACE_SELECTION;
                 }

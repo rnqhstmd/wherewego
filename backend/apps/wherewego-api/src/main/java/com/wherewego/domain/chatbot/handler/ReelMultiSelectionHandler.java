@@ -40,6 +40,9 @@ public class ReelMultiSelectionHandler implements MessageHandler {
 
     static final String ALL_TEXT = "전부";
     static final String SKIP_TEXT = "건너뛰기";
+    /** Phase 13 통합: 1곳 케이스 QuickReply. "가고 싶어요"=전부 위시, "그냥 저장"=전부 발견. */
+    static final String SINGLE_WISH_TEXT = "가고 싶어요";
+    static final String SINGLE_REEL_TEXT = "그냥 저장";
 
     private final ReelSavedSelectionSession reelSavedSelectionSession;
     private final ReelCommaParser reelCommaParser;
@@ -81,15 +84,16 @@ public class ReelMultiSelectionHandler implements MessageHandler {
 
         // Phase 13: 전체 핀은 항상 저장된다. wishIndices 에 든 것만 WISH, 나머지는 REEL.
         // "전부" → 전부 위시 → wishIndices={1..N}.
-        if (ALL_TEXT.equals(utterance)) {
+        // "전부"(다중) 또는 "가고 싶어요"(1곳) → 전부 위시 → wishIndices={1..N}.
+        if (ALL_TEXT.equals(utterance) || SINGLE_WISH_TEXT.equals(utterance)) {
             HashSet<Integer> all = new HashSet<>(
                     IntStream.rangeClosed(1, total).boxed().collect(Collectors.toList()));
             return transitionToMemoWaiting(botUserKey, snapshot, all,
                     "전체 " + total + "곳을 위시로 저장할게요. ");
         }
 
-        // "건너뛰기" → 위시 없음 → wishIndices={} → 전체 REEL(발견) 저장.
-        if (SKIP_TEXT.equals(utterance)) {
+        // "건너뛰기"(다중) 또는 "그냥 저장"(1곳) → 위시 없음 → wishIndices={} → 전체 REEL(발견) 저장.
+        if (SKIP_TEXT.equals(utterance) || SINGLE_REEL_TEXT.equals(utterance)) {
             return transitionToMemoWaiting(botUserKey, snapshot, new HashSet<>(),
                     "전체 " + total + "곳을 발견으로 저장할게요. ");
         }

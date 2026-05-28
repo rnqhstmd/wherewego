@@ -4,7 +4,6 @@ import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.handler.MessageHandler;
 import com.wherewego.domain.chatbot.handler.ReelMemoWaitingHandler;
-import com.wherewego.domain.chatbot.handler.ReelSingleWantHandler;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
@@ -74,16 +73,8 @@ public class ChatbotWebhookService {
 
     @PostConstruct
     void buildRouter() {
-        MessageHandler singleWantHandler = null;
         for (MessageHandler handler : handlers) {
             routerMap.put(handler.supports(), handler);
-            if (handler instanceof ReelSingleWantHandler) {
-                singleWantHandler = handler;
-            }
-        }
-        // SINGLE_WANT_NO 는 별도 enum 이지만 동일한 ReelSingleWantHandler 인스턴스가 처리한다.
-        if (singleWantHandler != null) {
-            routerMap.put(MessageType.SINGLE_WANT_NO, singleWantHandler);
         }
     }
 
@@ -191,8 +182,6 @@ public class ChatbotWebhookService {
     private static boolean requiresMembership(MessageType type) {
         return type == MessageType.INSTAGRAM_LINK
                 || type == MessageType.PLACE_SELECTION
-                || type == MessageType.SINGLE_WANT_YES
-                || type == MessageType.SINGLE_WANT_NO
                 || type == MessageType.REEL_PLACE_SELECTION
                 || type == MessageType.REEL_MEMO_WAITING;
     }
