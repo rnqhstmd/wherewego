@@ -5,7 +5,6 @@ import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.handler.MessageHandler;
 import com.wherewego.domain.chatbot.handler.ReelMemoWaitingHandler;
 import com.wherewego.domain.chatbot.handler.ReelSingleWantHandler;
-import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
@@ -47,7 +46,6 @@ public class ChatbotWebhookService {
     private final PendingNotificationSession pendingNotificationSession;
     private final ReelSavedSelectionSession reelSavedSelectionSession;
     private final GroupMemberService groupMemberService;
-    private final GroupMemberRepository groupMemberRepository;
     private final ReelMemoWaitingHandler reelMemoWaitingHandler;
     private final NotificationService notificationService;
     private final List<MessageHandler> handlers;
@@ -60,7 +58,6 @@ public class ChatbotWebhookService {
                                  PendingNotificationSession pendingNotificationSession,
                                  ReelSavedSelectionSession reelSavedSelectionSession,
                                  GroupMemberService groupMemberService,
-                                 GroupMemberRepository groupMemberRepository,
                                  ReelMemoWaitingHandler reelMemoWaitingHandler,
                                  NotificationService notificationService,
                                  List<MessageHandler> handlers) {
@@ -70,7 +67,6 @@ public class ChatbotWebhookService {
         this.pendingNotificationSession = pendingNotificationSession;
         this.reelSavedSelectionSession = reelSavedSelectionSession;
         this.groupMemberService = groupMemberService;
-        this.groupMemberRepository = groupMemberRepository;
         this.reelMemoWaitingHandler = reelMemoWaitingHandler;
         this.notificationService = notificationService;
         this.handlers = handlers;
@@ -167,15 +163,13 @@ public class ChatbotWebhookService {
             return;
         }
         Long groupId = groupIdOpt.get();
-        int activeMemberCount = (int) groupMemberRepository.countActiveByGroupId(groupId);
 
-        // SINGLE_WANT / MULTI_SELECTING / BULK_SAVE / MEMO_WAITING 모두 보수적으로 처리:
-        // selectedIndices 가 비어 있으면 전체 인덱스로 자동 저장.
-        ReelSavedSelectionSession.Snapshot effective = ensureSelectionFilled(snapshot);
+        // Phase 13: 새 URL 도착으로 이전 세션을 자동 저장할 때는 보수적으로 전체 발견(REEL) 저장한다.
+        // 즉 wishIndices 를 그대로 두면(미응답 단계에서는 비어 있음) 전체가 REEL 로 저장된다 (§4.8).
 
         try {
-            ReelMemoWaitingHandler.SaveResult result = reelMemoWaitingHandler.saveAllSelected(
-                    userId, groupId, effective, effective.pendingMemo(), activeMemberCount);
+            ReelMemoWaitingHandler.SaveResult result = reelMemoWaitingHandler.saveAll(
+                    userId, groupId, snapshot, snapshot.pendingMemo());
             if (!result.savedPinIds().isEmpty()) {
                 try {
                     notificationService.createForChatbotBatch(groupId, userId, result.savedPinIds());
@@ -192,28 +186,6 @@ public class ChatbotWebhookService {
         } finally {
             reelSavedSelectionSession.invalidate(botUserKey);
         }
-    }
-
-    /** selectedIndices 가 비어 있으면 전체 인덱스로 채운 새 snapshot 반환. */
-    private static ReelSavedSelectionSession.Snapshot ensureSelectionFilled(
-            ReelSavedSelectionSession.Snapshot snapshot) {
-        if (!snapshot.selectedIndices().isEmpty()) {
-            return snapshot;
-        }
-        int total = snapshot.places().size();
-        java.util.HashSet<Integer> all = new java.util.HashSet<>();
-        for (int i = 1; i <= total; i++) {
-            all.add(i);
-        }
-        return new ReelSavedSelectionSession.Snapshot(
-                snapshot.state(),
-                snapshot.instagramUrl(),
-                snapshot.places(),
-                all,
-                snapshot.wantOnSelected(),
-                snapshot.expiresAt(),
-                snapshot.pendingMemo()
-        );
     }
 
     private static boolean requiresMembership(MessageType type) {

@@ -50,20 +50,21 @@ public class ReelSavedSelectionSession {
     /**
      * 불변 스냅샷. 상태 전이는 새 인스턴스를 만들어 {@link #put} 으로 덮어쓴다.
      *
-     * @param state            현재 단계
-     * @param instagramUrl     원본 인스타 URL
-     * @param places           Gemini/카카오 추출 결과(1-based index 기준 정렬)
-     * @param selectedIndices  사용자가 선택한 1-based 인덱스 집합 (MULTI_SELECTING/BULK_SAVE)
-     * @param wantOnSelected   SINGLE_WANT 단계에서 "가고 싶어요" 선택 여부
-     * @param expiresAt        세션 만료 시각 (참고용 — 실제 TTL은 Caffeine 이 관리)
-     * @param pendingMemo      MEMO_WAITING 직전에 미리 받아둔 메모(없으면 null)
+     * <p>Phase 13: 전체 추출 핀을 저장하되 {@code wishIndices} 에 든 것만 WISH, 나머지는 REEL 로 저장한다 (§2.1).
+     * 따라서 더 이상 "어떤 핀을 저장할지"가 아니라 "어떤 핀을 위시로 저장할지"를 담는다.</p>
+     *
+     * @param state         현재 단계
+     * @param instagramUrl  원본 인스타 URL
+     * @param places        Gemini/카카오 추출 결과(1-based index 기준 정렬)
+     * @param wishIndices   위시(WISH)로 저장할 1-based 인덱스 집합. 나머지 추출 핀은 REEL 로 저장.
+     * @param expiresAt     세션 만료 시각 (참고용 — 실제 TTL은 Caffeine 이 관리)
+     * @param pendingMemo   MEMO_WAITING 직전에 미리 받아둔 메모(없으면 null)
      */
     public record Snapshot(
             State state,
             String instagramUrl,
             List<PlaceSearchHit> places,
-            Set<Integer> selectedIndices,
-            boolean wantOnSelected,
+            Set<Integer> wishIndices,
             ZonedDateTime expiresAt,
             String pendingMemo
     ) {

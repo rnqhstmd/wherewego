@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
-import TagProgressModal from "@/app/map/_components/TagProgressModal";
 
 interface PinCardProps {
   pin: PinSummaryResponse;
@@ -46,10 +44,6 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
   const resolvedTagStyle = tagStyle ?? TAG_STYLES.WISH;
   const resolvedTagLabel = tagLabel ?? TAG_LABEL.WISH;
 
-  // Phase 12 (AC-12-37): 태그 진행 다이어그램 모달 노출 여부.
-  // PinPopup 의 `?` 아이콘과 동일한 진입점을 PinCard 에도 제공한다.
-  const [progressOpen, setProgressOpen] = useState(false);
-
   // Phase 12 (AC-12-19): 출처 뱃지 (📹 릴스 / ✏️ 직접). PinPopup viewFooter 패턴과 동일.
   const sourceBadgeLabel = pin.instagramUrl ? "📹" : "✏️";
   const sourceBadgeTitle = pin.instagramUrl
@@ -75,14 +69,6 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
           >
             {resolvedTagLabel}
           </span>
-          <button
-            type="button"
-            onClick={() => setProgressOpen(true)}
-            aria-label="태그 진행 안내"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 text-[11px] font-bold leading-none text-zinc-500 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            ?
-          </button>
         </div>
       </header>
 
@@ -137,15 +123,6 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
           </button>
         </div>
       </footer>
-
-      {progressOpen && (
-        <TagProgressModal
-          isOpen={progressOpen}
-          currentTag={pin.tag}
-          wantCount={pin.wantCount}
-          onClose={() => setProgressOpen(false)}
-        />
-      )}
     </article>
   );
 }

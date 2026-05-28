@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { colors, fonts } from "@/lib/design/tokens";
 import {
-  InterestBadgeIcon,
   MemoryGlyph,
   PIN_COLORS,
   ReelGlyph,
@@ -11,22 +10,17 @@ import {
 } from "@/lib/pin/markers";
 
 /**
- * Phase 12 후속(UX 재반영): 체크박스 dropdown 필터 (이전 패턴 복귀).
+ * 체크박스 dropdown 필터.
  *
- * 항목은 4가지 + 전체:
- *  - 추억(MEMORY) / 위시(WISH) / 발견(REEL, wantCount=0) / 관심(REEL && wantCount>=1)
- *
- * 관심은 발견과 **상호배타적인 서브셋** — 관심만 켜면 want_count>=1 인 발견 핀만 노출되고,
- * 발견만 켜면 want_count=0 인 순수 발견 핀만 노출된다. 둘 다 켜면 모든 발견 핀이 노출된다.
- * 체크박스 의미가 각자 독립적이 되어 사용자 직관에 부합한다.
+ * 항목은 3가지 + 전체:
+ *  - 추억(MEMORY) / 위시(WISH) / 발견(REEL)
  */
-export type FilterKey = "MEMORY" | "WISH" | "REEL" | "INTEREST";
+export type FilterKey = "MEMORY" | "WISH" | "REEL";
 
 export const ALL_FILTER_KEYS: ReadonlyArray<FilterKey> = [
   "MEMORY",
   "WISH",
   "REEL",
-  "INTEREST",
 ];
 
 interface OptionMeta {
@@ -55,12 +49,6 @@ const OPTIONS: ReadonlyArray<OptionMeta> = [
     label: "발견",
     color: PIN_COLORS.reel,
     Glyph: () => <ReelGlyph size={14} color={PIN_COLORS.reel} />,
-  },
-  {
-    key: "INTEREST",
-    label: "관심",
-    color: PIN_COLORS.reel,
-    Glyph: () => <InterestBadgeIcon size={14} />,
   },
 ];
 

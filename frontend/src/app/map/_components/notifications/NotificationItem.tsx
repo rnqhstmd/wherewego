@@ -20,20 +20,11 @@ interface NotificationItemProps {
  * 동일 카피로 노출된다. currentUserId prop 은 향후 분기 가능성을 위해 보존.</p>
  */
 export function NotificationItem({ item, onClick, currentUserId: _currentUserId }: NotificationItemProps) {
-  // Phase 12 (FR-PIN-12-6, D-16): WISH_CONVERTED 는 단일 핀 자동 전환 알림이므로
-  // 한 줄 카피에 placeName 을 함께 노출하고, 본문(placeSummary)은 부가 안내만 표시한다.
   const actorLabel =
     item.type === 'VISIT_DETECTED'
       ? '추억이 한 곳 더 쌓였어요'
-      : item.type === 'WISH_CONVERTED'
-        ? `🌟 '${item.firstPlaceName}'이 위시로 올라갔어요!`
-        : `${item.registeredByNickname}님이 장소를 저장했어요.`;
-  const placeSummary =
-    item.type === 'WISH_CONVERTED'
-      ? '둘 다 가고 싶어해요'
-      : item.totalPinCount <= 1
-        ? item.firstPlaceName
-        : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
+      : `${item.registeredByNickname}님이 장소를 저장했어요.`;
+  const placeSummary = buildPlaceSummary(item);
 
   return (
     <button
@@ -62,6 +53,29 @@ export function NotificationItem({ item, onClick, currentUserId: _currentUserId 
       </div>
     </button>
   );
+}
+
+/**
+ * 알림 본문 요약 카피 생성.
+ *
+ * CHATBOT_PINS 는 design §2.3 에 따라 위시/발견 핀 수를 분리 표시한다.
+ * 백엔드가 wishCount/reelCount 를 채우면 "위시 N곳, 발견 M곳" 형태로,
+ * 둘 중 하나라도 누락(옵셔널)이면 totalPinCount 기반 기본 요약으로 안전하게 폴백한다.
+ */
+function buildPlaceSummary(item: NotificationItemType): string {
+  if (item.type === 'CHATBOT_PINS') {
+    const wish = item.wishCount;
+    const reel = item.reelCount;
+    if (wish != null && reel != null && wish + reel > 0) {
+      const parts: string[] = [];
+      if (wish > 0) parts.push(`위시 ${wish}곳`);
+      if (reel > 0) parts.push(`발견 ${reel}곳`);
+      return parts.join(', ');
+    }
+  }
+  return item.totalPinCount <= 1
+    ? item.firstPlaceName
+    : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
 }
 
 function formatTime(iso: string): string {

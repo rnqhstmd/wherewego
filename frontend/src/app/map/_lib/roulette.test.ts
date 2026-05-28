@@ -32,8 +32,6 @@ function makePin(
     visitedAt: null,
     memoUpdatedBy: null,
     memoUpdatedByNickname: null,
-    wantCount: 0,
-    myWant: false,
   };
 }
 

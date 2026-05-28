@@ -133,49 +133,4 @@ public class PinRepositoryImpl implements PinRepository {
         }
         return deleted;
     }
-
-    @Override
-    public List<Pin> findActiveByGroupIdSortedByWantCount(Long groupId, int page, int size) {
-        return jpaRepository.findByGroupIdAndDeletedAtIsNull(
-                groupId, PageRequest.of(page, size, wantCountSort()));
-    }
-
-    @Override
-    public List<Pin> findActiveByGroupIdAndTagSortedByWantCount(Long groupId, PinTag tag, int page, int size) {
-        if (tag == null) {
-            return findActiveByGroupIdSortedByWantCount(groupId, page, size);
-        }
-        return jpaRepository.findByGroupIdAndTagAndDeletedAtIsNull(
-                groupId, tag, PageRequest.of(page, size, wantCountSort()));
-    }
-
-    @Override
-    public List<Pin> findActiveByGroupIdInterestOnly(Long groupId, PinTag tag, int page, int size) {
-        if (tag == null) {
-            return jpaRepository.findActiveByGroupIdInterestOnly(
-                    groupId, PageRequest.of(page, size, wantCountSort()));
-        }
-        return jpaRepository.findActiveByGroupIdAndTagInterestOnly(
-                groupId, tag, PageRequest.of(page, size, wantCountSort()));
-    }
-
-    @Override
-    public long countActiveByGroupIdInterestOnly(Long groupId, PinTag tag) {
-        if (tag == null) {
-            return jpaRepository.countActiveByGroupIdInterestOnly(groupId);
-        }
-        return jpaRepository.countActiveByGroupIdAndTagInterestOnly(groupId, tag);
-    }
-
-    /**
-     * want_count 내림차순 정렬 + tie-breaker.
-     * 동일 want_count 의 행은 {@code created_at DESC}, 그래도 같으면 {@code id DESC} 로 disjoint 페이지를 보장한다.
-     * 인덱스 {@code idx_pins_group_want_count (group_id, want_count DESC) WHERE deleted_at IS NULL} 활용 가능.
-     */
-    private static Sort wantCountSort() {
-        return Sort.by(
-                Sort.Order.desc("wantCount"),
-                Sort.Order.desc("createdAt"),
-                Sort.Order.desc("id"));
-    }
 }

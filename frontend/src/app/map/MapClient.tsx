@@ -19,7 +19,6 @@ import type {
   PinSummaryResponse,
   PinTag,
   PlaceSearchItem,
-  WantToggleResponse,
 } from "@/lib/api/types";
 import { apiFetch } from "@/lib/api/http-client";
 import { colors, fonts } from "@/lib/design/tokens";
@@ -29,7 +28,6 @@ import { PermissionDialog } from "@/components/ui/PermissionDialog";
 import { IconLocation } from "@/components/icons";
 import PinPopup from "./_components/PinPopup";
 import VisitToast from "./_components/VisitToast";
-import WishToast from "./_components/WishToast";
 import VisitMemoSheet from "./_components/VisitMemoSheet";
 import ActionBar from "./_components/ActionBar";
 import DesktopActionPill from "./_components/DesktopActionPill";
@@ -70,7 +68,6 @@ import {
 import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
 import {
   deletePinAction,
-  toggleWantAction,
   updatePinCoordinateAction,
   updatePinMemoAction,
   updatePinPlaceNameAction,
@@ -139,18 +136,7 @@ type ActiveSheet =
  */
 type OptimisticAction =
   | { kind: "patch"; pinId: number; patch: Partial<PinSummaryResponse> }
-  | { kind: "remove"; pinId: number }
-  | {
-      /**
-       * Phase 12 (FR-PIN-12-2): WANT 토글 낙관 반영.
-       * - myWant 즉시 토글
-       * - wantCount 는 ±1 (서버 응답 도착 시 권위 값으로 확정)
-       */
-      kind: "wantUpdate";
-      pinId: number;
-      myWant: boolean;
-      wantCountDelta: number;
-    };
+  | { kind: "remove"; pinId: number };
 
 /** 룰렛 시트 내부 상태 머신 (설계 §10). */
 type RouletteUIState =
@@ -228,28 +214,14 @@ export default function MapClient({
     if (action.kind === "remove") {
       return current.filter((p) => p.id !== action.pinId);
     }
-    if (action.kind === "wantUpdate") {
-      return current.map((p) =>
-        p.id === action.pinId
-          ? {
-              ...p,
-              myWant: action.myWant,
-              // race 방어: 음수 방지 (서버 권위 값으로 곧 덮어쓰여짐).
-              wantCount: Math.max(0, p.wantCount + action.wantCountDelta),
-            }
-          : p,
-      );
-    }
     return current.map((p) =>
       p.id === action.pinId ? { ...p, ...action.patch } : p,
     );
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
-  // Phase 12 (FR-PIN-12-26, §9.6) + 후속(UX 재반영, 체크박스 dropdown 복귀):
   // URL ?filter=KEY,KEY,... 콤마 다중값. 모든 키가 켜졌으면 쿼리 자체를 제거(=기본 전체 표시).
-  // 키 종류: MEMORY / WISH / REEL / INTEREST (4가지). 관심(INTEREST)은 발견과 상호배타적 서브셋.
-  // 기존 ?tag= / ?interest= 도 하위호환 1회 매핑.
+  // 키 종류: MEMORY / WISH / REEL (3가지). 기존 ?tag= 는 하위호환 1회 매핑.
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -265,31 +237,20 @@ export default function MapClient({
         );
       if (tokens.length > 0) return new Set<FilterKey>(tokens);
     }
-    // 하위호환: 기존 ?tag= / ?interest=true 조합을 새 모델로 1회 매핑.
-    if (searchParams.get("interest") === "true") {
-      return new Set<FilterKey>(["INTEREST"]);
-    }
+    // 하위호환: 기존 ?tag= 를 새 모델로 1회 매핑.
     const tagParam = searchParams.get("tag");
-    if (tagParam === "REEL") {
-      return new Set<FilterKey>(["REEL", "INTEREST"]); // 발견 단독 = want 무관 모든 REEL
-    }
-    if (tagParam === "WISH" || tagParam === "MEMORY") {
+    if (tagParam === "REEL" || tagParam === "WISH" || tagParam === "MEMORY") {
       return new Set<FilterKey>([tagParam]);
     }
     return new Set<FilterKey>(ALL_FILTER_KEYS);
   });
 
   // 룰렛 등 기존 헬퍼(computeTagsAllowed)와의 호환을 위해 PinTag set 을 파생.
-  // - MEMORY ∈ selected → "MEMORY" 허용
-  // - WISH   ∈ selected → "WISH" 허용
-  // - REEL 또는 INTEREST ∈ selected → "REEL" 허용 (룰렛은 want 필터 미적용)
   const visibleTags = useMemo<Set<PinTag>>(() => {
     const next = new Set<PinTag>();
     if (selectedFilters.has("MEMORY")) next.add("MEMORY");
     if (selectedFilters.has("WISH")) next.add("WISH");
-    if (selectedFilters.has("REEL") || selectedFilters.has("INTEREST")) {
-      next.add("REEL");
-    }
+    if (selectedFilters.has("REEL")) next.add("REEL");
     return next;
   }, [selectedFilters]);
 
@@ -303,15 +264,6 @@ export default function MapClient({
   const [bundlePinIds, setBundlePinIds] = useState<Set<number>>(new Set());
   const [bundleLoadError, setBundleLoadError] = useState<string | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
-  // Phase 12 (FR-PIN-12-11): REEL → WISH 자동 전환 시 0.5초 동안 펄스를 표시할 핀 ID.
-  // toggleWantAction 응답의 wishConverted=true 시 set 되고 0.5초 뒤 자동 null 로 리셋된다.
-  const [pulsingPinId, setPulsingPinId] = useState<number | null>(null);
-  // Phase 12 후속(UX 재반영): WISH 자동 전환 직후 상단 토스트 노출.
-  // WishToast 가 자체 setTimeout 으로 onDismiss 호출 → 본 state null 처리.
-  const [wishToastPin, setWishToastPin] = useState<{
-    pinId: number;
-    placeName: string;
-  } | null>(null);
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [hasCluster, setHasCluster] = useState(false);
   const [mapError, setMapError] = useState<MapLoadErrorReason | null>(null);
@@ -533,92 +485,6 @@ export default function MapClient({
     [applyOptimistic, groupId],
   );
 
-  /**
-   * Phase 12 (FR-PIN-12-2): PinPopup 의 [가고 싶어요] 토글 콜백.
-   *
-   * 흐름:
-   *  1) useOptimistic `wantUpdate` 액션으로 myWant 토글 + wantCount ±1 (즉시 마커/팝업 반영)
-   *  2) toggleWantAction 호출
-   *  3) 성공: 서버 권위 값(tag/wantCount/myWant)으로 pins state 갱신
-   *     wishConverted=true 면 0.5초 펄스 trigger (FR-PIN-12-11)
-   *  4) 실패: transition 종료로 자동 롤백 + PinPopup 인라인 에러 표시
-   */
-  const handleWantToggle = useCallback(
-    (
-      pinId: number,
-    ): Promise<{
-      ok: boolean;
-      data?: WantToggleResponse;
-      message?: string;
-    }> => {
-      return new Promise((resolve) => {
-        startOptimisticTransition(async () => {
-          // 낙관 반영: 현재 클라 상태에서 myWant 토글.
-          const current = pins.find((p) => p.id === pinId);
-          if (!current) {
-            resolve({ ok: false, message: "이 핀을 찾을 수 없어요" });
-            return;
-          }
-          const nextMyWant = !current.myWant;
-          const delta = nextMyWant ? 1 : -1;
-          applyOptimistic({
-            kind: "wantUpdate",
-            pinId,
-            myWant: nextMyWant,
-            wantCountDelta: delta,
-          });
-          const result = await toggleWantAction(groupId, pinId);
-          if (result.ok) {
-            // 서버 권위 값으로 확정. tag 변경(REEL → WISH)도 함께 반영된다.
-            setPins((prev) =>
-              prev.map((p) =>
-                p.id === pinId
-                  ? {
-                      ...p,
-                      tag: result.data.tag,
-                      wantCount: result.data.wantCount,
-                      myWant: result.data.myWant,
-                    }
-                  : p,
-              ),
-            );
-            // WISH 전환이 본 호출에서 일어났으면 0.5초 펄스 trigger (§9.2) + 상단 토스트.
-            if (result.data.wishConverted) {
-              setPulsingPinId(pinId);
-              const converted = pins.find((p) => p.id === pinId);
-              setWishToastPin({
-                pinId,
-                placeName: converted?.placeName ?? "이 곳",
-              });
-            }
-            resolve({ ok: true, data: result.data });
-            return;
-          }
-          const message =
-            result.code === "PIN_WANT_FORBIDDEN_TAG"
-              ? "추억 핀에는 가고 싶어요를 누를 수 없어요"
-              : result.code === "GROUP_NOT_MEMBER"
-                ? "권한이 없어요"
-                : result.code === "PIN_NOT_FOUND"
-                  ? "이 핀을 찾을 수 없어요"
-                  : result.message;
-          resolve({ ok: false, message });
-        });
-      });
-    },
-    [applyOptimistic, groupId, pins],
-  );
-
-  // Phase 12 (FR-PIN-12-11): 펄스 자동 해제 (0.5초). pulsingPinId 가 set 되면
-  // 0.5초 뒤 null 로 되돌려 keyframe 이 1회만 재생되도록 보장한다.
-  useEffect(() => {
-    if (pulsingPinId === null) return;
-    const t = window.setTimeout(() => {
-      setPulsingPinId(null);
-    }, 500);
-    return () => window.clearTimeout(t);
-  }, [pulsingPinId]);
-
   // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle=` 쿼리 변경 시 알림 상세를 fetch 하여
   // 번들 핀 ID Set 을 구성한다. 쿼리가 사라지면 Set 을 비워 번들 모드를 해제한다.
   useEffect(() => {
@@ -653,7 +519,7 @@ export default function MapClient({
 
   /**
    * Phase 12: `?reel_bundle=` 해제 — 쿼리 제거 + 일반 모드 복귀.
-   * 다른 필터(tag/interest) 는 보존한다.
+   * 다른 필터(filter) 는 보존한다.
    */
   const handleReelBundleClear = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -663,15 +529,14 @@ export default function MapClient({
   }, [pathname, router, searchParams]);
 
   /**
-   * Phase 12 후속(UX 재반영): 체크박스 dropdown 의 다중 선택 → state + URL ?filter= 동기화.
-   * 모든 키 선택 시 쿼리 제거 (=기본 상태). 기존 ?tag=/?interest= 는 항상 제거.
+   * 체크박스 dropdown 의 다중 선택 → state + URL ?filter= 동기화.
+   * 모든 키 선택 시 쿼리 제거 (=기본 상태). 기존 ?tag= 는 항상 제거.
    */
   const handleFilterChange = useCallback(
     (next: Set<FilterKey>) => {
       setSelectedFilters(next);
       const params = new URLSearchParams(searchParams.toString());
       params.delete("tag");
-      params.delete("interest");
       if (next.size === 0 || next.size === ALL_FILTER_KEYS.length) {
         params.delete("filter");
       } else {
@@ -1298,11 +1163,10 @@ export default function MapClient({
   // 필터로 숨겨진 핀이 selectedPinId 라면 selectedPin 조회가 자연히 null 이 되어
   // 팝업이 닫힌다. 필터를 다시 켜면 selectedPinId 가 남아 있던 경우 팝업도 복귀한다.
   //
-  // Phase 12 후속(UX 재반영): 4개 필터키 상호배타적 서브셋.
+  // 3개 필터키 (MEMORY / WISH / REEL) — 태그별 노출 여부 결정.
   //  - MEMORY 키 ON → pin.tag === "MEMORY" 포함
   //  - WISH   키 ON → pin.tag === "WISH"   포함
-  //  - REEL   키 ON → pin.tag === "REEL" && wantCount == 0
-  //  - INTEREST 키 ON → pin.tag === "REEL" && wantCount >= 1
+  //  - REEL   키 ON → pin.tag === "REEL"   포함 (want 무관 전체)
   //  - bundlePinIds (§9.7): 번들 모드에서도 비번들 핀을 지도에서 제거하지 않는다.
   //    PRD AC-12-36 + D-14 "비번들 핀 opacity 0.3" 요구를 충족하기 위해 visibleOptimisticPins
   //    에는 그대로 포함시키고, 아래 dimmedPinIds 로 MapboxView 에 전달하여 마커 element 의
@@ -1311,8 +1175,6 @@ export default function MapClient({
     return optimisticPins.filter((p) => {
       if (p.tag === "MEMORY") return selectedFilters.has("MEMORY");
       if (p.tag === "WISH") return selectedFilters.has("WISH");
-      // REEL 분기
-      if (p.wantCount >= 1) return selectedFilters.has("INTEREST");
       return selectedFilters.has("REEL");
     });
   }, [optimisticPins, selectedFilters]);
@@ -1985,7 +1847,6 @@ export default function MapClient({
         }
         skipInitialGeoFly={skipInitialGeoFly}
         dimmedPinIds={dimmedPinIds}
-        pulsingPinId={pulsingPinId}
       />
       {mapError && <MapLoadError reason={mapError} />}
       <MobileTopNav
@@ -2118,8 +1979,6 @@ export default function MapClient({
           deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
           onRequestCoordinateEdit={handleRequestCoordinateEdit}
           coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
-          onWantToggle={handleWantToggle}
-          pulse={pulsingPinId === selectedPin.id}
         />
       )}
       {deleteCandidate && (
@@ -2130,12 +1989,6 @@ export default function MapClient({
         />
       )}
       {activePanel}
-      {wishToastPin && (
-        <WishToast
-          placeName={wishToastPin.placeName}
-          onDismiss={() => setWishToastPin(null)}
-        />
-      )}
       {visitToastPin && (
         <VisitToast
           pin={visitToastPin}

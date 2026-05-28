@@ -12,8 +12,6 @@ import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Phase 12 BULK_SAVE 상태 핸들러 (31개+ 추출 시).
@@ -65,18 +63,14 @@ public class ReelBulkSaveHandler {
         }
 
         int total = snapshot.places().size();
-        // BULK_SAVE 는 전체 인덱스를 항상 선택. 메모만 입력받는다.
-        HashSet<Integer> all = new HashSet<>(
-                IntStream.rangeClosed(1, total).boxed().collect(Collectors.toList()));
-
+        // Phase 13: BULK_SAVE 는 전체를 발견(REEL)으로 저장 → wishIndices=∅. 메모만 입력받는다.
         String pendingMemo = SKIP_TEXT.equals(utterance) ? null : utterance;
 
         ReelSavedSelectionSession.Snapshot next = new ReelSavedSelectionSession.Snapshot(
                 ReelSavedSelectionSession.State.MEMO_WAITING,
                 snapshot.instagramUrl(),
                 snapshot.places(),
-                all,
-                false,
+                new HashSet<>(),
                 ZonedDateTime.now().plusSeconds(180),
                 pendingMemo
         );

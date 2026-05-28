@@ -61,9 +61,6 @@ public enum ErrorType {
     PIN_PAGE_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_PAGE_PARAM_INVALID", "페이지 파라미터가 유효하지 않습니다."),
 
     /** 핀 (Phase 12) */
-    PIN_WANT_FORBIDDEN_TAG(HttpStatus.BAD_REQUEST, "PIN_WANT_FORBIDDEN_TAG", "추억 핀에는 가고 싶어요를 누를 수 없습니다."),
-    PIN_WANT_COUNT_NEGATIVE(HttpStatus.INTERNAL_SERVER_ERROR, "PIN_WANT_COUNT_NEGATIVE", "WANT 카운트 상태가 잘못되었습니다."),
-    PIN_SORT_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_SORT_PARAM_INVALID", "정렬 파라미터가 유효하지 않습니다."),
     PIN_CLEANUP_FORBIDDEN(HttpStatus.FORBIDDEN, "PIN_CLEANUP_FORBIDDEN", "정리 권한이 없어요."),
     BOT_REEL_PARSE_FORMAT(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_FORMAT", "릴스 장소 선택 형식이 올바르지 않아요."),
     BOT_REEL_PARSE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_OUT_OF_RANGE", "릴스 장소 번호가 범위를 벗어났어요.");

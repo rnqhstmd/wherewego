@@ -40,8 +40,6 @@ export function NotificationPinList({
   // Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림만 "지도에서 보기" 버튼 노출.
   //  - VISIT_DETECTED: 이미 사용자가 다녀온 핀이라 번들 강조가 의미 없음.
   //  - MANUAL_PIN: 짝꿍이 직접 추가한 단건이므로 기존 핀 선택 흐름(flyTo)으로 충분.
-  //  - WISH_CONVERTED: 단일 핀의 과반 달성 알림이므로 번들 강조 의미 없음 — 기존 핀 클릭으로 flyTo.
-  //    MapClient 는 `?reel_bundle=` 만 처리하며 단일 핀은 onSelectPin → flyTo 경로로 자연 진입한다.
   const showMapButton =
     type === 'CHATBOT_PINS' && pins.some((p) => !p.deleted);
 
@@ -75,9 +73,7 @@ export function NotificationPinList({
           <div style={{ fontSize: 13, color: colors.ink, fontWeight: 600, marginBottom: 3 }}>
             {type === 'VISIT_DETECTED'
               ? `함께 만든 추억 ${pins.length}곳`
-              : type === 'WISH_CONVERTED'
-                ? `🌟 위시로 올라간 곳 ${pins.length}곳`
-                : `${actorLabel} 저장한 ${pins.length}곳`}
+              : `${actorLabel} 저장한 ${pins.length}곳`}
           </div>
           <div style={{ fontSize: 11, color: colors.inkSoft, fontFamily: fonts.mono }}>
             {formatTime(createdAt)}
@@ -107,8 +103,7 @@ export function NotificationPinList({
 
       {/* Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림에만 지도 번들 진입 버튼.
           클릭 시 `/map?reel_bundle={notificationId}` 로 이동하여 본 알림에 묶인 핀을
-          강조 표시 (비번들 opacity 0.3) + 상단 해제 배너 노출. WISH_CONVERTED 는 단일 핀이므로
-          기존 핀 클릭 → flyTo 경로로 처리한다. */}
+          강조 표시 (비번들 opacity 0.3) + 상단 해제 배너 노출. */}
       {showMapButton && (
         <div style={{ padding: '0 16px 12px' }}>
           <button

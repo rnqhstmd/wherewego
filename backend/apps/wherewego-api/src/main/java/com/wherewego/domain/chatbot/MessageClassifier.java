@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 세션 자동 저장 후 덮어씀)</li>
  *     <li>SINGLE_WANT_YES / SINGLE_WANT_NO :
  *         {@link ReelSavedSelectionSession} state = SINGLE_WANT 인 경우 발화 정확 매칭
- *         ("가고 싶어요" / "발견으로만 저장")</li>
+ *         (Phase 13: "위시로 저장" / "발견으로 저장")</li>
  *     <li>REEL_PLACE_SELECTION  : state = MULTI_SELECTING / BULK_SAVE 인 경우 모든 발화
  *         (콤마 숫자 / "전부" / "건너뛰기" — 핸들러에서 세부 분기)</li>
  *     <li>REEL_MEMO_WAITING     : state = MEMO_WAITING 인 경우 모든 발화</li>
@@ -32,9 +32,12 @@ public class MessageClassifier {
             "^https?://(www\\.)?(instagram\\.com|instagr\\.am)/(p|reel|reels)/[A-Za-z0-9_-]+/?.*"
     );
 
-    /** SINGLE_WANT 단계 QuickReply 정확 매칭 텍스트. */
-    private static final String SINGLE_WANT_YES_TEXT = "가고 싶어요";
-    private static final String SINGLE_WANT_NO_TEXT = "발견으로만 저장";
+    /**
+     * SINGLE_WANT 단계 QuickReply 정확 매칭 텍스트 (Phase 13).
+     * 위시로 저장 / 발견으로 저장. (enum 이름 SINGLE_WANT_YES/NO 는 의미 재해석으로 보존.)
+     */
+    private static final String SINGLE_WANT_YES_TEXT = "위시로 저장";
+    private static final String SINGLE_WANT_NO_TEXT = "발견으로 저장";
 
     private final TwoSecondMemoSession twoSecondMemoSession;
     private final ReelSavedSelectionSession reelSavedSelectionSession;

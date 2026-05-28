@@ -3,7 +3,6 @@ package com.wherewego.domain.chatbot;
 import com.wherewego.config.security.RequestIdFilter;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.handler.ReelMemoWaitingHandler;
-import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.notification.NotificationService;
 import jakarta.annotation.PreDestroy;
@@ -12,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -28,13 +26,9 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>botUserKey 단위로 단일 task. 동일 키에 schedule 재호출 시 이전 task 를 cancel(false) 후 새 task 등록.</p>
  *
- * <p>만료 시 처리 (D-3, D-4 보수적):
- * <ul>
- *     <li>SINGLE_WANT  → 전체 REEL 저장 (want 없음)</li>
- *     <li>MULTI_SELECTING → 전체 REEL 저장</li>
- *     <li>BULK_SAVE   → 전체 REEL 저장 (BULK 는 이미 즉시 저장 분기지만 메모 미입력 시 동일)</li>
- *     <li>MEMO_WAITING → 기존 선택대로 저장 (메모 없음)</li>
- * </ul></p>
+ * <p>만료 시 처리 (Phase 13 §4.8, D-3/D-4 보수적): 모든 추출 핀을 저장하되 wishIndices 가 든 것만 WISH.
+ * 미응답 단계(SINGLE_WANT/MULTI_SELECTING/BULK_SAVE)는 wishIndices 가 비어 있으므로 전체 발견(REEL)으로 저장된다.
+ * MEMO_WAITING 단계라면 사용자가 이미 결정한 wishIndices 를 존중한다.</p>
  */
 @Component
 public class ReelSelectionAutoSaveScheduler {
@@ -55,7 +49,6 @@ public class ReelSelectionAutoSaveScheduler {
     private final ReelSavedSelectionSession reelSavedSelectionSession;
     private final BotUserMappingService botUserMappingService;
     private final GroupMemberService groupMemberService;
-    private final GroupMemberRepository groupMemberRepository;
     private final ReelMemoWaitingHandler reelMemoWaitingHandler;
     private final NotificationService notificationService;
     private final PendingNotificationSession pendingNotificationSession;
@@ -63,14 +56,12 @@ public class ReelSelectionAutoSaveScheduler {
     public ReelSelectionAutoSaveScheduler(ReelSavedSelectionSession reelSavedSelectionSession,
                                           BotUserMappingService botUserMappingService,
                                           GroupMemberService groupMemberService,
-                                          GroupMemberRepository groupMemberRepository,
                                           ReelMemoWaitingHandler reelMemoWaitingHandler,
                                           NotificationService notificationService,
                                           PendingNotificationSession pendingNotificationSession) {
         this.reelSavedSelectionSession = reelSavedSelectionSession;
         this.botUserMappingService = botUserMappingService;
         this.groupMemberService = groupMemberService;
-        this.groupMemberRepository = groupMemberRepository;
         this.reelMemoWaitingHandler = reelMemoWaitingHandler;
         this.notificationService = notificationService;
         this.pendingNotificationSession = pendingNotificationSession;
@@ -132,13 +123,11 @@ public class ReelSelectionAutoSaveScheduler {
         }
         Long groupId = groupIdOpt.get();
 
-        // 보수적 처리: 선택이 비어 있으면 전체 인덱스로 채움 (D-3, D-4).
-        ReelSavedSelectionSession.Snapshot effective = ensureSelectionFilled(snapshot);
-        int activeMemberCount = (int) groupMemberRepository.countActiveByGroupId(groupId);
-
+        // Phase 13: saveAll 이 전체 핀을 저장하고 wishIndices 만 WISH 로 분기한다. 미응답 만료 시
+        // wishIndices 가 비어 있으면 전체 발견(REEL)으로 보수 저장된다 (§4.8).
         try {
-            ReelMemoWaitingHandler.SaveResult result = reelMemoWaitingHandler.saveAllSelected(
-                    userId, groupId, effective, effective.pendingMemo(), activeMemberCount);
+            ReelMemoWaitingHandler.SaveResult result = reelMemoWaitingHandler.saveAll(
+                    userId, groupId, snapshot, snapshot.pendingMemo());
             if (!result.savedPinIds().isEmpty()) {
                 try {
                     notificationService.createForChatbotBatch(groupId, userId, result.savedPinIds());
@@ -162,27 +151,6 @@ public class ReelSelectionAutoSaveScheduler {
                 reelSavedSelectionSession.invalidate(botUserKey);
             }
         }
-    }
-
-    private static ReelSavedSelectionSession.Snapshot ensureSelectionFilled(
-            ReelSavedSelectionSession.Snapshot snapshot) {
-        if (!snapshot.selectedIndices().isEmpty()) {
-            return snapshot;
-        }
-        int total = snapshot.places().size();
-        HashSet<Integer> all = new HashSet<>();
-        for (int i = 1; i <= total; i++) {
-            all.add(i);
-        }
-        return new ReelSavedSelectionSession.Snapshot(
-                snapshot.state(),
-                snapshot.instagramUrl(),
-                snapshot.places(),
-                all,
-                snapshot.wantOnSelected(),
-                snapshot.expiresAt(),
-                snapshot.pendingMemo()
-        );
     }
 
     @PreDestroy

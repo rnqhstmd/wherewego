@@ -24,8 +24,7 @@ interface SpeechBubblePopupProps {
   /** ⋮ 버튼 좌측 sibling 영역 (Phase 9 공유 버튼 등). undefined면 ⋮ 단독 렌더. */
   shareAction?: ReactNode;
   /**
-   * Phase 12 후속(UX 개선): 본문 우측에 placeRow와 같은 라인에 떠 있는 액션 영역.
-   * WANT(하트) 토글을 무신사 스타일(카운트 + 하트)로 배치하기 위해 사용한다.
+   * 본문 우측에 placeRow와 같은 라인에 떠 있는 액션 영역 (선택).
    * place가 있으면 place 줄과 같은 row, 없으면 addr 줄과 같은 row 우측에 정렬된다.
    */
   bodyAction?: ReactNode;

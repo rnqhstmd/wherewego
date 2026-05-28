@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type mapboxgl from "mapbox-gl";
-import type {
-  PinSummaryResponse,
-  PinTag,
-  WantToggleResponse,
-} from "@/lib/api/types";
+import type { PinSummaryResponse, PinTag } from "@/lib/api/types";
 import { SpeechBubblePopup } from "@/components/ui/SpeechBubblePopup";
 import { PinTag as PinTagChip } from "@/components/ui/PinTag";
 import type { PinDotType } from "@/components/ui/PinDot";
@@ -39,22 +35,6 @@ interface PinPopupProps {
   deleteError: string | null;
   onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
   coordinateError: string | null;
-  /**
-   * Phase 12 (FR-PIN-12-2): WANT(가고 싶어요) 토글 콜백. 부모(MapClient)가
-   * Server Action 호출 + useOptimistic 갱신을 책임진다. 응답의 `wishConverted: true`
-   * 시 부모가 마커 펄스 trigger 등 1회성 효과를 발사한다.
-   */
-  onWantToggle?: (pinId: number) => Promise<{
-    ok: boolean;
-    data?: WantToggleResponse;
-    message?: string;
-  }>;
-  /**
-   * Phase 12 (FR-PIN-12-11): REEL → WISH 자동 전환 시 0.5초 동안 true.
-   * 본 컴포넌트는 SpeechBubblePopup 내부 마커(글리프) 펄스 통합을 추후 배치에서
-   * 적용하도록 prop 만 정의해둔다. 현 배치 범위에서는 단순 patrhrough.
-   */
-  pulse?: boolean;
 }
 
 type PopupMode = "view" | "menu" | "edit";
@@ -74,12 +54,6 @@ export default function PinPopup({
   deleteError,
   onRequestCoordinateEdit,
   coordinateError,
-  onWantToggle,
-  // pulse: Phase 12 §9.2 펄스 효과. 본 배치에서는 SpeechBubblePopup 글리프 통합 미적용 —
-  // 추후 배치에서 SpeechBubblePopup pinType 자리 PinDot에 pulse prop 으로 전달 예정.
-  // 현 시점에서는 받기만 하여 호출부 (MapClient) 가 안정적으로 prop 을 전달할 수 있게 한다.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  pulse: _pulse,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
@@ -95,12 +69,6 @@ export default function PinPopup({
   const [placeError, setPlaceError] = useState<string | null>(null);
   // Phase 9: 공유 카드 시트 표시 여부.
   const [shareOpen, setShareOpen] = useState(false);
-
-  // Phase 12 (FR-PIN-12-2): WANT 토글 진행 중 + 직전 에러 메시지.
-  // 토글은 부모(MapClient)가 useOptimistic 으로 pin.wantCount/myWant 를 즉시 갱신하므로
-  // 본 컴포넌트에서는 별도 옵티미스틱 상태를 유지하지 않고 pending 만 표시한다.
-  const [wantPending, setWantPending] = useState(false);
-  const [wantError, setWantError] = useState<string | null>(null);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -129,8 +97,6 @@ export default function PinPopup({
     setPlacePending(false);
     setPlaceError(null);
     setShareOpen(false);
-    setWantPending(false);
-    setWantError(null);
   }
 
   useEffect(() => {
@@ -212,24 +178,6 @@ export default function PinPopup({
     setMode((prev) =>
       prev === "menu" ? "view" : prev === "edit" ? "view" : "menu",
     );
-  };
-
-  /**
-   * Phase 12 (FR-PIN-12-2): WANT 토글.
-   * 부모(MapClient)가 useOptimistic 으로 pin.wantCount/myWant 를 즉시 반영하고,
-   * 실패 시 transition 종료 → 자동 롤백된다. 본 컴포넌트는 pending/error 만 관리.
-   */
-  const handleWantToggle = async () => {
-    // 후속(UX 재반영): WANT 토글은 REEL 핀에서만 동작. WISH/MEMORY 는 노출 자체 안 함.
-    if (!onWantToggle || wantPending || pin.tag !== "REEL") return;
-    setWantPending(true);
-    setWantError(null);
-    const result = await onWantToggle(pin.id);
-    if (!mountedRef.current) return;
-    setWantPending(false);
-    if (!result.ok) {
-      setWantError(result.message ?? "처리에 실패했어요");
-    }
   };
 
   // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
@@ -397,28 +345,7 @@ export default function PinPopup({
     </div>
   );
 
-  // Phase 12 후속(UX 개선, 재반영):
-  //  - 출처 뱃지(📹/✏️), 도움말(?) 모두 PinPopup 에서 제거 — 도움말은 좌하단 ! (TagLegendButton) 통합.
-  //  - WANT 하트는 무신사 스타일로 place row 우측에 배치 (좌측 count + 우측 하트 아이콘).
-  //  - WANT 에러는 view 모드 inline footer 가 더 이상 없으므로 본문 하단 별도 영역에 노출한다.
-  const viewFooter = wantError ? (
-    <div style={inlineErrorStyle}>{wantError}</div>
-  ) : null;
-
-  // place row 우측 하트 (WANT). 후속(UX 재반영): REEL 핀에만 노출(WISH/MEMORY 모두 숨김).
-  // - WISH 는 이미 둘 다 가고 싶어한 결과 상태라 추가 액션 불필요.
-  // - MEMORY 는 다녀온 곳이라 가고 싶어요 의미가 없음.
-  const bodyHeart =
-    pin.tag === "REEL" && onWantToggle ? (
-      <HeartAction
-        myWant={pin.myWant}
-        wantCount={pin.wantCount}
-        pending={wantPending}
-        onToggle={handleWantToggle}
-      />
-    ) : undefined;
-
-  const footer = mode === "edit" ? editFooter : viewFooter;
+  const footer = mode === "edit" ? editFooter : null;
 
   // ⋮ 바로 아래에 뜨는 드롭다운형 popover (backdrop 없음, popup 내부에 absolute).
   const menuPopover =
@@ -520,7 +447,6 @@ export default function PinPopup({
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
         shareAction={shareButton}
-        bodyAction={mode === "view" ? bodyHeart : undefined}
         footerContent={footer}
       >
         {menuPopover}
@@ -580,120 +506,6 @@ const hintTextStyle = {
   color: colors.inkSoft,
   alignSelf: "center" as const,
 };
-
-/**
- * Phase 12 후속(UX 재반영2): 무신사 스타일 WANT 하트 액션 — 작은 크기 + 얇은 선 + vivid red.
- *  - 좌측: 받은 하트 카운트 (작은 회색 텍스트, 0 이면 미노출)
- *  - 우측: 하트 아이콘 16px, strokeWidth 1.3, 활성 시 #FF2D55(vivid red)
- *  - hover/focus 시 안내 툴팁 노출.
- *  - MEMORY 핀에는 호출부에서 미노출.
- */
-const WANT_RED = "#FF2D55";
-
-function HeartAction({
-  myWant,
-  wantCount,
-  pending,
-  onToggle,
-}: {
-  myWant: boolean;
-  wantCount: number;
-  pending: boolean;
-  onToggle: () => void;
-}) {
-  const [hover, setHover] = useState(false);
-  // 커플(2인) 그룹 톤 — count/내 상태별 자연어 분기.
-  // - 아무도 안 누름: "가고 싶어요" (기본 권유)
-  // - 애인만 누름:   "애인이 가고 싶어해요"
-  // - 나만 누름:     "가고 싶다고 표시했어요"
-  // - 둘 다:         "둘 다 가고 싶어해요" (WISH 직전 — 잠깐만 보임)
-  const tooltipText = myWant
-    ? wantCount > 1
-      ? "둘 다 가고 싶어해요"
-      : "가고 싶다고 표시했어요"
-    : wantCount > 0
-      ? "애인이 가고 싶어해요"
-      : "가고 싶어요";
-
-  return (
-    <div
-      style={{ position: "relative", display: "inline-flex" }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={pending}
-        aria-label={tooltipText}
-        aria-pressed={myWant}
-        onFocus={() => setHover(true)}
-        onBlur={() => setHover(false)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "2px 2px",
-          background: "transparent",
-          border: "none",
-          cursor: pending ? "wait" : "pointer",
-          color: myWant ? WANT_RED : colors.inkSoft,
-          opacity: pending ? 0.6 : 1,
-        }}
-      >
-        {wantCount > 0 && (
-          <span
-            style={{
-              fontFamily: fonts.mono,
-              fontSize: 11,
-              fontWeight: 600,
-              color: myWant ? WANT_RED : colors.inkSoft,
-              lineHeight: 1,
-              minWidth: 6,
-              textAlign: "right",
-            }}
-          >
-            {wantCount}
-          </span>
-        )}
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 21s-7.5-4.6-9.5-9.1C1 7.7 3.6 4 7.3 4c2 0 3.5 1.1 4.7 2.7C13.2 5.1 14.7 4 16.7 4c3.7 0 6.3 3.7 4.8 7.9C19.5 16.4 12 21 12 21z"
-            fill={myWant ? WANT_RED : "none"}
-            stroke={myWant ? WANT_RED : "currentColor"}
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-      {hover && (
-        <span
-          role="tooltip"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            right: 0,
-            whiteSpace: "nowrap",
-            padding: "5px 9px",
-            borderRadius: 8,
-            background: colors.ink,
-            color: "#fff",
-            fontFamily: fonts.sans,
-            fontSize: 11,
-            fontWeight: 600,
-            boxShadow: `0 4px 12px ${colors.shadow}`,
-            pointerEvents: "none",
-            zIndex: 30,
-          }}
-        >
-          {tooltipText}
-        </span>
-      )}
-    </div>
-  );
-}
-
-
 
 function renderTabButton(
   target: EditTab,

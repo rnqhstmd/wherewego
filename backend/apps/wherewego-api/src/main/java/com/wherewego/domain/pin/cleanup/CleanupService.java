@@ -20,11 +20,11 @@ import java.util.List;
 /**
  * Phase 12 오래된 핀 정리 서비스 (FR-PIN-12-23~25).
  *
- * <p>정리 대상: {@code tag=REEL AND memo_source='AUTO' AND want_count=0 AND created_at < NOW()-30일
+ * <p>정리 대상: {@code tag=REEL AND memo_source='AUTO' AND created_at < NOW()-30일
  * AND deleted_at IS NULL}. 사용자가 7일 snooze 를 누르면 {@code users.cleanup_snoozed_until} 갱신.</p>
  *
- * <p>책임 격리: {@link com.wherewego.domain.pin.PinService} (CRUD) / {@link com.wherewego.domain.pin.want.WantService}
- * (WANT 토글) 와 별도 패키지 {@code domain.pin.cleanup} 으로 분리한다.</p>
+ * <p>책임 격리: {@link com.wherewego.domain.pin.PinService} (CRUD) 와 별도 패키지
+ * {@code domain.pin.cleanup} 으로 분리한다.</p>
  */
 @Slf4j
 @Service

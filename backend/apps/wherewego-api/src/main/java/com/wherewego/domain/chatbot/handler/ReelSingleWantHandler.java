@@ -13,14 +13,15 @@ import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Phase 12 SINGLE_WANT 상태 핸들러.
+ * Phase 12/13 SINGLE_WANT 상태 핸들러.
  *
- * <p>릴스에서 장소 1개가 추출된 경우, 사용자는 "가고 싶어요" 또는 "발견으로만 저장" 중 선택한다.
- * 두 분기 모두 단일 인덱스(1번)를 선택한 채로 {@code MEMO_WAITING} 으로 전이한다.
- * {@code wantOnSelected} 플래그만 분기에 따라 달라진다 — 이후 {@link ReelMemoWaitingHandler}
- * 에서 핀 저장 직후 {@code WantService.markWantOnInitialSave} 호출 여부를 결정한다 (patch P-5).</p>
+ * <p>릴스에서 장소 1개가 추출된 경우, 사용자는 "위시로 저장" 또는 "발견으로 저장" 중 선택한다 (Phase 13).
+ * 어느 쪽이든 1번 핀은 저장되며, [위시로 저장]은 {@code wishIndices={1}} (WISH), [발견으로 저장]은
+ * {@code wishIndices={}} (REEL) 로 {@code MEMO_WAITING} 으로 전이한다. 실제 저장은
+ * {@link ReelMemoWaitingHandler} 가 wishIndices 기준으로 태그를 결정한다 (§2.1).</p>
  *
  * <p>QuickReply: [건너뛰기] — 메모 없이 즉시 저장하려는 사용자용.</p>
  */
@@ -30,9 +31,9 @@ public class ReelSingleWantHandler implements MessageHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ReelSingleWantHandler.class);
 
-    /** SINGLE_WANT QuickReply 정확 매칭. {@code MessageClassifier} 와 동일 상수 유지. */
-    static final String SINGLE_WANT_YES_TEXT = "가고 싶어요";
-    static final String SINGLE_WANT_NO_TEXT = "발견으로만 저장";
+    /** SINGLE_WANT QuickReply 정확 매칭 (Phase 13). {@code MessageClassifier} 와 동일 상수 유지. */
+    static final String SINGLE_WANT_YES_TEXT = "위시로 저장";
+    static final String SINGLE_WANT_NO_TEXT = "발견으로 저장";
 
     private final ReelSavedSelectionSession reelSavedSelectionSession;
 
@@ -68,27 +69,27 @@ public class ReelSingleWantHandler implements MessageHandler {
                     "지금은 다른 단계예요. 메시지를 다시 보내주세요.");
         }
 
-        boolean wantYes = SINGLE_WANT_YES_TEXT.equals(utterance);
-        boolean wantNo = SINGLE_WANT_NO_TEXT.equals(utterance);
-        if (!wantYes && !wantNo) {
+        boolean saveAsWish = SINGLE_WANT_YES_TEXT.equals(utterance);
+        boolean saveAsReel = SINGLE_WANT_NO_TEXT.equals(utterance);
+        if (!saveAsWish && !saveAsReel) {
             // 정확 매칭 외 발화 — 안내 + 세션 유지.
             return ChatbotV1Dto.SkillResponse.simple(
                     "아래 버튼 중 하나를 선택해주세요.",
                     quickReplies());
         }
 
-        // 1-based 인덱스 1번 단일 선택. MEMO_WAITING 으로 전이.
+        // Phase 13: 1번 핀은 항상 저장. [위시로 저장]이면 wishIndices={1}, [발견으로 저장]이면 {}.
+        Set<Integer> wishIndices = saveAsWish ? new HashSet<>(List.of(1)) : new HashSet<>();
         ReelSavedSelectionSession.Snapshot next = new ReelSavedSelectionSession.Snapshot(
                 ReelSavedSelectionSession.State.MEMO_WAITING,
                 snapshot.instagramUrl(),
                 snapshot.places(),
-                new HashSet<>(List.of(1)),
-                wantYes,
+                wishIndices,
                 ZonedDateTime.now().plusSeconds(180),
                 null
         );
         reelSavedSelectionSession.put(botUserKey, next);
-        log.info("SINGLE_WANT transitioned to MEMO_WAITING botUserKey={} wantYes={}", botUserKey, wantYes);
+        log.info("SINGLE_WANT transitioned to MEMO_WAITING botUserKey={} saveAsWish={}", botUserKey, saveAsWish);
 
         return ChatbotV1Dto.SkillResponse.simple(
                 "메모를 남기시겠어요? (3분 내 응답이 없으면 자동 저장됩니다)",
@@ -97,8 +98,8 @@ public class ReelSingleWantHandler implements MessageHandler {
 
     private static List<ChatbotV1Dto.QuickReply> quickReplies() {
         return List.of(
-                ChatbotV1Dto.QuickReply.message("가고 싶어요", SINGLE_WANT_YES_TEXT),
-                ChatbotV1Dto.QuickReply.message("발견으로만 저장", SINGLE_WANT_NO_TEXT)
+                ChatbotV1Dto.QuickReply.message("위시로 저장", SINGLE_WANT_YES_TEXT),
+                ChatbotV1Dto.QuickReply.message("발견으로 저장", SINGLE_WANT_NO_TEXT)
         );
     }
 

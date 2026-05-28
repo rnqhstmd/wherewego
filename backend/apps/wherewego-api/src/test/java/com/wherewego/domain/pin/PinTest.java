@@ -57,7 +57,7 @@ class PinTest {
         @Test
         void fromSelection_setsReelTagAndNullMemoSource() {
             // act
-            Pin pin = Pin.fromSelection(10L, 7L, HIT, "https://www.instagram.com/p/ABC/");
+            Pin pin = Pin.fromSelection(10L, 7L, HIT, "https://www.instagram.com/p/ABC/", PinTag.REEL);
 
             // assert
             assertThat(pin.getTag()).isEqualTo(PinTag.REEL);

@@ -21,17 +21,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PinService {
 
-    /** Phase 12: GET /pins 정렬 파라미터 — 생성일 내림차순(default). */
-    public static final String SORT_CREATED_AT = "created_at";
-    /** Phase 12: GET /pins 정렬 파라미터 — want_count 내림차순 (FR-PIN-12-8). */
-    public static final String SORT_WANT_COUNT = "want_count";
-
     private final PinRepository pinRepository;
-    private final PinEventRepository pinEventRepository;
     private final GroupMemberService groupMemberService;
     private final UserRepository userRepository;
 
-    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 포함). WANT 정보 없는 단건 응답용. */
+    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 포함). */
     private PinSummary toSummary(Pin pin) {
         String createdByNickname = userRepository.findById(pin.getCreatedBy())
                 .map(u -> u.getNickname())
@@ -43,12 +37,9 @@ public class PinService {
     }
 
     /**
-     * 다건 Pin → PinSummary 변환. N+1 회피를 위해 관련 user ids + myWant 핀ID 집합을 배치 조회.
-     *
-     * <p>Phase 12: {@code viewerId} 기준 {@code pin_events} 조회로 {@code myWant} 를 일괄 주입한다.
-     * {@code wantCount} 는 {@link Pin#getWantCount()} 컬럼을 그대로 사용한다.</p>
+     * 다건 Pin → PinSummary 변환. N+1 회피를 위해 관련 user ids 를 배치 조회하여 닉네임만 주입한다.
      */
-    private List<PinSummary> toSummaries(List<Pin> pins, Long viewerId) {
+    private List<PinSummary> toSummaries(List<Pin> pins) {
         if (pins.isEmpty()) return List.of();
         Set<Long> userIds = pins.stream()
                 .flatMap(p -> {
@@ -60,16 +51,11 @@ public class PinService {
                 .collect(Collectors.toSet());
         Map<Long, String> nicknames = userRepository.findNicknamesByIds(userIds);
 
-        List<Long> pinIds = pins.stream().map(Pin::getId).toList();
-        Set<Long> myWantPinIds = pinEventRepository.findMyWantPinIds(pinIds, viewerId);
-
         return pins.stream()
                 .map(p -> PinSummary.from(
                         p,
                         nicknames.get(p.getCreatedBy()),
-                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null,
-                        p.getWantCount(),
-                        myWantPinIds.contains(p.getId())))
+                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null))
                 .toList();
     }
 
@@ -137,12 +123,12 @@ public class PinService {
     }
 
     /**
-     * 후보 카드 선택 기반 등록. UNIQUE 충돌 시 동일하게 propagate.
+     * 후보 카드 선택 기반 등록 (REEL). UNIQUE 충돌 시 동일하게 propagate.
      */
     @Transactional
     public Pin registerFromSelection(Long userId, Long groupId, PlaceSearchHit hit, String instagramUrl) {
         groupMemberService.requireActiveMembership(userId, groupId);
-        Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
+        Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl, PinTag.REEL);
         return pinRepository.save(pin);
     }
 
@@ -150,10 +136,15 @@ public class PinService {
      * 후보 카드 선택 기반 등록 + 좌표/이름 기반 중복 사전 검사.
      * URL이 달라도 같은 그룹 + 동일 placeName + 좌표 근접(±0.0001도) 이면 이미 저장된 핀으로 간주한다.
      * {@link #registerFromInstagramWithDedup} 와 동일 정책. 다만 도메인 팩토리는 {@link Pin#fromSelection} 을 사용한다.
+     *
+     * <p>Phase 13: 저장 태그를 호출자가 지정한다. 챗봇이 위시 직저장(WISH) / 발견 저장(REEL) 을 구분한다.
+     * dedup 으로 잡힌 기존 핀은 태그를 변경하지 않고 {@code alreadyExisted=true} 로 그대로 반환한다
+     * (이미 저장된 의사 존중).</p>
      */
     @Transactional
     public RegisterPinResult registerFromSelectionWithDedup(Long userId, Long groupId,
-                                                            PlaceSearchHit hit, String instagramUrl) {
+                                                            PlaceSearchHit hit, String instagramUrl,
+                                                            PinTag tag) {
         groupMemberService.requireActiveMembership(userId, groupId);
         BigDecimal lat = BigDecimal.valueOf(hit.latitude());
         BigDecimal lng = BigDecimal.valueOf(hit.longitude());
@@ -163,7 +154,7 @@ public class PinService {
             return new RegisterPinResult(existing.get(), true);
         }
         try {
-            Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl);
+            Pin pin = Pin.fromSelection(groupId, userId, hit, instagramUrl, tag);
             Pin saved = pinRepository.saveAndFlush(pin);
             return new RegisterPinResult(saved, false);
         } catch (DataIntegrityViolationException e) {
@@ -206,73 +197,31 @@ public class PinService {
     }
 
     /**
-     * 그룹의 활성 핀 목록을 조회한다 (FR-1, BR-2, BR-10).
+     * 그룹의 활성 핀 목록을 created_at 내림차순으로 조회한다 (FR-1, BR-2, BR-10).
      * 활성 멤버십이 없으면 {@link ErrorType#GROUP_NOT_MEMBER} (AC-3).
-     *
-     * <p>Phase 12: {@code sort}, {@code interestOnly} 신규 파라미터 (FR-PIN-12-8, 9).
-     * legacy 모드(페이지 미적용)에서도 정렬/필터 변형을 허용한다.</p>
-     */
-    @Transactional(readOnly = true)
-    public List<PinSummary> listGroupPins(Long userId, Long groupId, PinTag tagFilter,
-                                          String sort, boolean interestOnly) {
-        groupMemberService.requireActiveMembership(userId, groupId);
-        String normalizedSort = normalizeSort(sort);
-
-        List<Pin> pins;
-        if (interestOnly) {
-            // 관심 필터: tag 조합 OR 전체 — 페이지 없는 경우 size=Integer.MAX_VALUE 의도이지만,
-            // legacy 경로 호환을 위해 page=0, size=Integer.MAX_VALUE 로 호출.
-            pins = pinRepository.findActiveByGroupIdInterestOnly(groupId, tagFilter, 0, Integer.MAX_VALUE);
-        } else if (SORT_WANT_COUNT.equals(normalizedSort)) {
-            pins = tagFilter == null
-                    ? pinRepository.findActiveByGroupIdSortedByWantCount(groupId, 0, Integer.MAX_VALUE)
-                    : pinRepository.findActiveByGroupIdAndTagSortedByWantCount(
-                            groupId, tagFilter, 0, Integer.MAX_VALUE);
-        } else {
-            pins = tagFilter == null
-                    ? pinRepository.findActiveByGroupIdOrderByCreatedAtDesc(groupId)
-                    : pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(groupId, tagFilter);
-        }
-        return toSummaries(pins, userId);
-    }
-
-    /**
-     * 그룹의 활성 핀 목록 조회 (legacy 시그니처 — sort=null, interestOnly=false).
-     * 기존 호출자(테스트 등) 호환 유지용.
      */
     @Transactional(readOnly = true)
     public List<PinSummary> listGroupPins(Long userId, Long groupId, PinTag tagFilter) {
-        return listGroupPins(userId, groupId, tagFilter, null, false);
+        groupMemberService.requireActiveMembership(userId, groupId);
+        List<Pin> pins = tagFilter == null
+                ? pinRepository.findActiveByGroupIdOrderByCreatedAtDesc(groupId)
+                : pinRepository.findActiveByGroupIdAndTagOrderByCreatedAtDesc(groupId, tagFilter);
+        return toSummaries(pins);
     }
 
     /**
-     * 그룹의 활성 핀 목록을 페이지네이션하여 조회한다.
+     * 그룹의 활성 핀 목록을 created_at 내림차순으로 페이지네이션하여 조회한다.
      * 활성 멤버십이 없으면 {@link ErrorType#GROUP_NOT_MEMBER}.
      * {@code hasNext} 는 {@code (long)(page + 1) * size < totalCount} 로 계산하여 오버플로를 방지한다.
-     *
-     * <p>Phase 12: {@code sort}, {@code interestOnly} 신규 파라미터 (FR-PIN-12-8, 9).
-     * 분기 우선순위: {@code interestOnly=true} 가 {@code sort} 보다 우선 (관심 필터 적용 후 created_at 기준).</p>
      */
     @Transactional(readOnly = true)
     public PinListResult listGroupPinsPaged(Long userId, Long groupId, PinTag tagFilter,
-                                            int page, int size, String sort, boolean interestOnly) {
+                                            int page, int size) {
         groupMemberService.requireActiveMembership(userId, groupId);
-        String normalizedSort = normalizeSort(sort);
 
         List<Pin> pins;
         long totalCount;
-        if (interestOnly) {
-            pins = pinRepository.findActiveByGroupIdInterestOnly(groupId, tagFilter, page, size);
-            totalCount = pinRepository.countActiveByGroupIdInterestOnly(groupId, tagFilter);
-        } else if (SORT_WANT_COUNT.equals(normalizedSort)) {
-            if (tagFilter == null) {
-                pins = pinRepository.findActiveByGroupIdSortedByWantCount(groupId, page, size);
-                totalCount = pinRepository.countActiveByGroupId(groupId);
-            } else {
-                pins = pinRepository.findActiveByGroupIdAndTagSortedByWantCount(groupId, tagFilter, page, size);
-                totalCount = pinRepository.countActiveByGroupIdAndTag(groupId, tagFilter);
-            }
-        } else if (tagFilter == null) {
+        if (tagFilter == null) {
             pins = pinRepository.findActiveByGroupIdOrderByCreatedAtDesc(groupId, page, size);
             totalCount = pinRepository.countActiveByGroupId(groupId);
         } else {
@@ -280,31 +229,10 @@ public class PinService {
             totalCount = pinRepository.countActiveByGroupIdAndTag(groupId, tagFilter);
         }
 
-        List<PinSummary> items = toSummaries(pins, userId);
+        List<PinSummary> items = toSummaries(pins);
         boolean hasNext = (long) (page + 1) * size < totalCount;
 
         return new PinListResult(items, totalCount, hasNext);
-    }
-
-    /**
-     * 페이지네이션 조회 legacy 시그니처 (sort=null, interestOnly=false). 기존 호출자 호환 유지용.
-     */
-    @Transactional(readOnly = true)
-    public PinListResult listGroupPinsPaged(Long userId, Long groupId, PinTag tagFilter,
-                                            int page, int size) {
-        return listGroupPinsPaged(userId, groupId, tagFilter, page, size, null, false);
-    }
-
-    /**
-     * Phase 12: {@code sort} 파라미터 정규화 + 검증.
-     * <p>null/blank → {@link #SORT_CREATED_AT} (default). 알 수 없는 값 → {@link ErrorType#PIN_SORT_PARAM_INVALID}.</p>
-     */
-    private static String normalizeSort(String sort) {
-        if (sort == null || sort.isBlank()) return SORT_CREATED_AT;
-        if (!SORT_CREATED_AT.equals(sort) && !SORT_WANT_COUNT.equals(sort)) {
-            throw new CoreException(ErrorType.PIN_SORT_PARAM_INVALID);
-        }
-        return sort;
     }
 
     /**

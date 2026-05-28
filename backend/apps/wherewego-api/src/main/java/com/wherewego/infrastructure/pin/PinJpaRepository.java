@@ -72,12 +72,11 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
                                          @Param("lngMax") BigDecimal lngMax,
                                          Pageable pageable);
 
-    // ────── Phase 12 ──────
+    // ────── Phase 12 (정리 기능) ──────
     // 정리 대상 조회. idx_pins_cleanup (group_id, created_at) WHERE 조건 활용.
     @Query("SELECT p FROM Pin p WHERE p.groupId = :groupId "
             + "AND p.tag = com.wherewego.domain.pin.PinTag.REEL "
             + "AND p.memoSource = com.wherewego.domain.pin.MemoSource.AUTO "
-            + "AND p.wantCount = 0 "
             + "AND p.createdAt < :threshold "
             + "AND p.deletedAt IS NULL "
             + "ORDER BY p.createdAt ASC, p.id ASC")
@@ -87,7 +86,6 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
     @Query("SELECT COUNT(p) FROM Pin p WHERE p.groupId = :groupId "
             + "AND p.tag = com.wherewego.domain.pin.PinTag.REEL "
             + "AND p.memoSource = com.wherewego.domain.pin.MemoSource.AUTO "
-            + "AND p.wantCount = 0 "
             + "AND p.createdAt < :threshold "
             + "AND p.deletedAt IS NULL")
     long countCleanupCandidates(@Param("groupId") Long groupId,
@@ -96,34 +94,4 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
     // softDeleteAll 용 entity 로드. 호출자(PinRepositoryImpl)가 BaseEntity.delete() 멱등 호출.
     @Query("SELECT p FROM Pin p WHERE p.id IN :pinIds AND p.deletedAt IS NULL")
     List<Pin> findActiveByIdIn(@Param("pinIds") Collection<Long> pinIds);
-
-    // want_count 정렬은 기존 findByGroupIdAndDeletedAtIsNull(groupId, Pageable) 재사용.
-    // 호출자(PinRepositoryImpl)가 PageRequest.Sort 로 (wantCount DESC, createdAt DESC, id DESC) 명시.
-
-    // interest 필터 (want_count >= 1) - 태그 무관
-    @Query("SELECT p FROM Pin p WHERE p.groupId = :groupId "
-            + "AND p.wantCount >= 1 "
-            + "AND p.deletedAt IS NULL")
-    List<Pin> findActiveByGroupIdInterestOnly(@Param("groupId") Long groupId, Pageable pageable);
-
-    // interest 필터 (want_count >= 1) - 태그 필터링
-    @Query("SELECT p FROM Pin p WHERE p.groupId = :groupId "
-            + "AND p.tag = :tag "
-            + "AND p.wantCount >= 1 "
-            + "AND p.deletedAt IS NULL")
-    List<Pin> findActiveByGroupIdAndTagInterestOnly(@Param("groupId") Long groupId,
-                                                    @Param("tag") PinTag tag,
-                                                    Pageable pageable);
-
-    @Query("SELECT COUNT(p) FROM Pin p WHERE p.groupId = :groupId "
-            + "AND p.wantCount >= 1 "
-            + "AND p.deletedAt IS NULL")
-    long countActiveByGroupIdInterestOnly(@Param("groupId") Long groupId);
-
-    @Query("SELECT COUNT(p) FROM Pin p WHERE p.groupId = :groupId "
-            + "AND p.tag = :tag "
-            + "AND p.wantCount >= 1 "
-            + "AND p.deletedAt IS NULL")
-    long countActiveByGroupIdAndTagInterestOnly(@Param("groupId") Long groupId,
-                                                @Param("tag") PinTag tag);
 }

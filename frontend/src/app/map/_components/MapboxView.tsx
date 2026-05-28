@@ -65,13 +65,6 @@ interface MapboxViewProps {
    * 로 부착된 DOM element 에 직접 {@code style.opacity} 를 설정하면 의도한 시각 효과를 얻을 수 있다.</p>
    */
   dimmedPinIds?: Set<number>;
-  /**
-   * Phase 12 (FR-PIN-12-11, AC-12-18, §9.2): REEL → WISH 자동 전환 시 0.5초 동안
-   * 마커 DOM 에 `.pin-pulse-once` 클래스를 부착하여 펄스 keyframe(globals.css)을 1회 재생한다.
-   * 부모(MapClient) 가 wishConverted=true 시점에 pinId 를 set 하고 0.5초 뒤 null 로 되돌리므로
-   * 본 컴포넌트는 prop 변화에 맞춰 클래스만 토글한다.
-   */
-  pulsingPinId?: number | null;
 }
 
 /**
@@ -205,23 +198,13 @@ const DEFAULT_CENTER: [number, number] = [127.0, 37.5];
  *
  * 태그 변경 시에도 element 인스턴스를 재사용하기 위해 innerHTML/style만 갱신.
  *
- * Phase 12 (AC-12-16/17, D-13) + 후속(UX 재반영3, 하트 뱃지 방식):
  *  - REEL → 하늘색 원 1.0배
  *  - WISH → 노랑 별 1.2배
  *  - MEMORY → 핑크 하트 1.0배
- *  - REEL && wantCount >= 1 → 위 REEL 마커 우상단에 빨간 하트 뱃지 오버레이 추가
  *
  * 베이스 사이즈: REEL/MEMORY = 22px, WISH = 18px. variant.size 계수를 곱해 최종 사이즈 결정.
- * 뱃지는 12px, position absolute (top=-3, right=-4) — 컨테이너 중심은 그대로라 mapbox
- * anchor("center") 가 가리키는 지리 좌표는 변하지 않는다.
  */
-const HEART_BADGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;top:-3px;right:-4px;pointer-events:none;"><path d="M12 21s-7.5-4.6-9.5-9.1C1 7.7 3.6 4 7.3 4c2 0 3.5 1.1 4.7 2.7C13.2 5.1 14.7 4 16.7 4c3.7 0 6.3 3.7 4.8 7.9C19.5 16.4 12 21 12 21z" fill="#FF2D55" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-
-function renderPinDotInto(
-  el: HTMLDivElement,
-  tag: PinTag,
-  wantCount: number,
-): void {
+function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
   el.innerHTML = "";
   el.style.cursor = "pointer";
   el.style.display = "block";
@@ -231,20 +214,17 @@ function renderPinDotInto(
   el.style.border = "none";
   el.style.borderRadius = "0";
   el.style.boxShadow = "none";
-  // 뱃지가 우상단으로 살짝 비집고 나오므로 stacking/잘림 방지.
   el.style.position = "relative";
   el.style.overflow = "visible";
 
-  const variant = getMarkerVariant(tag, wantCount);
+  const variant = getMarkerVariant(tag);
 
   switch (variant.kind) {
     case "reel": {
       const size = Math.round(22 * variant.size);
       el.style.width = `${size}px`;
       el.style.height = `${size}px`;
-      // REEL 핀에만 want_count>=1 시 빨간 하트 뱃지 오버레이를 합성.
-      el.innerHTML =
-        getReelSvgString(size) + (wantCount >= 1 ? HEART_BADGE_SVG : "");
+      el.innerHTML = getReelSvgString(size);
       break;
     }
     case "wish": {
@@ -340,7 +320,6 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
     skipInitialGeoFly = false,
     onGeolocate,
     dimmedPinIds,
-    pulsingPinId,
   },
   ref,
 ) {
@@ -395,30 +374,6 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
       el.style.opacity = dim && dim.has(pinId) ? "0.3" : "1";
     }
   }, [dimmedPinIds]);
-
-  // Phase 12 (FR-PIN-12-11, AC-12-18, §9.2): pulsingPinId 변경에 맞춰 마커 DOM 에 `.pin-pulse-once`
-  // 클래스를 부착/해제한다. 부모(MapClient)가 wishConverted=true 시 0.5초 동안 pinId 를 set 했다가
-  // null 로 되돌리므로, 본 effect 는 prop 변화만 좇아 클래스 토글만 수행한다. cleanup 에서 명시 제거하여
-  // 동일 핀에 재트리거가 들어와도 keyframe 이 1회 재생되도록 보장.
-  useEffect(() => {
-    if (pulsingPinId === null || pulsingPinId === undefined) return;
-    const marker = markerCacheRef.current.get(pulsingPinId);
-    if (!marker) return;
-    const el = marker.getElement() as HTMLDivElement;
-    // PR #76 Copilot #5: outer container 는 Mapbox 가 인라인 transform(translate3d) 으로 좌표를
-    // 주입하므로, keyframe 의 scale transform 이 그것을 덮어써 마커 위치 글리치가 발생한다.
-    // SVG 내부 노드에만 펄스 클래스를 부착하여 좌표 transform 과 분리한다.
-    const svg = el.querySelector("svg");
-    if (!svg) return;
-    // 동일 노드 재트리거 대비 — 클래스 제거 후 reflow 강제로 keyframe 을 다시 1회 재생.
-    svg.classList.remove("pin-pulse-once");
-    // reflow trigger (offsetWidth 접근). SVGElement 는 HTMLElement 가 아니므로 캐스팅 필요.
-    void (svg as unknown as HTMLElement).offsetWidth;
-    svg.classList.add("pin-pulse-once");
-    return () => {
-      svg.classList.remove("pin-pulse-once");
-    };
-  }, [pulsingPinId]);
 
   // Phase 10: imperative API — visit 검출 시 마커 bounce + confetti 트리거.
   useImperativeHandle(
@@ -499,22 +454,18 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
         visiblePinIds.add(pinId);
         const dim = dimmedPinIdsRef.current;
         const shouldDim = dim != null && dim.has(pinId);
-        // Phase 12 (AC-12-16/17, D-13): wantCount 기반 INTEREST variant 분기를 위해
-        // pinsList 에서 최신 wantCount 를 조회. supercluster feature props 에는 wantCount 가
-        // 포함되지 않아 매 렌더 시 pinsList 로 룩업한다 (props 확장은 클러스터 재생성을 요구).
         const pinData = pinsList.find((p) => p.id === pinId);
-        const wantCount = pinData?.wantCount ?? 0;
-        const variantKey = `${tag}|${wantCount >= 1 ? "wc1" : "wc0"}`;
+        const variantKey = tag;
         const existing = markerCacheRef.current.get(pinId);
         if (existing) {
           const cur = existing.getLngLat();
           if (cur.lng !== lng || cur.lat !== lat) {
             existing.setLngLat([lng, lat]);
           }
-          // 태그 또는 INTEREST 임계 변경 시 element 내부만 다시 그림 (DOM 인스턴스 재사용)
+          // 태그 변경 시 element 내부만 다시 그림 (DOM 인스턴스 재사용)
           const el = existing.getElement() as HTMLDivElement;
           if (el.dataset.variant !== variantKey) {
-            renderPinDotInto(el, tag, wantCount);
+            renderPinDotInto(el, tag);
             el.dataset.tag = tag;
             el.dataset.variant = variantKey;
           }
@@ -530,7 +481,7 @@ const MapboxView = forwardRef<MapboxViewHandle, MapboxViewProps>(function Mapbox
           el.dataset.tag = tag;
           el.dataset.variant = variantKey;
           el.dataset.pinId = String(pinId);
-          renderPinDotInto(el, tag, wantCount);
+          renderPinDotInto(el, tag);
           // Phase 12 (§9.7): 신규 마커 생성 시점에 dim 분기 적용. dim 상태에서 새로 등장한
           // 비번들 핀도 즉시 opacity 0.3 으로 그려진다.
           el.style.opacity = shouldDim ? "0.3" : "1";

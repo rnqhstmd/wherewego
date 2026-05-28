@@ -5,20 +5,10 @@
  * BigDecimal 좌표는 정밀도 손실 방지를 위해 문자열로 직렬화된다.</p>
  */
 
-/**
- * Phase 12 (FR-PIN-12-6): WISH_CONVERTED 알림 타입 추가.
- *
- * REEL → WISH 자동 전환(과반 WANT) 시 발사되는 알림. 백엔드
- * `NotificationType.WISH_CONVERTED` enum 과 1:1 대응. 본 타입의 알림은
- * 백엔드에서 `notifications.wish_pin_id` 컬럼으로 단일 핀을 직접 참조하며
- * (`NotificationPin` 링크 테이블 미사용, V009 visit_pin_id 패턴 답습),
- * 클라이언트 관점에서는 상세 응답의 `pins` 배열에 단일 핀으로 내려온다.
- */
 export type NotificationType =
   | "MANUAL_PIN"
   | "CHATBOT_PINS"
-  | "VISIT_DETECTED"
-  | "WISH_CONVERTED";
+  | "VISIT_DETECTED";
 
 export interface NotificationItem {
   id: number;
@@ -29,6 +19,13 @@ export interface NotificationItem {
   totalPinCount: number;
   createdAt: string;
   readAt: string | null;
+  /**
+   * Phase 13 (design §2.3): CHATBOT_PINS 알림에 연결된 핀의 태그 분포.
+   * 백엔드 `NotificationItemResult` 가 CHATBOT_PINS 알림에 한해 채운다.
+   * 그 외 타입(MANUAL_PIN/VISIT_DETECTED)에서는 0 또는 미전달. 옵셔널로 안전하게 렌더.
+   */
+  wishCount?: number;
+  reelCount?: number;
 }
 
 export interface NotificationListResponse {

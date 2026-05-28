@@ -7,7 +7,6 @@ import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateResult;
-import com.wherewego.domain.pin.want.WantService;
 import com.wherewego.interfaces.api.ApiResponse;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
@@ -39,7 +38,6 @@ public class PinV1Controller implements PinV1ApiSpec {
 
     private final PinService pinService;
     private final NotificationService notificationService;
-    private final WantService wantService;
 
     @PostMapping("/{groupId}/pins")
     @ResponseStatus(HttpStatus.CREATED)
@@ -65,9 +63,7 @@ public class PinV1Controller implements PinV1ApiSpec {
             @PathVariable Long groupId,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String page,
-            @RequestParam(required = false) String size,
-            @RequestParam(required = false) String sort,
-            @RequestParam(required = false, defaultValue = "false") boolean interest
+            @RequestParam(required = false) String size
     ) {
         PinTag tagFilter = null;
         if (tag != null && !tag.isBlank()) {
@@ -87,9 +83,9 @@ public class PinV1Controller implements PinV1ApiSpec {
             throw new CoreException(ErrorType.PIN_PAGE_PARAM_INVALID);
         }
 
-        // 2. 둘 다 null → legacy 모드. sort/interest 는 옵셔널로 그대로 전달 (정렬/필터 적용).
+        // 2. 둘 다 null → legacy 모드 (전체 목록).
         if (pageNum == null && sizeNum == null) {
-            List<PinSummary> list = pinService.listGroupPins(userId, groupId, tagFilter, sort, interest);
+            List<PinSummary> list = pinService.listGroupPins(userId, groupId, tagFilter);
             return ApiResponse.success(PinV1Dto.PinListResponse.from(list));
         }
 
@@ -105,39 +101,8 @@ public class PinV1Controller implements PinV1ApiSpec {
         }
 
         PinListResult result = pinService.listGroupPinsPaged(
-                userId, groupId, tagFilter, pageNum, sizeNum, sort, interest);
+                userId, groupId, tagFilter, pageNum, sizeNum);
         return ApiResponse.success(PinV1Dto.PinListResponse.fromPaged(result));
-    }
-
-    /**
-     * Phase 12: WANT(관심 표현) 토글 (FR-PIN-12-2).
-     *
-     * <p>활성 그룹원 검증 → pin 비관 락 조회 → {@code pin_events} INSERT/DELETE → {@code want_count} 갱신 →
-     * REEL 핀이 과반 충족 시 WISH 자동 전환 + {@code WishConvertedEvent} AFTER_COMMIT 발행.</p>
-     */
-    @PostMapping("/{groupId}/pins/{pinId}/want")
-    @Override
-    public ApiResponse<PinV1Dto.WantToggleResponse> toggleWant(
-            @AuthUser Long userId,
-            @PathVariable Long groupId,
-            @PathVariable Long pinId
-    ) {
-        return ApiResponse.success(
-                PinV1Dto.WantToggleResponse.from(wantService.toggle(userId, groupId, pinId)));
-    }
-
-    /**
-     * Phase 12: WANT 상태 조회 (FR-PIN-12-2). 현재 핀의 {@code want_count} 와 호출자의 누름 여부 반환.
-     */
-    @GetMapping("/{groupId}/pins/{pinId}/want")
-    @Override
-    public ApiResponse<PinV1Dto.WantStatusResponse> getWantStatus(
-            @AuthUser Long userId,
-            @PathVariable Long groupId,
-            @PathVariable Long pinId
-    ) {
-        return ApiResponse.success(
-                PinV1Dto.WantStatusResponse.from(wantService.getStatus(userId, groupId, pinId)));
     }
 
     private static Integer parsePageParam(String value) {

@@ -28,12 +28,12 @@ import java.util.Optional;
 /**
  * Phase 12: 인스타그램 URL 수신 진입점.
  *
- * <p>Gemini/카카오 추출 결과 개수에 따라 {@link ReelSavedSelectionSession} 상태머신의 초기 단계로 진입한다:
+ * <p>Gemini/카카오 추출 결과 개수에 따라 {@link ReelSavedSelectionSession} 상태머신의 초기 단계로 진입한다 (Phase 13):
  * <ul>
  *     <li>0개: 안내 후 종료 (세션 진입 없음)</li>
- *     <li>1개: {@code SINGLE_WANT} — "가고 싶어요" / "발견으로만 저장" QuickReply</li>
- *     <li>2~30개: {@code MULTI_SELECTING} — 번호 목록 + [전부]/[건너뛰기] QuickReply</li>
- *     <li>31개 이상: {@code BULK_SAVE} — 전체 저장 안내 + 메모 직접 입력</li>
+ *     <li>1개: {@code SINGLE_WANT} — "위시로 저장" / "발견으로 저장" QuickReply</li>
+ *     <li>2~30개: {@code MULTI_SELECTING} — 번호 목록 + [전부]/[건너뛰기] QuickReply (선택=위시, 나머지=발견)</li>
+ *     <li>31개 이상: {@code BULK_SAVE} — 전체 발견 저장 안내 + 메모 직접 입력</li>
  * </ul>
  *
  * <p>새 URL 도착 시 활성 세션이 있으면 {@link com.wherewego.domain.chatbot.ChatbotWebhookService}
@@ -180,7 +180,6 @@ public class InstagramLinkHandler implements MessageHandler {
                 url,
                 hits,
                 new HashSet<>(),
-                false,
                 ZonedDateTime.now().plusSeconds(reelSelectionTtlSeconds),
                 null
         );
@@ -188,10 +187,10 @@ public class InstagramLinkHandler implements MessageHandler {
         PlaceSearchHit hit = hits.get(0);
         return ChatbotV1Dto.SkillResponse.simple(
                 "릴스에서 장소 1개를 찾았어요:\n• " + hit.placeName() + "\n\n"
-                        + "가고 싶은 장소인가요?",
+                        + "가고 싶은 곳이면 위시로, 일단 둘러보기면 발견으로 저장할게요.",
                 List.of(
-                        ChatbotV1Dto.QuickReply.message("가고 싶어요", "가고 싶어요"),
-                        ChatbotV1Dto.QuickReply.message("발견으로만 저장", "발견으로만 저장")
+                        ChatbotV1Dto.QuickReply.message("위시로 저장", "위시로 저장"),
+                        ChatbotV1Dto.QuickReply.message("발견으로 저장", "발견으로 저장")
                 )
         );
     }
@@ -202,13 +201,13 @@ public class InstagramLinkHandler implements MessageHandler {
                 url,
                 hits,
                 new HashSet<>(),
-                false,
                 ZonedDateTime.now().plusSeconds(reelSelectionTtlSeconds),
                 null
         );
         reelSavedSelectionSession.put(botUserKey, snapshot);
         StringBuilder sb = new StringBuilder();
-        sb.append("릴스에서 장소 ").append(hits.size()).append("개를 찾았어요. 저장할 번호를 콤마로 입력해주세요. (예: 1,3,5)\n\n");
+        sb.append("릴스에서 장소 ").append(hits.size())
+                .append("개를 찾았어요. ✨ 가고 싶은 곳 번호를 콤마로 보내면 위시로 저장할게요. (나머지는 발견) 예: 1,3,5\n\n");
         for (int i = 0; i < hits.size(); i++) {
             sb.append(i + 1).append(". ").append(hits.get(i).placeName()).append('\n');
         }
@@ -227,13 +226,12 @@ public class InstagramLinkHandler implements MessageHandler {
                 url,
                 hits,
                 new HashSet<>(),
-                false,
                 ZonedDateTime.now().plusSeconds(reelSelectionTtlSeconds),
                 null
         );
         reelSavedSelectionSession.put(botUserKey, snapshot);
         return ChatbotV1Dto.SkillResponse.simple(
-                "릴스에서 장소 " + hits.size() + "개를 찾았어요. 전체 저장할게요.\n\n"
+                "릴스에서 장소 " + hits.size() + "개를 찾았어요. 전체 발견으로 저장할게요.\n\n"
                         + "함께 남길 메모를 입력해주세요. (메모가 없으면 [건너뛰기])",
                 List.of(ChatbotV1Dto.QuickReply.message("건너뛰기", "건너뛰기"))
         );

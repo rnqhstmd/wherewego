@@ -3,13 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api/http";
-import { createPin, deletePin, toggleWant, updatePin } from "@/lib/api/pin";
+import { createPin, deletePin, updatePin } from "@/lib/api/pin";
 import type {
   CreatePinInput,
   PinSummaryResponse,
   PinTag,
   UpdatePinResponse,
-  WantToggleResponse,
 } from "@/lib/api/types";
 
 export type CreatePinActionResult =
@@ -165,32 +164,6 @@ export async function updatePinPlaceNameAction(
         revalidateError,
       );
     }
-    return { ok: true, data };
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return { ok: false, code: error.code, message: error.message };
-    }
-    throw error;
-  }
-}
-
-export type ToggleWantActionResult =
-  | { ok: true; data: WantToggleResponse }
-  | { ok: false; code: string; message: string };
-
-/**
- * Phase 12 (FR-PIN-12-2): WANT(가고 싶어요) 토글 Server Action.
- *
- * `/map` 은 클라 useOptimistic 으로 wantCount/myWant 를 즉시 반영하므로
- * revalidatePath 호출 없이 응답을 그대로 반환한다. (`updatePinTagAction` 패턴 답습)
- * 응답의 `wishConverted` 가 true 면 호출자(MapClient)가 마커 펄스를 1회 트리거한다.
- */
-export async function toggleWantAction(
-  groupId: number,
-  pinId: number,
-): Promise<ToggleWantActionResult> {
-  try {
-    const data = await toggleWant(groupId, pinId);
     return { ok: true, data };
   } catch (error) {
     if (error instanceof ApiError) {

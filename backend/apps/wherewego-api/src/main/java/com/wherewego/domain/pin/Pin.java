@@ -83,14 +83,6 @@ public class Pin extends BaseEntity {
     @Column(name = "visited_at")
     private ZonedDateTime visitedAt;
 
-    /**
-     * Phase 12: 본 핀에 대해 활성 그룹원이 누른 WANT 표 누계. 기본 0.
-     * 호출자가 {@link #applyWantDelta(int)} 를 통해서만 갱신해야 하며, {@code pin_events} 행 수와
-     * 일치해야 한다 (영구 멱등: {@code uq_pin_events_pin_user_want} 부분 UNIQUE 로 보장).
-     */
-    @Column(name = "want_count", nullable = false)
-    private int wantCount;
-
     protected Pin() { }
 
     private Pin(Long groupId,
@@ -131,9 +123,11 @@ public class Pin extends BaseEntity {
 
     /**
      * 사용자가 후보 카드 중 하나를 선택한 결과 기반 등록 핀.
-     * autoFromInstagram 과 동일 구조 (tag=REEL, memoSource=null).
+     * <p>Phase 13: 저장 태그를 호출자가 지정한다. 챗봇 위시 직저장(WISH) / 발견 저장(REEL) 모두 본 팩토리를 사용한다.
+     * memoSource 는 null 로 시작하며 2초 룰/AUTO 메모가 도착해야 부착된다.</p>
      */
-    public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+    public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit,
+                                    String instagramUrl, PinTag tag) {
         String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
@@ -143,7 +137,7 @@ public class Pin extends BaseEntity {
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
                 normalizedUrl,
-                PinTag.REEL
+                tag
         );
     }
 
@@ -257,45 +251,6 @@ public class Pin extends BaseEntity {
     public void changeCoordinate(BigDecimal latitude, BigDecimal longitude) {
         this.latitude = latitude;
         this.longitude = longitude;
-    }
-
-    /**
-     * Phase 12: WANT 카운트 증감. ±1 만 허용한다. 호출자는 트랜잭션 + {@code pins} 행 비관 락을 보유한 상태
-     * 여야 한다. 결과 값이 0 미만이 되면 도메인 invariant 위반으로 예외를 던진다 (race 방어).
-     */
-    public void applyWantDelta(int delta) {
-        if (delta != 1 && delta != -1) {
-            throw new IllegalArgumentException("delta must be +1 or -1, got: " + delta);
-        }
-        int next = this.wantCount + delta;
-        if (next < 0) {
-            throw new CoreException(ErrorType.PIN_WANT_COUNT_NEGATIVE);
-        }
-        this.wantCount = next;
-    }
-
-    /**
-     * Phase 12: 과반 충족 시 REEL → WISH 자동 전환. 도메인 순수성을 유지하기 위해 외부 의존 주입 없이
-     * 호출자가 전달한 {@code activeMemberCount} 인자만으로 판단한다.
-     * <ul>
-     *     <li>{@code tag != REEL} 이면 no-op 후 false (이미 WISH/MEMORY).</li>
-     *     <li>{@code wantCount < floor(N/2)+1} 이면 no-op 후 false.</li>
-     *     <li>임계 충족 시 {@code tag = WISH} 로 전환하고 true 반환.</li>
-     * </ul>
-     *
-     * @param activeMemberCount 호출자(WantService)가 조회한 그룹 활성 멤버 수
-     * @return 이번 호출이 실제 전환을 트리거했으면 true
-     */
-    public boolean transitionToWishIfMajority(int activeMemberCount) {
-        if (this.tag != PinTag.REEL) {
-            return false;
-        }
-        int threshold = activeMemberCount / 2 + 1;
-        if (this.wantCount < threshold) {
-            return false;
-        }
-        this.tag = PinTag.WISH;
-        return true;
     }
 
     public boolean isDeleted() {

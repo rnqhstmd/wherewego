@@ -79,34 +79,29 @@ public class ReelMultiSelectionHandler implements MessageHandler {
 
         int total = snapshot.places().size();
 
-        // "전부" → 모든 인덱스 선택 → MEMO_WAITING.
-        // 사용자가 모든 핀을 명시적으로 선택했으므로 PRD AC-12-21 에 따라 wantOnSelected=true.
+        // Phase 13: 전체 핀은 항상 저장된다. wishIndices 에 든 것만 WISH, 나머지는 REEL.
+        // "전부" → 전부 위시 → wishIndices={1..N}.
         if (ALL_TEXT.equals(utterance)) {
             HashSet<Integer> all = new HashSet<>(
                     IntStream.rangeClosed(1, total).boxed().collect(Collectors.toList()));
-            return transitionToMemoWaiting(botUserKey, snapshot, all, true,
-                    "전체 " + total + "곳을 선택했어요. ");
+            return transitionToMemoWaiting(botUserKey, snapshot, all,
+                    "전체 " + total + "곳을 위시로 저장할게요. ");
         }
 
-        // "건너뛰기" → 빈 선택 → 전체 REEL 저장 (MEMO_WAITING). 인덱스를 모두 채워두어
-        // ReelMemoWaitingHandler 가 동일 분기로 처리하도록 한다 (D-7 보수적).
-        // 사용자가 명시적으로 선택하지 않은 케이스이므로 wantOnSelected=false (전체 REEL 저장만).
+        // "건너뛰기" → 위시 없음 → wishIndices={} → 전체 REEL(발견) 저장.
         if (SKIP_TEXT.equals(utterance)) {
-            HashSet<Integer> all = new HashSet<>(
-                    IntStream.rangeClosed(1, total).boxed().collect(Collectors.toList()));
-            return transitionToMemoWaiting(botUserKey, snapshot, all, false,
-                    "전체 " + total + "곳을 저장할게요. ");
+            return transitionToMemoWaiting(botUserKey, snapshot, new HashSet<>(),
+                    "전체 " + total + "곳을 발견으로 저장할게요. ");
         }
 
-        // 콤마 파싱 시도.
+        // 콤마 파싱 시도. 선택분 = 위시, 나머지 = 발견 (전부 저장).
         ReelCommaParser.Result result = reelCommaParser.parse(utterance, total);
         switch (result.status()) {
             case OK -> {
-                // 사용자가 콤마 인덱스로 명시적으로 선택한 핀이므로 PRD AC-12-21 에 따라
-                // 본인 1표 WANT 적용 — wantOnSelected=true.
-                HashSet<Integer> selected = new HashSet<>(result.indices());
-                return transitionToMemoWaiting(botUserKey, snapshot, selected, true,
-                        selected.size() + "곳을 선택했어요. ");
+                HashSet<Integer> wishIndices = new HashSet<>(result.indices());
+                int reelCount = total - wishIndices.size();
+                return transitionToMemoWaiting(botUserKey, snapshot, wishIndices,
+                        wishIndices.size() + "곳을 위시로 저장할게요. 나머지 " + reelCount + "곳은 발견으로 저장돼요. ");
             }
             case FORMAT_MISMATCH -> {
                 return ChatbotV1Dto.SkillResponse.simple(
@@ -128,30 +123,25 @@ public class ReelMultiSelectionHandler implements MessageHandler {
     }
 
     /**
-     * MULTI_SELECTING → MEMO_WAITING 전이. PRD AC-12-21 에 따라 사용자가 명시적으로
-     * 선택한 핀(콤마 인덱스 / "전부")은 본인 1표 WANT 가 적용되어야 하므로 호출자가
-     * {@code wantOnSelected=true} 를 전달한다. "건너뛰기" 만 false.
-     *
-     * <p>{@code wantOnSelected} 플래그는 Snapshot 에 저장되어 {@link ReelMemoWaitingHandler#saveAllSelected}
-     * 의 분기에서 {@code wantService.markWantOnInitialSave(...)} 호출 여부를 결정한다.</p>
+     * MULTI_SELECTING → MEMO_WAITING 전이 (Phase 13). 전체 핀은 항상 저장되며,
+     * {@code wishIndices} 에 든 핀만 WISH, 나머지는 REEL 로 저장된다 (§2.1).
+     * "전부" → 전부 위시, "건너뛰기" → 위시 없음, 콤마 → 선택분만 위시.
      */
     private ChatbotV1Dto.SkillResponse transitionToMemoWaiting(String botUserKey,
                                                                ReelSavedSelectionSession.Snapshot prev,
-                                                               HashSet<Integer> selected,
-                                                               boolean wantOnSelected,
+                                                               HashSet<Integer> wishIndices,
                                                                String prefix) {
         ReelSavedSelectionSession.Snapshot next = new ReelSavedSelectionSession.Snapshot(
                 ReelSavedSelectionSession.State.MEMO_WAITING,
                 prev.instagramUrl(),
                 prev.places(),
-                selected,
-                wantOnSelected,
+                wishIndices,
                 ZonedDateTime.now().plusSeconds(180),
                 null
         );
         reelSavedSelectionSession.put(botUserKey, next);
-        log.info("MULTI_SELECTING transitioned to MEMO_WAITING botUserKey={} selectedCount={} wantOnSelected={}",
-                botUserKey, selected.size(), wantOnSelected);
+        log.info("MULTI_SELECTING transitioned to MEMO_WAITING botUserKey={} wishCount={}",
+                botUserKey, wishIndices.size());
         return ChatbotV1Dto.SkillResponse.simple(
                 prefix + "메모를 남기시겠어요? (3분 내 응답이 없으면 자동 저장됩니다)",
                 memoQuickReplies());
