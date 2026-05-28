@@ -19,9 +19,14 @@
 | FR-PIN-6 | 핀 직접 등록 웹 API (검색 결과 또는 십자선 좌표 + tag 선택 + 메모) | ✅ | [#13](https://github.com/rnqhstmd/wherewego/pull/13) — `POST /api/v1/groups/{groupId}/pins` (`PinService.addPin` + `Pin.createFromUser` + `PinCreateCommand`). `@Valid` Bean Validation + `toCommand()` 이중 검증, UNIQUE 충돌 → `PLC_DUPLICATE_PIN` 변환, `requireActiveMembership` 권한 검증 |
 | FR-PIN-7 | 핀 장소 좌표 수정 (백엔드 API) | ✅ | [#24](https://github.com/rnqhstmd/wherewego/pull/24) — `PATCH .../pins/{pinId}` 에 `latitude/longitude` BigDecimal 직접 필드 + `PinUpdateCommand.coordinateProvided` 단일 플래그, 범위 검증, 한쪽만 전달 시 `PIN_COORDINATE_INVALID`(400) |
 | FR-PIN-8 | 핀 장소 좌표 수정 (지도 picker UX) | ✅ | [#24](https://github.com/rnqhstmd/wherewego/pull/24) — `PinPopup` ⋮ "좌표 수정" 진입점 → `PinCoordinateEditPicker` 시트 → `useOptimistic patch` 즉시 갱신 + 실패 시 자동 롤백 + 인라인 에러 |
+| FR-PIN-9 | 추억핀 사진 업로드 (MEMORY 한정, 1장 선택, 멀티파트) | ⬜ | Phase 13 — `POST .../pins/{pinId}/photo`, 프론트 압축→백엔드 검증+썸네일 생성→S3 2객체, V013 컬럼 4개 |
+| FR-PIN-10 | 추억핀 사진 삭제/교체 | ⬜ | Phase 13 — `DELETE .../pins/{pinId}/photo`, 교체=재 POST(옛 객체 best-effort 삭제) |
+| FR-PIN-11 | 말풍선 썸네일 + 원본 뷰어 | ⬜ | Phase 13 — 메모 우측 원형 썸네일→클릭 시 옆으로 원본 뷰어(blur-up), 공개+UUID+immutable 캐싱 |
 | ~~FR-PIN-X~~ | ~~방문 인증 토글~~ — **제거됨** | — | |
 
 ## 후속 작업
+
+- **Phase 13 미시작 (2026-05-28)**: 추억핀 사진 업로드 — MEMORY 핀 한정 1장(선택). 신규 S3 버킷(공개+UUID 키, `Cache-Control: immutable`), 프론트 canvas 압축(장변 1600px)→백엔드 검증+썸네일(256px WebP) 생성→원본/썸네일 2객체 저장. 멀티파트 `POST/DELETE .../pins/{pinId}/photo`, `PinSummaryResponse`에 `photoUrl`/`photoThumbnailUrl`, V013 nullable 컬럼 4개(`photo_key`/`photo_thumbnail_key`/`photo_uploaded_by`/`photo_uploaded_at`). 태그 MEMORY 이탈 시 사진 보존·UI 비표시. 말풍선 메모 우측 원형 썸네일→클릭 시 옆으로 원본 뷰어(blur-up). 업로더 3곳 재사용(방문 전환·신규 등록 2-step·수정). 4명 규모 프리티어 무과금. 설계: [phase-13-memory-pin-photo.md](phase-13-memory-pin-photo.md) / [스펙](../../docs/superpowers/specs/2026-05-28-memory-pin-photo-upload-design.md)
 
 - **Phase 12 완료**: Pin Experience v2 — `pin_events` 테이블(P0=WANT만, D-19 영구 멱등 UNIQUE) + `pins.want_count` 캐시 컬럼 + `WantService` 토글(FOR UPDATE) + 과반 자동 WISH 전환 + `WishConvertedEvent` AFTER_COMMIT → `NotificationType.WISH_CONVERTED` 인앱 알림(본인 제외, V009 `visit_pin_id` 답습 `wish_pin_id` + 부분 UNIQUE). 마커 3단계(하늘색→진보라 `#7B68EE` 1.1배→노랑 별 1.2배 + WISH 전환 0.5초 펄스, MapboxView pulsingPinId prop). 챗봇 v2 ReelSavedSelectionSession 상태머신(SINGLE_WANT/MULTI_SELECTING/BULK_SAVE 31개+/MEMO_WAITING, 3분 고정 TTL Caffeine Expiry, INSERT-only markWantOnInitialSave 헬퍼). 오래된 REEL 정리(`tag=REEL + AUTO + 30일+ + want_count=0`, 일괄 soft delete, DB `users.cleanup_snoozed_until` 7일 snooze 다기기 일관). PinPopup/PinCard 출처 뱃지(📹/✏️) + 태그 진행 다이어그램 모달 진입점. V012 단일 Flyway. 상세: [phase-12-pin-experience-v2.md](phase-12-pin-experience-v2.md) — [#76](https://github.com/rnqhstmd/wherewego/pull/76)
 
