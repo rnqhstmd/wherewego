@@ -6,6 +6,7 @@ import com.wherewego.domain.chatbot.MessageType;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.notification.NotificationService;
 import com.wherewego.domain.pin.PinService;
+import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.RegisterPinResult;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.domain.place.PlaceSelectionCandidateStore;
@@ -68,7 +69,7 @@ public class PlaceSelectionHandler implements MessageHandler {
 
         try {
             RegisterPinResult result = pinService.registerFromSelectionWithDedup(
-                    userId, groupId, entry.hit(), entry.instagramUrl());
+                    userId, groupId, entry.hit(), entry.instagramUrl(), PinTag.REEL);
             if (result.alreadyExisted()) {
                 log.info("Duplicate pin (dedup) groupId={} placeId={}", groupId, placeId);
                 return ChatbotV1Dto.SkillResponse.simple(
