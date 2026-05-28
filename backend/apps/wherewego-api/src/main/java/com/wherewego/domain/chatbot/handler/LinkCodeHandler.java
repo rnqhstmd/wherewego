@@ -35,6 +35,14 @@ public class LinkCodeHandler implements MessageHandler {
         String botUserKey = request.userRequest().user().id();
         String code = MessageClassifier.extractParam(request, "code");
         if (code == null || code.isBlank()) {
+            // 폴백: 카카오 slot 파라미터(code) 누락 시 사용자가 채팅으로 직접 입력한 6자리 코드를 구제.
+            // MessageClassifier 가 동일 조건(미연동 + 6자리)으로 LINK_CODE 라우팅한 케이스와 짝을 이룬다.
+            String utterance = request.userRequest().utterance();
+            if (utterance != null && utterance.trim().matches("\\d{6}")) {
+                code = utterance.trim();
+            }
+        }
+        if (code == null || code.isBlank()) {
             return ChatbotV1Dto.SkillResponse.simple(
                     "연동 코드를 받지 못했어요. 챗봇 메뉴에서 [그룹 연동하기]를 다시 눌러주세요."
             );

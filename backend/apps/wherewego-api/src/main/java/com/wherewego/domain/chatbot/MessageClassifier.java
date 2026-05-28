@@ -1,5 +1,6 @@
 package com.wherewego.domain.chatbot;
 
+import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.pin.memo.TwoSecondMemoSession;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import lombok.RequiredArgsConstructor;
@@ -39,8 +40,12 @@ public class MessageClassifier {
     private static final String SINGLE_WANT_YES_TEXT = "위시로 저장";
     private static final String SINGLE_WANT_NO_TEXT = "발견으로 저장";
 
+    /** 연동 코드 폴백 패턴 — 정확히 6자리 숫자 (카카오 slot 파라미터 code 누락 시 구제용). */
+    private static final Pattern LINK_CODE_DIGITS = Pattern.compile("^\\d{6}$");
+
     private final TwoSecondMemoSession twoSecondMemoSession;
     private final ReelSavedSelectionSession reelSavedSelectionSession;
+    private final BotUserMappingService botUserMappingService;
 
     public MessageType classify(ChatbotV1Dto.SkillRequest req, String botUserKey) {
         if (hasParam(req, "placeId")) {
@@ -91,6 +96,16 @@ public class MessageClassifier {
 
         if (twoSecondMemoSession.peek(botUserKey).isPresent()) {
             return MessageType.TEXT_2SEC_CANDIDATE;
+        }
+
+        // 폴백 (연동 안전망): 카카오 slot 파라미터(code)가 누락된 채 사용자가 6자리 코드를 채팅으로
+        // 직접 입력한 경우를 구제한다. 여기 도달 = placeId/code 파라미터 없음 + 인스타 URL 아님 +
+        // 활성 릴스 세션 없음 + 2초 메모 세션 없음. 추가로 "미연동" 사용자일 때만 LINK_CODE 로 본다
+        // (이미 연동된 사용자가 보낸 6자리 숫자는 연동 의도가 아니므로 일반 대화 오인을 막기 위해 제외).
+        if (utterance != null
+                && LINK_CODE_DIGITS.matcher(utterance.trim()).matches()
+                && botUserMappingService.resolveUserId(botUserKey).isEmpty()) {
+            return MessageType.LINK_CODE;
         }
         return MessageType.UNKNOWN;
     }
