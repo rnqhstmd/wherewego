@@ -113,7 +113,8 @@ app:
     # 초대 링크 TTL (ISO-8601 duration). 7일.
     ttl: ${APP_INVITE_TTL:P7D}
     # 단축 공유 URL 베이스. `${baseUrl}/invite/{slug}` 형태로 결합된다.
-    share-base-url: ${APP_INVITE_SHARE_BASE_URL:http://localhost:3000}
+    # 운영 기본값 = 서비스 도메인. 로컬 개발은 .env 에 APP_INVITE_SHARE_BASE_URL=http://localhost:3000 으로 override.
+    share-base-url: ${APP_INVITE_SHARE_BASE_URL:https://wherewego.win}
     rate-limit:
       # /api/v1/groups/invite-links/by-slug/** 의 IP 분당 허용 요청 수.
       capacity: 30

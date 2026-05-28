@@ -18,7 +18,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "app.invite")
 public record InviteProperties(
         @DefaultValue("P7D") Duration ttl,
-        @DefaultValue("http://localhost:3000") String shareBaseUrl,
+        @DefaultValue("https://wherewego.win") String shareBaseUrl,
         @DefaultValue RateLimit rateLimit
 ) {
     public record RateLimit(
