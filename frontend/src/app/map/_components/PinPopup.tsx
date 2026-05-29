@@ -11,7 +11,7 @@ import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 import PinShareSheet from "./PinShareSheet";
 import PinPhotoUploader from "./PinPhotoUploader";
-import PinPhotoViewer from "./PinPhotoViewer";
+import PinPhotoInline from "./PinPhotoInline";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
@@ -79,8 +79,8 @@ export default function PinPopup({
   const [placeError, setPlaceError] = useState<string | null>(null);
   // Phase 9: 공유 카드 시트 표시 여부.
   const [shareOpen, setShareOpen] = useState(false);
-  // Phase 13: 원본 사진 뷰어 오픈 여부 + 사진 업로드/삭제 진행 표시.
-  const [viewerOpen, setViewerOpen] = useState(false);
+  // Phase 13 후속: 말풍선 안 사진 제자리 펼침 여부 + 사진 업로드/삭제 진행 표시.
+  const [photoExpanded, setPhotoExpanded] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
@@ -110,7 +110,7 @@ export default function PinPopup({
     setPlacePending(false);
     setPlaceError(null);
     setShareOpen(false);
-    setViewerOpen(false);
+    setPhotoExpanded(false);
     setPhotoUploading(false);
   }
 
@@ -476,8 +476,12 @@ export default function PinPopup({
     </button>
   );
 
-  // Phase 13 (FR-PIN-11a): 말풍선 메모 우측 원형 썸네일. MEMORY + 사진이 있을 때만.
-  // 클릭 시 원본 뷰어 오픈. 사진 없으면 undefined → SpeechBubblePopup 레이아웃 불변(AC-11).
+  // Phase 13 후속 (FR-PIN-11a): 말풍선 메모 우측 정사각 썸네일. MEMORY + 사진이 있을 때만.
+  // 클릭 시 메모 영역을 제자리에서 사진으로 펼친다. 사진 없으면 undefined →
+  // SpeechBubblePopup 레이아웃 불변(AC-11).
+  const hasPhoto = Boolean(
+    pin.tag === "MEMORY" && pin.photoThumbnailUrl && pin.photoUrl,
+  );
   const memoThumbnail =
     pin.tag === "MEMORY" && pin.photoThumbnailUrl ? (
       // eslint-disable-next-line @next/next/no-img-element
@@ -485,14 +489,24 @@ export default function PinPopup({
         src={pin.photoThumbnailUrl}
         alt="추억 사진"
         loading="lazy"
-        onClick={() => setViewerOpen(true)}
+        onClick={() => setPhotoExpanded(true)}
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
+          width: 52,
+          height: 52,
+          borderRadius: 10,
           objectFit: "cover",
           cursor: "pointer",
         }}
+      />
+    ) : undefined;
+
+  // 메모 영역을 제자리에서 대체하는 1:1 사진 노드 (blur-up + ↩ 복귀).
+  const expandedPhoto =
+    hasPhoto && pin.photoThumbnailUrl && pin.photoUrl ? (
+      <PinPhotoInline
+        thumbnailUrl={pin.photoThumbnailUrl}
+        photoUrl={pin.photoUrl}
+        onBack={() => setPhotoExpanded(false)}
       />
     ) : undefined;
 
@@ -515,6 +529,8 @@ export default function PinPopup({
         }
         instagramUrl={pin.instagramUrl}
         memoThumbnail={memoThumbnail}
+        expandedPhoto={expandedPhoto}
+        showExpandedPhoto={photoExpanded}
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
         shareAction={shareButton}
@@ -522,13 +538,6 @@ export default function PinPopup({
       >
         {menuPopover}
       </SpeechBubblePopup>
-      {viewerOpen && pin.photoUrl && pin.photoThumbnailUrl && (
-        <PinPhotoViewer
-          thumbnailUrl={pin.photoThumbnailUrl}
-          photoUrl={pin.photoUrl}
-          onClose={() => setViewerOpen(false)}
-        />
-      )}
       {shareOpen && (
         <PinShareSheet
           pin={pin}

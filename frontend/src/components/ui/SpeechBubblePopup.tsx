@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { colors, fonts } from "@/lib/design/tokens";
 import { IconMenuVert } from "@/components/icons";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
@@ -39,6 +40,16 @@ interface SpeechBubblePopupProps {
    */
   memoThumbnail?: ReactNode;
   /**
+   * 메모 영역을 제자리에서 대체하는 펼친 사진 노드 (메모 ↔ 사진 전환).
+   * undefined/null 이면 전환 비활성 — 항상 메모를 렌더한다.
+   */
+  expandedPhoto?: ReactNode;
+  /**
+   * true면 메모+memoThumbnail 행 대신 expandedPhoto 를 표시한다.
+   * 전환은 높이 애니메이션 + 크로스페이드(prefers-reduced-motion 시 즉시 전환).
+   */
+  showExpandedPhoto?: boolean;
+  /**
    * true면 메모/장소/주소 영역을 숨기고 footerContent에만 집중.
    * 수정 모드 등에서 원본 값과 입력값이 동시에 보여 헷갈리는 것을 방지.
    */
@@ -74,6 +85,8 @@ export function SpeechBubblePopup({
   footerContent,
   children,
   memoThumbnail,
+  expandedPhoto,
+  showExpandedPhoto = false,
   collapseBody = false,
   className,
   style,
@@ -82,6 +95,80 @@ export function SpeechBubblePopup({
   const hasPlace = place !== null && place !== undefined && place !== "";
   // 모바일(<=480px)에서는 폰트/패딩/너비를 축소하여 지도 화면을 덜 가린다.
   const isCompact = useMediaQuery("(max-width: 480px)");
+  // 접근성: 모션 최소화 환경에서는 메모↔사진 전환 애니메이션을 생략(즉시 전환).
+  const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  // 사진 노드가 주입되고 showExpandedPhoto=true 일 때만 사진을 펼친다.
+  const photoActive = showExpandedPhoto && expandedPhoto != null;
+
+  // ─── 메모↔사진 height FLIP 애니메이션 ────────────────────────────
+  // active 노드는 normal flow 라 래퍼 auto 높이가 항상 올바르다(측정 실패/초기 렌더 안전).
+  // 전환 직전 자연 높이(prevHeightRef)를 시작점으로, 새 자연 높이를 끝점으로 명령형 height
+  // 애니메이션을 발화한 뒤 height 를 auto 로 복귀시킨다(이후 콘텐츠 변화에 자연 적응).
+  const swapWrapRef = useRef<HTMLDivElement | null>(null);
+  const prevPhotoActiveRef = useRef(photoActive);
+  // 평상시(전환 아님) 자연 높이를 지속 보관 → 전환 시점에 "직전 높이"로 사용.
+  const prevHeightRef = useRef<number>(0);
+
+  useLayoutEffect(() => {
+    const el = swapWrapRef.current;
+    if (!el) return;
+
+    const wasActive = prevPhotoActiveRef.current;
+    prevPhotoActiveRef.current = photoActive;
+
+    // 전환 비활성(reduceMotion) 또는 photoActive 변화 없음 → height 명령형 제어 없이
+    // 직전 자연 높이만 갱신해 둔다(다음 전환의 시작점).
+    if (reduceMotion || wasActive === photoActive) {
+      el.style.height = "";
+      prevHeightRef.current = el.offsetHeight;
+      return;
+    }
+
+    // photoActive 가 바뀐 프레임: 렌더는 이미 새 active 노드를 반영했으므로
+    // el.offsetHeight 가 새 자연 높이(newH). 시작점은 직전 보관 높이(oldH).
+    const oldH = prevHeightRef.current;
+    const newH = el.offsetHeight;
+    prevHeightRef.current = newH;
+
+    // jsdom 등 레이아웃 미구현 환경: 높이가 0 또는 동일 → 애니메이션 의미 없음, no-op.
+    if (oldH === 0 || newH === 0 || oldH === newH) {
+      el.style.height = "";
+      return;
+    }
+
+    // FLIP: 시작 높이 고정 → 강제 reflow → 다음 프레임에 끝 높이로 transition 발화.
+    el.style.height = `${oldH}px`;
+    void el.offsetHeight; // force reflow
+    let timeoutId = 0;
+    const raf = requestAnimationFrame(() => {
+      const node = swapWrapRef.current;
+      if (!node) return;
+      node.style.height = `${newH}px`;
+    });
+
+    const cleanup = () => {
+      const node = swapWrapRef.current;
+      if (node) node.style.height = ""; // auto 복귀
+    };
+    const onEnd = (e: TransitionEvent) => {
+      if (e.target !== el || e.propertyName !== "height") return;
+      cleanup();
+      el.removeEventListener("transitionend", onEnd);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    el.addEventListener("transitionend", onEnd);
+    // transitionend 미발생(jsdom / 중단) 대비 fallback (~320ms).
+    timeoutId = window.setTimeout(() => {
+      cleanup();
+      el.removeEventListener("transitionend", onEnd);
+    }, 320);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (timeoutId) clearTimeout(timeoutId);
+      el.removeEventListener("transitionend", onEnd);
+    };
+  }, [photoActive, reduceMotion]);
 
   const effectiveWidth = isCompact ? Math.min(width, 240) : width;
   const containerPadding = isCompact ? "12px 14px 10px" : "16px 18px 14px";
@@ -128,31 +215,74 @@ export function SpeechBubblePopup({
       >
         {!collapseBody && (
           <>
-            {/* Memo (+ 우측 썸네일 slot, Phase 13) */}
+            {/* Memo ↔ 사진 제자리 전환 (Phase 13 후속).
+                expandedPhoto 가 없으면 메모 행만, 있으면 두 노드를 겹쳐 두고
+                활성 노드를 normal flow(컨테이너 높이 결정)·비활성 노드를 absolute 로 두어
+                높이 transition + opacity 크로스페이드를 동시에 낸다. */}
             <div
+              ref={swapWrapRef}
               style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
+                position: "relative",
+                overflow: "hidden",
+                transition: reduceMotion ? "none" : "height 0.3s ease",
               }}
             >
+              {/* 메모 행 (+ 우측 정사각 썸네일 slot) */}
               <div
                 style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: memoFontSize,
-                  fontWeight: 500,
-                  color: colors.ink,
-                  lineHeight: memoLineHeight,
-                  letterSpacing: -0.2,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  ...(photoActive
+                    ? {
+                        position: "absolute",
+                        inset: 0,
+                        pointerEvents: "none",
+                      }
+                    : {}),
+                  opacity: photoActive ? 0 : 1,
+                  transition: reduceMotion ? "none" : "opacity 0.25s ease",
                 }}
+                aria-hidden={photoActive}
               >
-                {lines.map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: memoFontSize,
+                    fontWeight: 500,
+                    color: colors.ink,
+                    lineHeight: memoLineHeight,
+                    letterSpacing: -0.2,
+                  }}
+                >
+                  {lines.map((line, i) => (
+                    <div key={i}>{line}</div>
+                  ))}
+                </div>
+                {memoThumbnail ? (
+                  <div style={{ flexShrink: 0 }}>{memoThumbnail}</div>
+                ) : null}
               </div>
-              {memoThumbnail ? (
-                <div style={{ flexShrink: 0 }}>{memoThumbnail}</div>
+
+              {/* 펼친 사진 노드 */}
+              {expandedPhoto != null ? (
+                <div
+                  style={{
+                    ...(photoActive
+                      ? {}
+                      : {
+                          position: "absolute",
+                          inset: 0,
+                          pointerEvents: "none",
+                        }),
+                    opacity: photoActive ? 1 : 0,
+                    transition: reduceMotion ? "none" : "opacity 0.3s ease",
+                  }}
+                  aria-hidden={!photoActive}
+                >
+                  {expandedPhoto}
+                </div>
               ) : null}
             </div>
 
