@@ -353,6 +353,10 @@ public class PinService {
         Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
                 .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
 
+        if (!pin.hasPhoto()) {
+            return toSummary(pin); // 사진 없는 핀: 멱등 성공 (S3 호출 불필요)
+        }
+
         String photoKey = pin.getPhotoKey();
         String thumbnailKey = pin.getPhotoThumbnailKey();
 

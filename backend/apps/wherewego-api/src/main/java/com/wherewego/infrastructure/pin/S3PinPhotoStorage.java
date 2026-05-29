@@ -73,6 +73,7 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
                             .build(),
                     RequestBody.fromBytes(imageBytes));
         } catch (SdkException e) {
+            log.warn("S3 원본 putObject 실패 (key={})", photoKey, e);
             throw new CoreException(ErrorType.PIN_PHOTO_STORAGE_FAILED);
         }
 
@@ -88,6 +89,7 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
                             .build(),
                     RequestBody.fromBytes(thumbnailBytes));
         } catch (SdkException e) {
+            log.warn("S3 썸네일 putObject 실패 (key={}), 원본 정리", thumbnailKey, e);
             deleteObjectQuietly(photoKey);
             throw new CoreException(ErrorType.PIN_PHOTO_STORAGE_FAILED);
         } catch (RuntimeException e) {
