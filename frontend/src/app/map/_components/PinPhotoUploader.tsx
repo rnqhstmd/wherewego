@@ -162,25 +162,16 @@ export default function PinPhotoUploader({
             </div>
           ) : null}
 
-          <div
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              display: "flex",
-              gap: 6,
-            }}
-          >
-            <button
-              type="button"
-              onClick={handlePick}
-              disabled={busy}
-              aria-label="사진 변경"
-              style={iconButtonStyle(busy)}
+          {/* 단일 사진 — 삭제(x) 버튼만 노출. 교체는 삭제 후 다시 추가한다.
+              (여러 장 추가처럼 보이던 + 버튼은 제거.) */}
+          {(hasExisting || localPreview) && onDelete ? (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+              }}
             >
-              <IconPlus size={16} color={colors.ink} />
-            </button>
-            {(hasExisting || localPreview) && onDelete ? (
               <button
                 type="button"
                 onClick={handleDelete}
@@ -190,8 +181,8 @@ export default function PinPhotoUploader({
               >
                 <IconClose size={16} color={colors.pinNew} />
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <button
