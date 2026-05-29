@@ -9,9 +9,10 @@ import { HLine } from "@/components/ui/HLine";
 import { Input } from "@/components/ui/Input";
 import { colors, fonts } from "@/lib/design/tokens";
 import type { PinSummaryResponse, PinTag as PinTagType } from "@/lib/api/types";
-import { createPinAction } from "../actions";
+import { createPinAction, uploadPinPhotoAction } from "../actions";
 import { reverseGeocode } from "../_lib/reverseGeocode";
 import type { NewPinOrigin } from "./types";
+import PinPhotoUploader from "./PinPhotoUploader";
 
 interface MemoTagPanelContentProps {
   origin: NewPinOrigin;
@@ -19,6 +20,11 @@ interface MemoTagPanelContentProps {
   mapboxToken: string;
   onCancel: () => void;
   onSuccess: (pin: PinSummaryResponse) => void;
+  /**
+   * Phase 13 (AC-14, BR-6): 핀은 저장됐으나 사진 업로드만 실패한 경우 안내 토스트를
+   * 노출하기 위한 콜백. onSuccess 직후 패널이 닫히므로 호출처(MapClient)가 토스트를 표시한다.
+   */
+  onPhotoWarning?: (message: string) => void;
 }
 
 /**
@@ -34,6 +40,7 @@ export default function MemoTagPanelContent({
   mapboxToken,
   onCancel,
   onSuccess,
+  onPhotoWarning,
 }: MemoTagPanelContentProps) {
   const [tag, setTag] = useState<PinTagType | null>(null);
   const [memo, setMemo] = useState("");
@@ -41,6 +48,10 @@ export default function MemoTagPanelContent({
   const [instagramUrl, setInstagramUrl] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Phase 13 (AC-14): MEMORY 핀 신규 등록 2-step — 선택된(압축된) 사진을 보관했다가
+  // createPin 성공 후 발급된 pinId 로 업로드한다. PinPhotoUploader 가 미리보기를 내장하므로
+  // 여기서는 File 만 보관한다.
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
   // editable(Crosshair) 진입 시 좌표를 주소로 표시 — reverseGeocode 비동기 조회.
   // 로딩 중에는 좌표 fallback. 실패 시도 좌표 fallback. 호출은 mount 1회 + 좌표 변경 시.
@@ -101,7 +112,27 @@ export default function MemoTagPanelContent({
         tag,
       });
       if (result.ok) {
-        onSuccess(result.data);
+        // 2-step: MEMORY 핀 + 선택된 사진이 있으면 발급된 pinId 로 업로드.
+        // 업로드 실패는 핀 생성을 무효화하지 않는다(BR-6) — 핀은 그대로 반영하고 토스트만 안내.
+        if (pendingPhoto) {
+          const fd = new FormData();
+          fd.append("file", pendingPhoto);
+          const up = await uploadPinPhotoAction(
+            result.data.groupId ?? groupId,
+            result.data.id,
+            fd,
+          );
+          if (up.ok) {
+            onSuccess(up.data);
+          } else {
+            onSuccess(result.data);
+            onPhotoWarning?.(
+              "핀은 저장됐지만 사진 업로드에 실패했어요. 수정에서 다시 시도할 수 있어요.",
+            );
+          }
+        } else {
+          onSuccess(result.data);
+        }
       } else if (result.code === "PLC_DUPLICATE_PIN") {
         setError("이미 등록된 장소예요");
       } else if (result.code === "GROUP_NOT_MEMBER") {
@@ -161,12 +192,19 @@ export default function MemoTagPanelContent({
         <PinTag
           type="WISH"
           active={tag === "WISH"}
-          onClick={() => setTag("WISH")}
+          onClick={() => {
+            setTag("WISH");
+            // 비-MEMORY 태그로 변경 시 보관된 사진을 폐기 — 비-MEMORY 핀 업로드 시도(PIN_PHOTO_NOT_MEMORY) 방지.
+            setPendingPhoto(null);
+          }}
         />
         <PinTag
           type="REEL"
           active={tag === "REEL"}
-          onClick={() => setTag("REEL")}
+          onClick={() => {
+            setTag("REEL");
+            setPendingPhoto(null);
+          }}
         />
       </div>
 
@@ -194,6 +232,20 @@ export default function MemoTagPanelContent({
           outline: "none",
         }}
       />
+
+      {/* Phase 13 (FR-PIN-9g~k): MEMORY 핀에만 사진 첨부 노출. 선택 시 File 만 보관(2-step). */}
+      {tag === "MEMORY" && (
+        <>
+          <PanelLabel>사진 (선택)</PanelLabel>
+          <div style={{ marginBottom: 16 }}>
+            <PinPhotoUploader
+              onFileSelected={(file) => setPendingPhoto(file)}
+              onDelete={() => setPendingPhoto(null)}
+              disabled={pending}
+            />
+          </div>
+        </>
+      )}
 
       <PanelLabel>릴스 링크 (선택)</PanelLabel>
       <Input

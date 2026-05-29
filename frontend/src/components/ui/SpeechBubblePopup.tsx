@@ -33,6 +33,12 @@ interface SpeechBubblePopupProps {
   /** 본문 하단 추가 children (커스텀 확장) */
   children?: ReactNode;
   /**
+   * 메모 우측에 떠 있는 썸네일 노드 (Phase 13 FR-PIN-11a, ~44px 원형 권장).
+   * undefined/null 이면 메모 블록은 기존 단독 레이아웃을 그대로 유지한다(AC-11).
+   * 썸네일 img 자체와 클릭→뷰어 로직은 호출처(PinPopup)가 주입한다.
+   */
+  memoThumbnail?: ReactNode;
+  /**
    * true면 메모/장소/주소 영역을 숨기고 footerContent에만 집중.
    * 수정 모드 등에서 원본 값과 입력값이 동시에 보여 헷갈리는 것을 방지.
    */
@@ -67,6 +73,7 @@ export function SpeechBubblePopup({
   bodyAction,
   footerContent,
   children,
+  memoThumbnail,
   collapseBody = false,
   className,
   style,
@@ -121,19 +128,32 @@ export function SpeechBubblePopup({
       >
         {!collapseBody && (
           <>
-            {/* Memo */}
+            {/* Memo (+ 우측 썸네일 slot, Phase 13) */}
             <div
               style={{
-                fontSize: memoFontSize,
-                fontWeight: 500,
-                color: colors.ink,
-                lineHeight: memoLineHeight,
-                letterSpacing: -0.2,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
               }}
             >
-              {lines.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: memoFontSize,
+                  fontWeight: 500,
+                  color: colors.ink,
+                  lineHeight: memoLineHeight,
+                  letterSpacing: -0.2,
+                }}
+              >
+                {lines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+              {memoThumbnail ? (
+                <div style={{ flexShrink: 0 }}>{memoThumbnail}</div>
+              ) : null}
             </div>
 
             {/* Place + address */}

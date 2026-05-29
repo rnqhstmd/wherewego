@@ -10,6 +10,8 @@ import { IconShare } from "@/components/icons";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 import PinShareSheet from "./PinShareSheet";
+import PinPhotoUploader from "./PinPhotoUploader";
+import PinPhotoViewer from "./PinPhotoViewer";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
@@ -35,6 +37,12 @@ interface PinPopupProps {
   deleteError: string | null;
   onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
   coordinateError: string | null;
+  /**
+   * Phase 13 (FR-PIN-9g~k): MEMORY 핀 사진 업로드/삭제. MapClient 가 주입한 핸들러로 위임한다.
+   * (압축된 File 전달, 핀 갱신은 MapClient reducer update 책임)
+   */
+  onPhotoUpload?: (pinId: number, file: File) => Promise<void>;
+  onPhotoDelete?: (pinId: number) => Promise<void>;
 }
 
 type PopupMode = "view" | "menu" | "edit";
@@ -54,6 +62,8 @@ export default function PinPopup({
   deleteError,
   onRequestCoordinateEdit,
   coordinateError,
+  onPhotoUpload,
+  onPhotoDelete,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
@@ -69,6 +79,9 @@ export default function PinPopup({
   const [placeError, setPlaceError] = useState<string | null>(null);
   // Phase 9: 공유 카드 시트 표시 여부.
   const [shareOpen, setShareOpen] = useState(false);
+  // Phase 13: 원본 사진 뷰어 오픈 여부 + 사진 업로드/삭제 진행 표시.
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -97,6 +110,8 @@ export default function PinPopup({
     setPlacePending(false);
     setPlaceError(null);
     setShareOpen(false);
+    setViewerOpen(false);
+    setPhotoUploading(false);
   }
 
   useEffect(() => {
@@ -178,6 +193,27 @@ export default function PinPopup({
     setMode((prev) =>
       prev === "menu" ? "view" : prev === "edit" ? "view" : "menu",
     );
+  };
+
+  // Phase 13: 사진 업로드/삭제 — MapClient 주입 핸들러로 위임 (핀 갱신은 reducer update).
+  const handlePhotoUpload = async (file: File) => {
+    if (!onPhotoUpload || photoUploading) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoUpload(pin.id, file);
+    } finally {
+      if (mountedRef.current) setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!onPhotoDelete || photoUploading) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoDelete(pin.id);
+    } finally {
+      if (mountedRef.current) setPhotoUploading(false);
+    }
   };
 
   // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
@@ -293,14 +329,28 @@ export default function PinPopup({
   );
 
   const memoPanel = (
-    <PinPopupMemoEditor
-      key={pin.id}
-      initialMemo={pin.memo}
-      pending={memoPending}
-      error={memoError}
-      onSave={handleSaveMemo}
-      onCancel={() => setMode("view")}
-    />
+    <div>
+      <PinPopupMemoEditor
+        key={pin.id}
+        initialMemo={pin.memo}
+        pending={memoPending}
+        error={memoError}
+        onSave={handleSaveMemo}
+        onCancel={() => setMode("view")}
+      />
+      {/* Phase 13 (Q7): 메모 탭 하단 — 새 탭이 아닌 MEMORY 핀 전용 사진 업로더. */}
+      {pin.tag === "MEMORY" && onPhotoUpload ? (
+        <div style={{ marginTop: 12 }}>
+          <PinPhotoUploader
+            photoUrl={pin.photoUrl}
+            thumbnailUrl={pin.photoThumbnailUrl}
+            onFileSelected={handlePhotoUpload}
+            onDelete={onPhotoDelete ? handlePhotoDelete : undefined}
+            uploading={photoUploading}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 
   const editFooter = (
@@ -426,6 +476,26 @@ export default function PinPopup({
     </button>
   );
 
+  // Phase 13 (FR-PIN-11a): 말풍선 메모 우측 원형 썸네일. MEMORY + 사진이 있을 때만.
+  // 클릭 시 원본 뷰어 오픈. 사진 없으면 undefined → SpeechBubblePopup 레이아웃 불변(AC-11).
+  const memoThumbnail =
+    pin.tag === "MEMORY" && pin.photoThumbnailUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={pin.photoThumbnailUrl}
+        alt="추억 사진"
+        loading="lazy"
+        onClick={() => setViewerOpen(true)}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          objectFit: "cover",
+          cursor: "pointer",
+        }}
+      />
+    ) : undefined;
+
   return (
     <>
       <SpeechBubblePopup
@@ -444,6 +514,7 @@ export default function PinPopup({
               : "wish") satisfies PinDotType
         }
         instagramUrl={pin.instagramUrl}
+        memoThumbnail={memoThumbnail}
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
         shareAction={shareButton}
@@ -451,6 +522,13 @@ export default function PinPopup({
       >
         {menuPopover}
       </SpeechBubblePopup>
+      {viewerOpen && pin.photoUrl && pin.photoThumbnailUrl && (
+        <PinPhotoViewer
+          thumbnailUrl={pin.photoThumbnailUrl}
+          photoUrl={pin.photoUrl}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
       {shareOpen && (
         <PinShareSheet
           pin={pin}

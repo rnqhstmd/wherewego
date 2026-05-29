@@ -65,7 +65,7 @@ public class CleanupService {
         ZonedDateTime threshold = now.minus(CLEANUP_THRESHOLD);
         List<Pin> candidates = pinRepository.findCleanupCandidates(groupId, threshold);
         List<PinSummary> items = candidates.stream()
-                .map(p -> PinSummary.from(p, null, null))
+                .map(p -> PinSummary.from(p, null, null, null, null))
                 .toList();
         return new CleanupCandidatesResult(items.size(), null, items);
     }

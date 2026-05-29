@@ -83,6 +83,25 @@ public class Pin extends BaseEntity {
     @Column(name = "visited_at")
     private ZonedDateTime visitedAt;
 
+    /**
+     * Phase 13: 추억핀 사진 원본 S3 객체 키. NULL = 사진 없음.
+     * MEMORY 검증은 서비스 책임이며 도메인은 단순 위임한다.
+     */
+    @Column(name = "photo_key")
+    private String photoKey;
+
+    /** Phase 13: 추억핀 사진 썸네일 S3 객체 키 (원본과 uuid 공유). */
+    @Column(name = "photo_thumbnail_key")
+    private String photoThumbnailKey;
+
+    /** Phase 13: 사진을 업로드한 사용자 id (FK 명시 없음, created_by 컨벤션). */
+    @Column(name = "photo_uploaded_by")
+    private Long photoUploadedBy;
+
+    /** Phase 13: 사진 업로드(또는 교체) 시각. */
+    @Column(name = "photo_uploaded_at")
+    private ZonedDateTime photoUploadedAt;
+
     protected Pin() { }
 
     private Pin(Long groupId,
@@ -216,6 +235,35 @@ public class Pin extends BaseEntity {
         this.memo = null;
         this.memoSource = null;
         this.memoUpdatedBy = null;
+    }
+
+    /**
+     * Phase 13: 사진 적용(신규/교체). photoKey/thumbnailKey/uploaderId 는 호출 전 서비스에서 보장.
+     * MEMORY 검증은 서비스 책임이며 도메인은 단순 위임한다. uploadedAt 은 NOW() 로 기록한다.
+     */
+    public void applyPhoto(String photoKey, String thumbnailKey, Long uploaderId) {
+        this.photoKey = photoKey;
+        this.photoThumbnailKey = thumbnailKey;
+        this.photoUploadedBy = uploaderId;
+        this.photoUploadedAt = ZonedDateTime.now();
+    }
+
+    /**
+     * Phase 13: 사진 제거. 4필드 모두 NULL 로 초기화한다 (AC-9).
+     * S3 객체 best-effort 삭제는 서비스/포트 책임이며 도메인은 키 상태만 비운다.
+     */
+    public void clearPhoto() {
+        this.photoKey = null;
+        this.photoThumbnailKey = null;
+        this.photoUploadedBy = null;
+        this.photoUploadedAt = null;
+    }
+
+    /**
+     * Phase 13: 사진 첨부 여부. 교체 시 기존 키 회수 분기에 사용한다 (BR-7).
+     */
+    public boolean hasPhoto() {
+        return photoKey != null;
     }
 
     /**

@@ -38,6 +38,12 @@ export interface PinSummaryResponse {
   visitedAt: string | null;
   memoUpdatedBy: number | null;
   memoUpdatedByNickname: string | null;
+  /**
+   * Phase 13 (FR-PIN-9l/m): 추억핀 사진 원본/썸네일 공개 URL (조합 결과).
+   * 백엔드 전역 NON_NULL 직렬화로 사진이 없으면 키 자체가 누락되므로 optional. UI는 truthy 게이트(tag==="MEMORY" && photoThumbnailUrl)로 분기.
+   */
+  photoUrl?: string | null;
+  photoThumbnailUrl?: string | null;
 }
 
 export interface PinListResponse {
