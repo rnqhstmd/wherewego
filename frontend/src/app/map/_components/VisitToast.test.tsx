@@ -35,7 +35,7 @@ describe("VisitToast", () => {
     expect(screen.getByText("성수동 카페")).toBeInTheDocument();
     expect(screen.getByText("서울 성동구 성수동 1가")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "다음에 올게요" }),
+      screen.getByRole("button", { name: "나중에요" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /네, 다녀왔어요/ }),
@@ -48,13 +48,13 @@ describe("VisitToast", () => {
     expect(screen.queryByText(/성동구/)).not.toBeInTheDocument();
   });
 
-  it("'다음에 올게요' 클릭 시 onSkip 만 호출된다", () => {
+  it("'나중에요' 클릭 시 onSkip 만 호출된다", () => {
     const onSkip = vi.fn();
     const onConfirm = vi.fn();
     render(
       <VisitToast pin={makePin()} onSkip={onSkip} onConfirm={onConfirm} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "다음에 올게요" }));
+    fireEvent.click(screen.getByRole("button", { name: "나중에요" }));
     expect(onSkip).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
   });

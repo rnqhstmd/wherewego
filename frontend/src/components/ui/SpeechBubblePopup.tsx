@@ -475,13 +475,17 @@ export function SpeechBubblePopup({
           </div>
         </div>
 
-        {/* 인라인 펼침 영역 (태그 칩 등) */}
+        {/* 인라인 펼침 영역 (태그 칩 / 수정 폼 등).
+            수정 모드에서 사진 미리보기까지 들어가면 말풍선이 화면 위로 넘칠 만큼 길어지므로
+            max-height + 세로 스크롤로 가둬 팝업 자체가 과도하게 커지지 않게 한다(짧은 내용은 스크롤 없음). */}
         {footerContent ? (
           <div
             style={{
               marginTop: 10,
               paddingTop: 10,
               borderTop: `1px solid ${colors.hairline}`,
+              maxHeight: "min(50vh, 340px)",
+              overflowY: "auto",
             }}
           >
             {footerContent}
