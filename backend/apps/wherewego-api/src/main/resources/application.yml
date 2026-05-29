@@ -108,7 +108,7 @@ chatbot:
     recently-saved-ttl-seconds: ${CHATBOT_INSTAGRAM_RECENTLY_SAVED_TTL_SECONDS:600}
   reel:
     # Phase 12: 릴스 저장 선택 상태머신 세션 TTL.
-    # 모든 단계(PROCESSING/SINGLE_WANT/MULTI_SELECTING/BULK_SAVE/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
+    # 모든 단계(PROCESSING/MULTI_SELECTING/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
     selection-ttl-seconds: ${CHATBOT_REEL_SELECTION_TTL_SECONDS:180}
 
 mapbox:
