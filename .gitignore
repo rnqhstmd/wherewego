@@ -63,4 +63,7 @@ dist/
 .dev/**/extract.ps1
 .dev/**/diff.txt
 
+# 브레인스토밍 시각 동반 도구 임시 파일
+.superpowers/
+
 *.stackdump
