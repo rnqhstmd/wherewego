@@ -4,6 +4,7 @@ import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Pin V1 API", description = "그룹 핀 목록/수정/삭제/등록 API 입니다 (Phase 4 + Phase 6).")
 public interface PinV1ApiSpec {
@@ -64,6 +65,34 @@ public interface PinV1ApiSpec {
                     "성공 시 204 No Content 를 반환합니다."
     )
     void deletePin(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            Long pinId
+    );
+
+    @Operation(
+            summary = "추억핀 사진 업로드/교체",
+            description = "활성 그룹원이 MEMORY(추억) 핀에 사진 1장을 업로드합니다 (Phase 13 FR-PIN-9b~f, BR-1/BR-4). " +
+                    "MEMORY 가 아닌 핀은 PIN_PHOTO_NOT_MEMORY (400). " +
+                    "허용 타입은 image/jpeg|png|webp 이며 그 외는 PIN_PHOTO_TYPE_INVALID (400). " +
+                    "2MB 초과는 PIN_PHOTO_SIZE_EXCEEDED (400), 장변 4096px 초과는 PIN_PHOTO_DIMENSION_EXCEEDED (400). " +
+                    "서버에서 썸네일(장변 256px WebP)을 생성하여 원본·썸네일 2객체를 S3 에 저장하고, " +
+                    "기존 사진이 있으면 best-effort 로 교체합니다. 갱신된 PinSummaryResponse 를 반환합니다."
+    )
+    ApiResponse<PinV1Dto.PinSummaryResponse> uploadPinPhoto(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            Long pinId,
+            MultipartFile file
+    );
+
+    @Operation(
+            summary = "추억핀 사진 삭제",
+            description = "활성 그룹원이 핀의 사진을 삭제합니다 (Phase 13 FR-PIN-10a/b). " +
+                    "S3 원본·썸네일 2객체를 best-effort 삭제하고 사진 관련 4필드를 초기화합니다 (AC-9). " +
+                    "204 가 아닌, 갱신된 PinSummaryResponse 를 반환합니다."
+    )
+    ApiResponse<PinV1Dto.PinSummaryResponse> deletePinPhoto(
             @Parameter(hidden = true) Long userId,
             Long groupId,
             Long pinId

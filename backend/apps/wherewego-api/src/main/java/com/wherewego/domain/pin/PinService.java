@@ -1,6 +1,8 @@
 package com.wherewego.domain.pin;
 
+import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.group.GroupMemberService;
+import com.wherewego.domain.pin.PinPhotoStorage.StoredPhoto;
 import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -24,8 +26,10 @@ public class PinService {
     private final PinRepository pinRepository;
     private final GroupMemberService groupMemberService;
     private final UserRepository userRepository;
+    private final PinPhotoStorage pinPhotoStorage;
+    private final S3Properties s3Properties;
 
-    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 포함). */
+    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 + 사진 URL 조합 포함). */
     private PinSummary toSummary(Pin pin) {
         String createdByNickname = userRepository.findById(pin.getCreatedBy())
                 .map(u -> u.getNickname())
@@ -33,7 +37,19 @@ public class PinService {
         String memoUpdatedByNickname = pin.getMemoUpdatedBy() != null
                 ? userRepository.findById(pin.getMemoUpdatedBy()).map(u -> u.getNickname()).orElse(null)
                 : null;
-        return PinSummary.from(pin, createdByNickname, memoUpdatedByNickname);
+        return PinSummary.from(pin, createdByNickname, memoUpdatedByNickname,
+                toPublicUrl(pin.getPhotoKey()), toPublicUrl(pin.getPhotoThumbnailKey()));
+    }
+
+    /**
+     * S3 객체 키 → 공개 URL 조합 (Phase 13). 키가 없으면 null.
+     * <p>tag 무관하게 키가 있으면 조합한다(단순성). MEMORY 게이트는 프론트 UI 책임이다(BR-3 일관).</p>
+     */
+    private String toPublicUrl(String key) {
+        if (key == null) return null;
+        // publicBaseUrl 끝 슬래시를 제거해 "//" 이중 슬래시 broken URL 방지.
+        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        return base + "/" + key;
     }
 
     /**
@@ -55,7 +71,9 @@ public class PinService {
                 .map(p -> PinSummary.from(
                         p,
                         nicknames.get(p.getCreatedBy()),
-                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null))
+                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null,
+                        toPublicUrl(p.getPhotoKey()),
+                        toPublicUrl(p.getPhotoThumbnailKey())))
                 .toList();
     }
 
@@ -283,6 +301,67 @@ public class PinService {
         groupMemberService.requireActiveMembership(userId, groupId);
         Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
                 .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
+        // 소프트 삭제 시 S3 사진 객체도 best-effort 회수 (공개+immutable 버킷 특성상
+        // 삭제된 사진이 URL로 영구 접근되는 것을 방지). 실패해도 예외 전파 안 함(deleteQuietly).
+        if (pin.hasPhoto()) {
+            pinPhotoStorage.deleteQuietly(pin.getPhotoKey(), pin.getPhotoThumbnailKey());
+        }
         pin.delete();
+    }
+
+    /**
+     * 추억핀 사진 업로드/교체 (Phase 13 FR-PIN-9b~f).
+     * <p>활성 멤버십(BR-4) → 비관 락 조회(없으면 {@link ErrorType#PIN_NOT_FOUND}) →
+     * MEMORY 검증(아니면 {@link ErrorType#PIN_PHOTO_NOT_MEMORY}, BR-1/AC-3) → 기존 키 백업 →
+     * {@code storage.store}(트랜잭션 내, Q3) → {@code applyPhoto} → 기존 키가 있었으면 best-effort 회수
+     * (FR-PIN-10b/AC-10) → 갱신 summary 반환.</p>
+     * <p>imageBytes/contentType 은 컨트롤러에서 타입/크기를 검증한 값이며, 픽셀 상한은 어댑터가 검증한다.
+     * S3 완전 실패는 어댑터가 {@link ErrorType#PIN_PHOTO_STORAGE_FAILED} 로 래핑하여 전파한다(Q4).</p>
+     */
+    @Transactional
+    public PinSummary uploadPhoto(Long userId, Long groupId, Long pinId,
+                                  byte[] imageBytes, String contentType) {
+        groupMemberService.requireActiveMembership(userId, groupId);
+        Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
+        if (pin.getTag() != PinTag.MEMORY) {
+            throw new CoreException(ErrorType.PIN_PHOTO_NOT_MEMORY);
+        }
+
+        String oldPhotoKey = pin.getPhotoKey();
+        String oldThumbnailKey = pin.getPhotoThumbnailKey();
+        boolean hadPhoto = pin.hasPhoto();
+
+        StoredPhoto stored = pinPhotoStorage.store(groupId, pinId, imageBytes, contentType);
+        pin.applyPhoto(stored.photoKey(), stored.thumbnailKey(), userId);
+
+        if (hadPhoto) {
+            // 교체: 기존 객체 best-effort 회수 (실패해도 새 사진은 유효, FR-PIN-10b/AC-10).
+            pinPhotoStorage.deleteQuietly(oldPhotoKey, oldThumbnailKey);
+        }
+        return toSummary(pin);
+    }
+
+    /**
+     * 추억핀 사진 삭제 (Phase 13 FR-PIN-10a/b).
+     * <p>활성 멤버십(BR-4) → 비관 락 조회 → 키 백업 → {@code clearPhoto}(4필드 null, AC-9) →
+     * S3 2객체 best-effort 삭제 → 갱신 summary 반환(204 아님).</p>
+     */
+    @Transactional
+    public PinSummary deletePhoto(Long userId, Long groupId, Long pinId) {
+        groupMemberService.requireActiveMembership(userId, groupId);
+        Pin pin = pinRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.PIN_NOT_FOUND));
+
+        if (!pin.hasPhoto()) {
+            return toSummary(pin); // 사진 없는 핀: 멱등 성공 (S3 호출 불필요)
+        }
+
+        String photoKey = pin.getPhotoKey();
+        String thumbnailKey = pin.getPhotoThumbnailKey();
+
+        pin.clearPhoto();
+        pinPhotoStorage.deleteQuietly(photoKey, thumbnailKey);
+        return toSummary(pin);
     }
 }

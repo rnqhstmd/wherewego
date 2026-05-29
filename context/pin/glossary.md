@@ -27,3 +27,10 @@
 | 페이지 모드 | Phase 2.9 — 핀 목록 API가 `page`(0-based)와 `size`(최대 100)를 둘 다 전달받았을 때 동작. 응답에 `totalCount`/`hasNext` 추가. `hasNext = (long)(page + 1) * size < totalCount` (long 캐스팅으로 오버플로 방지) |
 | PIN_PAGE_PARAM_INVALID | Phase 2.9 — `page`/`size` 부분 전달, 음수/0, 비숫자 입력 시 400 응답 코드 |
 | PIN_PAGE_SIZE_EXCEEDED | Phase 2.9 — `size>100` 시 400 응답 코드 (MAX_PAGE_SIZE 상한) |
+| 추억핀 사진 (Phase 13) | MEMORY 핀 한정 사진 1장(선택). 추억 등록·방문 전환·핀 수정 3곳에서 업로드. REEL/WISH엔 미노출. instagram 미리보기와 무관한 순수 수동 업로드 |
+| photo 컬럼 4개 (Phase 13) | V013 — `photo_key`(원본 S3 키)/`photo_thumbnail_key`(썸네일 키)/`photo_uploaded_by`(업로더 id)/`photo_uploaded_at`. 모두 nullable, DB엔 키만 저장(URL 미저장) |
+| `PinPhotoStorage` (Phase 13) | 사진 스토리지 도메인 포트. `store(groupId, pinId, bytes, contentType)`→`StoredPhoto(photoKey, thumbnailKey)` + `deleteQuietly(키)`. 어댑터 `S3PinPhotoStorage`가 구현(AWS SDK v2 최초 도입). 의존성 역전으로 S3 SDK를 인프라에만 격리 |
+| `photoUrl`/`photoThumbnailUrl` (Phase 13) | `PinSummary`/`PinSummaryResponse`의 조합 URL(DB 컬럼 아님). `PinService.toPublicUrl(key)=publicBaseUrl+"/"+key`(트레일링 슬래시 정규화). 전역 Jackson NON_NULL이라 사진 없으면 응답 키 누락 → 프론트 optional 타입 |
+| S3 키 스킴 (Phase 13) | 원본 `pins/{groupId}/{pinId}/{uuid}.jpg`, 썸네일 `pins/{groupId}/{pinId}/{uuid}_thumb.webp`(동일 uuid 공유). 공개(public-read)+UUID(추측 불가), `Cache-Control: public, max-age=31536000, immutable`. LIST 미사용(키 DB 보관) |
+| 업로드 검증 4단계 (Phase 13) | ① MEMORY 태그(서비스, `PIN_PHOTO_NOT_MEMORY`) ② Content-Type 화이트리스트+매직바이트(컨트롤러, `PIN_PHOTO_TYPE_INVALID`) ③ 크기 ≤2MB(`PIN_PHOTO_SIZE_EXCEEDED`) ④ 픽셀 장변 ≤4096(어댑터, `PIN_PHOTO_DIMENSION_EXCEEDED`). 원본 성공+썸네일 실패 시 원본 정리(원자성) |
+| 태그 이탈 시 사진 보존 (Phase 13) | MEMORY→다른 태그 변경 시 사진 레코드/S3 보존, UI만 tag로 게이트. 단 핀 소프트 삭제 시에는 S3 best-effort 정리(공개 URL 영구 노출 방지) |

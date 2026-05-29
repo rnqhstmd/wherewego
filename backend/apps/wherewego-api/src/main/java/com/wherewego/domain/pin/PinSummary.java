@@ -22,13 +22,17 @@ public record PinSummary(
         ZonedDateTime createdAt,
         ZonedDateTime visitedAt,
         Long memoUpdatedBy,
-        String memoUpdatedByNickname
+        String memoUpdatedByNickname,
+        String photoUrl,
+        String photoThumbnailUrl
 ) {
 
     /**
-     * 기본 팩토리. 작성자/메모 작성자 닉네임만 주입한다.
+     * 기본 팩토리. 작성자/메모 작성자 닉네임 + 사진 조합 URL 을 주입한다 (Phase 13).
+     * <p>photoUrl/photoThumbnailUrl 은 {@code PinService.toSummary} 가 키 → public URL 로 조합한 값이다.</p>
      */
-    public static PinSummary from(Pin pin, String createdByNickname, String memoUpdatedByNickname) {
+    public static PinSummary from(Pin pin, String createdByNickname, String memoUpdatedByNickname,
+                                  String photoUrl, String photoThumbnailUrl) {
         return new PinSummary(
                 pin.getId(),
                 pin.getGroupId(),
@@ -45,7 +49,9 @@ public record PinSummary(
                 pin.getCreatedAt(),
                 pin.getVisitedAt(),
                 pin.getMemoUpdatedBy(),
-                memoUpdatedByNickname
+                memoUpdatedByNickname,
+                photoUrl,
+                photoThumbnailUrl
         );
     }
 }

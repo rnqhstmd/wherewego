@@ -10,6 +10,8 @@ import { IconShare } from "@/components/icons";
 import { colors, fonts } from "@/lib/design/tokens";
 import PinPopupMemoEditor from "./PinPopupMemoEditor";
 import PinShareSheet from "./PinShareSheet";
+import PinPhotoUploader from "./PinPhotoUploader";
+import PinPhotoInline from "./PinPhotoInline";
 
 interface PinPopupProps {
   pin: PinSummaryResponse;
@@ -35,6 +37,12 @@ interface PinPopupProps {
   deleteError: string | null;
   onRequestCoordinateEdit: (pin: PinSummaryResponse) => void;
   coordinateError: string | null;
+  /**
+   * Phase 13 (FR-PIN-9g~k): MEMORY 핀 사진 업로드/삭제. MapClient 가 주입한 핸들러로 위임한다.
+   * (압축된 File 전달, 핀 갱신은 MapClient reducer update 책임)
+   */
+  onPhotoUpload?: (pinId: number, file: File) => Promise<void>;
+  onPhotoDelete?: (pinId: number) => Promise<void>;
 }
 
 type PopupMode = "view" | "menu" | "edit";
@@ -54,21 +62,27 @@ export default function PinPopup({
   deleteError,
   onRequestCoordinateEdit,
   coordinateError,
+  onPhotoUpload,
+  onPhotoDelete,
 }: PinPopupProps) {
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(
     null,
   );
   const [mode, setMode] = useState<PopupMode>("view");
   const [editTab, setEditTab] = useState<EditTab>("place");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [memoPending, setMemoPending] = useState(false);
-  const [memoError, setMemoError] = useState<string | null>(null);
+  // 수정은 장소→태그→메모 위저드. 각 필드는 draft 로만 바꾸고, 마지막 메모 탭의 "저장"이
+  // 변경된 필드(장소/태그/메모)를 한 번에 커밋한다. 저장 진행/에러는 saving/saveError 로 통합.
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [placeDraft, setPlaceDraft] = useState(pin.placeName);
-  const [placePending, setPlacePending] = useState(false);
+  // 장소 탭 "다음" 시 빈 값 검증용 인라인 에러.
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState<PinTag>(pin.tag);
   // Phase 9: 공유 카드 시트 표시 여부.
   const [shareOpen, setShareOpen] = useState(false);
+  // Phase 13 후속: 말풍선 안 사진 제자리 펼침 여부 + 사진 업로드/삭제 진행 표시.
+  const [photoExpanded, setPhotoExpanded] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -90,13 +104,14 @@ export default function PinPopup({
     setTrackedPinId(pin.id);
     setMode("view");
     setEditTab("place");
-    setError(null);
-    setMemoPending(false);
-    setMemoError(null);
+    setSaving(false);
+    setSaveError(null);
     setPlaceDraft(pin.placeName);
-    setPlacePending(false);
     setPlaceError(null);
+    setTagDraft(pin.tag);
     setShareOpen(false);
+    setPhotoExpanded(false);
+    setPhotoUploading(false);
   }
 
   useEffect(() => {
@@ -131,46 +146,65 @@ export default function PinPopup({
     .replace(/\s/g, "")
     .replace(/\.$/, "");
 
-  const handleTagToggle = async (nextTag: PinTag) => {
-    if (nextTag === pin.tag || pending) return;
-    setPending(true);
-    setError(null);
-    const result = await onTagChange(pin.id, nextTag);
-    if (!mountedRef.current) return;
-    setPending(false);
-    if (!result.ok) {
-      setError(result.message ?? "태그 변경에 실패했어요");
-    } else {
-      setMode("view");
+  // 장소 탭 "다음" — 빈 장소면 막고, 아니면 태그 탭으로 진행.
+  const handleNextFromPlace = () => {
+    if (!placeDraft.trim()) {
+      setPlaceError("장소 이름을 비울 수 없어요");
+      return;
     }
-  };
-
-  const handleSavePlaceName = async () => {
-    const trimmed = placeDraft.trim();
-    if (!trimmed || trimmed === pin.placeName || placePending) return;
-    setPlacePending(true);
     setPlaceError(null);
-    const result = await onPlaceNameChange(pin.id, trimmed);
-    if (!mountedRef.current) return;
-    setPlacePending(false);
-    if (result.ok) {
-      setMode("view");
-    } else {
-      setPlaceError(result.message ?? "장소 이름 저장에 실패했어요");
-    }
+    setEditTab("tag");
   };
 
-  const handleSaveMemo = async (nextMemo: string) => {
-    if (memoPending) return;
-    setMemoPending(true);
-    setMemoError(null);
-    const result = await onMemoChange(pin.id, nextMemo);
-    if (!mountedRef.current) return;
-    setMemoPending(false);
-    if (result.ok) {
+  // 수정 모드 취소 — 모든 draft 를 원래 값으로 되돌리고 view 로.
+  const handleCancelEdit = () => {
+    setPlaceDraft(pin.placeName);
+    setTagDraft(pin.tag);
+    setPlaceError(null);
+    setSaveError(null);
+    setMode("view");
+  };
+
+  // 위저드 최종 저장(메모 탭) — 변경된 장소/태그/메모를 순서대로 커밋한다.
+  // 백엔드가 필드별 API 라 변경분만 호출하고, 일부 실패 시 메시지를 합쳐 보여준다(이미 성공한 건 유지).
+  const handleSaveAll = async (nextMemo: string) => {
+    if (saving) return;
+    const trimmedPlace = placeDraft.trim();
+    if (!trimmedPlace) {
+      setSaveError("장소 이름을 비울 수 없어요");
+      setEditTab("place");
+      return;
+    }
+    const placeChanged = trimmedPlace !== pin.placeName;
+    const tagChanged = tagDraft !== pin.tag;
+    const memoChanged = nextMemo !== (pin.memo ?? "");
+    if (!placeChanged && !tagChanged && !memoChanged) {
       setMode("view");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    const errors: string[] = [];
+    if (placeChanged) {
+      const r = await onPlaceNameChange(pin.id, trimmedPlace);
+      if (!mountedRef.current) return;
+      if (!r.ok) errors.push(r.message ?? "장소 저장에 실패했어요");
+    }
+    if (tagChanged) {
+      const r = await onTagChange(pin.id, tagDraft);
+      if (!mountedRef.current) return;
+      if (!r.ok) errors.push(r.message ?? "태그 저장에 실패했어요");
+    }
+    if (memoChanged) {
+      const r = await onMemoChange(pin.id, nextMemo);
+      if (!mountedRef.current) return;
+      if (!r.ok) errors.push(r.message ?? "메모 저장에 실패했어요");
+    }
+    setSaving(false);
+    if (errors.length > 0) {
+      setSaveError(errors.join(" / "));
     } else {
-      setMemoError(result.message ?? "메모 저장에 실패했어요");
+      setMode("view");
     }
   };
 
@@ -178,6 +212,27 @@ export default function PinPopup({
     setMode((prev) =>
       prev === "menu" ? "view" : prev === "edit" ? "view" : "menu",
     );
+  };
+
+  // Phase 13: 사진 업로드/삭제 — MapClient 주입 핸들러로 위임 (핀 갱신은 reducer update).
+  const handlePhotoUpload = async (file: File) => {
+    if (!onPhotoUpload || photoUploading) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoUpload(pin.id, file);
+    } finally {
+      if (mountedRef.current) setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!onPhotoDelete || photoUploading) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoDelete(pin.id);
+    } finally {
+      if (mountedRef.current) setPhotoUploading(false);
+    }
   };
 
   // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
@@ -205,8 +260,11 @@ export default function PinPopup({
       <input
         type="text"
         value={placeDraft}
-        onChange={(e) => setPlaceDraft(e.target.value)}
-        disabled={placePending}
+        onChange={(e) => {
+          setPlaceDraft(e.target.value);
+          if (placeError) setPlaceError(null);
+        }}
+        disabled={saving}
         maxLength={100}
         placeholder="장소 이름"
         style={{
@@ -221,6 +279,9 @@ export default function PinPopup({
           background: "#fff",
         }}
       />
+      {placeError && (
+        <div style={{ ...inlineErrorStyle, marginTop: 6 }}>{placeError}</div>
+      )}
       <div
         style={{
           display: "flex",
@@ -231,76 +292,91 @@ export default function PinPopup({
       >
         <button
           type="button"
-          onClick={() => {
-            setPlaceDraft(pin.placeName);
-            setPlaceError(null);
-            setMode("view");
-          }}
-          disabled={placePending}
-          style={linkButtonStyle(colors.inkSoft)}
+          onClick={handleNextFromPlace}
+          style={{ ...linkButtonStyle(colors.cta), fontWeight: 700 }}
         >
-          취소
-        </button>
-        <button
-          type="button"
-          onClick={handleSavePlaceName}
-          disabled={
-            placePending ||
-            !placeDraft.trim() ||
-            placeDraft.trim() === pin.placeName
-          }
-          style={{
-            ...linkButtonStyle(colors.cta),
-            fontWeight: 700,
-          }}
-        >
-          {placePending ? "저장 중..." : "저장"}
+          다음 →
         </button>
       </div>
-      {placeError && (
-        <div style={{ ...inlineErrorStyle, marginTop: 6 }}>{placeError}</div>
-      )}
     </div>
   );
 
   const tagPanel = (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: error ? 8 : 0, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <PinTagChip
           type="MEMORY"
-          active={pin.tag === "MEMORY"}
-          disabled={pending}
-          onClick={() => handleTagToggle("MEMORY")}
+          active={tagDraft === "MEMORY"}
+          disabled={saving}
+          onClick={() => setTagDraft("MEMORY")}
         />
         <PinTagChip
           type="WISH"
-          active={pin.tag === "WISH"}
-          disabled={pending}
-          onClick={() => handleTagToggle("WISH")}
+          active={tagDraft === "WISH"}
+          disabled={saving}
+          onClick={() => setTagDraft("WISH")}
         />
         <PinTagChip
           type="REEL"
-          active={pin.tag === "REEL"}
-          disabled={pending}
-          onClick={() => handleTagToggle("REEL")}
+          active={tagDraft === "REEL"}
+          disabled={saving}
+          onClick={() => setTagDraft("REEL")}
         />
-        {pending && (
-          <span style={hintTextStyle}>저장 중...</span>
-        )}
       </div>
-      {error && <div style={inlineErrorStyle}>{error}</div>}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 10,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setEditTab("place")}
+          style={linkButtonStyle(colors.inkSoft)}
+        >
+          ← 이전
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditTab("memo")}
+          style={{ ...linkButtonStyle(colors.cta), fontWeight: 700 }}
+        >
+          다음 →
+        </button>
+      </div>
     </div>
   );
 
   const memoPanel = (
-    <PinPopupMemoEditor
-      key={pin.id}
-      initialMemo={pin.memo}
-      pending={memoPending}
-      error={memoError}
-      onSave={handleSaveMemo}
-      onCancel={() => setMode("view")}
-    />
+    <div>
+      <PinPopupMemoEditor
+        key={pin.id}
+        initialMemo={pin.memo}
+        pending={saving}
+        error={saveError}
+        onSave={handleSaveAll}
+        onCancel={handleCancelEdit}
+        alsoDirty={
+          placeDraft.trim() !== pin.placeName || tagDraft !== pin.tag
+        }
+      >
+        {/* Phase 13 (Q7): 메모 입력과 취소/저장 사이에 MEMORY 핀 전용 사진 업로더.
+            취소/저장 버튼이 항상 맨 아래에 오도록 에디터 children 슬롯으로 주입한다. */}
+        {pin.tag === "MEMORY" && onPhotoUpload ? (
+          <div style={{ marginTop: 12 }}>
+            <PinPhotoUploader
+              photoUrl={pin.photoUrl}
+              thumbnailUrl={pin.photoThumbnailUrl}
+              onFileSelected={handlePhotoUpload}
+              onDelete={onPhotoDelete ? handlePhotoDelete : undefined}
+              uploading={photoUploading}
+            />
+          </div>
+        ) : null}
+      </PinPopupMemoEditor>
+    </div>
   );
 
   const editFooter = (
@@ -311,7 +387,7 @@ export default function PinPopup({
         : editTab === "tag"
           ? tagPanel
           : memoPanel}
-      {/* 보조 액션: 좌표 수정 / 취소 (메모 탭의 저장/취소는 PinPopupMemoEditor 자체에 있음) */}
+      {/* 보조 액션: 좌표 수정 / 닫기. 닫기는 수정 중 draft 를 되돌리고 view 로(메모 탭의 최종 저장만 커밋). */}
       <div
         style={{
           marginTop: 14,
@@ -331,7 +407,7 @@ export default function PinPopup({
         </button>
         <button
           type="button"
-          onClick={() => setMode("view")}
+          onClick={handleCancelEdit}
           style={linkButtonStyle(colors.inkSoft)}
         >
           닫기
@@ -426,6 +502,40 @@ export default function PinPopup({
     </button>
   );
 
+  // Phase 13 후속 (FR-PIN-11a): 말풍선 메모 우측 정사각 썸네일. MEMORY + 사진이 있을 때만.
+  // 클릭 시 메모 영역을 제자리에서 사진으로 펼친다. 사진 없으면 undefined →
+  // SpeechBubblePopup 레이아웃 불변(AC-11).
+  const hasPhoto = Boolean(
+    pin.tag === "MEMORY" && pin.photoThumbnailUrl && pin.photoUrl,
+  );
+  const memoThumbnail =
+    pin.tag === "MEMORY" && pin.photoThumbnailUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={pin.photoThumbnailUrl}
+        alt="추억 사진"
+        loading="lazy"
+        onClick={() => setPhotoExpanded(true)}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 9,
+          objectFit: "cover",
+          cursor: "pointer",
+        }}
+      />
+    ) : undefined;
+
+  // 메모 영역을 제자리에서 대체하는 1:1 사진 노드 (blur-up + ↩ 복귀).
+  const expandedPhoto =
+    hasPhoto && pin.photoThumbnailUrl && pin.photoUrl ? (
+      <PinPhotoInline
+        thumbnailUrl={pin.photoThumbnailUrl}
+        photoUrl={pin.photoUrl}
+        onBack={() => setPhotoExpanded(false)}
+      />
+    ) : undefined;
+
   return (
     <>
       <SpeechBubblePopup
@@ -444,6 +554,9 @@ export default function PinPopup({
               : "wish") satisfies PinDotType
         }
         instagramUrl={pin.instagramUrl}
+        memoThumbnail={memoThumbnail}
+        expandedPhoto={expandedPhoto}
+        showExpandedPhoto={photoExpanded}
         collapseBody={mode === "edit"}
         onMenuClick={handleMenuClick}
         shareAction={shareButton}
@@ -499,13 +612,6 @@ const inlineErrorStyle = {
   color: colors.pinNew,
   marginTop: 6,
 } as const;
-
-const hintTextStyle = {
-  fontFamily: fonts.sans,
-  fontSize: 12,
-  color: colors.inkSoft,
-  alignSelf: "center" as const,
-};
 
 function renderTabButton(
   target: EditTab,

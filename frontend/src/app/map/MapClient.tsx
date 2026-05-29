@@ -68,10 +68,12 @@ import {
 import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
 import {
   deletePinAction,
+  deletePinPhotoAction,
   updatePinCoordinateAction,
   updatePinMemoAction,
   updatePinPlaceNameAction,
   updatePinTagAction,
+  uploadPinPhotoAction,
 } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
 import { useNotifications } from "@/lib/notifications/useNotifications";
@@ -1424,6 +1426,64 @@ export default function MapClient({
   }, [visitMemoPin]);
 
   /**
+   * Phase 13 (FR-PIN-9b~d, BR-6): 추억핀 사진 업로드 핸들러.
+   * 압축된 File 을 FormData 로 감싸 uploadPinPhotoAction 에 위임 →
+   * 성공 시 갱신 summary 로 reducer update(마커 인스턴스 캐시 유지, revalidate 없음) + pins state 갱신.
+   * 실패 시 기존 토스트(visitErrorMessage)로 안내한다.
+   */
+  const handlePhotoUpload = useCallback(
+    async (pinId: number, file: File): Promise<void> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await uploadPinPhotoAction(groupId, pinId, fd);
+      if (result.ok) {
+        const summary = result.data;
+        startOptimisticTransition(() => {
+          applyOptimistic({ kind: "patch", pinId, patch: summary });
+        });
+        setPins((prev) => prev.map((p) => (p.id === pinId ? summary : p)));
+        if (pinsCacheRef.current) {
+          pinsCacheRef.current.fetchedAt = Date.now();
+        }
+        return;
+      }
+      setVisitErrorMessage(
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : (result.message ?? "사진 업로드에 실패했어요. 잠시 후 다시 시도해 주세요."),
+      );
+    },
+    [groupId, applyOptimistic],
+  );
+
+  /**
+   * Phase 13 (FR-PIN-10a/b): 추억핀 사진 삭제 핸들러.
+   * deletePinPhotoAction → 성공 시 사진 필드가 비워진 갱신 summary 로 reducer update + pins state 갱신.
+   */
+  const handlePhotoDelete = useCallback(
+    async (pinId: number): Promise<void> => {
+      const result = await deletePinPhotoAction(groupId, pinId);
+      if (result.ok) {
+        const summary = result.data;
+        startOptimisticTransition(() => {
+          applyOptimistic({ kind: "patch", pinId, patch: summary });
+        });
+        setPins((prev) => prev.map((p) => (p.id === pinId ? summary : p)));
+        if (pinsCacheRef.current) {
+          pinsCacheRef.current.fetchedAt = Date.now();
+        }
+        return;
+      }
+      setVisitErrorMessage(
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : (result.message ?? "사진 삭제에 실패했어요. 잠시 후 다시 시도해 주세요."),
+      );
+    },
+    [groupId, applyOptimistic],
+  );
+
+  /**
    * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
    *
    * <p>패널 자체는 `NotificationPanel` 내부에서 onSelectPin 직후 onClose로 닫힌다.
@@ -1755,6 +1815,7 @@ export default function MapClient({
         mapboxToken={mapboxToken}
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
+        onPhotoWarning={setVisitErrorMessage}
       />,
       { halfHeight: true },
     );
@@ -1783,6 +1844,8 @@ export default function MapClient({
         visitedAt={visitedAtRef.current}
         onSave={handleVisitMemoSave}
         onSkip={handleVisitMemoSkip}
+        onPhotoUpload={(file) => handlePhotoUpload(visitMemoPin!.id, file)}
+        onPhotoDelete={() => handlePhotoDelete(visitMemoPin!.id)}
       />,
       { halfHeight: true },
     );
@@ -1979,6 +2042,8 @@ export default function MapClient({
           deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
           onRequestCoordinateEdit={handleRequestCoordinateEdit}
           coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
+          onPhotoUpload={handlePhotoUpload}
+          onPhotoDelete={handlePhotoDelete}
         />
       )}
       {deleteCandidate && (

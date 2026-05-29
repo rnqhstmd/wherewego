@@ -30,6 +30,12 @@ spring:
         # ThresholdMonitorScheduler가 previousGeminiSnapshot clear/putAll를 안전하게 수행하려면 단일 스레드 필요.
         # Spring Boot 기본값이지만 동작이 스케줄러 정합성에 의존하므로 명시한다.
         size: 1
+  servlet:
+    multipart:
+      # Phase 13: 추억핀 사진 업로드. 클라 압축 후 2MB 이하지만 EXIF/메타 여유로 5MB 한도.
+      # 컨트롤러에서 2MB 초과를 PIN_PHOTO_SIZE_EXCEEDED 로, 한도 초과는 advice 가 동일 코드로 매핑.
+      max-file-size: 5MB
+      max-request-size: 5MB
 
 springdoc:
   use-fqn: true
@@ -102,11 +108,19 @@ chatbot:
     recently-saved-ttl-seconds: ${CHATBOT_INSTAGRAM_RECENTLY_SAVED_TTL_SECONDS:600}
   reel:
     # Phase 12: 릴스 저장 선택 상태머신 세션 TTL.
-    # 모든 단계(PROCESSING/SINGLE_WANT/MULTI_SELECTING/BULK_SAVE/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
+    # 모든 단계(PROCESSING/MULTI_SELECTING/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
     selection-ttl-seconds: ${CHATBOT_REEL_SELECTION_TTL_SECONDS:180}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
+
+wherewego:
+  s3:
+    # Phase 13: 추억핀 사진 저장 버킷. EC2 IAM Role 자격증명(DefaultCredentialsProvider) 사용.
+    bucket: ${S3_BUCKET}
+    region: ${S3_REGION:ap-northeast-2}
+    # 공개 GetObject URL 베이스. 응답 photoUrl = ${public-base-url}/${key}.
+    public-base-url: ${S3_PUBLIC_BASE_URL}
 
 app:
   invite:

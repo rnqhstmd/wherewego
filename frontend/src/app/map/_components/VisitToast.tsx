@@ -166,7 +166,7 @@ export default function VisitToast({ pin, onSkip, onConfirm }: VisitToastProps) 
           onClick={onSkip}
           style={{ flex: 1, padding: "10px 0", fontSize: 13 }}
         >
-          다음에 올게요
+          나중에요
         </BtnSub>
         <BtnPrimary
           onClick={onConfirm}

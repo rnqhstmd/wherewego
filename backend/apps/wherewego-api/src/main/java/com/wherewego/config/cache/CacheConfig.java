@@ -85,8 +85,8 @@ public class CacheConfig {
                         .maximumSize(10_000)
                         .build());
         // Phase 12: 릴스 저장 선택 상태머신 세션. key = botUserKey, value = ReelSavedSelectionSession.Snapshot.
-        // TTL = chatbot.reel.selection-ttl-seconds (기본 180초 = 3분). PROCESSING/SINGLE_WANT/MULTI_SELECTING/
-        // BULK_SAVE/MEMO_WAITING 모든 단계의 상태를 동일 TTL 윈도우로 통일 (D-3, D-4).
+        // TTL = chatbot.reel.selection-ttl-seconds (기본 180초 = 3분). PROCESSING/MULTI_SELECTING/
+        // MEMO_WAITING 모든 단계의 상태를 동일 TTL 윈도우로 통일 (D-3, D-4).
         //
         // NFR-12-5: "최초 URL 전송 후 3분" 이 만료 기준. expireAfterWrite 는 매 put 마다 TTL 을
         // 갱신하므로 상태 전이 시 윈도우가 누적되어 PRD 위반 발생. 커스텀 Expiry 로 create 시점

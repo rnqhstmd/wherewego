@@ -135,7 +135,7 @@ public class ChatbotWebhookService {
     }
 
     /**
-     * 새 URL 도착 시 활성 릴스 세션이 있으면 현재 선택(또는 SINGLE_WANT 단계 의도)을 기준으로 즉시 저장한다.
+     * 새 URL 도착 시 활성 릴스 세션이 있으면 현재 선택(wishIndices, 미응답 단계면 전체 발견)을 기준으로 즉시 저장한다.
      * 저장 후 결과는 {@link PendingNotificationSession} 에 prepend 메시지로 적재되어 다음 응답에 합쳐진다.
      */
     private void autoSavePreviousIfActive(String botUserKey, ChatbotContext ctx) {

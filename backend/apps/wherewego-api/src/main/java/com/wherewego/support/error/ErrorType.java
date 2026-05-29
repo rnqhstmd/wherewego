@@ -63,7 +63,15 @@ public enum ErrorType {
     /** 핀 (Phase 12) */
     PIN_CLEANUP_FORBIDDEN(HttpStatus.FORBIDDEN, "PIN_CLEANUP_FORBIDDEN", "정리 권한이 없어요."),
     BOT_REEL_PARSE_FORMAT(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_FORMAT", "릴스 장소 선택 형식이 올바르지 않아요."),
-    BOT_REEL_PARSE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_OUT_OF_RANGE", "릴스 장소 번호가 범위를 벗어났어요.");
+    BOT_REEL_PARSE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_OUT_OF_RANGE", "릴스 장소 번호가 범위를 벗어났어요."),
+
+    /** 핀 사진 (Phase 13) */
+    PIN_PHOTO_NOT_MEMORY(HttpStatus.BAD_REQUEST, "PIN_PHOTO_NOT_MEMORY", "사진은 추억(MEMORY) 핀에만 첨부할 수 있어요."),
+    PIN_PHOTO_TYPE_INVALID(HttpStatus.BAD_REQUEST, "PIN_PHOTO_TYPE_INVALID", "JPEG, PNG, WebP 이미지만 업로드할 수 있어요."),
+    PIN_PHOTO_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_SIZE_EXCEEDED", "사진은 2MB 이하만 업로드할 수 있어요."),
+    PIN_PHOTO_DIMENSION_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_DIMENSION_EXCEEDED", "사진 해상도가 너무 커요. (장변 4096px 이하)"),
+    PIN_PHOTO_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_FILE_REQUIRED", "업로드할 사진 파일이 없어요."),
+    PIN_PHOTO_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "PIN_PHOTO_STORAGE_FAILED", "사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String code;

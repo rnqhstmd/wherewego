@@ -10,16 +10,15 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Skill 요청 → {@link MessageType} 분류. 우선순위 평가 (Phase 12):
+ * Skill 요청 → {@link MessageType} 분류. 우선순위 평가 (Phase 13):
  * <ol>
  *     <li>PLACE_SELECTION       : {@code action.params.placeId != null}</li>
  *     <li>LINK_CODE             : {@code action.params.code != null} (i 오픈빌더 slot filling)</li>
  *     <li>INSTAGRAM_LINK        : 인스타 URL 패턴 — 새 링크는 항상 신규로 처리 (이전 세션 자동 저장 후 덮어씀)</li>
- *     <li>SINGLE_WANT_YES / SINGLE_WANT_NO :
- *         {@link ReelSavedSelectionSession} state = SINGLE_WANT 인 경우 발화 정확 매칭
- *         (Phase 13: "위시로 저장" / "발견으로 저장")</li>
- *     <li>REEL_PLACE_SELECTION  : state = MULTI_SELECTING 인 경우 모든 발화
- *         (콤마 숫자 / "전부" / "건너뛰기" — 핸들러에서 세부 분기)</li>
+ *     <li>REEL_PLACE_SELECTION  : {@link ReelSavedSelectionSession} state = MULTI_SELECTING 인 경우 모든 발화.
+ *         Phase 13에서 1곳~30곳을 모두 이 단계로 통합한다 — 1곳은 "가고 싶어요" / "그냥 저장",
+ *         2~30곳은 콤마 숫자 / "전부" / "건너뛰기" 발화를 핸들러가 세부 분기한다.
+ *         (31곳+ 는 선택 없이 MEMO_WAITING 직행이라 여기 분기가 없다.)</li>
  *     <li>REEL_MEMO_WAITING     : state = MEMO_WAITING 인 경우 모든 발화</li>
  *     <li>TEXT_2SEC_CANDIDATE   : 2초 메모 세션</li>
  *     <li>UNKNOWN               : 그 외</li>
