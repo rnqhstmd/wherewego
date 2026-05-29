@@ -3,7 +3,7 @@
 - 작성일: 2026-05-28
 - 수정일: 2026-05-28
 - 관련 레포: rnqhstmd/wherewego
-- 상태: ⬜ 미시작 (설계 확정, 구현 전)
+- 상태: ✅ 완료 (2026-05-29, [#77](https://github.com/rnqhstmd/wherewego/pull/77))
 - 설계 스펙: [docs/superpowers/specs/2026-05-28-memory-pin-photo-upload-design.md](../../docs/superpowers/specs/2026-05-28-memory-pin-photo-upload-design.md)
 
 ## 개요

@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/phase-13-memory-pin-photo
 base: feat/phase-12-pin-experience-v2
@@ -18,7 +18,7 @@ phases:
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
   implement: pending
   review: pending
   complete: pending
