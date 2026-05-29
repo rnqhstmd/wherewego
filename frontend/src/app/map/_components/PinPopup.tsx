@@ -83,6 +83,10 @@ export default function PinPopup({
   // Phase 13 후속: 말풍선 안 사진 제자리 펼침 여부 + 사진 업로드/삭제 진행 표시.
   const [photoExpanded, setPhotoExpanded] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  // Phase 13 후속: 사진 변경을 즉시 반영하지 않고 staging 한다 — 저장 시 일괄 반영, 취소 시 폐기.
+  // pendingPhotoFile: 저장 시 업로드할 새 파일. pendingPhotoRemoved: 저장 시 기존 사진 삭제.
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [pendingPhotoRemoved, setPendingPhotoRemoved] = useState(false);
 
   // mountedRef: setup 시 true로 reset (Strict Mode dev 이중 mount 안전).
   const mountedRef = useRef(true);
@@ -112,6 +116,8 @@ export default function PinPopup({
     setShareOpen(false);
     setPhotoExpanded(false);
     setPhotoUploading(false);
+    setPendingPhotoFile(null);
+    setPendingPhotoRemoved(false);
   }
 
   useEffect(() => {
@@ -162,6 +168,9 @@ export default function PinPopup({
     setTagDraft(pin.tag);
     setPlaceError(null);
     setSaveError(null);
+    // staged 사진 변경 폐기 — 아직 업로드/삭제하지 않았으므로 되돌릴 것이 없다.
+    setPendingPhotoFile(null);
+    setPendingPhotoRemoved(false);
     setMode("view");
   };
 
@@ -178,7 +187,15 @@ export default function PinPopup({
     const placeChanged = trimmedPlace !== pin.placeName;
     const tagChanged = tagDraft !== pin.tag;
     const memoChanged = nextMemo !== (pin.memo ?? "");
-    if (!placeChanged && !tagChanged && !memoChanged) {
+    const photoRemoved = pendingPhotoRemoved && !!pin.photoUrl;
+    const photoAdded = pendingPhotoFile !== null;
+    if (
+      !placeChanged &&
+      !tagChanged &&
+      !memoChanged &&
+      !photoRemoved &&
+      !photoAdded
+    ) {
       setMode("view");
       return;
     }
@@ -190,10 +207,25 @@ export default function PinPopup({
       if (!mountedRef.current) return;
       if (!r.ok) errors.push(r.message ?? "장소 저장에 실패했어요");
     }
+    // 사진 삭제는 태그 변경보다 먼저 — 비-MEMORY 핀에 사진이 남아 있으면 백엔드가 거부한다.
+    // onPhotoDelete 는 실패 시 자체 토스트로 안내하고 throw 하지 않는다(BR-6).
+    if (photoRemoved && onPhotoDelete) {
+      setPhotoUploading(true);
+      await onPhotoDelete(pin.id);
+      if (!mountedRef.current) return;
+      setPhotoUploading(false);
+    }
     if (tagChanged) {
       const r = await onTagChange(pin.id, tagDraft);
       if (!mountedRef.current) return;
       if (!r.ok) errors.push(r.message ?? "태그 저장에 실패했어요");
+    }
+    // 사진 추가는 태그가 MEMORY 로 확정된 뒤 — 가드가 비-MEMORY+사진 조합을 막는다.
+    if (pendingPhotoFile && onPhotoUpload) {
+      setPhotoUploading(true);
+      await onPhotoUpload(pin.id, pendingPhotoFile);
+      if (!mountedRef.current) return;
+      setPhotoUploading(false);
     }
     if (memoChanged) {
       const r = await onMemoChange(pin.id, nextMemo);
@@ -204,6 +236,8 @@ export default function PinPopup({
     if (errors.length > 0) {
       setSaveError(errors.join(" / "));
     } else {
+      setPendingPhotoFile(null);
+      setPendingPhotoRemoved(false);
       setMode("view");
     }
   };
@@ -214,25 +248,18 @@ export default function PinPopup({
     );
   };
 
-  // Phase 13: 사진 업로드/삭제 — MapClient 주입 핸들러로 위임 (핀 갱신은 reducer update).
-  const handlePhotoUpload = async (file: File) => {
-    if (!onPhotoUpload || photoUploading) return;
-    setPhotoUploading(true);
-    try {
-      await onPhotoUpload(pin.id, file);
-    } finally {
-      if (mountedRef.current) setPhotoUploading(false);
-    }
+  // Phase 13 후속: 사진 변경은 staging 만 한다 (즉시 업로드/삭제 금지).
+  // 실제 반영은 handleSaveAll, 폐기는 handleCancelEdit 가 담당하며,
+  // PinPhotoUploader 가 선택본의 로컬 미리보기를 자체 관리한다.
+  const handlePhotoUpload = (file: File) => {
+    setPendingPhotoFile(file);
+    setPendingPhotoRemoved(false);
   };
 
-  const handlePhotoDelete = async () => {
-    if (!onPhotoDelete || photoUploading) return;
-    setPhotoUploading(true);
-    try {
-      await onPhotoDelete(pin.id);
-    } finally {
-      if (mountedRef.current) setPhotoUploading(false);
-    }
+  const handlePhotoDelete = () => {
+    setPendingPhotoFile(null);
+    // 기존 업로드된 사진이 있을 때만 삭제를 staging (없으면 staged 추가 취소로 충분).
+    setPendingPhotoRemoved(Boolean(pin.photoUrl));
   };
 
   // ─── 메뉴 popover (수정 / 삭제) ────────────────────────────────
@@ -301,6 +328,10 @@ export default function PinPopup({
     </div>
   );
 
+  // 사진이 붙은(또는 저장 시 붙을) 추억핀은 위시/발견으로 바꿀 수 없다 — 비-MEMORY 핀은 사진 불가.
+  // 변경하려면 먼저 사진을 삭제(staging)해야 한다.
+  const photoPresentForTag =
+    pendingPhotoFile !== null || (!!pin.photoUrl && !pendingPhotoRemoved);
   const tagPanel = (
     <div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -313,16 +344,34 @@ export default function PinPopup({
         <PinTagChip
           type="WISH"
           active={tagDraft === "WISH"}
-          disabled={saving}
-          onClick={() => setTagDraft("WISH")}
+          disabled={saving || photoPresentForTag}
+          onClick={() => {
+            if (photoPresentForTag) return;
+            setTagDraft("WISH");
+          }}
         />
         <PinTagChip
           type="REEL"
           active={tagDraft === "REEL"}
-          disabled={saving}
-          onClick={() => setTagDraft("REEL")}
+          disabled={saving || photoPresentForTag}
+          onClick={() => {
+            if (photoPresentForTag) return;
+            setTagDraft("REEL");
+          }}
         />
       </div>
+      {photoPresentForTag ? (
+        <div
+          style={{
+            marginTop: 8,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+            color: colors.inkSoft,
+          }}
+        >
+          사진이 있는 추억핀이에요. 위시·발견으로 바꾸려면 먼저 사진을 삭제해 주세요.
+        </div>
+      ) : null}
       <div
         style={{
           display: "flex",
@@ -359,16 +408,21 @@ export default function PinPopup({
         onSave={handleSaveAll}
         onCancel={handleCancelEdit}
         alsoDirty={
-          placeDraft.trim() !== pin.placeName || tagDraft !== pin.tag
+          placeDraft.trim() !== pin.placeName ||
+          tagDraft !== pin.tag ||
+          pendingPhotoFile !== null ||
+          (pendingPhotoRemoved && !!pin.photoUrl)
         }
       >
         {/* Phase 13 (Q7): 메모 입력과 취소/저장 사이에 MEMORY 핀 전용 사진 업로더.
-            취소/저장 버튼이 항상 맨 아래에 오도록 에디터 children 슬롯으로 주입한다. */}
-        {pin.tag === "MEMORY" && onPhotoUpload ? (
+            취소/저장 버튼이 항상 맨 아래에 오도록 에디터 children 슬롯으로 주입한다.
+            사진 변경은 staging 만 — 실제 업로드/삭제는 저장 시 일괄 반영된다. */}
+        {pin.tag === "MEMORY" && tagDraft === "MEMORY" && onPhotoUpload ? (
           <div style={{ marginTop: 12 }}>
             <PinPhotoUploader
-              photoUrl={pin.photoUrl}
-              thumbnailUrl={pin.photoThumbnailUrl}
+              // staged 삭제 시 기존 URL 을 숨겨 빈 슬롯으로 보이게 한다.
+              photoUrl={pendingPhotoRemoved ? null : pin.photoUrl}
+              thumbnailUrl={pendingPhotoRemoved ? null : pin.photoThumbnailUrl}
               onFileSelected={handlePhotoUpload}
               onDelete={onPhotoDelete ? handlePhotoDelete : undefined}
               uploading={photoUploading}
