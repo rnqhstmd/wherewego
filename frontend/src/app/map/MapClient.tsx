@@ -519,6 +519,48 @@ export default function MapClient({
     return () => controller.abort();
   }, [reelBundleId]);
 
+  // Phase 12 (FR-PIN-12-27): 번들 진입 시 번들 핀으로 카메라 이동.
+  // 카메라가 멈춰 있으면 번들 핀이 클러스터에 묻혀 dim/강조가 무의미해지므로,
+  // bundlePinIds 가 채워지면 1개는 flyTo(zoom 15, 클러스터에서 풀려 단독 표시),
+  // 여러 개는 fitBounds 로 맞춘다. reelBundleId 단위로 1회만 수행.
+  const bundleCameraAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reelBundleId) {
+      bundleCameraAppliedRef.current = null; // 해제 시 다음 진입을 위해 리셋
+      return;
+    }
+    if (!map || bundlePinIds.size === 0) return;
+    if (bundleCameraAppliedRef.current === reelBundleId) return;
+    const targets = optimisticPins.filter((p) => bundlePinIds.has(p.id));
+    if (targets.length === 0) return; // 핀 로드 전 — pins 도착 후 재시도
+    bundleCameraAppliedRef.current = reelBundleId;
+    if (targets.length === 1) {
+      map.flyTo({
+        center: [targets[0].longitude, targets[0].latitude],
+        zoom: 15,
+        duration: 700,
+      });
+      return;
+    }
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+    for (const t of targets) {
+      minLng = Math.min(minLng, t.longitude);
+      maxLng = Math.max(maxLng, t.longitude);
+      minLat = Math.min(minLat, t.latitude);
+      maxLat = Math.max(maxLat, t.latitude);
+    }
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding: 80, maxZoom: 15, duration: 700 },
+    );
+  }, [map, reelBundleId, bundlePinIds, optimisticPins]);
+
   /**
    * Phase 12: `?reel_bundle=` 해제 — 쿼리 제거 + 일반 모드 복귀.
    * 다른 필터(filter) 는 보존한다.
