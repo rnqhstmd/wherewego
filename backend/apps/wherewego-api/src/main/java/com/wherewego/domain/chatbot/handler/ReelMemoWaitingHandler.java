@@ -137,7 +137,7 @@ public class ReelMemoWaitingHandler implements MessageHandler {
         reelSavedSelectionSession.invalidate(botUserKey);
         log.info("MEMO_WAITING completed botUserKey={} wish={} reel={} alreadyExisted={} hasMemo={}",
                 botUserKey, saveResult.wishSavedNames.size(), saveResult.reelSavedNames.size(),
-                saveResult.alreadyExistedCount, memo != null);
+                saveResult.alreadyExistedNames.size(), memo != null);
 
         return composeResponse(saveResult, memo);
     }
@@ -166,7 +166,7 @@ public class ReelMemoWaitingHandler implements MessageHandler {
         List<Long> savedPinIds = new ArrayList<>();
         List<String> wishSavedNames = new ArrayList<>();
         List<String> reelSavedNames = new ArrayList<>();
-        int alreadyExistedCount = 0;
+        List<String> alreadyExistedNames = new ArrayList<>();
 
         for (int i = 0; i < places.size(); i++) {
             int oneBasedIdx = i + 1;
@@ -177,7 +177,7 @@ public class ReelMemoWaitingHandler implements MessageHandler {
                         userId, groupId, hit, instagramUrl, tag);
                 Pin pin = result.pin();
                 if (result.alreadyExisted()) {
-                    alreadyExistedCount++;
+                    alreadyExistedNames.add(pin.getPlaceName());
                     continue;
                 }
                 // AUTO 메모 적용 (memo 가 있을 때만).
@@ -192,13 +192,13 @@ public class ReelMemoWaitingHandler implements MessageHandler {
                     reelSavedNames.add(pin.getPlaceName());
                 }
             } catch (DataIntegrityViolationException e) {
-                alreadyExistedCount++;
+                alreadyExistedNames.add(hit.placeName());
             } catch (RuntimeException e) {
                 log.warn("registerFromSelection (reel memo) failed name={} cause={}",
                         hit.placeName(), e.getMessage(), e);
             }
         }
-        return new SaveResult(savedPinIds, wishSavedNames, reelSavedNames, alreadyExistedCount);
+        return new SaveResult(savedPinIds, wishSavedNames, reelSavedNames, alreadyExistedNames);
     }
 
     private static String truncate(String s) {
@@ -221,9 +221,12 @@ public class ReelMemoWaitingHandler implements MessageHandler {
                 sb.append("📍 ").append(name).append('\n');
             }
         }
-        if (result.alreadyExistedCount > 0) {
+        if (!result.alreadyExistedNames.isEmpty()) {
             if (sb.length() > 0) sb.append('\n');
-            sb.append("📌 이미 저장된 장소 ").append(result.alreadyExistedCount).append("곳은 건너뛰었어요\n");
+            sb.append("📌 이미 저장된 장소 ").append(result.alreadyExistedNames.size()).append("곳은 건너뛰었어요\n");
+            for (String name : result.alreadyExistedNames) {
+                sb.append("📌 ").append(name).append('\n');
+            }
         }
         if (memo != null && !memo.isBlank()) {
             if (sb.length() > 0) sb.append('\n');
@@ -236,11 +239,11 @@ public class ReelMemoWaitingHandler implements MessageHandler {
         return ChatbotV1Dto.SkillResponse.simple(sb.toString().trim());
     }
 
-    /** 저장 결과 집계. Phase 13: 위시/발견 이름 목록을 분리한다. */
+    /** 저장 결과 집계. Phase 13: 위시/발견 저장 이름과 이미 저장돼 건너뛴 이름을 분리 보관한다. */
     public record SaveResult(
             List<Long> savedPinIds,
             List<String> wishSavedNames,
             List<String> reelSavedNames,
-            int alreadyExistedCount
+            List<String> alreadyExistedNames
     ) { }
 }
