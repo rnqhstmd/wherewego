@@ -4,9 +4,11 @@
 
 ## 시스템 구조
 
-- 테이블: `pins (id, group_id FK, created_by FK, place_name, address, latitude, longitude, instagram_url NULLABLE, memo, memo_source, tag, created_at, updated_at, deleted_at)`
+- 테이블: `pins (id, group_id FK, created_by FK, place_name, address, latitude, longitude, instagram_url NULLABLE, memo, memo_source, tag, want_count, visited_at, photo_key NULLABLE, photo_thumbnail_key NULLABLE, photo_uploaded_by NULLABLE, photo_uploaded_at NULLABLE, created_at, updated_at, deleted_at)`
+  - `photo_*` 4개 — V013(Phase 13) MEMORY 핀 사진. DB엔 S3 키만 저장, 공개 URL은 응답 시 조합. nullable, 기존 핀 무영향
   - `CONSTRAINT chk_pins_tag CHECK (tag IN ('REEL', 'WISH', 'MEMORY'))` — V006(Phase 7)에서 PLACE 제거, REEL·WISH 신설
   - `CONSTRAINT chk_pins_memo_source CHECK (memo_source IN ('AUTO', 'MANUAL'))`
+  - `want_count INT NOT NULL DEFAULT 0` — V012(Phase 12) `pin_events.WANT` 캐시 카운트. 과반 자동 WISH 전환 + `?sort=want_count` 정렬 사용
 - 인덱스:
   - `UNIQUE(group_id, instagram_url)` — 챗봇 중복 방지. PostgreSQL 표준 동작으로 NULL distinct 처리 → instagram_url IS NULL 행(직접 등록)은 중복 허용, 비NULL만 차단
   - `INDEX(group_id, deleted_at)` — 기본 그룹 핀 조회
@@ -30,7 +32,18 @@
   - 입력: [[place]] 결과(좌표·이름) + [[memo]] 정책 + [[chatbot]] 또는 [[map]] 검색 UI + [[tag]] 카테고리
   - 출력: [[map]] 렌더링, [[recommendation]] 랜덤 선정, 웹 UI `/pins` 목록·수정·삭제
 
+## 사진 스토리지 (Phase 13)
+
+- **AWS SDK v2 최초 도입**. 도메인 포트 `PinPhotoStorage`(`com.wherewego.domain.pin`) ↔ 어댑터 `S3PinPhotoStorage`(`com.wherewego.infrastructure.pin`)로 S3 의존을 인프라에만 격리. `S3Config`가 `S3Client` 빈(DefaultCredentialsProvider — 운영 EC2 IAM Role/로컬 .env, 짧은 타임아웃) + `S3Properties`(`wherewego.s3.bucket/region/public-base-url`)
+- 업로드 파이프라인: 프론트 압축(장변 1600px JPEG) → 컨트롤러 검증(Content-Type+매직바이트, ≤2MB) → 어댑터 디코딩+픽셀 검증(장변 ≤4096) + scrimage WebP 썸네일(256px) → S3 원본/썸네일 2객체 put(`Cache-Control: public, max-age=31536000, immutable`). 원본 성공+썸네일 실패 시 원본 정리(원자성)
+- 키 스킴 `pins/{groupId}/{pinId}/{uuid}.jpg`·`..._thumb.webp`(공개+UUID, LIST 미사용). 멀티파트 `POST/DELETE /api/v1/groups/{groupId}/pins/{pinId}/photo`, 교체=재 POST(옛 객체 best-effort 삭제), 핀 소프트 삭제 시 S3 연쇄 정리
+- 트랜잭션 내 S3 I/O(PESSIMISTIC_WRITE 락 + 짧은 타임아웃). DB 커밋 실패 시 S3 고아는 수용된 리스크(프리티어 무해)
+- 4명 규모 프리티어 무과금: immutable 캐시 + 평상시 썸네일만 GET + 키 DB 보관(LIST 0). AWS Budgets $0.01 알림
+
 ## 주제 문서
 
 | 주제 | 설명 |
 |------|------|
+| [Phase 10 — 장소 방문 감지](phase-10-visit-detection.md) | WISH/REEL 핀 100m·30초 머무름 → 자동 MEMORY 전환 |
+| [Phase 12 — Pin Experience v2](phase-12-pin-experience-v2.md) | WANT 시스템(`pin_events`)·과반 WISH 전환·마커 3단계·챗봇 v2(콤마 입력)·오래된 핀 정리 |
+| [Phase 13 — 추억핀 사진 업로드](phase-13-memory-pin-photo.md) | MEMORY 핀 사진 1장 — S3 포트/어댑터·WebP 썸네일·blur-up 뷰어·업로더 3곳 재사용 |

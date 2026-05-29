@@ -30,6 +30,12 @@ spring:
         # ThresholdMonitorScheduler가 previousGeminiSnapshot clear/putAll를 안전하게 수행하려면 단일 스레드 필요.
         # Spring Boot 기본값이지만 동작이 스케줄러 정합성에 의존하므로 명시한다.
         size: 1
+  servlet:
+    multipart:
+      # Phase 13: 추억핀 사진 업로드. 클라 압축 후 2MB 이하지만 EXIF/메타 여유로 5MB 한도.
+      # 컨트롤러에서 2MB 초과를 PIN_PHOTO_SIZE_EXCEEDED 로, 한도 초과는 advice 가 동일 코드로 매핑.
+      max-file-size: 5MB
+      max-request-size: 5MB
 
 springdoc:
   use-fqn: true
@@ -100,16 +106,29 @@ chatbot:
     # 자동/메모 흐름으로 저장된 URL을 같은 사용자가 재전송했을 때 RESEND 안내를 띄울 윈도우.
     # 너무 길면 같은 인스타 게시물에 새 장소를 추가하려는 의도까지 차단된다.
     recently-saved-ttl-seconds: ${CHATBOT_INSTAGRAM_RECENTLY_SAVED_TTL_SECONDS:600}
+  reel:
+    # Phase 12: 릴스 저장 선택 상태머신 세션 TTL.
+    # 모든 단계(PROCESSING/MULTI_SELECTING/MEMO_WAITING) 동일 윈도우 (D-3, D-4).
+    selection-ttl-seconds: ${CHATBOT_REEL_SELECTION_TTL_SECONDS:180}
 
 mapbox:
   token: ${MAPBOX_TOKEN}
+
+wherewego:
+  s3:
+    # Phase 13: 추억핀 사진 저장 버킷. EC2 IAM Role 자격증명(DefaultCredentialsProvider) 사용.
+    bucket: ${S3_BUCKET}
+    region: ${S3_REGION:ap-northeast-2}
+    # 공개 GetObject URL 베이스. 응답 photoUrl = ${public-base-url}/${key}.
+    public-base-url: ${S3_PUBLIC_BASE_URL}
 
 app:
   invite:
     # 초대 링크 TTL (ISO-8601 duration). 7일.
     ttl: ${APP_INVITE_TTL:P7D}
     # 단축 공유 URL 베이스. `${baseUrl}/invite/{slug}` 형태로 결합된다.
-    share-base-url: ${APP_INVITE_SHARE_BASE_URL:http://localhost:3000}
+    # 운영 기본값 = 서비스 도메인. 로컬 개발은 .env 에 APP_INVITE_SHARE_BASE_URL=http://localhost:3000 으로 override.
+    share-base-url: ${APP_INVITE_SHARE_BASE_URL:https://wherewego.win}
     rate-limit:
       # /api/v1/groups/invite-links/by-slug/** 의 IP 분당 허용 요청 수.
       capacity: 30
@@ -166,6 +185,9 @@ chatbot:
     pending-ttl-seconds: 60
     # 로컬/테스트는 빠른 검증을 위해 짧게 (60초).
     recently-saved-ttl-seconds: 60
+  reel:
+    # Phase 12: 로컬/테스트도 운영과 동일한 3분 TTL 사용.
+    selection-ttl-seconds: 180
 
 ---
 spring:

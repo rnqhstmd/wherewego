@@ -32,7 +32,9 @@ public final class PinV1Dto {
             ZonedDateTime createdAt,
             ZonedDateTime visitedAt,
             Long memoUpdatedBy,
-            String memoUpdatedByNickname
+            String memoUpdatedByNickname,
+            String photoUrl,
+            String photoThumbnailUrl
     ) {
         public static PinSummaryResponse from(PinSummary s) {
             return new PinSummaryResponse(
@@ -51,7 +53,9 @@ public final class PinV1Dto {
                     s.createdAt(),
                     s.visitedAt(),
                     s.memoUpdatedBy(),
-                    s.memoUpdatedByNickname()
+                    s.memoUpdatedByNickname(),
+                    s.photoUrl(),
+                    s.photoThumbnailUrl()
             );
         }
     }

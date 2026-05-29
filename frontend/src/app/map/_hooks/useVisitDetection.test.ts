@@ -80,12 +80,12 @@ describe("useVisitDetection", () => {
     vi.useRealTimers();
   });
 
-  it("accuracy > 50m 이면 평가 전체를 스킵한다", () => {
+  it("accuracy > 100m 이면 평가 전체를 스킵한다", () => {
     const { result } = renderHook(() => useVisitDetection());
     const pin = makePin({ id: 1, latitude: 37.5, longitude: 127.0 });
 
     let evaluation = result.current.evaluate({
-      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 80 }),
+      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 130 }),
       wishReelPins: [pin],
       shownPinIds: new Set(),
     });
@@ -96,7 +96,7 @@ describe("useVisitDetection", () => {
       vi.advanceTimersByTime(31_000);
     });
     evaluation = result.current.evaluate({
-      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 90 }),
+      position: makePosition({ lat: 37.5, lng: 127.0, accuracy: 150 }),
       wishReelPins: [pin],
       shownPinIds: new Set(),
     });

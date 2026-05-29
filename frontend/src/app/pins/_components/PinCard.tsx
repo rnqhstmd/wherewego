@@ -44,6 +44,12 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
   const resolvedTagStyle = tagStyle ?? TAG_STYLES.WISH;
   const resolvedTagLabel = tagLabel ?? TAG_LABEL.WISH;
 
+  // Phase 12 (AC-12-19): 출처 뱃지 (📹 릴스 / ✏️ 직접). PinPopup viewFooter 패턴과 동일.
+  const sourceBadgeLabel = pin.instagramUrl ? "📹" : "✏️";
+  const sourceBadgeTitle = pin.instagramUrl
+    ? "릴스에서 발견한 곳"
+    : "직접 추가한 곳";
+
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <header className="flex items-start justify-between gap-3">
@@ -57,11 +63,13 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
             </p>
           ) : null}
         </div>
-        <span
-          className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-medium ${resolvedTagStyle}`}
-        >
-          {resolvedTagLabel}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span
+            className={`inline-flex h-6 items-center rounded-full px-2 text-xs font-medium ${resolvedTagStyle}`}
+          >
+            {resolvedTagLabel}
+          </span>
+        </div>
       </header>
 
       {pin.memo ? (
@@ -78,6 +86,13 @@ export function PinCard({ pin, onEdit, onDelete, disabled }: PinCardProps) {
       <footer className="flex items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <div className="flex items-center gap-3">
           <span>{formatCreatedAt(pin.createdAt)}</span>
+          <span
+            aria-label={sourceBadgeTitle}
+            title={sourceBadgeTitle}
+            className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-semibold leading-none text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            {sourceBadgeLabel}
+          </span>
           {pin.instagramUrl?.startsWith("https://") ? (
             <a
               href={pin.instagramUrl}

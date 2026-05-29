@@ -3,7 +3,6 @@ package com.wherewego.domain.chatbot.handler;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chatbot.ChatbotContext;
 import com.wherewego.domain.chatbot.MessageType;
-import com.wherewego.domain.chatbot.PendingInstagramSession;
 import com.wherewego.interfaces.api.chatbot.ChatbotV1Dto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -15,7 +14,6 @@ import java.util.List;
 public class UnknownHandler implements MessageHandler {
 
     private final BotUserMappingService botUserMappingService;
-    private final PendingInstagramSession pendingInstagramSession;
 
     @Override
     public MessageType supports() {
@@ -35,17 +33,9 @@ public class UnknownHandler implements MessageHandler {
             );
         }
 
-        // (2) 연동·pending 있음 — 메모 입력 대기 안내 + "메모 없이 저장" QuickReply.
-        if (pendingInstagramSession.peek(botUserKey).isPresent()) {
-            return ChatbotV1Dto.SkillResponse.simple(
-                    "메모 입력을 기다리고 있어요.\n"
-                            + "메모를 보내거나 아래 [❌ 메모 없이 저장]을 눌러주세요.",
-                    List.of(ChatbotV1Dto.QuickReply.message("❌ 메모 없이 저장", "메모 없이 저장"))
-            );
-        }
-
-        // (3) 연동·pending 없음 — QuickReply 없이 일반 안내.
-        // RecentlyAutoSavedSession은 URL 키 기반이라 사용자별 직접 peek 불가, 본 분기로 통합.
+        // (2) 연동·세션 없음 — QuickReply 없이 일반 안내.
+        // Phase 12 ReelSavedSelectionSession 활성 상태는 classifier 에서 별도 enum 으로 분기되므로
+        // 여기까지 도달한 발화는 세션 외(텍스트 잡음 등)로 본다.
         return ChatbotV1Dto.SkillResponse.simple(
                 "인스타그램 릴스 링크를 보내면 장소가 자동으로 저장돼요.\n"
                         + "혹시 방금 링크를 보내셨다면 처리 중일 수 있어요. 결과가 도착하지 않으면 잠시 후 아무 메시지나 보내주세요."

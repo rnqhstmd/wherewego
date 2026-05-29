@@ -66,6 +66,12 @@ bot:
 mapbox:
   token: test-mapbox-token
 
+wherewego:
+  s3:
+    bucket: test-bucket
+    region: ap-northeast-2
+    public-base-url: https://test-bucket.s3.ap-northeast-2.amazonaws.com
+
 google:
   places:
     api-key: test-google-places-api-key

@@ -12,6 +12,15 @@ dependencies {
     // html scraping (Instagram OG meta)
     implementation("org.jsoup:jsoup:1.17.2")
 
+    // AWS S3 (Phase 13 추억핀 사진 — BOM 으로 버전 관리, 개별 artifact 는 버전 생략)
+    implementation(platform("software.amazon.awssdk:bom:2.31.78"))
+    implementation("software.amazon.awssdk:s3")
+    implementation("software.amazon.awssdk:apache-client") // S3Config ApacheHttpClient 타임아웃용
+
+    // image thumbnail (Phase 13 — 장변 256px WebP 인코딩, 번들 libwebp 네이티브)
+    implementation("com.sksamuel.scrimage:scrimage-core:4.3.0")
+    implementation("com.sksamuel.scrimage:scrimage-webp:4.3.0")
+
     // web
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")

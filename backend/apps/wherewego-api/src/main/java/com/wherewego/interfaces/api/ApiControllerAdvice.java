@@ -15,6 +15,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -119,6 +120,15 @@ public class ApiControllerAdvice {
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handleNotFound(NoResourceFoundException e) {
         return failureResponse(ErrorType.NOT_FOUND, null);
+    }
+
+    /**
+     * Phase 13: 멀티파트 크기 초과 (spring.servlet.multipart.max-file-size 초과).
+     * 컨트롤러의 2MB 검증보다 먼저 Spring 이 던질 수 있으므로 동일 에러코드로 매핑한다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<?>> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        return failureResponse(ErrorType.PIN_PHOTO_SIZE_EXCEEDED, null);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

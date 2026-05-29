@@ -11,6 +11,7 @@
  */
 
 import type { JSX } from "react";
+import type { PinTag } from "@/lib/api/types";
 
 export type PinKind = "reel" | "wish" | "memory";
 
@@ -26,9 +27,9 @@ export type PinKind = "reel" | "wish" | "memory";
  * - MEMORY: 파스텔 핑크 #FFB3C6 하트 (다녀온 곳)
  */
 export const PIN_COLORS: Record<PinKind, string> = {
-  reel: "#7BB3E8",   // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
-  wish: "#F4C842",   // 진한 파스텔 노랑 (머스타드 hint) — 흰 지도 배경에서 별이 또렷
-  memory: "#FFB3C6", // 파스텔 핑크 하트 — 그대로
+  reel: "#7BB3E8",     // 하늘색 동그라미 — 인스타 발견의 부드러운 톤
+  wish: "#F4C842",     // 진한 파스텔 노랑 (머스타드 hint) — 흰 지도 배경에서 별이 또렷
+  memory: "#FFB3C6",   // 파스텔 핑크 하트 — 그대로
 };
 
 
@@ -150,4 +151,36 @@ export function MemoryGlyph({
       />
     </svg>
   );
+}
+
+// =====================================================================
+// 마커 variant 결정 헬퍼 (단일 진입점)
+// =====================================================================
+
+/**
+ * 마커 시각화 결정 결과.
+ *
+ * - kind: 글리프 종류 (color + 모양 — wish/memory만 모양이 다름)
+ * - size: 베이스 사이즈에 곱할 계수
+ *   · REEL = 1.0 (기본)
+ *   · WISH = 1.2 (가장 큼)
+ *   · MEMORY = 1.0
+ */
+export interface MarkerVariant {
+  kind: PinKind;
+  size: number;
+}
+
+/**
+ * tag → MarkerVariant 결정 (단일 진입점).
+ * PinDot/MapboxView가 모두 이 헬퍼를 통해 색·크기를 일관되게 결정한다.
+ *
+ *  - tag=MEMORY → memory, 1.0
+ *  - tag=WISH   → wish, 1.2
+ *  - tag=REEL   → reel, 1.0
+ */
+export function getMarkerVariant(tag: PinTag): MarkerVariant {
+  if (tag === "MEMORY") return { kind: "memory", size: 1.0 };
+  if (tag === "WISH") return { kind: "wish", size: 1.2 };
+  return { kind: "reel", size: 1.0 };
 }

@@ -22,6 +22,8 @@ public final class NotificationV1Dto {
             String registeredByNickname,
             String firstPlaceName,
             int totalPinCount,
+            int wishCount,
+            int reelCount,
             Instant createdAt,
             Instant readAt
     ) {
@@ -33,6 +35,8 @@ public final class NotificationV1Dto {
                     r.registeredByNickname(),
                     r.firstPlaceName(),
                     r.totalPinCount(),
+                    r.wishCount(),
+                    r.reelCount(),
                     r.createdAt(),
                     r.readAt()
             );

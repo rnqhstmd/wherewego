@@ -27,7 +27,10 @@ import { haversineKm } from "../_lib/roulette";
 
 const PROXIMITY_KM = 0.1; // 100m
 const PROXIMITY_METERS = 100;
-const ACCURACY_MAX_M = 50;
+// 정확도 상한: 데스크톱/실내/WiFi 측위는 50~150m 로 나오기 일쑤라 50m 기준이 너무 빡빡해
+// 평가 자체가 매번 스킵되던 문제(2026-05-29)로 100m 로 완화. 토스트는 사용자가 직접 확인하므로
+// 약간의 오탐은 "다음에 올게요" 로 흡수된다.
+const ACCURACY_MAX_M = 100;
 const DWELL_MS = 30_000;
 // BBox 사전 필터 (성능): 위도 1도 ≈ 111,320m. 경도는 cos(lat) 가중.
 // 100m 반경 BBox 안에 들지 않는 핀은 Haversine 정밀 계산 생략.

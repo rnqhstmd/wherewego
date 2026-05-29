@@ -9,6 +9,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -87,6 +89,11 @@ public class PinRepositoryImpl implements PinRepository {
     }
 
     @Override
+    public Optional<Pin> findActiveByIdAndGroupId(Long pinId, Long groupId) {
+        return jpaRepository.findByIdAndGroupIdAndDeletedAtIsNull(pinId, groupId);
+    }
+
+    @Override
     public Optional<Pin> findActiveByGroupPlaceNear(Long groupId, String placeName,
                                                     BigDecimal latitude, BigDecimal longitude) {
         BigDecimal latMin = latitude.subtract(COORDINATE_TOLERANCE);
@@ -97,5 +104,33 @@ public class PinRepositoryImpl implements PinRepository {
                         groupId, placeName, latMin, latMax, lngMin, lngMax,
                         PageRequest.of(0, 1))
                 .stream().findFirst();
+    }
+
+    // ────── Phase 12 ──────
+
+    @Override
+    public List<Pin> findCleanupCandidates(Long groupId, ZonedDateTime threshold) {
+        return jpaRepository.findCleanupCandidates(groupId, threshold);
+    }
+
+    @Override
+    public long countCleanupCandidates(Long groupId, ZonedDateTime threshold) {
+        return jpaRepository.countCleanupCandidates(groupId, threshold);
+    }
+
+    @Override
+    public int softDeleteAll(Collection<Long> pinIds) {
+        if (pinIds == null || pinIds.isEmpty()) {
+            return 0;
+        }
+        List<Pin> active = jpaRepository.findActiveByIdIn(pinIds);
+        int deleted = 0;
+        for (Pin pin : active) {
+            // BaseEntity.delete() 는 deletedAt==null 일 때만 NOW() 부여 (멱등).
+            // findActiveByIdIn 에서 deletedAt IS NULL 필터 통과 → 모두 신규 삭제 대상.
+            pin.delete();
+            deleted++;
+        }
+        return deleted;
     }
 }

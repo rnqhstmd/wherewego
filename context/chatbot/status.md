@@ -26,6 +26,9 @@
 
 ## 후속 작업
 
+- **Phase 12 완료 (2026-05-27)**: 챗봇 v2 재설계 — 카카오 i 오픈빌더 버튼 토글 UX 불가(클릭 = 즉시 발화 + 메시지 수정 불가)로 인해 v2 원안의 "버튼 토글 + 완료" 모델 폐기. **콤마 번호 직접 입력** 모델로 전환(1라운드 완결). `ReelSavedSelectionSession` 단일 record(SINGLE_WANT / MULTI_SELECTING / BULK_SAVE / MEMO_WAITING) + 3분 TTL Caffeine 캐시. 분기: 0개→IDLE, 1개→SINGLE_WANT(QR 가고싶어요/발견저장), 2~30개→MULTI_SELECTING(콤마 숫자 직접 입력 + "전부"/"건너뛰기" QR), 31개+→BULK_SAVE(메모만). 파싱 규칙: 콤마 split + trim + `^\d+$` + 1~N 범위 + LinkedHashSet dedup. 폐기: `PendingInstagramSession`, `TwoSecondMemoHandler`, `InstagramPendingMemoHandler`. 신규 MessageType: `REEL_PLACE_SELECTION`, `SINGLE_WANT_YES/NO`. SELECTION/MEMO 중 룰렛/공유 액션은 거부 + 세션 유지(D-7). 상세: [pin/phase-12-pin-experience-v2.md](../pin/phase-12-pin-experience-v2.md) §챗봇 v2 재설계 — [PR #76](https://github.com/rnqhstmd/wherewego/pull/76)
+
+
 - **Phase 2.5 완료**: 장소명 추출을 Gemini 2.0 Flash로 교체 → FR-BOT-7 추출 성공률 ↑ ([#15](https://github.com/rnqhstmd/wherewego/pull/15))
 - **Phase 5 완료**: Google Places 비동기 폴백 (FR-BOT-5) — [#11](https://github.com/rnqhstmd/wherewego/pull/11)
 - **Phase 2.6 PR-B 완료**: Bucket4j 챗봇 Webhook 레이트 리밋(botUserKey 분당 10회), 그룹 탈퇴 시 BotUserMapping cascade, `@RefreshScope` + Actuator `/refresh` — [#18](https://github.com/rnqhstmd/wherewego/pull/18)

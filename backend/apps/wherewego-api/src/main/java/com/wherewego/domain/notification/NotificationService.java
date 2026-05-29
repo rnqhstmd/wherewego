@@ -149,12 +149,20 @@ public class NotificationService {
         List<Long> notificationIds = notifications.stream().map(Notification::getId).toList();
         Map<Long, List<NotificationPin>> pinsMap = repository.findPinsByNotificationIds(notificationIds);
 
-        // 첫 핀 메타(placeName)만 필요 → 첫 pinId만 모아 batch 조회
-        Set<Long> firstPinIds = pinsMap.values().stream()
-                .filter(list -> !list.isEmpty())
-                .map(list -> list.get(0).getPinId())
-                .collect(Collectors.toSet());
-        Map<Long, Pin> pinById = loadPinsByIds(firstPinIds);
+        // 첫 핀 메타(placeName)는 모든 타입에서 필요.
+        // Phase 13: CHATBOT_PINS 는 위시/발견 분리 표시를 위해 연결 핀 전체의 tag 를 집계해야 하므로
+        // CHATBOT_PINS 알림의 연결 핀은 첫 핀뿐 아니라 전체를 batch 조회한다 (MVP 규모, §2.3).
+        Set<Long> pinIdsToLoad = new java.util.HashSet<>();
+        for (Notification n : notifications) {
+            List<NotificationPin> links = pinsMap.getOrDefault(n.getId(), List.of());
+            if (links.isEmpty()) continue;
+            if (n.getType() == NotificationType.CHATBOT_PINS) {
+                links.forEach(link -> pinIdsToLoad.add(link.getPinId()));
+            } else {
+                pinIdsToLoad.add(links.get(0).getPinId());
+            }
+        }
+        Map<Long, Pin> pinById = loadPinsByIds(pinIdsToLoad);
 
         // 등록자 닉네임 batch 조회 (UserRepository.findNicknamesByIds 활용)
         Set<Long> registeredByIds = notifications.stream()
@@ -168,6 +176,23 @@ public class NotificationService {
             List<NotificationPin> links = pinsMap.getOrDefault(n.getId(), List.of());
             Pin firstPin = links.isEmpty() ? null : pinById.get(links.get(0).getPinId());
             String firstPlaceName = firstPin != null ? firstPin.getPlaceName() : FALLBACK_PLACE_NAME;
+
+            // Phase 13: CHATBOT_PINS 만 연결 핀 tag 를 집계해 위시/발견 카운트를 채운다.
+            // 다른 타입(MANUAL_PIN/VISIT_DETECTED)은 0 (프론트는 totalPinCount 사용).
+            int wishCount = 0;
+            int reelCount = 0;
+            if (n.getType() == NotificationType.CHATBOT_PINS) {
+                for (NotificationPin link : links) {
+                    Pin pin = pinById.get(link.getPinId());
+                    if (pin == null) continue;
+                    if (pin.getTag() == com.wherewego.domain.pin.PinTag.WISH) {
+                        wishCount++;
+                    } else if (pin.getTag() == com.wherewego.domain.pin.PinTag.REEL) {
+                        reelCount++;
+                    }
+                }
+            }
+
             return new NotificationItemResult(
                     n.getId(),
                     n.getType(),
@@ -175,6 +200,8 @@ public class NotificationService {
                     nicknameById.getOrDefault(n.getRegisteredBy(), FALLBACK_NICKNAME),
                     firstPlaceName,
                     links.size(),
+                    wishCount,
+                    reelCount,
                     toInstant(n.getCreatedAt()),
                     n.getReadAt()
             );
@@ -195,13 +222,13 @@ public class NotificationService {
         groupMemberRepository.findActiveByGroupIdAndUserId(n.getGroupId(), receiverId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND));
 
-        List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
-        Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
-        Map<Long, Pin> pinById = loadPinsByIds(pinIds);
-
         String registeredByNickname = userRepository.findById(n.getRegisteredBy())
                 .map(UserModel::getNickname)
                 .orElse(FALLBACK_NICKNAME);
+
+        List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
+        Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
+        Map<Long, Pin> pinById = loadPinsByIds(pinIds);
 
         boolean isVisitType = n.getType() == NotificationType.VISIT_DETECTED;
         List<NotificationPinItemResult> pinItems = links.stream().map(link -> {
@@ -262,6 +289,15 @@ public class NotificationService {
             String registeredByNickname,
             String firstPlaceName,
             int totalPinCount,
+            /**
+             * Phase 13: CHATBOT_PINS 알림에 연결된 핀 중 WISH 태그 핀 수. 다른 타입은 0.
+             * 프론트가 "위시 N곳, 발견 M곳" 분리 표시에 사용 (§2.3).
+             */
+            int wishCount,
+            /**
+             * Phase 13: CHATBOT_PINS 알림에 연결된 핀 중 REEL 태그 핀 수. 다른 타입은 0.
+             */
+            int reelCount,
             Instant createdAt,
             Instant readAt
     ) {}

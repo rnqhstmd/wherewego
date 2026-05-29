@@ -38,12 +38,48 @@ export interface PinSummaryResponse {
   visitedAt: string | null;
   memoUpdatedBy: number | null;
   memoUpdatedByNickname: string | null;
+  /**
+   * Phase 13 (FR-PIN-9l/m): 추억핀 사진 원본/썸네일 공개 URL (조합 결과).
+   * 백엔드 전역 NON_NULL 직렬화로 사진이 없으면 키 자체가 누락되므로 optional. UI는 truthy 게이트(tag==="MEMORY" && photoThumbnailUrl)로 분기.
+   */
+  photoUrl?: string | null;
+  photoThumbnailUrl?: string | null;
 }
 
 export interface PinListResponse {
   items: PinSummaryResponse[];
   totalCount?: number;
   hasNext?: boolean;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-23): `GET /api/v1/groups/{gid}/cleanup/candidates` 응답.
+ *
+ * - snooze 중인 사용자: totalCount=0, snoozedUntil=만료시각, items=[].
+ * - snooze 없음: totalCount=N, snoozedUntil=null, items=N개 후보.
+ */
+export interface CleanupCandidatesResponse {
+  totalCount: number;
+  snoozedUntil: string | null;
+  items: PinSummaryResponse[];
+}
+
+/**
+ * Phase 12 (FR-PIN-12-24): `POST /api/v1/groups/{gid}/cleanup/execute` 응답.
+ *
+ * `deletedCount` 는 이번 호출이 실제로 삭제한 핀 수 (이미 삭제됐던 행 제외).
+ */
+export interface CleanupExecuteResponse {
+  deletedCount: number;
+}
+
+/**
+ * Phase 12 (FR-PIN-12-25): `POST /api/v1/users/me/cleanup-snooze` 응답.
+ *
+ * `snoozedUntil` 은 갱신된 cleanup_snoozed_until (NOW()+7일, ISO 8601).
+ */
+export interface CleanupSnoozeResponse {
+  snoozedUntil: string;
 }
 
 /**
