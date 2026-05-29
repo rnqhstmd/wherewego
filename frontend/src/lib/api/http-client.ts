@@ -18,10 +18,13 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  // FormData 요청은 브라우저가 multipart boundary 를 포함한 Content-Type 을
+  // 자동 설정하도록 직접 부착하지 않는다. JSON 요청은 기존대로 부착한다.
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(`${API_PREFIX}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",

@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import type { NotificationPinItem, NotificationType } from '@/lib/notifications/types';
 import { colors, fonts } from '@/lib/design/tokens';
 
@@ -9,6 +11,13 @@ interface NotificationPinListProps {
   actorLabel: string;
   type: NotificationType;
   createdAt: string;
+  /**
+   * Phase 12 (FR-PIN-12-27): "📍 지도에서 보기" 버튼이 생성할 `?reel_bundle={id}` 쿼리에 사용.
+   * 본 알림의 핀들(번들)을 지도에서 강조 표시하고, 나머지 핀은 opacity 0.3 으로 흐리게 처리한다.
+   * `panelClose` 는 navigate 후 알림 패널을 닫기 위한 콜백.
+   */
+  notificationId: number;
+  onBundleNavigate?: () => void;
 }
 
 /**
@@ -16,8 +25,28 @@ interface NotificationPinListProps {
  *
  * <p>삭제된 핀은 disabled 처리. 릴스 출처 URL은 요약 카드 우측 링크로 표시.</p>
  */
-export function NotificationPinList({ pins, onSelectPin, actorLabel, type, createdAt }: NotificationPinListProps) {
+export function NotificationPinList({
+  pins,
+  onSelectPin,
+  actorLabel,
+  type,
+  createdAt,
+  notificationId,
+  onBundleNavigate,
+}: NotificationPinListProps) {
+  const router = useRouter();
   const sourceUrl = pins.find((p) => p.instagramUrl)?.instagramUrl ?? null;
+
+  // Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림만 "지도에서 보기" 버튼 노출.
+  //  - VISIT_DETECTED: 이미 사용자가 다녀온 핀이라 번들 강조가 의미 없음.
+  //  - MANUAL_PIN: 짝꿍이 직접 추가한 단건이므로 기존 핀 선택 흐름(flyTo)으로 충분.
+  const showMapButton =
+    type === 'CHATBOT_PINS' && pins.some((p) => !p.deleted);
+
+  const handleMapNavigate = () => {
+    router.push(`/map?reel_bundle=${notificationId}`);
+    onBundleNavigate?.();
+  };
 
   if (pins.length === 0) {
     return (
@@ -71,6 +100,35 @@ export function NotificationPinList({ pins, onSelectPin, actorLabel, type, creat
           </a>
         )}
       </div>
+
+      {/* Phase 12 (FR-PIN-12-27): CHATBOT_PINS 알림에만 지도 번들 진입 버튼.
+          클릭 시 `/map?reel_bundle={notificationId}` 로 이동하여 본 알림에 묶인 핀을
+          강조 표시 (비번들 opacity 0.3) + 상단 해제 배너 노출. */}
+      {showMapButton && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <button
+            type="button"
+            onClick={handleMapNavigate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 999,
+              border: `1px solid ${colors.hairline}`,
+              background: colors.panel,
+              color: colors.ink,
+              fontFamily: fonts.sans,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <span aria-hidden="true">📍</span>
+            <span>지도에서 보기</span>
+          </button>
+        </div>
+      )}
 
       {/* 핀 목록 */}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

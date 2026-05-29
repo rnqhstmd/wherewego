@@ -107,3 +107,45 @@ export async function deletePin(
     method: "DELETE",
   });
 }
+
+/**
+ * Phase 13 (FR-PIN-9b~d): 추억핀 사진 업로드.
+ *
+ * 멀티파트로 전송하므로 `FormData` 에 `file` 파트를 담아 보낸다. `apiFetchServer` 는
+ * body 가 `FormData` 이면 `Content-Type` 을 직접 부착하지 않아 fetch 가 boundary 를
+ * 자동 설정한다(AC-17). `JSON.stringify` 는 사용하지 않는다.
+ *
+ * 응답은 사진 URL 이 채워진 갱신 `PinSummaryResponse`.
+ */
+export async function uploadPinPhoto(
+  groupId: number,
+  pinId: number,
+  file: File,
+): Promise<PinSummaryResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetchServer<PinSummaryResponse>(
+    `/groups/${groupId}/pins/${pinId}/photo`,
+    {
+      method: "POST",
+      body: form,
+    },
+  );
+}
+
+/**
+ * Phase 13 (FR-PIN-10a/b): 추억핀 사진 삭제.
+ *
+ * 백엔드는 204 가 아니라 사진 필드가 비워진 갱신 `PinSummaryResponse` 를 반환한다.
+ */
+export async function deletePinPhoto(
+  groupId: number,
+  pinId: number,
+): Promise<PinSummaryResponse> {
+  return apiFetchServer<PinSummaryResponse>(
+    `/groups/${groupId}/pins/${pinId}/photo`,
+    {
+      method: "DELETE",
+    },
+  );
+}

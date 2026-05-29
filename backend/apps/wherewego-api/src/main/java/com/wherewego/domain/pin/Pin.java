@@ -83,6 +83,25 @@ public class Pin extends BaseEntity {
     @Column(name = "visited_at")
     private ZonedDateTime visitedAt;
 
+    /**
+     * Phase 13: 추억핀 사진 원본 S3 객체 키. NULL = 사진 없음.
+     * MEMORY 검증은 서비스 책임이며 도메인은 단순 위임한다.
+     */
+    @Column(name = "photo_key")
+    private String photoKey;
+
+    /** Phase 13: 추억핀 사진 썸네일 S3 객체 키 (원본과 uuid 공유). */
+    @Column(name = "photo_thumbnail_key")
+    private String photoThumbnailKey;
+
+    /** Phase 13: 사진을 업로드한 사용자 id (FK 명시 없음, created_by 컨벤션). */
+    @Column(name = "photo_uploaded_by")
+    private Long photoUploadedBy;
+
+    /** Phase 13: 사진 업로드(또는 교체) 시각. */
+    @Column(name = "photo_uploaded_at")
+    private ZonedDateTime photoUploadedAt;
+
     protected Pin() { }
 
     private Pin(Long groupId,
@@ -123,9 +142,11 @@ public class Pin extends BaseEntity {
 
     /**
      * 사용자가 후보 카드 중 하나를 선택한 결과 기반 등록 핀.
-     * autoFromInstagram 과 동일 구조 (tag=REEL, memoSource=null).
+     * <p>Phase 13: 저장 태그를 호출자가 지정한다. 챗봇 위시 직저장(WISH) / 발견 저장(REEL) 모두 본 팩토리를 사용한다.
+     * memoSource 는 null 로 시작하며 2초 룰/AUTO 메모가 도착해야 부착된다.</p>
      */
-    public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit, String instagramUrl) {
+    public static Pin fromSelection(Long groupId, Long ownerUserId, PlaceSearchHit hit,
+                                    String instagramUrl, PinTag tag) {
         String normalizedUrl = validateInstagramUrl(instagramUrl);
         return new Pin(
                 groupId,
@@ -135,7 +156,7 @@ public class Pin extends BaseEntity {
                 toBigDecimal(hit.latitude()),
                 toBigDecimal(hit.longitude()),
                 normalizedUrl,
-                PinTag.REEL
+                tag
         );
     }
 
@@ -196,6 +217,17 @@ public class Pin extends BaseEntity {
     }
 
     /**
+     * Phase 12: 챗봇 broadcast 메모 적용 (AUTO 마킹). 호출 전 서비스에서 길이 검증.
+     * <p>{@link #applyManualMemo} 와 달리 {@code memoUpdatedBy} 는 null 로 유지하여 "시스템 작성" 임을
+     * 나타낸다. memoSource=AUTO 이므로 추후 사용자가 직접 메모를 입력하면 MANUAL 로 승격된다.</p>
+     */
+    public void applyAutoMemo(String memo) {
+        this.memo = memo;
+        this.memoSource = MemoSource.AUTO;
+        this.memoUpdatedBy = null;
+    }
+
+    /**
      * 메모 제거 + 잠금 해제. memo, memoSource, memoUpdatedBy 모두 NULL 로 초기화한다 (BR-8).
      * 이후 {@link PinRepository#updateAutoMemoIfNotManual} 의 WHERE 조건이 다시 통과한다.
      */
@@ -203,6 +235,35 @@ public class Pin extends BaseEntity {
         this.memo = null;
         this.memoSource = null;
         this.memoUpdatedBy = null;
+    }
+
+    /**
+     * Phase 13: 사진 적용(신규/교체). photoKey/thumbnailKey/uploaderId 는 호출 전 서비스에서 보장.
+     * MEMORY 검증은 서비스 책임이며 도메인은 단순 위임한다. uploadedAt 은 NOW() 로 기록한다.
+     */
+    public void applyPhoto(String photoKey, String thumbnailKey, Long uploaderId) {
+        this.photoKey = photoKey;
+        this.photoThumbnailKey = thumbnailKey;
+        this.photoUploadedBy = uploaderId;
+        this.photoUploadedAt = ZonedDateTime.now();
+    }
+
+    /**
+     * Phase 13: 사진 제거. 4필드 모두 NULL 로 초기화한다 (AC-9).
+     * S3 객체 best-effort 삭제는 서비스/포트 책임이며 도메인은 키 상태만 비운다.
+     */
+    public void clearPhoto() {
+        this.photoKey = null;
+        this.photoThumbnailKey = null;
+        this.photoUploadedBy = null;
+        this.photoUploadedAt = null;
+    }
+
+    /**
+     * Phase 13: 사진 첨부 여부. 교체 시 기존 키 회수 분기에 사용한다 (BR-7).
+     */
+    public boolean hasPhoto() {
+        return photoKey != null;
     }
 
     /**

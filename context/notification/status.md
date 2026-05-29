@@ -72,6 +72,17 @@
 | `MapClient.handleVisitConfirm` 에러 로그 단순화 | ✅ | `console.error` 페이로드를 `{groupId, pinId, code, message}` → `result.code`만으로 축소. 식별자 노출 최소화 |
 | `accuracy > 50m` 시 `firstEnterAt` clear (gemini 권고) | ⬜ | **의도적 미반영**. PRD BR-VD-3 "타이머에 영향을 주지 않는다"를 누적 보존으로 해석한 self-check Q4 결정 존중. 부작용(연속 불량 GPS 후 즉시 detect)은 trust-ledger 후속 관찰 항목 |
 
+## Phase 12 완료 (2026-05-27) — WISH_CONVERTED 알림
+
+| 항목 | 상태 | PR | 비고 |
+|------|------|-----|------|
+| `NotificationType.WISH_CONVERTED` enum + V012 CHECK 확장 (`MANUAL_PIN`, `CHATBOT_PINS`, `VISIT_DETECTED`, `WISH_CONVERTED`) | ✅ | [#76](https://github.com/rnqhstmd/wherewego/pull/76) | V012 단일 마이그레이션 + `wish_pin_id` 컬럼 + 부분 UNIQUE 인덱스 `uq_notifications_wish_converted` |
+| `WishConvertedEvent(pinId, groupId, triggerUserId)` AFTER_COMMIT 리스너 → `NotificationService.createForWishConverted` | ✅ | [#76](https://github.com/rnqhstmd/wherewego/pull/76) | `WantService.toggle` 과반 도달 시 publish, `WishConvertedNotificationListener` AFTER_COMMIT 격리 |
+| 본문 (간결형, D-16): `"🌟 '{placeName}'이 위시로 올라갔어요! 둘 다 가고 싶어해요"` | ✅ | [#76](https://github.com/rnqhstmd/wherewego/pull/76) | 채널 = 인앱 알림만 (FCM/카카오 푸시 미사용) |
+| 발송 범위: 본인 제외 그룹원 N-1명 (`findOtherActiveMemberIds`) | ✅ | [#76](https://github.com/rnqhstmd/wherewego/pull/76) | 멱등: `existsByGroupIdAndReceiverIdAndRegisteredByAndWishPinId` 사전 조회로 동일 핀 1회만 INSERT (PR #76 Gemini #3 후속 보강) |
+
+상세: [pin/phase-12-pin-experience-v2.md](../pin/phase-12-pin-experience-v2.md) §WANT 시스템 / §알림
+
 ## 후속 작업 (Trust Ledger 기록, 미반영)
 
 - ⬜ `registeredBy` 필드 응답에서 제거 (FE 미사용, 최소 공개 원칙)

@@ -24,10 +24,7 @@ export function NotificationItem({ item, onClick, currentUserId: _currentUserId 
     item.type === 'VISIT_DETECTED'
       ? '추억이 한 곳 더 쌓였어요'
       : `${item.registeredByNickname}님이 장소를 저장했어요.`;
-  const placeSummary =
-    item.totalPinCount <= 1
-      ? item.firstPlaceName
-      : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
+  const placeSummary = buildPlaceSummary(item);
 
   return (
     <button
@@ -56,6 +53,29 @@ export function NotificationItem({ item, onClick, currentUserId: _currentUserId 
       </div>
     </button>
   );
+}
+
+/**
+ * 알림 본문 요약 카피 생성.
+ *
+ * CHATBOT_PINS 는 design §2.3 에 따라 위시/발견 핀 수를 분리 표시한다.
+ * 백엔드가 wishCount/reelCount 를 채우면 "위시 N곳, 발견 M곳" 형태로,
+ * 둘 중 하나라도 누락(옵셔널)이면 totalPinCount 기반 기본 요약으로 안전하게 폴백한다.
+ */
+function buildPlaceSummary(item: NotificationItemType): string {
+  if (item.type === 'CHATBOT_PINS') {
+    const wish = item.wishCount;
+    const reel = item.reelCount;
+    if (wish != null && reel != null && wish + reel > 0) {
+      const parts: string[] = [];
+      if (wish > 0) parts.push(`위시 ${wish}곳`);
+      if (reel > 0) parts.push(`발견 ${reel}곳`);
+      return parts.join(', ');
+    }
+  }
+  return item.totalPinCount <= 1
+    ? item.firstPlaceName
+    : `${item.firstPlaceName} 외 ${item.totalPinCount - 1}곳`;
 }
 
 function formatTime(iso: string): string {

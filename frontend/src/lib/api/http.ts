@@ -38,10 +38,13 @@ export async function apiFetchServer<T>(
     .filter((c) => FORWARDED_COOKIE_NAMES.has(c.name))
     .map((c) => `${c.name}=${encodeURIComponent(c.value)}`)
     .join("; ");
+  // FormData 요청은 fetch/브라우저가 multipart boundary 를 포함한 Content-Type 을
+  // 자동 설정하도록 직접 부착하지 않는다. JSON 요청은 기존대로 부착한다.
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(`${BACKEND_BASE_URL}${API_PREFIX}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       Cookie: cookieHeader,
       ...(init?.headers ?? {}),
     },

@@ -58,7 +58,20 @@ public enum ErrorType {
     PIN_INSTAGRAM_URL_INVALID(HttpStatus.BAD_REQUEST, "PIN_INSTAGRAM_URL_INVALID", "Instagram URL은 https://로 시작해야 합니다."),
     PIN_COORDINATE_INVALID(HttpStatus.BAD_REQUEST, "PIN_COORDINATE_INVALID", "좌표 범위가 유효하지 않습니다."),
     PIN_PAGE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PAGE_SIZE_EXCEEDED", "한 번에 조회할 수 있는 핀은 100개까지입니다."),
-    PIN_PAGE_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_PAGE_PARAM_INVALID", "페이지 파라미터가 유효하지 않습니다.");
+    PIN_PAGE_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_PAGE_PARAM_INVALID", "페이지 파라미터가 유효하지 않습니다."),
+
+    /** 핀 (Phase 12) */
+    PIN_CLEANUP_FORBIDDEN(HttpStatus.FORBIDDEN, "PIN_CLEANUP_FORBIDDEN", "정리 권한이 없어요."),
+    BOT_REEL_PARSE_FORMAT(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_FORMAT", "릴스 장소 선택 형식이 올바르지 않아요."),
+    BOT_REEL_PARSE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_OUT_OF_RANGE", "릴스 장소 번호가 범위를 벗어났어요."),
+
+    /** 핀 사진 (Phase 13) */
+    PIN_PHOTO_NOT_MEMORY(HttpStatus.BAD_REQUEST, "PIN_PHOTO_NOT_MEMORY", "사진은 추억(MEMORY) 핀에만 첨부할 수 있어요."),
+    PIN_PHOTO_TYPE_INVALID(HttpStatus.BAD_REQUEST, "PIN_PHOTO_TYPE_INVALID", "JPEG, PNG, WebP 이미지만 업로드할 수 있어요."),
+    PIN_PHOTO_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_SIZE_EXCEEDED", "사진은 2MB 이하만 업로드할 수 있어요."),
+    PIN_PHOTO_DIMENSION_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_DIMENSION_EXCEEDED", "사진 해상도가 너무 커요. (장변 4096px 이하)"),
+    PIN_PHOTO_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_FILE_REQUIRED", "업로드할 사진 파일이 없어요."),
+    PIN_PHOTO_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "PIN_PHOTO_STORAGE_FAILED", "사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String code;

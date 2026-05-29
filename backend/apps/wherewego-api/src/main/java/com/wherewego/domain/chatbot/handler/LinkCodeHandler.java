@@ -35,6 +35,14 @@ public class LinkCodeHandler implements MessageHandler {
         String botUserKey = request.userRequest().user().id();
         String code = MessageClassifier.extractParam(request, "code");
         if (code == null || code.isBlank()) {
+            // 폴백: 카카오 slot 파라미터(code) 누락 시 사용자가 채팅으로 직접 입력한 6자리 코드를 구제.
+            // MessageClassifier 가 동일 조건(미연동 + 6자리)으로 LINK_CODE 라우팅한 케이스와 짝을 이룬다.
+            String utterance = request.userRequest().utterance();
+            if (utterance != null && utterance.trim().matches("\\d{6}")) {
+                code = utterance.trim();
+            }
+        }
+        if (code == null || code.isBlank()) {
             return ChatbotV1Dto.SkillResponse.simple(
                     "연동 코드를 받지 못했어요. 챗봇 메뉴에서 [그룹 연동하기]를 다시 눌러주세요."
             );
@@ -47,7 +55,14 @@ public class LinkCodeHandler implements MessageHandler {
 
         try {
             botUserMappingService.link(code, botUserKey, Instant.now());
-            return ChatbotV1Dto.SkillResponse.simple("연동이 완료되었어요. 인스타그램 릴스 링크를 보내면 자동으로 장소가 저장됩니다.");
+            return ChatbotV1Dto.SkillResponse.simple(
+                    "연동이 완료되었어요! 🎉\n"
+                            + "인스타 릴스 링크를 보내면 장소가 자동으로 저장돼요.\n\n"
+                            + "핀은 이렇게 자라요:\n"
+                            + "📍 발견 → ✨ 위시 → 💖 추억\n"
+                            + "· 발견: 일단 모아둔 곳\n"
+                            + "· 위시: 가보고 싶다고 고른 곳\n"
+                            + "· 추억: 다녀온 곳");
         } catch (CoreException e) {
             return ChatbotV1Dto.SkillResponse.simple(ChatbotErrorMessages.userMessage(e));
         }

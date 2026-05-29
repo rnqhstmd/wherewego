@@ -1,30 +1,51 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PinTag } from "@/lib/api/types";
 import { colors, fonts } from "@/lib/design/tokens";
-import { MemoryGlyph, PIN_COLORS, ReelGlyph, WishGlyph } from "@/lib/pin/markers";
+import {
+  MemoryGlyph,
+  PIN_COLORS,
+  ReelGlyph,
+  WishGlyph,
+} from "@/lib/pin/markers";
 
-const TAG_OPTIONS: Array<{
-  tag: PinTag;
+/**
+ * 체크박스 dropdown 필터.
+ *
+ * 항목은 3가지 + 전체:
+ *  - 추억(MEMORY) / 위시(WISH) / 발견(REEL)
+ */
+export type FilterKey = "MEMORY" | "WISH" | "REEL";
+
+export const ALL_FILTER_KEYS: ReadonlyArray<FilterKey> = [
+  "MEMORY",
+  "WISH",
+  "REEL",
+];
+
+interface OptionMeta {
+  key: FilterKey;
   label: string;
   color: string;
   Glyph: () => React.ReactNode;
-}> = [
+}
+
+// 설명 텍스트는 좌하단 ! (TagLegendButton) 에 위임. 본 필터는 라벨/아이콘만.
+const OPTIONS: ReadonlyArray<OptionMeta> = [
   {
-    tag: "MEMORY",
+    key: "MEMORY",
     label: "추억",
     color: PIN_COLORS.memory,
     Glyph: () => <MemoryGlyph w={14} h={14} color={PIN_COLORS.memory} />,
   },
   {
-    tag: "WISH",
+    key: "WISH",
     label: "위시",
     color: PIN_COLORS.wish,
     Glyph: () => <WishGlyph size={14} color={PIN_COLORS.wish} />,
   },
   {
-    tag: "REEL",
+    key: "REEL",
     label: "발견",
     color: PIN_COLORS.reel,
     Glyph: () => <ReelGlyph size={14} color={PIN_COLORS.reel} />,
@@ -32,11 +53,11 @@ const TAG_OPTIONS: Array<{
 ];
 
 interface TagFilterButtonProps {
-  visibleTags: Set<PinTag>;
-  onChange: (next: Set<PinTag>) => void;
+  selected: Set<FilterKey>;
+  onChange: (next: Set<FilterKey>) => void;
 }
 
-export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps) {
+export function TagFilterButton({ selected, onChange }: TagFilterButtonProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -55,24 +76,18 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
     };
   }, [open]);
 
-  const allChecked = visibleTags.size === TAG_OPTIONS.length;
+  const allChecked = selected.size === ALL_FILTER_KEYS.length;
   const isFiltering = !allChecked;
 
   const toggleAll = () => {
-    if (allChecked) {
-      onChange(new Set());
-    } else {
-      onChange(new Set(TAG_OPTIONS.map((o) => o.tag)));
-    }
+    if (allChecked) onChange(new Set());
+    else onChange(new Set(ALL_FILTER_KEYS));
   };
 
-  const toggleTag = (tag: PinTag) => {
-    const next = new Set(visibleTags);
-    if (next.has(tag)) {
-      next.delete(tag);
-    } else {
-      next.add(tag);
-    }
+  const toggleKey = (key: FilterKey) => {
+    const next = new Set(selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     onChange(next);
   };
 
@@ -82,7 +97,7 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
     <div ref={wrapRef} style={{ position: "relative" }}>
       <button
         type="button"
-        aria-label="태그 필터"
+        aria-label="핀 필터"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -101,7 +116,6 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
           position: "relative",
         }}
       >
-        {/* 필터(깔때기) 아이콘 */}
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M4 5h16l-6 8v5l-4 2v-7L4 5z"
@@ -132,7 +146,7 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
       {open && (
         <div
           role="dialog"
-          aria-label="태그 필터"
+          aria-label="핀 필터"
           style={{
             position: "absolute",
             bottom: 52,
@@ -142,7 +156,7 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
             boxShadow: `0 8px 28px rgba(0,0,0,0.14)`,
             border: `1px solid ${colors.hairline}`,
             padding: "12px 14px 8px",
-            minWidth: 184,
+            minWidth: 220,
             zIndex: 60,
             fontFamily: fonts.sans,
             animation: "maygo-bubble-pop 200ms cubic-bezier(0.2,0.8,0.2,1) both",
@@ -169,7 +183,7 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
               letterSpacing: 0.3,
             }}
           >
-            보고 싶은 태그만 골라요
+            보고 싶은 핀을 골라요
           </p>
 
           <CheckboxRow
@@ -187,12 +201,12 @@ export function TagFilterButton({ visibleTags, onChange }: TagFilterButtonProps)
             }}
           />
 
-          {TAG_OPTIONS.map(({ tag, label, color, Glyph }) => (
+          {OPTIONS.map(({ key, label, color, Glyph }) => (
             <CheckboxRow
-              key={tag}
+              key={key}
               label={label}
-              checked={visibleTags.has(tag)}
-              onToggle={() => toggleTag(tag)}
+              checked={selected.has(key)}
+              onToggle={() => toggleKey(key)}
               accent={color}
               leading={
                 <span
@@ -247,7 +261,7 @@ function CheckboxRow({
         alignItems: "center",
         gap: 10,
         width: "100%",
-        padding: "6px 4px",
+        padding: "5px 4px",
         background: "transparent",
         border: "none",
         cursor: "pointer",
@@ -287,11 +301,12 @@ function CheckboxRow({
       {leading}
       <span
         style={{
+          flex: 1,
+          minWidth: 0,
           fontSize: 13,
           color: colors.ink,
-          fontWeight: emphasize ? 700 : 500,
+          fontWeight: emphasize ? 700 : 600,
           lineHeight: 1.3,
-          flex: 1,
         }}
       >
         {label}

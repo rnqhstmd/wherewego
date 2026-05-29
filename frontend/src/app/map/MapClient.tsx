@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   forwardRef,
   useCallback,
@@ -11,6 +12,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { fetchNotificationDetail } from "@/lib/notifications/api";
 import type mapboxgl from "mapbox-gl";
 import type {
   PinListResponse,
@@ -40,7 +42,11 @@ import RouletteResultContent from "./_components/RouletteResultContent";
 import ClusterBanner from "./_components/ClusterBanner";
 import EmptyMapCard from "./_components/EmptyMapCard";
 import { TagLegendButton } from "./_components/TagLegendButton";
-import { TagFilterButton } from "./_components/TagFilterButton";
+import {
+  TagFilterButton,
+  type FilterKey,
+  ALL_FILTER_KEYS,
+} from "./_components/TagFilterButton";
 import { InvitePartnerHintCard } from "./_components/onboarding/InvitePartnerHintCard";
 import { ConnectBotHintCard } from "./_components/onboarding/ConnectBotHintCard";
 import { isHintSnoozed } from "./_lib/hintSnooze";
@@ -62,10 +68,12 @@ import {
 import { PinDeleteConfirm } from "@/app/pins/_components/PinDeleteConfirm";
 import {
   deletePinAction,
+  deletePinPhotoAction,
   updatePinCoordinateAction,
   updatePinMemoAction,
   updatePinPlaceNameAction,
   updatePinTagAction,
+  uploadPinPhotoAction,
 } from "./actions";
 import type { ActionBarTab, NewPinOrigin } from "./_components/types";
 import { useNotifications } from "@/lib/notifications/useNotifications";
@@ -214,11 +222,49 @@ export default function MapClient({
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isOptimisticPending, startOptimisticTransition] = useTransition();
-  // 사용자가 좌하단 필터 버튼에서 선택한 가시 태그 집합. 기본값은 전체(3개 모두).
-  // 지도 마커와 룰렛 풀(computeTagsAllowed 결과와의 교집합) 모두에 영향을 준다.
-  const [visibleTags, setVisibleTags] = useState<Set<PinTag>>(
-    () => new Set<PinTag>(["REEL", "WISH", "MEMORY"]),
-  );
+  // URL ?filter=KEY,KEY,... 콤마 다중값. 모든 키가 켜졌으면 쿼리 자체를 제거(=기본 전체 표시).
+  // 키 종류: MEMORY / WISH / REEL (3가지). 기존 ?tag= 는 하위호환 1회 매핑.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [selectedFilters, setSelectedFilters] = useState<Set<FilterKey>>(() => {
+    const raw = searchParams.get("filter");
+    if (raw) {
+      const tokens = raw
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t): t is FilterKey =>
+          (ALL_FILTER_KEYS as ReadonlyArray<string>).includes(t),
+        );
+      if (tokens.length > 0) return new Set<FilterKey>(tokens);
+    }
+    // 하위호환: 기존 ?tag= 를 새 모델로 1회 매핑.
+    const tagParam = searchParams.get("tag");
+    if (tagParam === "REEL" || tagParam === "WISH" || tagParam === "MEMORY") {
+      return new Set<FilterKey>([tagParam]);
+    }
+    return new Set<FilterKey>(ALL_FILTER_KEYS);
+  });
+
+  // 룰렛 등 기존 헬퍼(computeTagsAllowed)와의 호환을 위해 PinTag set 을 파생.
+  const visibleTags = useMemo<Set<PinTag>>(() => {
+    const next = new Set<PinTag>();
+    if (selectedFilters.has("MEMORY")) next.add("MEMORY");
+    if (selectedFilters.has("WISH")) next.add("WISH");
+    if (selectedFilters.has("REEL")) next.add("REEL");
+    return next;
+  }, [selectedFilters]);
+
+  // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle={notificationId}` 처리.
+  // notificationId 가 있으면 해당 알림의 핀 ID 목록을 fetch 하여 Set 으로 보관.
+  // 본 Set 이 비어있지 않은 동안 (= 번들 모드) 비번들 핀은 지도에서 숨기지 않고
+  // opacity 0.3 으로 dim 처리한다 (PRD AC-12-36 + D-14). 실제 opacity 적용은
+  // MapboxView 의 dimmedPinIds prop 으로 위임되며, 마커 element 의 style.opacity 를
+  // 분기 갱신한다.
+  const reelBundleId = searchParams.get("reel_bundle");
+  const [bundlePinIds, setBundlePinIds] = useState<Set<number>>(new Set());
+  const [bundleLoadError, setBundleLoadError] = useState<string | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [hasCluster, setHasCluster] = useState(false);
@@ -439,6 +485,71 @@ export default function MapClient({
       });
     },
     [applyOptimistic, groupId],
+  );
+
+  // Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle=` 쿼리 변경 시 알림 상세를 fetch 하여
+  // 번들 핀 ID Set 을 구성한다. 쿼리가 사라지면 Set 을 비워 번들 모드를 해제한다.
+  useEffect(() => {
+    if (!reelBundleId) {
+      setBundlePinIds(new Set());
+      setBundleLoadError(null);
+      return;
+    }
+    const notificationId = Number(reelBundleId);
+    if (Number.isNaN(notificationId)) {
+      setBundlePinIds(new Set());
+      setBundleLoadError("잘못된 번들 ID 입니다");
+      return;
+    }
+    const controller = new AbortController();
+    fetchNotificationDetail(notificationId, controller.signal)
+      .then((detail) => {
+        const ids = new Set<number>(
+          detail.pins.filter((p) => !p.deleted).map((p) => p.pinId),
+        );
+        setBundlePinIds(ids);
+        setBundleLoadError(null);
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("reel_bundle: fetchNotificationDetail failed", e);
+        setBundlePinIds(new Set());
+        setBundleLoadError("번들 정보를 불러올 수 없어요");
+      });
+    return () => controller.abort();
+  }, [reelBundleId]);
+
+  /**
+   * Phase 12: `?reel_bundle=` 해제 — 쿼리 제거 + 일반 모드 복귀.
+   * 다른 필터(filter) 는 보존한다.
+   */
+  const handleReelBundleClear = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("reel_bundle");
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [pathname, router, searchParams]);
+
+  /**
+   * 체크박스 dropdown 의 다중 선택 → state + URL ?filter= 동기화.
+   * 모든 키 선택 시 쿼리 제거 (=기본 상태). 기존 ?tag= 는 항상 제거.
+   */
+  const handleFilterChange = useCallback(
+    (next: Set<FilterKey>) => {
+      setSelectedFilters(next);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("tag");
+      if (next.size === 0 || next.size === ALL_FILTER_KEYS.length) {
+        params.delete("filter");
+      } else {
+        // 안정적 URL을 위해 ALL_FILTER_KEYS 순서대로 직렬화.
+        const ordered = ALL_FILTER_KEYS.filter((k) => next.has(k));
+        params.set("filter", ordered.join(","));
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
   );
 
   /**
@@ -1053,10 +1164,34 @@ export default function MapClient({
   // 좌하단 태그 필터 적용 결과 — 지도 마커/팝업/룰렛 모두 이 집합 기준.
   // 필터로 숨겨진 핀이 selectedPinId 라면 selectedPin 조회가 자연히 null 이 되어
   // 팝업이 닫힌다. 필터를 다시 켜면 selectedPinId 가 남아 있던 경우 팝업도 복귀한다.
-  const visibleOptimisticPins = useMemo(
-    () => optimisticPins.filter((p) => visibleTags.has(p.tag)),
-    [optimisticPins, visibleTags],
-  );
+  //
+  // 3개 필터키 (MEMORY / WISH / REEL) — 태그별 노출 여부 결정.
+  //  - MEMORY 키 ON → pin.tag === "MEMORY" 포함
+  //  - WISH   키 ON → pin.tag === "WISH"   포함
+  //  - REEL   키 ON → pin.tag === "REEL"   포함 (want 무관 전체)
+  //  - bundlePinIds (§9.7): 번들 모드에서도 비번들 핀을 지도에서 제거하지 않는다.
+  //    PRD AC-12-36 + D-14 "비번들 핀 opacity 0.3" 요구를 충족하기 위해 visibleOptimisticPins
+  //    에는 그대로 포함시키고, 아래 dimmedPinIds 로 MapboxView 에 전달하여 마커 element 의
+  //    style.opacity 를 직접 분기 갱신한다.
+  const visibleOptimisticPins = useMemo(() => {
+    return optimisticPins.filter((p) => {
+      if (p.tag === "MEMORY") return selectedFilters.has("MEMORY");
+      if (p.tag === "WISH") return selectedFilters.has("WISH");
+      return selectedFilters.has("REEL");
+    });
+  }, [optimisticPins, selectedFilters]);
+
+  // Phase 12 (§9.7, AC-12-36): reel_bundle 모드에서 dim 처리할 비번들 핀 ID 집합.
+  // 번들 비활성(bundlePinIds 비어있음) 이면 undefined 를 전달하여 dim 효과를 끈다.
+  // dim pin 클릭 시에도 PinPopup 정상 동작 — opacity 는 시각적 강조 차원이며 pointer events 는 유지.
+  const dimmedPinIds = useMemo<Set<number> | undefined>(() => {
+    if (bundlePinIds.size === 0) return undefined;
+    const dimmed = new Set<number>();
+    for (const p of visibleOptimisticPins) {
+      if (!bundlePinIds.has(p.id)) dimmed.add(p.id);
+    }
+    return dimmed;
+  }, [visibleOptimisticPins, bundlePinIds]);
 
   const handleGeolocate = useCallback(
     (position: GeolocationPosition) => {
@@ -1289,6 +1424,64 @@ export default function MapClient({
       setSelectedPinId(pinId);
     }
   }, [visitMemoPin]);
+
+  /**
+   * Phase 13 (FR-PIN-9b~d, BR-6): 추억핀 사진 업로드 핸들러.
+   * 압축된 File 을 FormData 로 감싸 uploadPinPhotoAction 에 위임 →
+   * 성공 시 갱신 summary 로 reducer update(마커 인스턴스 캐시 유지, revalidate 없음) + pins state 갱신.
+   * 실패 시 기존 토스트(visitErrorMessage)로 안내한다.
+   */
+  const handlePhotoUpload = useCallback(
+    async (pinId: number, file: File): Promise<void> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await uploadPinPhotoAction(groupId, pinId, fd);
+      if (result.ok) {
+        const summary = result.data;
+        startOptimisticTransition(() => {
+          applyOptimistic({ kind: "patch", pinId, patch: summary });
+        });
+        setPins((prev) => prev.map((p) => (p.id === pinId ? summary : p)));
+        if (pinsCacheRef.current) {
+          pinsCacheRef.current.fetchedAt = Date.now();
+        }
+        return;
+      }
+      setVisitErrorMessage(
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : (result.message ?? "사진 업로드에 실패했어요. 잠시 후 다시 시도해 주세요."),
+      );
+    },
+    [groupId, applyOptimistic],
+  );
+
+  /**
+   * Phase 13 (FR-PIN-10a/b): 추억핀 사진 삭제 핸들러.
+   * deletePinPhotoAction → 성공 시 사진 필드가 비워진 갱신 summary 로 reducer update + pins state 갱신.
+   */
+  const handlePhotoDelete = useCallback(
+    async (pinId: number): Promise<void> => {
+      const result = await deletePinPhotoAction(groupId, pinId);
+      if (result.ok) {
+        const summary = result.data;
+        startOptimisticTransition(() => {
+          applyOptimistic({ kind: "patch", pinId, patch: summary });
+        });
+        setPins((prev) => prev.map((p) => (p.id === pinId ? summary : p)));
+        if (pinsCacheRef.current) {
+          pinsCacheRef.current.fetchedAt = Date.now();
+        }
+        return;
+      }
+      setVisitErrorMessage(
+        result.code === "GROUP_NOT_MEMBER"
+          ? "권한이 없어요"
+          : (result.message ?? "사진 삭제에 실패했어요. 잠시 후 다시 시도해 주세요."),
+      );
+    },
+    [groupId, applyOptimistic],
+  );
 
   /**
    * Phase 8: 알림 패널 핀 아이템 선택 → 지도 이동 + (가능 시) PinPopup 자동 표시.
@@ -1622,6 +1815,7 @@ export default function MapClient({
         mapboxToken={mapboxToken}
         onCancel={handleCancelMemo}
         onSuccess={handlePinCreated}
+        onPhotoWarning={setVisitErrorMessage}
       />,
       { halfHeight: true },
     );
@@ -1650,6 +1844,8 @@ export default function MapClient({
         visitedAt={visitedAtRef.current}
         onSave={handleVisitMemoSave}
         onSkip={handleVisitMemoSkip}
+        onPhotoUpload={(file) => handlePhotoUpload(visitMemoPin!.id, file)}
+        onPhotoDelete={() => handlePhotoDelete(visitMemoPin!.id)}
       />,
       { halfHeight: true },
     );
@@ -1713,12 +1909,64 @@ export default function MapClient({
             : null
         }
         skipInitialGeoFly={skipInitialGeoFly}
+        dimmedPinIds={dimmedPinIds}
       />
       {mapError && <MapLoadError reason={mapError} />}
       <MobileTopNav
         myNickname={myNickname}
         showProfile={!isDesktop}
       />
+      {/* Phase 12 (FR-PIN-12-27, §9.7): `?reel_bundle=` 활성 시 상단 해제 배너.
+          번들에 묶인 핀의 개수와 해제 버튼을 노출하여 사용자가 일반 모드로 돌아갈 수 있게 한다.
+          fetch 실패 시 bundleLoadError 만 표시하고 즉시 해제 액션을 함께 제공. */}
+      {reelBundleId && (bundlePinIds.size > 0 || bundleLoadError) && (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            top: 60,
+            left: 12,
+            right: 12,
+            zIndex: 25,
+            background: colors.panel,
+            color: colors.ink,
+            padding: "8px 12px",
+            borderRadius: 10,
+            boxShadow: `0 4px 14px ${colors.shadow}`,
+            border: `1px solid ${colors.hairline}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontFamily: fonts.sans,
+            fontSize: 12,
+          }}
+        >
+          <span style={{ color: colors.ink, fontWeight: 600 }}>
+            {bundleLoadError
+              ? bundleLoadError
+              : `📍 릴스 저장 핀 ${bundlePinIds.size}개 표시 중`}
+          </span>
+          <button
+            type="button"
+            onClick={handleReelBundleClear}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: `1px solid ${colors.hairline}`,
+              background: "transparent",
+              color: colors.inkSoft,
+              fontFamily: fonts.sans,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            해제
+          </button>
+        </div>
+      )}
       <ClusterBanner visible={hasCluster} />
       <div
         style={{
@@ -1732,10 +1980,7 @@ export default function MapClient({
         }}
       >
         <TagLegendButton />
-        <TagFilterButton
-          visibleTags={visibleTags}
-          onChange={setVisibleTags}
-        />
+        <TagFilterButton selected={selectedFilters} onChange={handleFilterChange} />
       </div>
       {pins.length === 0 && !activeSheet && (
         <EmptyMapCard
@@ -1797,6 +2042,8 @@ export default function MapClient({
           deleteError={deleteErrorByPinId[selectedPin.id] ?? null}
           onRequestCoordinateEdit={handleRequestCoordinateEdit}
           coordinateError={coordinateErrorByPinId[selectedPin.id] ?? null}
+          onPhotoUpload={handlePhotoUpload}
+          onPhotoDelete={handlePhotoDelete}
         />
       )}
       {deleteCandidate && (

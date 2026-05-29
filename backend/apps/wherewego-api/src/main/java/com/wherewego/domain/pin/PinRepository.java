@@ -1,6 +1,8 @@
 package com.wherewego.domain.pin;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,9 +62,37 @@ public interface PinRepository {
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId);
 
     /**
+     * 락 없는 단건 활성 핀 조회 (read-only 트랜잭션 안전).
+     * <p>readOnly=true 트랜잭션에서 {@code SELECT FOR UPDATE} 사용 시 일부 드라이버/설정에서
+     * "cannot use SELECT FOR UPDATE in a read-only transaction" 오류가 발생하므로,
+     * 조회 전용 경로에서 본 메서드를 사용한다.</p>
+     */
+    Optional<Pin> findActiveByIdAndGroupId(Long pinId, Long groupId);
+
+    /**
      * 같은 그룹 내에서 placeName 동일 + 좌표가 약 10m 이내(±0.0001도 bounding box)인
      * 활성 핀을 1건 조회한다. URL이 달라도 같은 장소로 간주하기 위한 사전 중복 검사용.
      */
     Optional<Pin> findActiveByGroupPlaceNear(Long groupId, String placeName,
                                              BigDecimal latitude, BigDecimal longitude);
+
+    /**
+     * Phase 12: 정리 후보 핀 조회.
+     * <p>조건: {@code tag=REEL AND memo_source='AUTO' AND created_at < threshold AND deleted_at IS NULL}.
+     * 인덱스 {@code idx_pins_cleanup} (group_id, created_at) WHERE 조건 partial 인덱스를 활용한다.</p>
+     */
+    List<Pin> findCleanupCandidates(Long groupId, ZonedDateTime threshold);
+
+    /**
+     * Phase 12: 정리 후보 핀 개수. {@link #findCleanupCandidates}와 동일 조건.
+     */
+    long countCleanupCandidates(Long groupId, ZonedDateTime threshold);
+
+    /**
+     * Phase 12: 일괄 soft-delete. 각 엔티티의 {@link com.wherewego.domain.BaseEntity#delete()} 멱등 호출.
+     * 이미 삭제된 행은 건너뛴다. {@code pinIds} 가 비어 있으면 0 반환.
+     *
+     * @return 이번 호출이 실제로 삭제 처리한 행 수 (이미 삭제됐던 행 제외)
+     */
+    int softDeleteAll(Collection<Long> pinIds);
 }

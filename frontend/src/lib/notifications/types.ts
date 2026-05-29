@@ -5,7 +5,10 @@
  * BigDecimal 좌표는 정밀도 손실 방지를 위해 문자열로 직렬화된다.</p>
  */
 
-export type NotificationType = "MANUAL_PIN" | "CHATBOT_PINS" | "VISIT_DETECTED";
+export type NotificationType =
+  | "MANUAL_PIN"
+  | "CHATBOT_PINS"
+  | "VISIT_DETECTED";
 
 export interface NotificationItem {
   id: number;
@@ -16,6 +19,13 @@ export interface NotificationItem {
   totalPinCount: number;
   createdAt: string;
   readAt: string | null;
+  /**
+   * Phase 13 (design §2.3): CHATBOT_PINS 알림에 연결된 핀의 태그 분포.
+   * 백엔드 `NotificationItemResult` 가 CHATBOT_PINS 알림에 한해 채운다.
+   * 그 외 타입(MANUAL_PIN/VISIT_DETECTED)에서는 0 또는 미전달. 옵셔널로 안전하게 렌더.
+   */
+  wishCount?: number;
+  reelCount?: number;
 }
 
 export interface NotificationListResponse {

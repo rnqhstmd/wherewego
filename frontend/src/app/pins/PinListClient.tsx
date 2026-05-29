@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { PinSummaryResponse } from "@/lib/api/types";
 
 import { deletePinAction, updatePinAction } from "./actions";
+import { CleanupBanner } from "./_components/CleanupBanner";
 import { EmptyState } from "./_components/EmptyState";
 import { PinCard } from "./_components/PinCard";
 import { PinDeleteConfirm } from "./_components/PinDeleteConfirm";
@@ -196,6 +197,13 @@ export function PinListClient({
           ))}
         </ul>
       )}
+
+      <div className="mt-6">
+        <CleanupBanner
+          groupId={groupId}
+          onCleanupComplete={() => router.refresh()}
+        />
+      </div>
 
       {editingPin ? (
         <PinEditDialog

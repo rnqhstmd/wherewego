@@ -20,6 +20,9 @@
 
 ## 후속 작업
 
+- **Phase 12 완료 (2026-05-27)**: 마커 3단계 시각화 + 맵 필터 확장 — `PinMarker` / `lib/pin/markers.tsx` 3단계 분기 (WANT 0표=하늘색 `#7BB3E8` 1.0배 → WANT 1표+ 과반 미달=진보라 `#7B68EE` 1.1배 → 과반 달성=노랑 별 `#F4C842` 1.2배 + 전환 직후 0.5초 펄스 1회). MEMORY 핀에는 WANT 버튼 UI 자체 미노출. `PinPopup`에 출처 뱃지(📹/✏️) + "가고 싶어요" 토글 버튼(REEL/WISH 노출). `MapFilter`에 "발견 ▾" 드롭다운 서브 토글(모든 발견 / 관심 있는 발견, `?tag=REEL&interest=true`). 알림 → "📍 지도에서 보기" → `/map?reel_bundle={notificationId}` 처리 + 비강조 핀 `opacity: 0.3` 강조 + 상단 배너 "릴스 저장 핀 N개 표시 중 [해제]". `TagTooltip` `?` 아이콘 클릭 시 진행 다이어그램(발견→위시→추억) 모달. 상세: [pin/phase-12-pin-experience-v2.md](../pin/phase-12-pin-experience-v2.md) §마커 / §맵 필터 / §태그 진행 다이어그램 — [PR #76](https://github.com/rnqhstmd/wherewego/pull/76)
+
+
 - **Phase 2.10 완료**: Pretendard 폰트 self-host (`public/fonts/PretendardVariable.woff2` + `next/font/local`로 `--font-sans` 주입 완료) + `globals.css` body `font-family`를 `var(--font-sans)` 토큰으로 연결 완료 — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
 - **Phase 2.10 완료**: Mapbox 토큰 회전 SOP 운영자 가이드 — [mapbox-token-sop.md](./mapbox-token-sop.md) — [#24](https://github.com/rnqhstmd/wherewego/pull/24)
 - **Phase 2.9 완료**: DOM Marker → GL symbol layer 마이그레이션 사전 분석 문서화 — `PinPopup` 좌표 계산(`map.project` → `queryRenderedFeatures`), `useOptimistic` patch|remove → `source.setData`/`setFeatureState`, supercluster + GL layer 클러스터 클릭 핸들러 3개 항목 현재/전환 후 대비 + 보안 disclaimer + `status.md` 양방향 cross-link. 실제 마이그레이션은 500핀 초과 시점에 별도 Phase로 진행 — 사전 분석: [gl-migration-plan.md](./gl-migration-plan.md) — [#22](https://github.com/rnqhstmd/wherewego/pull/22)

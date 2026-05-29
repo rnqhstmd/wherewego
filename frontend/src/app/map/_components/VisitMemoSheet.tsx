@@ -5,6 +5,8 @@ import type { PinSummaryResponse } from "@/lib/api/types";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
 import { colors, fonts } from "@/lib/design/tokens";
+import { PanelLabel } from "@/components/ui/PanelLabel";
+import PinPhotoUploader from "./PinPhotoUploader";
 
 interface VisitMemoSheetProps {
   pin: PinSummaryResponse;
@@ -18,6 +20,13 @@ interface VisitMemoSheetProps {
    * 건너뛰기 — 2차 PATCH 미발사 (FR-VD-20). 호출처가 시트를 닫는다.
    */
   onSkip: () => void;
+  /**
+   * Phase 13 (BR-6): 방문 전환 직후 사진 즉시 업로드. 핀은 이미 존재하므로
+   * MapClient 주입 핸들러로 메모 저장과 독립적으로 처리한다. (압축된 File 전달)
+   */
+  onPhotoUpload?: (file: File) => Promise<void>;
+  /** Phase 13: 첨부된 사진 삭제. */
+  onPhotoDelete?: () => Promise<void>;
 }
 
 /**
@@ -39,10 +48,14 @@ export default function VisitMemoSheet({
   visitedAt,
   onSave,
   onSkip,
+  onPhotoUpload,
+  onPhotoDelete,
 }: VisitMemoSheetProps) {
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase 13: 사진 업로드/삭제 진행 표시 (메모 저장과 독립).
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -55,6 +68,26 @@ export default function VisitMemoSheet({
       // 성공 시 호출처가 시트를 닫으므로 별도 cleanup 불필요.
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!onPhotoUpload) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoUpload(file);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!onPhotoDelete) return;
+    setPhotoUploading(true);
+    try {
+      await onPhotoDelete();
+    } finally {
+      setPhotoUploading(false);
     }
   };
 
@@ -108,6 +141,23 @@ export default function VisitMemoSheet({
           outline: "none",
         }}
       />
+
+      {/* Phase 13 (BR-6): 방문 전환 직후 사진 즉시 업로드 — 메모 저장과 독립. */}
+      {onPhotoUpload && (
+        <>
+          <PanelLabel>사진 (선택)</PanelLabel>
+          <div style={{ marginBottom: 12 }}>
+            <PinPhotoUploader
+              photoUrl={pin.photoUrl}
+              thumbnailUrl={pin.photoThumbnailUrl}
+              onFileSelected={handlePhotoUpload}
+              onDelete={onPhotoDelete ? handlePhotoDelete : undefined}
+              uploading={photoUploading}
+              disabled={saving}
+            />
+          </div>
+        </>
+      )}
 
       {error && (
         <div

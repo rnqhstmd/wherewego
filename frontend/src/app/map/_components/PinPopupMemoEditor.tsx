@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
 import { colors, fonts } from "@/lib/design/tokens";
@@ -12,6 +12,16 @@ interface PinPopupMemoEditorProps {
   error: string | null;
   onSave: (nextMemo: string) => void;
   onCancel: () => void;
+  /**
+   * 메모 입력 필드와 취소/저장 버튼 사이에 끼워 넣을 보조 영역(예: 추억핀 사진 업로더).
+   * 취소/저장이 항상 맨 아래에 오도록 버튼 위에 렌더한다.
+   */
+  children?: ReactNode;
+  /**
+   * 메모 외 다른 필드(장소/태그)가 바뀌었는지. 위저드 통합 저장에서, 메모는 그대로여도
+   * 장소·태그가 변경됐으면 저장 버튼을 활성화하기 위해 사용한다.
+   */
+  alsoDirty?: boolean;
 }
 
 /**
@@ -30,13 +40,15 @@ export default function PinPopupMemoEditor({
   error,
   onSave,
   onCancel,
+  children,
+  alsoDirty = false,
 }: PinPopupMemoEditorProps) {
   const [memo, setMemo] = useState<string>(initialMemo ?? "");
 
   const memoLength = memo.length;
   const isMemoTooLong = memoLength > MEMO_MAX_LENGTH;
   const changed = memo !== (initialMemo ?? "");
-  const canSave = changed && !isMemoTooLong && !pending;
+  const canSave = (changed || alsoDirty) && !isMemoTooLong && !pending;
 
   const counterColor = isMemoTooLong
     ? colors.pinNew
@@ -126,6 +138,9 @@ export default function PinPopupMemoEditor({
           {error}
         </div>
       )}
+
+      {/* 보조 영역(사진 업로더 등) — 취소/저장 버튼 위에 둔다. */}
+      {children}
 
       <div
         style={{
