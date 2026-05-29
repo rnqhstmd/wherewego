@@ -491,9 +491,9 @@ export default function PinPopup({
         loading="lazy"
         onClick={() => setPhotoExpanded(true)}
         style={{
-          width: 52,
-          height: 52,
-          borderRadius: 10,
+          width: 36,
+          height: 36,
+          borderRadius: 9,
           objectFit: "cover",
           cursor: "pointer",
         }}

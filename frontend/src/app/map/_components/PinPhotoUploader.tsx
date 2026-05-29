@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { colors, fonts } from "@/lib/design/tokens";
 import { IconClose, IconPlus } from "@/components/icons";
 import { compressPinPhoto } from "@/lib/image/compressImage";
+import PinPhotoCropper from "./PinPhotoCropper";
 
 interface PinPhotoUploaderProps {
   /** 이미 업로드된 사진 원본 URL (없으면 미선택 상태). */
@@ -42,6 +43,8 @@ export default function PinPhotoUploader({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 작업 1: 파일 선택 직후 1:1 크롭 모달에 넘길 원본 파일. null 이면 모달 닫힘.
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   // object URL 정리 (메모리 누수 방지).
   useEffect(() => {
@@ -60,16 +63,22 @@ export default function PinPhotoUploader({
     inputRef.current?.click();
   };
 
-  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // 같은 파일 재선택도 onChange 가 발화하도록 input 값을 비운다.
     e.target.value = "";
     if (!file) return;
-
+    // 작업 1: 곧장 compress 하지 않고 1:1 크롭 모달을 연다.
     setError(null);
+    setCropFile(file);
+  };
+
+  // 크롭 확인: 정사각 결과를 compress → 미리보기 + onFileSelected.
+  const handleCropConfirm = async (cropped: File) => {
+    setCropFile(null);
     setCompressing(true);
     try {
-      const compressed = await compressPinPhoto(file);
+      const compressed = await compressPinPhoto(cropped);
       const url = URL.createObjectURL(compressed);
       setLocalPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -81,6 +90,11 @@ export default function PinPhotoUploader({
     } finally {
       setCompressing(false);
     }
+  };
+
+  // 크롭 취소: 모달 닫고 파일 초기화 (재선택 가능).
+  const handleCropCancel = () => {
+    setCropFile(null);
   };
 
   const handleDelete = async () => {
@@ -224,6 +238,15 @@ export default function PinPhotoUploader({
         >
           {error}
         </div>
+      ) : null}
+
+      {/* 작업 1: 파일 선택 직후 1:1 크롭 모달. */}
+      {cropFile ? (
+        <PinPhotoCropper
+          file={cropFile}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
       ) : null}
     </div>
   );

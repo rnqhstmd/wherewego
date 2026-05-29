@@ -8,7 +8,7 @@ interface PinPhotoInlineProps {
   thumbnailUrl: string;
   /** 원본 사진 URL — 로드 완료 시 opacity 전환으로 선명하게 드러난다. */
   photoUrl: string;
-  /** 메모로 복귀 콜백 (↩ 버튼 / 사진 영역 탭). */
+  /** 메모로 복귀 콜백 (사진 영역 탭). */
   onBack: () => void;
 }
 
@@ -17,7 +17,7 @@ interface PinPhotoInlineProps {
  *
  * 말풍선 메모 영역을 대체하여 펼쳐지는 1:1 정사각 사진. 캐시된 `thumbnailUrl` 을
  * `filter: blur(12px)` placeholder 로 즉시 깔고, 원본 `<img onLoad>` 가 끝나면 opacity 로
- * 전환한다(스피너 없음). 사진 영역 탭 또는 우하단 ↩ 버튼으로 메모로 복귀한다.
+ * 전환한다(스피너 없음). 사진 영역 어디든 탭하면 메모로 복귀한다(별도 버튼 없음).
  * (Phase 13 PinPhotoViewer 전체화면 뷰어를 대체하는 제자리 전환 컴포넌트.)
  */
 export default function PinPhotoInline({
@@ -73,35 +73,6 @@ export default function PinPhotoInline({
           transition: "opacity 0.4s ease",
         }}
       />
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onBack();
-        }}
-        aria-label="메모로 돌아가기"
-        style={{
-          position: "absolute",
-          bottom: 8,
-          right: 8,
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          border: "none",
-          background: "rgba(26,26,46,0.55)",
-          color: colors.panel,
-          fontSize: 16,
-          lineHeight: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 0,
-          cursor: "pointer",
-        }}
-      >
-        ↩
-      </button>
     </div>
   );
 }

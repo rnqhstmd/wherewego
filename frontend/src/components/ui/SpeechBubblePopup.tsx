@@ -227,12 +227,13 @@ export function SpeechBubblePopup({
                 transition: reduceMotion ? "none" : "height 0.3s ease",
               }}
             >
-              {/* 메모 행 (+ 우측 정사각 썸네일 slot) */}
+              {/* 메모 행 (+ 우상단 코너에 absolute 로 떠 있는 정사각 썸네일 slot).
+                  작업 2: 썸네일을 flex 흐름에서 빼 absolute 로 띄워 메모/장소/날짜가
+                  사진 유무와 무관하게 동일 위치(normal flow)를 유지한다. 메모 텍스트는
+                  썸네일과 겹치지 않게 우측 패딩을 줘 첫 줄을 띄운다. */}
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 10,
+                  position: "relative",
                   ...(photoActive
                     ? {
                         position: "absolute",
@@ -247,13 +248,25 @@ export function SpeechBubblePopup({
               >
                 <div
                   style={{
-                    flex: 1,
                     minWidth: 0,
                     fontSize: memoFontSize,
                     fontWeight: 500,
                     color: colors.ink,
                     lineHeight: memoLineHeight,
                     letterSpacing: -0.2,
+                    // 작업 1: 코너 썸네일(36px)과 첫 줄이 겹치지 않게 우측 패딩만 확보.
+                    // minHeight 는 두지 않아 한 줄 메모 시 메모 영역 높이가 사진 없는 핀과
+                    // 동일하다(36px 썸네일은 코너 absolute 라 흐름을 밀지 않고, 메모 아래
+                    // sectionGap 여유 안에서 장소 행을 침범하지 않는다).
+                    paddingRight: memoThumbnail ? 44 : 0,
+                    // 사진 있을 때: 다중 줄 메모에서 썸네일과 세로 정렬 맞춤(좌상단 붙음 방지).
+                    ...(memoThumbnail
+                      ? {
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                        }
+                      : {}),
                   }}
                 >
                   {lines.map((line, i) => (
@@ -261,7 +274,16 @@ export function SpeechBubblePopup({
                   ))}
                 </div>
                 {memoThumbnail ? (
-                  <div style={{ flexShrink: 0 }}>{memoThumbnail}</div>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      pointerEvents: photoActive ? "none" : "auto",
+                    }}
+                  >
+                    {memoThumbnail}
+                  </div>
                 ) : null}
               </div>
 

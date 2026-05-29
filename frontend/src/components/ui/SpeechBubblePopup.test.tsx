@@ -52,6 +52,41 @@ describe("SpeechBubblePopup", () => {
     expect(screen.getByAltText("추억 사진")).toBeInTheDocument();
   });
 
+  it("(작업 2) memoThumbnail 슬롯은 absolute 코너에 떠 flow 를 밀지 않는다", () => {
+    render(
+      <SpeechBubblePopup
+        {...baseProps}
+        place="스타벅스 강남점"
+        memoThumbnail={<img alt="추억 사진" src="thumb.jpg" />}
+      />,
+    );
+    // 썸네일을 감싼 슬롯이 absolute → normal flow(메모/장소/날짜)를 밀지 않는다.
+    const slot = screen.getByAltText("추억 사진").parentElement;
+    expect(slot).toHaveStyle({ position: "absolute" });
+    // 장소/주소는 사진 유무와 무관하게 그대로 렌더된다.
+    expect(screen.getByText("스타벅스 강남점")).toBeInTheDocument();
+    expect(screen.getByText("서울 강남구")).toBeInTheDocument();
+  });
+
+  it("(작업 2) 사진 없는 핀은 메모 텍스트에 우측 패딩이 없다(AC-11 불변)", () => {
+    render(<SpeechBubblePopup {...baseProps} place="X" />);
+    // getByText("메모")는 줄 <div>; paddingRight 는 그 부모(메모 컨테이너)에 적용.
+    const memoBox = screen.getByText("메모").parentElement as HTMLElement;
+    expect(memoBox.style.paddingRight).toBe("0px");
+  });
+
+  it("(작업 2) 사진 있는 핀은 메모 텍스트에 썸네일 회피용 우측 패딩이 있다", () => {
+    render(
+      <SpeechBubblePopup
+        {...baseProps}
+        place="X"
+        memoThumbnail={<img alt="추억 사진" src="thumb.jpg" />}
+      />,
+    );
+    const memoBox = screen.getByText("메모").parentElement as HTMLElement;
+    expect(memoBox.style.paddingRight).toBe("44px");
+  });
+
   it("showExpandedPhoto=false 면 메모를 렌더하고 expandedPhoto 는 aria-hidden", () => {
     render(
       <SpeechBubblePopup

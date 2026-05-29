@@ -214,7 +214,11 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
   el.style.border = "none";
   el.style.borderRadius = "0";
   el.style.boxShadow = "none";
-  el.style.position = "relative";
+  // position:absolute 필수 — Mapbox 는 .mapboxgl-marker 를 absolute 로 깔고 transform 만으로
+  // 위치를 잡는다. relative 로 덮으면 마커가 normal flow 에 남아 DOM 순서대로 세로로 쌓여
+  // (마커 높이 × index 만큼) 아래로 밀린다. absolute 여도 confetti(position:absolute)의
+  // positioned ancestor 역할은 그대로 유지된다.
+  el.style.position = "absolute";
   el.style.overflow = "visible";
 
   const variant = getMarkerVariant(tag);
@@ -238,7 +242,8 @@ function renderPinDotInto(el: HTMLDivElement, tag: PinTag): void {
       const size = Math.round(22 * variant.size);
       el.style.width = `${size}px`;
       el.style.height = `${size}px`;
-      // material standard 하트 viewBox 0 0 24 24 정사각이라 size x size 동일 비율로 호출.
+      // WISH/REEL 과 동일하게 SVG 를 el 에 직접 삽입한다. inner wrapper div 로 감싸면
+      // Mapbox 의 center 앵커 위치 계산이 약 22px 틀어져 말풍선과 마커 사이에 간격이 생긴다.
       el.innerHTML = getMemorySvgString(size, size);
       break;
     }
