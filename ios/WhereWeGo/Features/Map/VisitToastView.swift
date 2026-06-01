@@ -115,21 +115,38 @@ struct VisitToastView: View {
 
 /// ISO8601 파싱 + 점 구분 날짜 포맷(YYYY.MM.DD). 웹 formatDate / dateLabel 동치.
 enum VisitDateFormatter {
+    // 포매터는 생성 후 변경하지 않고 read(date(from:)/string(from:))만 호출한다 — 이 메서드들은
+    // thread-safe 이므로 OnboardingFlags 와 동일하게 nonisolated(unsafe) 로 Swift 6 동시성 검사를 우회한다.
+    /// fractional seconds 포함 ISO8601 포매터(재사용).
+    nonisolated(unsafe) private static let isoWithFraction: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    /// fractional seconds 미포함 ISO8601 포매터(재사용).
+    nonisolated(unsafe) private static let isoPlain: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    /// "YYYY.MM.DD" 출력 포매터(재사용).
+    nonisolated(unsafe) private static let dottedFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy.MM.dd"
+        return formatter
+    }()
+
     /// ISO8601 문자열 → Date. fractional seconds 유무 양쪽 시도.
     static func parse(_ iso: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFraction.date(from: iso) { return date }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: iso)
+        if let date = isoWithFraction.date(from: iso) { return date }
+        return isoPlain.date(from: iso)
     }
 
     /// Date → "YYYY.MM.DD".
     static func dotted(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        dottedFormatter.string(from: date)
     }
 }

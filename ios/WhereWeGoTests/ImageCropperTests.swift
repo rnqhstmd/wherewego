@@ -40,6 +40,25 @@ final class ImageCropperTests: XCTestCase {
         XCTAssertEqual(cropped?.size, CGSize(width: 100, height: 100))
     }
 
+    func test_crop_normalizesRightOrientation_resultIsUp() {
+        // Given .right orientation 이미지(아이폰 세로 카메라 사진 모사).
+        // 같은 cgImage 를 .right 로 감싸면 표시 size 의 width/height 가 뒤바뀐다(400x600).
+        let base = makeImage(width: 600, height: 400)
+        guard let cg = base.cgImage else { return XCTFail("cgImage 추출 실패") }
+        let rotated = UIImage(cgImage: cg, scale: base.scale, orientation: .right)
+        // 표시 size 는 (400, 600)
+        XCTAssertEqual(rotated.size, CGSize(width: 400, height: 600))
+        XCTAssertEqual(rotated.imageOrientation, .right)
+
+        // When 표시 좌표 기준 400x400 크롭
+        let cropped = ImageCropper.crop(rotated, to: CGRect(x: 0, y: 100, width: 400, height: 400))
+
+        // Then 정규화되어 .up 결과 + 요청 rect size 그대로(표시 좌표 == 픽셀 좌표)
+        XCTAssertNotNil(cropped)
+        XCTAssertEqual(cropped?.imageOrientation, .up)
+        XCTAssertEqual(cropped?.size, CGSize(width: 400, height: 400))
+    }
+
     // MARK: - resizeAndCompress
 
     func test_resizeAndCompress_longEdgeWithinMaxEdge() {

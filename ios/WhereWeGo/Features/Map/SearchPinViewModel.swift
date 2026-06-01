@@ -40,7 +40,7 @@ final class SearchPinViewModel: ObservableObject {
 
     // MARK: - 의존성
 
-    private unowned let mapViewModel: MapViewModel
+    private weak var mapViewModel: MapViewModel?
 
     init(mapViewModel: MapViewModel) {
         self.mapViewModel = mapViewModel
@@ -52,6 +52,7 @@ final class SearchPinViewModel: ObservableObject {
     func search() async {
         let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return }
+        guard let mapViewModel else { return }
         errorMessage = nil
         isSearching = true
         didSearch = false
@@ -86,6 +87,7 @@ final class SearchPinViewModel: ObservableObject {
     /// 성공 시 didCreate=true → View 가 시트를 닫는다.
     func createPin(tag: PinTag) async {
         guard case let .picking(place) = phase else { return }
+        guard let mapViewModel else { return }
         guard let groupId = mapViewModel.groupId else {
             errorMessage = MapError.noActiveGroup.errorDescription
             return

@@ -42,7 +42,11 @@ enum GeoMath {
         // 적도 근접/극단값 안전: cos 가 0 이 되지 않도록 하한 0.01.
         let lngDelta = radiusMeters * latDegPerMeter / max(abs(cosLat), 0.01)
         if abs(point.latitude - center.latitude) > latDelta { return false }
-        if abs(point.longitude - center.longitude) > lngDelta { return false }
+        // antimeridian(180도 자오선) 보정: 경도 차이가 180도를 넘으면 반대편을 돌아 360 - diff 로 정규화.
+        // (예: 179.9 ↔ -179.9 의 실제 차이는 359.8 이 아니라 0.2 도.)
+        var lngDiff = abs(point.longitude - center.longitude)
+        if lngDiff > 180 { lngDiff = 360 - lngDiff }
+        if lngDiff > lngDelta { return false }
         return true
     }
 

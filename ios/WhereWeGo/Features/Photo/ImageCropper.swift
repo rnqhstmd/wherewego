@@ -17,10 +17,14 @@ enum ImageCropper {
 
     /// rect 영역 크롭(정사각형 1:1 가정, 호출부가 rect 계산).
     /// rect 가 이미지 밖이거나 cgImage 추출 실패 시 nil.
+    /// 아이폰 카메라 세로 사진은 보통 .right orientation 인데 cgImage.cropping(to:) 는
+    /// orientation 을 무시하고 원시 픽셀 기준으로 크롭한다(엉뚱한 영역). 크롭 전 orientation 을
+    /// .up 으로 정규화(픽셀 물리 회전)해 표시 좌표와 픽셀 좌표를 일치시킨 뒤 크롭한다.
     static func crop(_ image: UIImage, to rect: CGRect) -> UIImage? {
-        guard let cgImage = image.cgImage else { return nil }
+        let normalized = normalizeOrientation(image)
+        guard let cgImage = normalized.cgImage else { return nil }
         // UIImage point(scale 포함) → CGImage pixel 좌표 보정.
-        let scale = image.scale
+        let scale = normalized.scale
         let pixelRect = CGRect(
             x: rect.origin.x * scale,
             y: rect.origin.y * scale,
@@ -28,7 +32,18 @@ enum ImageCropper {
             height: rect.size.height * scale
         )
         guard let cropped = cgImage.cropping(to: pixelRect) else { return nil }
-        return UIImage(cgImage: cropped, scale: scale, orientation: image.imageOrientation)
+        return UIImage(cgImage: cropped, scale: scale, orientation: .up)
+    }
+
+    /// orientation 을 .up 으로 정규화(UIGraphicsImageRenderer 로 다시 그려 픽셀 물리 회전).
+    /// 이미 .up 이면 원본을 그대로 반환(불필요한 재렌더 회피).
+    private static func normalizeOrientation(_ image: UIImage) -> UIImage {
+        if image.imageOrientation == .up { return image }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
     }
 
     /// 장변 maxEdge 로 리사이즈 후 JPEG 압축. 2MB 초과 시 품질 단계 감소.

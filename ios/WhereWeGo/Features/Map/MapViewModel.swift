@@ -368,11 +368,12 @@ final class MapViewModel: ObservableObject {
     func startPolling() {
         guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
-            guard let self else { return }
             while !Task.isCancelled {
-                let interval = self.pollInterval
+                // interval 만 weak 로 읽어 sleep 동안 strong self 를 잡지 않는다(retain cycle 방지).
+                guard let interval = self?.pollInterval else { return }
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-                if Task.isCancelled { return }
+                // sleep 후 strong self 재획득 — 그 사이 VM 이 해제됐으면 종료.
+                guard let self else { return }
                 await self.reloadPinsAppendOnly()
             }
         }

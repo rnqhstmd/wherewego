@@ -45,7 +45,7 @@ final class RouletteViewModel: ObservableObject {
 
     // MARK: - 의존성
 
-    private unowned let mapViewModel: MapViewModel
+    private weak var mapViewModel: MapViewModel?
     private let locationService: LocationServiceProtocol
     /// RNG 팩토리(테스트 결정성 주입). 기본 SystemRandomNumberGenerator.
     private let makeRNG: () -> RandomNumberGenerator
@@ -65,6 +65,7 @@ final class RouletteViewModel: ObservableObject {
     /// 권한 선행 → 현재 위치 → 추첨. 후보 0개면 exhausted.
     func spin() async {
         state = .spinning
+        guard let mapViewModel else { return }
 
         // FR-24 정합성 단일 보장점: 추첨 전에 캐시가 stale(>5분)이면 최신 핀을 먼저 확보한다.
         // (MapView fire-and-forget 제거 — 여기서 await 해야 candidatePins() 가 최신 풀을 본다.)
@@ -124,6 +125,7 @@ final class RouletteViewModel: ObservableObject {
     /// 결과 핀으로 카메라 이동 + 정보창(selectedPinId) 오픈. 시트 닫기는 View 가 처리.
     func showOnMap() {
         guard case let .result(pin, _, _, _, _, _, _) = state else { return }
+        guard let mapViewModel else { return }
         mapViewModel.flyTo(pinId: pin.pinId)
         mapViewModel.selectedPinId = pin.pinId
     }
@@ -131,8 +133,10 @@ final class RouletteViewModel: ObservableObject {
     // MARK: - Private
 
     /// MapViewModel.pins → RoulettePin 사상(태그 보존, 필터는 pick 내부 tagsAllowed 가 담당).
+    /// mapViewModel 해제 시 빈 배열 → 후보 0건(exhausted)으로 자연 처리.
     private func candidatePins() -> [RoulettePin] {
-        mapViewModel.pins.map { pin in
+        guard let mapViewModel else { return [] }
+        return mapViewModel.pins.map { pin in
             RoulettePin(
                 pinId: pin.id,
                 coordinate: Coordinate(latitude: pin.latitude, longitude: pin.longitude),
@@ -147,7 +151,7 @@ final class RouletteViewModel: ObservableObject {
         case .exhausted:
             state = .exhausted
         case let .picked(pin, radiusKm, candidates, _, distanceKm):
-            let summary = mapViewModel.pins.first { $0.id == pin.pinId }
+            let summary = mapViewModel?.pins.first { $0.id == pin.pinId }
             state = .result(
                 pin: pin,
                 placeName: summary?.placeName ?? "",

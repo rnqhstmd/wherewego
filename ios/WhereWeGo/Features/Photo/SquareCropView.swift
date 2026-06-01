@@ -18,11 +18,11 @@ struct SquareCropView: View {
     // 확정(commit) 제스처 누적값. 크롭 rect 계산은 항상 이 값만 사용한다(취소 안전).
     @State private var scale: CGFloat = 1
     @State private var offset: CGSize = .zero
-    // 진행 중 제스처 임시 누적값(@State). onChanged 에서 반영, onEnded 에서 commit 후 리셋.
-    // @GestureState 대신 @State 를 쓰는 이유: 시스템 인터럽트로 onEnded 가 누락돼도
-    // commit 값(scale/offset)이 보존돼 크롭 rect 오산을 막는다(취소 안전).
-    @State private var dragTranslation: CGSize = .zero
-    @State private var pinchScale: CGFloat = 1
+    // 진행 중 제스처 임시 누적값(@GestureState). .updating 으로만 반영되고,
+    // 제스처 취소/인터럽트 시 시스템이 자동으로 초기값(.zero / 1)으로 리셋한다(다음 제스처 점프 방지).
+    // 임시값은 표시 transform 에만 합산하고, 크롭 rect 계산(makeCroppedImage)은 commit 값(scale/offset)만 사용한다(취소 안전).
+    @GestureState private var dragTranslation: CGSize = .zero
+    @GestureState private var pinchScale: CGFloat = 1
 
     var body: some View {
         GeometryReader { geo in
@@ -121,33 +121,30 @@ struct SquareCropView: View {
 
     // MARK: - 제스처
 
-    // onChanged 로 진행 중 배율을 임시 @State(pinchScale)에 반영하고,
-    // onEnded 에서만 commit(scale)에 곱해 누적 후 임시값을 1로 리셋한다.
-    // 취소로 onEnded 가 누락돼도 commit 값은 그대로 보존된다(크롭 rect 안전).
+    // .updating 으로 진행 중 배율을 @GestureState(pinchScale)에 반영하고(제스처 종료/취소 시 자동 1 리셋),
+    // onEnded 에서만 commit(scale)에 곱해 누적한다. 취소로 onEnded 가 누락돼도 commit 값은 그대로 보존된다(크롭 rect 안전).
     private var magnification: some Gesture {
         MagnificationGesture()
-            .onChanged { value in
-                pinchScale = value
+            .updating($pinchScale) { value, state, _ in
+                state = value
             }
             .onEnded { value in
                 scale = max(1, scale * value)
-                pinchScale = 1
             }
     }
 
-    // onChanged 로 진행 중 이동량을 임시 @State(dragTranslation)에 반영하고,
-    // onEnded 에서만 commit(offset)에 더해 누적 후 임시값을 .zero 로 리셋한다.
+    // .updating 으로 진행 중 이동량을 @GestureState(dragTranslation)에 반영하고(제스처 종료/취소 시 자동 .zero 리셋),
+    // onEnded 에서만 commit(offset)에 더해 누적한다.
     private var drag: some Gesture {
         DragGesture()
-            .onChanged { value in
-                dragTranslation = value.translation
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation
             }
             .onEnded { value in
                 offset = CGSize(
                     width: offset.width + value.translation.width,
                     height: offset.height + value.translation.height
                 )
-                dragTranslation = .zero
             }
     }
 

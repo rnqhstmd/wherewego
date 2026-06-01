@@ -66,4 +66,20 @@ final class GeoMathTests: XCTestCase {
         // When / Then 10km 박스 안 → true
         XCTAssertTrue(GeoMath.bboxContains(center: center, point: inside, radiusMeters: 10_000))
     }
+
+    func test_bboxContains_antimeridian_nearPointsAreInside() {
+        // Given 180도 자오선을 사이에 둔 두 점(실제 경도 차이 0.2도, ~17km @적도)
+        let center = Coordinate(latitude: 0, longitude: 179.9)
+        let point = Coordinate(latitude: 0, longitude: -179.9)
+        // When / Then 보정으로 0.2도 차이 인식 → 50km 박스 안 → true
+        XCTAssertTrue(GeoMath.bboxContains(center: center, point: point, radiusMeters: 50_000))
+    }
+
+    func test_bboxContains_antimeridian_farPointsAreOutside() {
+        // Given 자오선을 사이에 둔 두 점이지만 실제 차이(0.2도, ~17km @적도)가 작은 박스(1km)를 벗어남
+        let center = Coordinate(latitude: 0, longitude: 179.9)
+        let point = Coordinate(latitude: 0, longitude: -179.9)
+        // When / Then 보정 후에도 lngDelta 초과 → false (360-diff 오인으로 true 가 되지 않음)
+        XCTAssertFalse(GeoMath.bboxContains(center: center, point: point, radiusMeters: 1_000))
+    }
 }
