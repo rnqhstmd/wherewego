@@ -61,6 +61,9 @@ dependencies {
     // 버전을 명시한다 (9.x 최신 안정).
     implementation("com.nimbusds:nimbus-jose-jwt:9.40")
 
+    // APNs (P2 푸시 — .p8 토큰 기반, pushy). 외부 BOM 미관리라 버전 명시.
+    implementation("com.eatthepath:pushy:0.15.4")
+
     // test-fixtures
     testImplementation(testFixtures(project(":modules:jpa")))
 

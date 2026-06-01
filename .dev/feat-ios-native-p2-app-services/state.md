@@ -1,8 +1,8 @@
-phase: review
+phase: implement
 status: in_progress
 vcs-type: git
-branch: feat/ios-native-p2-chat
-base: develop
+branch: feat/ios-native-p2-push
+base: feat/ios-native-p2-chat
 dev-dir: .dev/feat-ios-native-p2-app-services
 project-type: java-spring, node
 project-root: ./
@@ -11,9 +11,11 @@ flags: (none)
 mode: normal
 intent-source: user-selection
 started: 2026-06-01
-current-step: "review PR-1: mechanical gate + QA/ZT"
-multi-pr: "PR-1(feat/ios-native-p2-chat, base develop) 진행 중 → PR-2(feat/ios-native-p2-push) → PR-3(feat/ios-native-p2-account-deletion). 각 PR implement→review→complete"
-current-pr: "PR-1 채팅+STOMP"
+current-step: "PR-2 implement 진입(APNs+devices, base PR-1)"
+multi-pr: "PR-1(feat/ios-native-p2-chat, base develop) ✅PR #87 → PR-2(feat/ios-native-p2-push, base PR-1) 진행 → PR-3(feat/ios-native-p2-account-deletion, base PR-2). 각 PR implement→review→complete"
+current-pr: "PR-2 APNs+devices"
+pr-1: "https://github.com/rnqhstmd/wherewego/pull/87 (base develop). 인수 ACCEPT, 커밋 1d5ef4e. 리뷰 머지 대기"
+context-feedback: "도메인 status/환류는 P2 3PR 완료 후 일괄 반영(이연)"
 design-decisions:
   - Q1 봇 범위: 1턴 한정(인스타→Gemini→PLACE_CARDS)
   - Q2 핀 푸시: PinV1Controller try-catch (NotificationService 무변경)

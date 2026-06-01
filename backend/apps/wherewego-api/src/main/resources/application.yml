@@ -170,6 +170,16 @@ slack:
   channel: ${SLACK_CHANNEL:#wherewego-alerts}
   webhook-uri: ${SLACK_WEBHOOK_URI:}
 
+apns:
+  # P2 PR-2: APNs(.p8 토큰 기반 푸시). 미설정 시 빈 값 → ApnsProperties.isConfigured()=false → graceful no-op.
+  # 로컬/CI 에는 .p8 키가 주입되지 않으므로 푸시 전송이 비활성된다.
+  key-id: ${APNS_KEY_ID:}
+  team-id: ${APNS_TEAM_ID:}
+  bundle-id: ${APNS_BUNDLE_ID:}
+  # .p8 개인 키 PEM 문자열(개행 포함). Secret/env 로 주입.
+  p8-key: ${APNS_P8_KEY:}
+  production: ${APNS_PRODUCTION:false}
+
 monitoring:
   threshold:
     gemini:

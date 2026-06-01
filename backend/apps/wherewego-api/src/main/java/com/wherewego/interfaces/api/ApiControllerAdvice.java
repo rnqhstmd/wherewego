@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,6 +50,17 @@ public class ApiControllerAdvice {
             .collect(Collectors.joining(", "));
         if (message.isBlank()) {
             message = "요청 본문 검증에 실패했습니다.";
+        }
+        return failureResponse(ErrorType.BAD_REQUEST, message);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handleBadRequest(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
+            .map(v -> String.format("'%s' %s", v.getPropertyPath(), v.getMessage()))
+            .collect(Collectors.joining(", "));
+        if (message.isBlank()) {
+            message = "요청 파라미터 검증에 실패했습니다.";
         }
         return failureResponse(ErrorType.BAD_REQUEST, message);
     }
