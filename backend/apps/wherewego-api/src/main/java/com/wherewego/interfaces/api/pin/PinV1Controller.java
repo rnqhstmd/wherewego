@@ -7,6 +7,7 @@ import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateResult;
+import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.interfaces.api.ApiResponse;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
@@ -49,6 +50,7 @@ public class PinV1Controller implements PinV1ApiSpec {
 
     private final PinService pinService;
     private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
 
     @PostMapping("/{groupId}/pins")
     @ResponseStatus(HttpStatus.CREATED)
@@ -63,6 +65,12 @@ public class PinV1Controller implements PinV1ApiSpec {
             notificationService.createForManualPin(groupId, userId, saved.id());
         } catch (RuntimeException e) {
             log.warn("notification (manual) failed groupId={} pinId={}", groupId, saved.id(), e);
+        }
+        // FR-17①: 핀 저장 APNs 푸시(상대 멤버 대상). best-effort — 푸시 실패가 핀 저장 응답에 영향 없도록 격리.
+        try {
+            pushNotificationService.pushPinSaved(groupId, userId, saved.id());
+        } catch (RuntimeException e) {
+            log.warn("push (pin saved) failed groupId={} pinId={}", groupId, saved.id(), e);
         }
         return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(saved));
     }

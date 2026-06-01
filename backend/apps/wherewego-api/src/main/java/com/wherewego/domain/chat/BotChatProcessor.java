@@ -8,6 +8,7 @@ import com.wherewego.domain.place.PlaceCandidate;
 import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.place.PlaceSearchOutcome;
 import com.wherewego.domain.place.PlaceSearchService;
+import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.domain.place.parser.ContentParser;
 import com.wherewego.domain.place.parser.ContentParserRegistry;
 import com.wherewego.domain.place.parser.ParsedContent;
@@ -64,6 +65,7 @@ public class BotChatProcessor {
     private final ChatStompPublisher publisher;
     private final PlaceProperties placeProperties;
     private final ObjectMapper objectMapper;
+    private final PushNotificationService pushNotificationService;
 
     /**
      * 봇 1턴 백그라운드 처리. {@link BotChatService#postMessage} 트랜잭션 커밋 후 호출된다.
@@ -210,5 +212,10 @@ public class BotChatProcessor {
             return;
         }
         publisher.publishBot(userId, ChatMessageFrame.from(message, objectMapper));
+        // FR-17③: 봇 장소 추천 성공 결과(PLACE_CARDS)일 때만 요청자에게 APNs 푸시(best-effort).
+        // SYSTEM 실패/안내 메시지에는 "장소 추천 완료" 푸시가 부적절하므로 스킵한다.
+        if (message.getKind() == MessageKind.PLACE_CARDS) {
+            pushNotificationService.pushBotResult(userId, roomId);
+        }
     }
 }

@@ -42,3 +42,26 @@
 
 ### FR-7 [Should] 30초 타임아웃
 - 명시적 30초 인터럽트 대신 외부 HTTP read timeout + ChatbotContext 데드라인으로 시간 상한. 무한 hang 불가 검증됨. PlaceProperties.syncDeadlineMs/HTTP timeout 설정값 문서화 권고. **이월**
+
+---
+
+## 통합 감사 (review) — PR-2 (APNs+devices)
+
+요약: ZT CRITICAL 0 / HIGH 3 / MEDIUM 5 / LOW 2. QA 확정 Critical 0. 교차검증 FR-3/15~20·BR-9·AC-7~9 전부 정합. 판정: 보안 HIGH 일부 수정 권장.
+
+### 자기점검 기 수정(완료)
+- ApnsClientFactory destroyMethod NPE 제거 / ApnsPushSender .get(10s) / AC-9 DeviceService.removeByToken(@Transactional) / @Modifying flushAutomatically.
+
+### HIGH
+- [RISK/HIGH] 로그에 deviceToken 전체 노출 — ApnsPushSender log.warn/info `token={}`. → 토큰 마스킹(prefix 8자) 또는 deviceId. **자동 수정 대상**
+- [POLICY/HIGH] DELETE /devices/{deviceToken} PathVariable 검증 미비 — @Validated + @Size/@NotBlank 없음. **자동 수정 대상**
+- [ASSUMPTION/HIGH] .p8 파싱 실패 시 무음 no-op(부팅 성공, 푸시 미발송) — log.error만, 운영 가시성. **이월(health/알림 연동은 .p8 도입 시)**
+
+### MEDIUM/LOW (이월)
+- [RISK/MED] BR-9 reassign 토큰 탈취 벡터 — 단, bearer 토큰까지 필요(=계정침해 2차). 의도된 동일기기 재가입 정책. 모니터링 로그 존재. **이월(정책 문서화)**
+- [ASSUMPTION/MED] afterCommit blocking(.get(10s)) 스레드 점유 — 2인 규모 무해, 스케일 시 @Async 분리. **이월**
+- [ASSUMPTION/MED] 동시 동일토큰 등록 race — DataIntegrityViolation 폴백 처리됨. 정책 명시만. **이월**
+- [GAP/MED] 410 Gone → rejection reason "Unregistered" 매핑 — pushy 0.15.x는 410을 "Unregistered" reason으로 전달(DEAD_TOKEN_REASONS 커버). 확인됨, 주석 권고. **이월(확인 완료)**
+- [GAP/MED] 1인 활성 토큰 수 상한 없음 — fan-out 남용 방어. **이월(상한 5 권고)**
+- [LOW] fan-out 부분 실패 가시성 / badge 정적 1(FR-18 명시값) — **이월**
+

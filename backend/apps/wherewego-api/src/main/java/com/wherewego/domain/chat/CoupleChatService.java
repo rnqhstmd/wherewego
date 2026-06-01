@@ -3,6 +3,7 @@ package com.wherewego.domain.chat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupMemberService;
+import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class CoupleChatService {
     private final ChatMessageAppender chatMessageAppender;
     private final ChatStompPublisher chatStompPublisher;
     private final ObjectMapper objectMapper;
+    private final PushNotificationService pushNotificationService;
 
     /**
      * 커플 방에 사용자 텍스트 메시지를 전송한다.
@@ -120,6 +122,10 @@ public class CoupleChatService {
             @Override
             public void afterCommit() {
                 chatStompPublisher.publishCouple(groupId, ChatMessageFrame.from(saved, objectMapper));
+                // FR-17②: 커밋 후 상대 멤버 각각에게 APNs 푸시(best-effort). roomId는 저장된 메시지 기준.
+                for (Long partnerUserId : otherMemberIds) {
+                    pushNotificationService.pushCoupleMessage(partnerUserId, saved.getRoomId());
+                }
             }
         });
     }
