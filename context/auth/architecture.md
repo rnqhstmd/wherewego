@@ -20,6 +20,7 @@
   - `refresh_token` (TEXT, nullable) — **JWT 원본이 아닌 SHA-256 해시(hex) 저장**
   - `created_at`, `updated_at`, `deleted_at` (TIMESTAMPTZ, BaseEntity 자동 관리)
 - **네이티브 로그인 엔드포인트 (P1)**: `POST /auth/kakao/native`(Kakao access token + app_id 검증), `POST /auth/apple/native`(Apple identityToken JWKS 검증), `POST /auth/refresh`(body 기반). 전부 Set-Cookie 미설정·body 토큰 반환. 기존 `/auth/kakao/callback`·`/auth/token/refresh`(쿠키)는 무변경 병행
+- **iOS 클라이언트 (P3)**: SwiftUI 앱이 위 네이티브 엔드포인트를 `Authorization: Bearer`로 소비. 토큰은 **Keychain**(`KeychainTokenStore` actor — 401→refresh→재시도, inFlight 직렬화, 네트워크오류 시 토큰 보존)에 저장하며 UserDefaults 미사용. Apple `nonce`는 **클라이언트가 rawNonce를 SHA-256 소문자 hex로 해시해 Apple 요청(`ASAuthorizationRequest.nonce`)에 넣고, 백엔드 body엔 rawNonce 평문 전달** — 서버가 재해시하여 identityToken nonce 클레임과 대조(P1 검증 계약과 짝). 키/계정 미보유 시 graceful 방어(빌드·실행 무중단). 상세: [status.md](status.md) P3 섹션
 - 챗봇 연동: [[chatbot]] 도메인이 `botUserKey ↔ user_id` 매핑을 별도 테이블에 저장. auth는 user_id 식별까지만 책임
 
 ## 프론트엔드 계약 (Phase 1)
@@ -41,4 +42,5 @@
 | 주제 | 설명 |
 |------|------|
 | (Phase 1 산출물) | `.dev/feat-phase-1-auth/prd.md`, `design.md`, `trust-ledger.md` |
+| (iOS 클라이언트 P3 산출물) | `.dev/feat-ios-native-p3-shell-auth-onboarding/prd.md`, `design.md`, `trust-ledger.md` — SwiftUI 인증·온보딩 클라이언트(Bearer+Keychain), PR #90 |
 | [Phase 14 — 로그인 콜드 스타트 안정화](phase-14-login-cold-start.md) | 카카오 로그인 간헐 502 원인 분석 + Neon keep-warm·재시도 예산·카카오 타임아웃 구현 계획 (⬜ 미시작) |

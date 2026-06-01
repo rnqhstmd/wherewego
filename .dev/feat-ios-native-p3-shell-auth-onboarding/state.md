@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/ios-native-p3-shell-auth-onboarding
 base: develop
@@ -13,7 +13,8 @@ intent-source: user-selection
 started: 2026-06-01
 auto-stashed: false
 last-known-head: af29cc62e5896e9a8d7586c39888730136f9c5b2
-current-step: "implement — 테스트 작성"
+current-step: "complete — 인수 ACCEPT, 커밋/PR"
+acceptance: "ACCEPT — AC-1~21 전부 충족. AC-6실행/8실행/22 발급물 대기. 보완: AC-21 기존사용자 위저드 경유(P4 wizardShown 플래그 검토 권장)"
 steps:
   implement:
     - 구현 계획 승인: completed
@@ -45,7 +46,9 @@ phases:
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
+pr: "https://github.com/rnqhstmd/wherewego/pull/90 (base develop), 커밋 0eb4c7c"
+context-feedback: "auth status.md P3 섹션 추가 + architecture.md iOS 클라이언트(P3) 구조/주제문서 반영"
   implement: pending
   review: pending
   complete: pending
