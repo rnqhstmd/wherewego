@@ -39,4 +39,9 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
     public void softDeleteByOwner(Long ownerUserId) {
         chatRoomJpa.softDeleteByOwner(ownerUserId, ChatRoomType.BOT, ZonedDateTime.now());
     }
+
+    @Override
+    public void softDeleteByGroup(Long groupId) {
+        chatRoomJpa.softDeleteByGroup(groupId, ChatRoomType.COUPLE, ZonedDateTime.now());
+    }
 }

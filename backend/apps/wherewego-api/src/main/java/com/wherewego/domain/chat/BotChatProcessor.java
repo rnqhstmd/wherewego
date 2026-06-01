@@ -66,6 +66,7 @@ public class BotChatProcessor {
     private final PlaceProperties placeProperties;
     private final ObjectMapper objectMapper;
     private final PushNotificationService pushNotificationService;
+    private final ChatRoomRepository chatRoomRepository;
 
     /**
      * 봇 1턴 백그라운드 처리. {@link BotChatService#postMessage} 트랜잭션 커밋 후 호출된다.
@@ -90,6 +91,12 @@ public class BotChatProcessor {
      */
     @Async("botChatExecutor")
     public void processAsync(Long userId, Long roomId, String text) {
+        // 결과 append 직전 방 활성 가드: 삭제 트랜잭션이 봇 방을 soft delete 한 뒤 진행 중이던 본 처리기가
+        // 비활성 방에 결과를 append/발행하는 race 를 막는다. 방이 없거나 soft-deleted 면 스킵한다(best-effort).
+        if (chatRoomRepository.findById(roomId).filter(ChatRoom::isActive).isEmpty()) {
+            log.info("봇 처리 결과 스킵 — 방 비활성/삭제됨 (userId={}, roomId={})", userId, roomId);
+            return;
+        }
         ChatMessage result;
         try {
             result = doProcess(roomId, text);

@@ -1,5 +1,5 @@
-phase: implement
-status: in_progress
+phase: complete
+status: completed
 vcs-type: git
 branch: feat/ios-native-p2-account-deletion
 base: feat/ios-native-p2-push
@@ -11,9 +11,9 @@ flags: (none)
 mode: normal
 intent-source: user-selection
 started: 2026-06-01
-current-step: "PR-3 implement 진입(계정삭제+재가입, base PR-2)"
-multi-pr: "PR-1 ✅#87(base develop) → PR-2 ✅#88(base p2-chat) → PR-3(feat/ios-native-p2-account-deletion, base p2-push) 진행. 스택. PR-1 머지 후 base 리타겟 필요"
-current-pr: "PR-3 계정삭제+재가입"
+current-step: "P2 완료 — 3개 PR 생성(스택)"
+multi-pr: "PR-1 ✅#87(base develop) → PR-2 ✅#88(base p2-chat) → PR-3 ✅#89(base p2-push). 스택. ⚠️ PR-1 머지 후 PR-2/PR-3 base 리타겟/리베이스 필요"
+current-pr: "완료"
 pr-1: "https://github.com/rnqhstmd/wherewego/pull/87 (base develop), 커밋 1d5ef4e"
 pr-2: "https://github.com/rnqhstmd/wherewego/pull/88 (base feat/ios-native-p2-chat), 커밋 06bd33f"
 context-feedback: "도메인 status/환류는 P2 3PR 완료 후 일괄 반영(이연)"
@@ -39,9 +39,10 @@ phases:
   setup: completed
   requirements: completed
   design: completed
-  implement: completed  # PR-1
-  review: completed     # PR-1 (2회차 머지 가능)
-  complete: in_progress # PR-1
+  implement: completed  # PR-1·2·3
+  review: completed     # PR-1·2·3
+  complete: completed   # PR-1 #87, PR-2 #88, PR-3 #89
+pr-3: "https://github.com/rnqhstmd/wherewego/pull/89 (base feat/ios-native-p2-push), 인수 ACCEPT"
 review-log-pr1:
   - mechanical-gate: "build -x test BUILD SUCCESSFUL (test 명령 없음 스킵)"
   - review-1: "QA Critical2(방생성race/FR-7) Warn4 QUESTION4; ZT CRITICAL0 HIGH4 MEDIUM6"

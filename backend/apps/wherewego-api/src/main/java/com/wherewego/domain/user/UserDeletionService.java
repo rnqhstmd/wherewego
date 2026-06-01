@@ -75,9 +75,17 @@ public class UserDeletionService {
         boolean unlinkedViaLeaveGroup = false;
         if (activeGroupId.isPresent()) {
             Long groupId = activeGroupId.get();
+            // leaveGroup 호출 전에 "내가 마지막 멤버인지" 판정: 다른 활성 멤버가 없으면(empty) 마지막 멤버이고,
+            // leaveGroup이 그룹을 soft delete 한다. 이 경우 groupId의 커플 방도 함께 정리해야 고아 활성 방을 막는다.
+            // 파트너가 남아 있으면(otherMembers 비어있지 않음) 그룹·커플 방은 파트너가 계속 사용하므로 유지한다.
+            boolean wasLastMember = groupMemberRepository.findOtherActiveMemberIds(groupId, userId).isEmpty();
             try {
                 groupMemberService.leaveGroup(userId, groupId);  // 내부에서 unlink 수행
                 unlinkedViaLeaveGroup = true;
+                // leaveGroup 성공 + 마지막 멤버였으면 그룹이 soft delete 됐으므로 커플 방도 정리한다.
+                if (wasLastMember) {
+                    chatRoomRepository.softDeleteByGroup(groupId);
+                }
             } catch (CoreException e) {
                 if (e.getErrorType() == ErrorType.GROUP_NOT_MEMBER) {
                     // 조회-탈퇴 사이 race(동시 그룹 삭제/탈퇴) — 이미 탈퇴 처리된 것으로 간주하고 계속

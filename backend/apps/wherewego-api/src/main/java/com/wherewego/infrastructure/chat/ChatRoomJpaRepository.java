@@ -26,4 +26,15 @@ public interface ChatRoomJpaRepository extends JpaRepository<ChatRoom, Long> {
     int softDeleteByOwner(@Param("ownerUserId") Long ownerUserId,
                           @Param("type") ChatRoomType type,
                           @Param("now") ZonedDateTime now);
+
+    /**
+     * 마지막 1인 탈퇴로 그룹이 soft delete 될 때, 해당 그룹의 커플 방(type=COUPLE)의 활성 행을 soft delete 한다.
+     * 벌크 갱신은 {@code @PreUpdate}를 우회하므로 {@code updatedAt}도 명시적으로 갱신한다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ChatRoom r SET r.deletedAt = :now, r.updatedAt = :now "
+            + "WHERE r.groupId = :groupId AND r.type = :type AND r.deletedAt IS NULL")
+    int softDeleteByGroup(@Param("groupId") Long groupId,
+                          @Param("type") ChatRoomType type,
+                          @Param("now") ZonedDateTime now);
 }
