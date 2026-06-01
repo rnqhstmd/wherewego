@@ -1,0 +1,78 @@
+name: WhereWeGo
+options:
+  deploymentTarget: { iOS: "17.0" }
+  bundleIdPrefix: com.wherewego
+configs: { Debug: debug, Release: release }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+packages:
+  KakaoOpenSDK:
+    url: https://github.com/kakao/kakao-ios-sdk
+    exactVersion: "2.24.5"
+targets:
+  WhereWeGo:
+    type: application
+    platform: iOS
+    sources:
+      - path: WhereWeGo
+    info:
+      path: WhereWeGo/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIAppFonts:
+          - NotoSerifKR-Regular.otf
+          - GowunBatang-Regular.ttf
+          - Pretendard-Regular.otf
+          - JetBrainsMono-Regular.ttf
+        NSLocationWhenInUseUsageDescription: "근처에 어떤 핀이 있는지 보여드릴게요"
+        API_BASE_URL: $(API_BASE_URL)
+        KAKAO_NATIVE_APP_KEY: $(KAKAO_NATIVE_APP_KEY)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - kakao$(KAKAO_NATIVE_APP_KEY)
+        LSApplicationQueriesSchemes:
+          - kakaokompassauth
+          - kakaolink
+    dependencies:
+      - { package: KakaoOpenSDK, product: KakaoSDKAuth }
+      - { package: KakaoOpenSDK, product: KakaoSDKUser }
+      - { package: KakaoOpenSDK, product: KakaoSDKCommon }
+  WhereWeGoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: WhereWeGoTests
+    # 프로젝트 레벨 configFile(Shared.xcconfig)의 PRODUCT_NAME=WhereWeGo 상속을 차단한다.
+    # 미설정 시 테스트 번들이 WhereWeGo.swiftmodule 을 생성해 메인 타깃과 산출물 경로가 충돌한다
+    # (Multiple commands produce ...). 테스트 타깃 고유 이름으로 분리.
+    settings:
+      base:
+        PRODUCT_NAME: WhereWeGoTests
+        PRODUCT_MODULE_NAME: WhereWeGoTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.wherewego.app.tests
+    dependencies:
+      - { target: WhereWeGo }
+schemes:
+  WhereWeGo:
+    build:
+      targets:
+        WhereWeGo: all
+        WhereWeGoTests: [test]
+    test:
+      config: Debug
+      targets:
+        - WhereWeGoTests
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

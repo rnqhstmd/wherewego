@@ -1,4 +1,6 @@
 # ===== Xcode =====
+# XcodeGen 생성물 (project.yml 이 소스 오브 트루스 — .xcodeproj 는 추적하지 않음)
+*.xcodeproj
 build/
 DerivedData/
 *.xcuserstate
