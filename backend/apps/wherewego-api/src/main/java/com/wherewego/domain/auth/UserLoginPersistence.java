@@ -81,8 +81,9 @@ public class UserLoginPersistence {
      * (provider, oauthId) find-or-create 후 토큰 발급. 기존 {@link #upsertAndIssueTokens} 와
      * 동일한 트랜잭션/재시도 정책을 공유한다(공통 헬퍼 {@link #issueTokensFor}).
      *
-     * <p>BR-6: 탈퇴자 → AUTH_USER_DEACTIVATED(AC-15).
-     * <p>BR-9: Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
+     * <p>P2 FR-24(재가입 허용): 활성(deleted_at IS NULL) 조회 미스 시 신규 생성(재가입). 비활성 분기는
+     *    동시성(조회-삭제 race) 대비 방어용으로, 활성 조회상 사실상 도달 불가.
+     * <p>Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
      * <p>AC-7: 동시 최초 로그인 race → DataIntegrityViolation → @Retryable 재시도.
      */
     @Retryable(
@@ -98,7 +99,7 @@ public class UserLoginPersistence {
                     // P2 FR-24: 활성 조회로 soft-delete 행은 미스되므로 사실상 도달 불가하나,
                     // 동시성(조회-삭제 race) 대비 방어적으로 유지한다.
                     if (!existing.isActive()) {
-                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // BR-6, AC-15
+                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // 동시성 방어(FR-24상 도달 불가)
                     }
                     if (cmd.provider() == OauthProvider.KAKAO) {
                         existing.updateProfile(cmd.nickname(), cmd.profileImageUrl());
