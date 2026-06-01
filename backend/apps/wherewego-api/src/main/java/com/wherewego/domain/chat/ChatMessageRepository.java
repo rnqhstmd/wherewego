@@ -18,4 +18,11 @@ public interface ChatMessageRepository {
      * hasMore 판정은 호출자(서비스)가 {@code limit + 1}을 넘겨 받아 수행한다.</p>
      */
     List<ChatMessage> findByRoomIdBefore(Long roomId, Long cursor, int limit);
+
+    /**
+     * 계정 삭제 시 본인이 발신한 메시지의 {@code sender_user_id}를 NULL 처리한다(PR-3).
+     *
+     * <p>메시지 자체는 보존하고 발신자 식별만 끊는다. 벌크 갱신이라 {@code updatedAt}도 함께 갱신한다.</p>
+     */
+    void nullifySenderByUserId(Long userId);
 }

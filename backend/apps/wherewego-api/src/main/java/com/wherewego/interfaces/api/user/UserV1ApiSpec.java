@@ -24,4 +24,13 @@ public interface UserV1ApiSpec {
             @Parameter(hidden = true) Long userId,
             UserV1Dto.UpdateNicknameRequest request
     );
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "현재 로그인 사용자의 계정을 삭제(soft delete)합니다. 그룹 탈퇴/봇 매핑 해제/채팅 정리/" +
+                    "디바이스 정리/refresh 무효화 후 사용자를 비활성화하며, Apple 계정은 커밋 후 best-effort 로 revoke 합니다."
+    )
+    ApiResponse<Object> deleteMe(
+            @Parameter(hidden = true) Long userId
+    );
 }

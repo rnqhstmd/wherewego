@@ -65,3 +65,27 @@
 - [GAP/MED] 1인 활성 토큰 수 상한 없음 — fan-out 남용 방어. **이월(상한 5 권고)**
 - [LOW] fan-out 부분 실패 가시성 / badge 정적 1(FR-18 명시값) — **이월**
 
+---
+
+## 통합 감사 (review) — PR-3 (계정삭제+재가입)
+
+요약: ZT CRITICAL 0 / HIGH 3 / MEDIUM 5 / LOW 1. QA Critical(오탐 1). 교차검증 FR-21~24·BR-6·BR-8·AC-10~13 전부 정합. 재가입·로그인 회귀 0(인증 통합 테스트 40개 통과). 판정: 정합성 수정 후 머지, 구조적 HIGH 이월.
+
+### 수정 완료
+- [QA Critical/오탐→정정] UserModel `@Column(kakao_user_id, unique=true)` → unique 제거 + 주석 V017 정합. (ddl-auto=none이라 런타임 무영향, 통합 테스트 부팅 통과로 오탐 확인. 정합성 정정.)
+- [GAP/HIGH] UserDeletionService leaveGroup TOCTOU race → try-catch(GROUP_NOT_MEMBER 흡수) + unlink 정확히 1회. 동시 그룹 변경 시 삭제 롤백 방지.
+- [POLICY/MED] V017 `DROP CONSTRAINT IF EXISTS` 방어.
+- [Warning 자기점검] unlink 이중 실행 정리, nullifySender deleted_at 필터.
+
+### 이월 (구조적/정책)
+- [RISK/HIGH] **탈퇴 후 STOMP 세션 미종료** — 기존 WebSocket 구독 잔존으로 상대 메시지 계속 수신 가능. **사용자 결정: 이월**(단일 인스턴스 베타, PR-1 구독 멤버십 스냅샷 갭과 동일 성격, 교차 관심사). 후속: 탈퇴 시 SimpUserRegistry 세션 종료.
+- [RISK/HIGH] 탈퇴 후 기존 access JWT가 TTL 만료까지 유효(stateless 구조적 한계). access-ttl=env(JWT_ACCESS_TTL_SECONDS). **이월**: 배포 TTL 짧게(≤1h) 권고, 길면 블랙리스트 검토. refresh는 isActive() 가드로 차단됨.
+- [POLICY/HIGH] Apple revoke 미수행 — App Store 5.1.1(v) 회색지대. Q5 best-effort 확정. **이월**: .p8 client_secret + refresh token 저장 인프라 구축 후 실제 revoke(P3+). 심사 제출 전 확인.
+- [RISK/MED] 탈퇴 사용자 chat_message payload 보존(sender만 null) — PRD 명시(메시지 보존). **이월(개인정보 법무 검토)**.
+- [GAP/MED] 동시 삭제+refresh race — isActive() 가드가 최종 차단. **이월**.
+- [ASSUMPTION/HIGH] uq_users_kakao_user_id partial은 Apple(NULL) 무관 — Apple 중복은 uq_users_oauth 단독 처리. 설계 문서화. **이월(문서)**.
+- [Info] UserDeletionService 통합 테스트 부재 — **이월(후속 테스트 권고)**. save(user) 중복, ApiSpec 서술 정리.
+
+### AC 충족 (인수 + 통합 테스트)
+AC-10(DELETE /me 마킹+정리)·AC-11(마지막1인 그룹 삭제)·AC-12(Apple revoke 시도/스킵+마킹)·AC-13(재가입 신규계정, 통합 테스트 3경로 검증) 전부 충족. 로그인 회귀 0(인증 테스트 40개).
+

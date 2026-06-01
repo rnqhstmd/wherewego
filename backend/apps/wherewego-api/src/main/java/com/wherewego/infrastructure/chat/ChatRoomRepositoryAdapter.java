@@ -6,6 +6,7 @@ import com.wherewego.domain.chat.ChatRoomType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.ZonedDateTime;
 import java.util.Optional;
 
 @Repository
@@ -32,5 +33,10 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
     @Override
     public Optional<ChatRoom> findById(Long id) {
         return chatRoomJpa.findById(id);
+    }
+
+    @Override
+    public void softDeleteByOwner(Long ownerUserId) {
+        chatRoomJpa.softDeleteByOwner(ownerUserId, ChatRoomType.BOT, ZonedDateTime.now());
     }
 }

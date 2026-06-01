@@ -5,9 +5,16 @@ import java.util.Map;
 import java.util.Optional;
 
 public interface UserRepository {
-    Optional<UserModel> findByKakaoUserId(Long kakaoUserId);
-    /** P1: 네이티브 로그인 find-or-create 용 (provider, oauthId) 조회. */
-    Optional<UserModel> findByOauthProviderAndOauthId(OauthProvider oauthProvider, String oauthId);
+    /**
+     * 활성(deleted_at IS NULL) Kakao 사용자만 조회한다.
+     * P2 FR-24: soft-delete 행은 제외 → 삭제 계정 재로그인 시 미스→신규 생성(재가입)으로 이어진다.
+     */
+    Optional<UserModel> findByKakaoUserIdAndDeletedAtIsNull(Long kakaoUserId);
+    /**
+     * P1: 네이티브 로그인 find-or-create 용 (provider, oauthId) 조회.
+     * P2 FR-24: 활성(deleted_at IS NULL) 행만 조회 → soft-delete 행은 재가입 신규 생성 경로로 제외.
+     */
+    Optional<UserModel> findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider oauthProvider, String oauthId);
     Optional<UserModel> findById(Long id);
     UserModel save(UserModel user);
     /** 즉시 flush — 동시 삽입 race 시 DataIntegrityViolationException 조기 감지용. */

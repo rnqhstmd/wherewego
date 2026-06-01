@@ -238,7 +238,7 @@ class AuthV1ControllerIntegrationTest {
         assertThat(refresh.get()).contains("Max-Age=1209600").contains("HttpOnly").contains("Path=/");
 
         // assert: DB insert
-        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isPresent();
+        assertThat(userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID)).isPresent();
     }
 
     @DisplayName("POST /api/v1/auth/kakao/callback - 기존 사용자면 프로필을 갱신하고 중복 row를 생성하지 않는다 (AC-3).")
@@ -291,7 +291,7 @@ class AuthV1ControllerIntegrationTest {
         String refreshCookie = findCookie(setCookieHeaders(loginRes), "refresh_token").orElseThrow();
         String refreshValue = extractCookieValue(refreshCookie, "refresh_token");
 
-        String oldHash = userJpaRepository.findByKakaoUserId(KAKAO_USER_ID).orElseThrow().getRefreshTokenHash();
+        String oldHash = userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID).orElseThrow().getRefreshTokenHash();
         assertThat(oldHash).isNotBlank();
 
         // act: refresh 호출
@@ -311,7 +311,7 @@ class AuthV1ControllerIntegrationTest {
         assertThat(findCookie(cookies, "refresh_token")).isPresent();
 
         // assert: DB 해시 교체
-        String newHash = userJpaRepository.findByKakaoUserId(KAKAO_USER_ID).orElseThrow().getRefreshTokenHash();
+        String newHash = userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID).orElseThrow().getRefreshTokenHash();
         assertThat(newHash).isNotBlank().isNotEqualTo(oldHash);
     }
 
@@ -363,7 +363,7 @@ class AuthV1ControllerIntegrationTest {
         assertThat(refresh).contains("Max-Age=0");
 
         // assert: DB 해시 null
-        UserModel user = userJpaRepository.findByKakaoUserId(KAKAO_USER_ID).orElseThrow();
+        UserModel user = userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID).orElseThrow();
         assertThat(user.getRefreshTokenHash()).isNull();
     }
 
@@ -392,22 +392,30 @@ class AuthV1ControllerIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    @DisplayName("POST /api/v1/auth/kakao/callback - 탈퇴한 사용자가 로그인 시도하면 401 AUTH_USER_DEACTIVATED를 반환한다 (AC-13).")
+    @DisplayName("POST /api/v1/auth/kakao/callback - 탈퇴한 사용자가 동일 kakao_user_id로 재로그인하면 신규 빈 계정을 생성하고 200을 반환한다 (FR-24 재가입).")
     @Test
-    void kakaoCallback_deactivatedUser_returns401() {
-        // arrange: 사전에 탈퇴 사용자 저장
-        UserModel user = UserModel.create(KAKAO_USER_ID, "닉", "p.png");
-        user.delete();
-        userJpaRepository.save(user);
+    void kakaoCallback_deactivatedUser_rejoinsAsNewAccount() {
+        // arrange: 사전에 탈퇴(soft-delete) 사용자 저장 — deleted_at 행이 유지된다.
+        UserModel deactivated = UserModel.create(KAKAO_USER_ID, "닉", "p.png");
+        deactivated.delete();
+        userJpaRepository.save(deactivated);
 
-        stubKakaoSuccess("닉", "p.png");
+        stubKakaoSuccess("새닉", "new.png");
 
         // act
         ResponseEntity<JsonNode> response = callKakaoCallback("test-code");
 
-        // assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_USER_DEACTIVATED");
+        // assert: FR-24 — 활성 조회 미스 → 신규 계정 생성, 정상 로그인(200) + 쿠키 발급
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<String> cookies = setCookieHeaders(response);
+        assertThat(findCookie(cookies, "access_token")).isPresent();
+        assertThat(findCookie(cookies, "refresh_token")).isPresent();
+
+        // assert: 기존 탈퇴 행은 유지되고, 새 활성 계정이 별도로 생성됨(빈 계정 — 이전 데이터 미연결).
+        assertThat(userJpaRepository.findAll()).hasSize(2);
+        UserModel active = userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID).orElseThrow();
+        assertThat(active.getId()).isNotEqualTo(deactivated.getId());
+        assertThat(active.isActive()).isTrue();
     }
 
     // ------------------------------------------------------------------
@@ -562,7 +570,7 @@ class AuthV1ControllerIntegrationTest {
         assertThat(data.get("accessToken").asText()).isNotBlank();
         assertThat(data.get("refreshToken").asText()).isNotBlank();
         assertThat(data.get("expiresIn").asLong()).isEqualTo(jwtProperties.accessTtlSeconds());
-        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isPresent();
+        assertThat(userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID)).isPresent();
     }
 
     @DisplayName("AC-7: POST /api/v1/auth/kakao/native - 동일 토큰 2회 호출해도 계정 중복 없이 각각 새 JWT 를 발급한다.")
@@ -606,7 +614,7 @@ class AuthV1ControllerIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
         assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_API_FAILED");
-        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isEmpty();
+        assertThat(userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID)).isEmpty();
     }
 
     @DisplayName("앱 귀속 검증: POST /api/v1/auth/kakao/native - 다른 앱(app_id 불일치) 토큰이면 401 AUTH_KAKAO_APP_MISMATCH.")
@@ -619,24 +627,32 @@ class AuthV1ControllerIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_APP_MISMATCH");
-        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isEmpty();
+        assertThat(userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID)).isEmpty();
     }
 
-    @DisplayName("AC-15: POST /api/v1/auth/kakao/native - 탈퇴한 Kakao 사용자가 로그인 시도하면 401 AUTH_USER_DEACTIVATED.")
+    @DisplayName("AC-15: POST /api/v1/auth/kakao/native - 탈퇴한 Kakao 사용자가 동일 oauthId로 재로그인하면 신규 빈 계정을 생성하고 200을 반환한다 (FR-24 재가입).")
     @Test
-    void kakaoNative_deactivatedUser_returns401() {
-        // 사전에 탈퇴(soft-delete) Kakao 계정 저장 — V014 백필로 (KAKAO, kakao_user_id::text) 행이 유지된다.
-        UserModel user = UserModel.create(KAKAO_USER_ID, "닉", "p.png");
-        user.delete();
-        userJpaRepository.save(user);
+    void kakaoNative_deactivatedUser_rejoinsAsNewAccount() {
+        // 사전에 탈퇴(soft-delete) Kakao 계정 저장 — soft-delete 행은 유지된다.
+        UserModel deactivated = UserModel.create(KAKAO_USER_ID, "닉", "p.png");
+        deactivated.delete();
+        userJpaRepository.save(deactivated);
 
         // 우리 앱 토큰 + 같은 kakaoUserId 반환 stub.
-        stubKakaoUserInfo(KAKAO_USER_ID, "닉", "p.png");
+        stubKakaoUserInfo(KAKAO_USER_ID, "새닉", "new.png");
 
         ResponseEntity<JsonNode> response = callKakaoNative("kakao-access");
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_USER_DEACTIVATED");
+        // FR-24: 활성 조회 미스 → 신규 계정 생성, 정상 로그인(200) + 본문 토큰 발급(Set-Cookie 없음).
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(setCookieHeaders(response)).isEmpty();
+        assertThat(response.getBody().get("data").get("accessToken").asText()).isNotBlank();
+
+        // 기존 탈퇴 행은 유지되고, 새 활성 계정이 별도로 생성됨(빈 계정 — 이전 데이터 미연결).
+        assertThat(userJpaRepository.findAll()).hasSize(2);
+        UserModel active = userJpaRepository.findByKakaoUserIdAndDeletedAtIsNull(KAKAO_USER_ID).orElseThrow();
+        assertThat(active.getId()).isNotEqualTo(deactivated.getId());
+        assertThat(active.isActive()).isTrue();
     }
 
     // ------------------------------------------------------------------
@@ -676,7 +692,7 @@ class AuthV1ControllerIntegrationTest {
         assertThat(data.get("accessToken").asText()).isNotBlank();
         assertThat(data.get("expiresIn").asLong()).isEqualTo(jwtProperties.accessTtlSeconds());
 
-        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-1")
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider.APPLE, "apple-sub-1")
                 .orElseThrow();
         assertThat(stored.getNickname()).isEqualTo("길동 홍"); // AC-10: fullName 저장 (BR-12)
         assertThat(stored.getEmail()).isEqualTo("relay@privaterelay.appleid.com");
@@ -699,7 +715,7 @@ class AuthV1ControllerIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(userJpaRepository.findAll()).hasSize(1);
-        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-2")
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider.APPLE, "apple-sub-2")
                 .orElseThrow();
         assertThat(stored.getNickname()).isEqualTo("철수 김"); // 불변
         assertThat(stored.getEmail()).isEqualTo("first@privaterelay.appleid.com"); // 불변
@@ -743,13 +759,13 @@ class AuthV1ControllerIntegrationTest {
         assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_APPLE_TOKEN_INVALID");
     }
 
-    @DisplayName("AC-15: POST /api/v1/auth/apple/native - 탈퇴자가 로그인 시도하면 401 AUTH_USER_DEACTIVATED.")
+    @DisplayName("AC-15: POST /api/v1/auth/apple/native - 탈퇴한 Apple 사용자가 동일 oauthId로 재로그인하면 신규 빈 계정을 생성하고 200을 반환한다 (FR-24 재가입).")
     @Test
-    void appleNative_deactivatedUser_returns401() {
-        // 사전에 탈퇴 Apple 계정 저장.
-        UserModel user = UserModel.createOauth(OauthProvider.APPLE, "apple-sub-6", "Apple 사용자", null, null);
-        user.delete();
-        userJpaRepository.save(user);
+    void appleNative_deactivatedUser_rejoinsAsNewAccount() {
+        // 사전에 탈퇴(soft-delete) Apple 계정 저장 — soft-delete 행은 유지된다.
+        UserModel deactivated = UserModel.createOauth(OauthProvider.APPLE, "apple-sub-6", "Apple 사용자", null, null);
+        deactivated.delete();
+        userJpaRepository.save(deactivated);
 
         String nonce = "client-nonce-1";
         String token = issueAppleToken("apple-sub-6", nonce, APPLE_AUDIENCE,
@@ -757,8 +773,17 @@ class AuthV1ControllerIntegrationTest {
 
         ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_USER_DEACTIVATED");
+        // FR-24: 활성 조회 미스 → 신규 계정 생성, 정상 로그인(200) + 본문 토큰 발급.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(setCookieHeaders(response)).isEmpty();
+        assertThat(response.getBody().get("data").get("accessToken").asText()).isNotBlank();
+
+        // 기존 탈퇴 행은 유지되고, 새 활성 계정이 별도로 생성됨(빈 계정 — 이전 데이터 미연결).
+        assertThat(userJpaRepository.findAll()).hasSize(2);
+        UserModel active = userJpaRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider.APPLE, "apple-sub-6")
+                .orElseThrow();
+        assertThat(active.getId()).isNotEqualTo(deactivated.getId());
+        assertThat(active.isActive()).isTrue();
     }
 
     @DisplayName("AC-22: POST /api/v1/auth/apple/native - fullName 없으면 임시 닉네임('Apple 사용자')으로 계정을 생성한다.")
@@ -771,7 +796,7 @@ class AuthV1ControllerIntegrationTest {
         ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-7")
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider.APPLE, "apple-sub-7")
                 .orElseThrow();
         assertThat(stored.getNickname()).isEqualTo("Apple 사용자");
     }

@@ -37,8 +37,9 @@ public class UserModel extends BaseEntity {
     @Column(name = "email")
     private String email;
 
-    // nullable=false 제거 (Apple 행은 kakao_user_id NULL). UNIQUE 는 V001 제약 유지.
-    @Column(name = "kakao_user_id", unique = true)
+    // nullable=false 제거 (Apple 행은 kakao_user_id NULL).
+    // UNIQUE 는 V017에서 partial unique index(WHERE deleted_at IS NULL)로 전환 — 활성 행만 유일. 재가입(FR-24) 위해 soft-delete 행은 제외.
+    @Column(name = "kakao_user_id")
     private Long kakaoUserId;
 
     @Column(name = "nickname", nullable = false, length = 100)

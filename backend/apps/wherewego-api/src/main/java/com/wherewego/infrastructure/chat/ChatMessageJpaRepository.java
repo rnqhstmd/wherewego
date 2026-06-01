@@ -3,9 +3,11 @@ package com.wherewego.infrastructure.chat;
 import com.wherewego.domain.chat.ChatMessage;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 public interface ChatMessageJpaRepository extends JpaRepository<ChatMessage, Long> {
@@ -22,4 +24,13 @@ public interface ChatMessageJpaRepository extends JpaRepository<ChatMessage, Lon
     List<ChatMessage> findByRoomIdBeforeCursor(@Param("roomId") Long roomId,
                                                @Param("cursor") Long cursor,
                                                Pageable pageable);
+
+    /**
+     * 계정 삭제 시 본인 발신 메시지의 {@code sender_user_id}를 NULL 처리한다(PR-3). 벌크 갱신은
+     * {@code @PreUpdate}를 우회하므로 {@code updatedAt}도 명시적으로 갱신한다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ChatMessage m SET m.senderUserId = NULL, m.updatedAt = :now "
+            + "WHERE m.senderUserId = :userId AND m.deletedAt IS NULL")
+    int nullifySenderByUserId(@Param("userId") Long userId, @Param("now") ZonedDateTime now);
 }

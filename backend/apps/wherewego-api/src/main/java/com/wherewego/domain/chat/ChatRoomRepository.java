@@ -18,4 +18,12 @@ public interface ChatRoomRepository {
     Optional<ChatRoom> findActiveCoupleRoom(Long groupId);
 
     Optional<ChatRoom> findById(Long id);
+
+    /**
+     * 계정 삭제 시 본인 소유 봇 방(type=BOT)을 soft delete 한다(PR-3).
+     *
+     * <p>활성({@code deleted_at IS NULL}) 행만 대상으로 하며, 봇 방만 {@code ownerUserId}를 보유한다.
+     * 벌크 갱신이라 {@code updatedAt}도 함께 갱신한다.</p>
+     */
+    void softDeleteByOwner(Long ownerUserId);
 }
