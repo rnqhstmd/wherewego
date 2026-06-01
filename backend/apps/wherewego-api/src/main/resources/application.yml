@@ -62,6 +62,7 @@ kakao:
     client-id: ${KAKAO_CLIENT_ID}
     client-secret: ${KAKAO_CLIENT_SECRET}
     redirect-uri: ${KAKAO_REDIRECT_URI}
+    app-id: ${KAKAO_APP_ID}
   local:
     base-url: https://dapi.kakao.com
     timeout-ms: 1500
@@ -69,6 +70,12 @@ kakao:
     secret: ${KAKAO_SKILL_SECRET}
   callback:
     timeout-ms: 3000
+
+apple:
+  audience: ${APPLE_BUNDLE_ID}
+  issuer: https://appleid.apple.com
+  jwks-url: https://appleid.apple.com/auth/keys
+  jwks-ttl-seconds: ${APPLE_JWKS_TTL_SECONDS:21600}
 
 db:
   keep-warm:
@@ -177,6 +184,19 @@ spring:
   config:
     activate:
       on-profile: local, test
+
+# 로컬/테스트는 실제 Apple 번들 ID 미발급 상태이므로 기본값으로 컨텍스트 로딩을 허용한다.
+# jwks-url 은 통합테스트가 @DynamicPropertySource(WireMock) 로 override 한다.
+apple:
+  audience: ${APPLE_BUNDLE_ID:com.wherewego.app}
+  issuer: https://appleid.apple.com
+  jwks-url: https://appleid.apple.com/auth/keys
+  jwks-ttl-seconds: ${APPLE_JWKS_TTL_SECONDS:21600}
+
+# 로컬/테스트는 실제 카카오 앱 ID 미발급 상태이므로 더미 기본값으로 컨텍스트 로딩을 허용한다.
+kakao:
+  oauth:
+    app-id: ${KAKAO_APP_ID:0}
 
 web-security:
   cookie:

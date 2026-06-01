@@ -32,7 +32,8 @@ import java.util.Set;
  *
  * <p>Spring Retry 의 RetryListener 는 retryFor 에 없는 예외(예: 도메인 {@code CoreException})에 대해서도
  * onError/close 가 호출된다. 따라서 listener 안에서 retryable 예외만 카운트해야 메트릭 의미가 흐려지지 않는다.
- * retryFor 목록은 {@link com.wherewego.domain.auth.UserLoginPersistence#upsertAndIssueTokens} 와 동기화 유지 필요.</p>
+ * retryFor 목록은 {@link com.wherewego.domain.auth.UserLoginPersistence#upsertAndIssueTokens} 및
+ * {@link com.wherewego.domain.auth.UserLoginPersistence#upsertByOauthAndIssueTokens} 와 동기화 유지 필요.</p>
  *
  * <p>등록 방식: {@code @Component("loginRetryListener")} + 호출처 {@code @Retryable(listeners = "loginRetryListener")} 명시 연결.</p>
  */

@@ -34,6 +34,8 @@ kakao:
     client-id: test-kakao-client-id
     client-secret: test-kakao-client-secret
     redirect-uri: https://example.com/oauth/kakao/callback
+    # P1: 네이티브 로그인 access_token_info app_id 대조용 더미값. 통합테스트 WireMock stub 도 이 값을 반환한다.
+    app-id: 123456
   local:
     base-url: https://dapi.kakao.com
     timeout-ms: 1500
@@ -41,6 +43,13 @@ kakao:
     secret: test-kakao-skill-secret
   callback:
     timeout-ms: 3000
+
+# P1: Apple 검증 더미값. jwks-url 은 AuthV1ControllerIntegrationTest 가 @DynamicPropertySource(WireMock) 로 override.
+apple:
+  audience: com.wherewego.app
+  issuer: https://appleid.apple.com
+  jwks-url: https://appleid.apple.com/auth/keys
+  jwks-ttl-seconds: 21600
 
 place:
   instagram:

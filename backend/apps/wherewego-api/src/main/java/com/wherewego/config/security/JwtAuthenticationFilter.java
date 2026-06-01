@@ -8,6 +8,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +23,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String ACCESS_TOKEN_COOKIE = "access_token";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -31,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        String token = extractAccessTokenFromCookie(request);
+        String token = extractToken(request);
 
         if (token == null) {
             filterChain.doFilter(request, response);
@@ -49,6 +51,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * 토큰 추출 우선순위: Authorization: Bearer 헤더 → access_token 쿠키 (BR-1).
+     * 빈 Bearer(예: {@code "Bearer "}) 는 헤더 미존재로 간주해 쿠키 폴백한다 (웹 회귀 0).
+     * 검증/SecurityContext 세팅 로직은 기존 그대로다.
+     */
+    private String extractToken(HttpServletRequest request) {
+        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // Bearer 스킴은 RFC 7235 상 대소문자 무시(case-insensitive)다.
+        if (header != null && header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            String value = header.substring(BEARER_PREFIX.length()).trim();
+            if (!value.isEmpty()) {
+                return value;
+            }
+            // 빈 Bearer → 쿠키 폴백
+        }
+        return extractAccessTokenFromCookie(request);
     }
 
     private String extractAccessTokenFromCookie(HttpServletRequest request) {

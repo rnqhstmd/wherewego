@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public interface UserRepository {
     Optional<UserModel> findByKakaoUserId(Long kakaoUserId);
+    /** P1: 네이티브 로그인 find-or-create 용 (provider, oauthId) 조회. */
+    Optional<UserModel> findByOauthProviderAndOauthId(OauthProvider oauthProvider, String oauthId);
     Optional<UserModel> findById(Long id);
     UserModel save(UserModel user);
     /** 즉시 flush — 동시 삽입 race 시 DataIntegrityViolationException 조기 감지용. */

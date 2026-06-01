@@ -6,17 +6,20 @@
 
 - 클라이언트: Next.js → 자체 SPA가 카카오 인가 페이지로 리다이렉트 (state 파라미터 FE 책임) → 인가 코드 수신 후 백엔드 `POST /api/v1/auth/kakao/callback`에 전달
 - 백엔드: Spring Boot + Spring Security Stateless. **OAuth2 Client 미사용 — 인가 코드 직접 처리 방식** (`KakaoOAuthClient`가 RestClient로 카카오 토큰/사용자 API를 직접 호출)
-- 세션 방식: **JWT (Stateless)** + **httpOnly 쿠키 전달** (Cross-domain: Vercel ↔ EC2)
+- 세션 방식: **JWT (Stateless)**. 전달 경로 **2종 병행**(P1): 웹은 **httpOnly 쿠키**(Cross-domain Vercel↔EC2), iOS 네이티브 앱은 **`Authorization: Bearer` 헤더**. `JwtAuthenticationFilter`가 헤더 우선·쿠키 폴백
   - Access Token: 1시간 TTL (`typ=access`, `jti=UUID` claim)
   - Refresh Token: 14일 TTL (`typ=refresh`, `jti=UUID` claim), users 테이블에 **SHA-256 해시(hex)** 저장 (DB 덤프 유출 시 활성 세션 탈취 방어)
   - 쿠키 속성: `HttpOnly; Secure; SameSite=None; Path=/` (local 프로파일은 `Secure=false; SameSite=Lax` fallback)
 - 사용자 테이블 (`users`):
   - `id` (PK, BIGSERIAL)
-  - `kakao_user_id` (UNIQUE, Long)
+  - `kakao_user_id` (UNIQUE, Long) — **P1 이후 nullable**(Apple 계정은 NULL). 컬럼·UNIQUE 보존
+  - `oauth_provider` (VARCHAR(20), NOT NULL, KAKAO\|APPLE) **(P1)** + `oauth_id` (VARCHAR(255), NOT NULL) — `(oauth_provider, oauth_id)` UNIQUE
+  - `email` (VARCHAR(255), nullable) **(P1)** — Apple 최초 로그인 1회 저장, Kakao 미수집
   - `nickname` (VARCHAR(100), NOT NULL)
   - `profile_image_url` (TEXT, nullable)
   - `refresh_token` (TEXT, nullable) — **JWT 원본이 아닌 SHA-256 해시(hex) 저장**
   - `created_at`, `updated_at`, `deleted_at` (TIMESTAMPTZ, BaseEntity 자동 관리)
+- **네이티브 로그인 엔드포인트 (P1)**: `POST /auth/kakao/native`(Kakao access token + app_id 검증), `POST /auth/apple/native`(Apple identityToken JWKS 검증), `POST /auth/refresh`(body 기반). 전부 Set-Cookie 미설정·body 토큰 반환. 기존 `/auth/kakao/callback`·`/auth/token/refresh`(쿠키)는 무변경 병행
 - 챗봇 연동: [[chatbot]] 도메인이 `botUserKey ↔ user_id` 매핑을 별도 테이블에 저장. auth는 user_id 식별까지만 책임
 
 ## 프론트엔드 계약 (Phase 1)

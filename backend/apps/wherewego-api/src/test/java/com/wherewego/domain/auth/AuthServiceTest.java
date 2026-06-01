@@ -1,12 +1,14 @@
 package com.wherewego.domain.auth;
 
 import com.wherewego.application.auth.AuthResultInfo;
+import com.wherewego.config.env.KakaoApiProperties;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
 import com.wherewego.domain.auth.jwt.JwtValidationResult;
 import com.wherewego.domain.auth.jwt.RefreshTokenHasher;
 import com.wherewego.domain.auth.kakao.KakaoLoginUrlGenerator;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
+import com.wherewego.infrastructure.auth.apple.AppleIdentityTokenVerifier;
 import com.wherewego.infrastructure.auth.kakao.KakaoOAuthClient;
 import com.wherewego.infrastructure.auth.kakao.KakaoTokenResponse;
 import com.wherewego.infrastructure.auth.kakao.KakaoUserInfoResponse;
@@ -65,6 +67,12 @@ class AuthServiceTest {
 
     @Mock
     private UserLoginPersistence userLoginPersistence;
+
+    @Mock
+    private AppleIdentityTokenVerifier appleVerifier;
+
+    @Mock
+    private KakaoApiProperties kakaoApiProperties;
 
     @InjectMocks
     private AuthService authService;

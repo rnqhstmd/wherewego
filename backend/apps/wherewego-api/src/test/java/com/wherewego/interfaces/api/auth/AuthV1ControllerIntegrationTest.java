@@ -3,8 +3,18 @@ package com.wherewego.interfaces.api.auth;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import com.wherewego.config.env.JwtProperties;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
+import com.wherewego.domain.auth.jwt.RefreshTokenHasher;
+import com.wherewego.domain.user.OauthProvider;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.infrastructure.user.UserJpaRepository;
 import com.wherewego.testcontainers.PostgresTestContainersConfig;
@@ -53,11 +63,30 @@ class AuthV1ControllerIntegrationTest {
             .options(WireMockConfiguration.wireMockConfig().dynamicPort())
             .build();
 
+    private static final String APPLE_ISSUER = "https://appleid.apple.com";
+    private static final String APPLE_AUDIENCE = "com.wherewego.app";
+    private static final String APPLE_JWKS_PATH = "/auth/keys";
+
+    // Apple identityToken 자체 발급용 RSA 키쌍 (JWKS 도 이 공개키로 stub).
+    private static final RSAKey APPLE_RSA_JWK = generateAppleKey();
+    private static final RefreshTokenHasher NONCE_HASHER = new RefreshTokenHasher();
+
+    private static RSAKey generateAppleKey() {
+        try {
+            return new RSAKeyGenerator(2048).keyID("apple-key-1").generate();
+        } catch (JOSEException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     @DynamicPropertySource
-    static void overrideKakaoUrls(DynamicPropertyRegistry registry) {
+    static void overrideExternalUrls(DynamicPropertyRegistry registry) {
         registry.add("kakao.oauth.token-base-url", wireMock::baseUrl);
         registry.add("kakao.oauth.user-base-url", wireMock::baseUrl);
+        // Apple JWKS 를 WireMock 으로 override (AC-9~15).
+        registry.add("apple.jwks-url", () -> wireMock.baseUrl() + APPLE_JWKS_PATH);
     }
+
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -72,11 +101,63 @@ class AuthV1ControllerIntegrationTest {
     private JwtProperties jwtProperties;
 
     private static final long KAKAO_USER_ID = 9876543210L;
+    // test application.yml 의 kakao.oauth.app-id 와 일치해야 한다(앱 귀속 검증).
+    private static final long KAKAO_APP_ID = 123456L;
 
     @BeforeEach
     void cleanUp() {
         userJpaRepository.deleteAll();
         wireMock.resetAll();
+        stubAppleJwks();
+    }
+
+    // ------------------------------------------------------------------
+    // Apple JWKS / identityToken 헬퍼
+    // ------------------------------------------------------------------
+
+    private void stubAppleJwks() {
+        String jwksJson = "{\"keys\":[" + APPLE_RSA_JWK.toPublicJWK().toJSONString() + "]}";
+        wireMock.stubFor(get(urlPathEqualTo(APPLE_JWKS_PATH))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(jwksJson)));
+    }
+
+    private String issueAppleToken(String sub, String rawNonce, String audience, long expEpochMillis, String email) {
+        try {
+            JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
+                    .subject(sub)
+                    .issuer(APPLE_ISSUER)
+                    .audience(audience)
+                    .expirationTime(new Date(expEpochMillis))
+                    .claim("nonce", NONCE_HASHER.sha256Hex(rawNonce));
+            if (email != null) {
+                claims.claim("email", email);
+            }
+            SignedJWT jwt = new SignedJWT(
+                    new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(APPLE_RSA_JWK.getKeyID()).build(),
+                    claims.build());
+            jwt.sign(new RSASSASigner(APPLE_RSA_JWK));
+            return jwt.serialize();
+        } catch (JOSEException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private ResponseEntity<JsonNode> callKakaoNative(String kakaoAccessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"kakaoAccessToken\":\"" + kakaoAccessToken + "\"}", headers);
+        return restTemplate.exchange("/api/v1/auth/kakao/native", HttpMethod.POST, entity, JsonNode.class);
+    }
+
+    private ResponseEntity<JsonNode> callAppleNative(String body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return restTemplate.exchange("/api/v1/auth/apple/native", HttpMethod.POST,
+                new HttpEntity<>(body, headers), JsonNode.class);
     }
 
     private void stubKakaoSuccess(String nickname, String profileImageUrl) {
@@ -427,6 +508,334 @@ class AuthV1ControllerIntegrationTest {
         boolean rejected = response.getStatusCode() == HttpStatus.FORBIDDEN
                 || response.getHeaders().getFirst("Access-Control-Allow-Origin") == null;
         assertThat(rejected).isTrue();
+    }
+
+    // ------------------------------------------------------------------
+    // P1: Kakao 네이티브 로그인 (AC-6, AC-7, AC-8)
+    // ------------------------------------------------------------------
+
+    private void stubKakaoUserInfo(long kakaoUserId, String nickname, String profileImageUrl) {
+        // 네이티브 로그인 앱 귀속 검증: access_token_info 가 우리 앱(app_id=123456, test yml) 토큰임을 반환.
+        stubKakaoAccessTokenInfo(kakaoUserId, KAKAO_APP_ID);
+
+        String userJson = """
+                {
+                  "id": %d,
+                  "properties": {
+                    "nickname": "%s",
+                    "profile_image": "%s"
+                  }
+                }
+                """.formatted(kakaoUserId, nickname, profileImageUrl);
+        wireMock.stubFor(get(urlEqualTo("/v2/user/me"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(userJson)));
+    }
+
+    private void stubKakaoAccessTokenInfo(long kakaoUserId, long appId) {
+        String body = """
+                {
+                  "id": %d,
+                  "expires_in": 3600,
+                  "app_id": %d
+                }
+                """.formatted(kakaoUserId, appId);
+        wireMock.stubFor(get(urlEqualTo("/v1/user/access_token_info"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(body)));
+    }
+
+    @DisplayName("AC-6: POST /api/v1/auth/kakao/native - 유효 토큰이면 본문 토큰 3종을 반환하고 Set-Cookie 가 없다.")
+    @Test
+    void kakaoNative_validToken_returnsBodyTokensWithoutCookies() {
+        stubKakaoUserInfo(KAKAO_USER_ID, "네이티브닉", "http://img.example/p.png");
+
+        ResponseEntity<JsonNode> response = callKakaoNative("kakao-access");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(setCookieHeaders(response)).isEmpty();
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("accessToken").asText()).isNotBlank();
+        assertThat(data.get("refreshToken").asText()).isNotBlank();
+        assertThat(data.get("expiresIn").asLong()).isEqualTo(jwtProperties.accessTtlSeconds());
+        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isPresent();
+    }
+
+    @DisplayName("AC-7: POST /api/v1/auth/kakao/native - 동일 토큰 2회 호출해도 계정 중복 없이 각각 새 JWT 를 발급한다.")
+    @Test
+    void kakaoNative_twiceSequential_noDuplicateAccount() {
+        stubKakaoUserInfo(KAKAO_USER_ID, "네이티브닉", "p.png");
+
+        ResponseEntity<JsonNode> first = callKakaoNative("kakao-access");
+        ResponseEntity<JsonNode> second = callKakaoNative("kakao-access");
+
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(userJpaRepository.findAll()).hasSize(1);
+        // 각각 토큰 발급됨 (refresh rotation 으로 마지막 호출 토큰만 유효).
+        assertThat(first.getBody().get("data").get("accessToken").asText()).isNotBlank();
+        assertThat(second.getBody().get("data").get("accessToken").asText()).isNotBlank();
+    }
+
+    @DisplayName("AC-8: POST /api/v1/auth/kakao/native - 위변조 토큰(카카오 4xx)이면 502 AUTH_KAKAO_API_FAILED.")
+    @Test
+    void kakaoNative_kakao4xx_returns502() {
+        // 앱 귀속 검증은 통과(우리 앱 토큰)시키고, /v2/user/me 단계에서 4xx 를 시뮬레이션.
+        stubKakaoAccessTokenInfo(KAKAO_USER_ID, KAKAO_APP_ID);
+        wireMock.stubFor(get(urlEqualTo("/v2/user/me"))
+                .willReturn(aResponse().withStatus(401)));
+
+        ResponseEntity<JsonNode> response = callKakaoNative("forged-token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_API_FAILED");
+    }
+
+    @DisplayName("AC-8: POST /api/v1/auth/kakao/native - 위변조 토큰(access_token_info 자체 4xx)이면 502 AUTH_KAKAO_API_FAILED.")
+    @Test
+    void kakaoNative_accessTokenInfo4xx_returns502() {
+        // 앱 귀속 검증 단계(access_token_info)에서 바로 4xx(401) → 위변조 토큰 경로. /v2/user/me 미도달.
+        wireMock.stubFor(get(urlEqualTo("/v1/user/access_token_info"))
+                .willReturn(aResponse().withStatus(401)));
+
+        ResponseEntity<JsonNode> response = callKakaoNative("forged-token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_API_FAILED");
+        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isEmpty();
+    }
+
+    @DisplayName("앱 귀속 검증: POST /api/v1/auth/kakao/native - 다른 앱(app_id 불일치) 토큰이면 401 AUTH_KAKAO_APP_MISMATCH.")
+    @Test
+    void kakaoNative_foreignAppToken_returns401() {
+        // access_token_info 가 우리 앱과 다른 app_id 를 반환 → 거부. /v2/user/me 까지 도달하지 않는다.
+        stubKakaoAccessTokenInfo(KAKAO_USER_ID, KAKAO_APP_ID + 1);
+
+        ResponseEntity<JsonNode> response = callKakaoNative("other-app-token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_APP_MISMATCH");
+        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isEmpty();
+    }
+
+    @DisplayName("AC-15: POST /api/v1/auth/kakao/native - 탈퇴한 Kakao 사용자가 로그인 시도하면 401 AUTH_USER_DEACTIVATED.")
+    @Test
+    void kakaoNative_deactivatedUser_returns401() {
+        // 사전에 탈퇴(soft-delete) Kakao 계정 저장 — V014 백필로 (KAKAO, kakao_user_id::text) 행이 유지된다.
+        UserModel user = UserModel.create(KAKAO_USER_ID, "닉", "p.png");
+        user.delete();
+        userJpaRepository.save(user);
+
+        // 우리 앱 토큰 + 같은 kakaoUserId 반환 stub.
+        stubKakaoUserInfo(KAKAO_USER_ID, "닉", "p.png");
+
+        ResponseEntity<JsonNode> response = callKakaoNative("kakao-access");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_USER_DEACTIVATED");
+    }
+
+    // ------------------------------------------------------------------
+    // P1: Apple 네이티브 로그인 (AC-9 ~ AC-15)
+    // ------------------------------------------------------------------
+
+    private String appleBody(String identityToken, String nonce, String givenName, String familyName, String email) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"identityToken\":\"").append(identityToken).append("\"");
+        sb.append(",\"nonce\":\"").append(nonce).append("\"");
+        if (givenName != null || familyName != null) {
+            sb.append(",\"fullName\":{");
+            sb.append("\"givenName\":").append(givenName == null ? "null" : "\"" + givenName + "\"");
+            sb.append(",\"familyName\":").append(familyName == null ? "null" : "\"" + familyName + "\"");
+            sb.append("}");
+        }
+        if (email != null) {
+            sb.append(",\"email\":\"").append(email).append("\"");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    @DisplayName("AC-9/AC-10: POST /api/v1/auth/apple/native - 유효 토큰+nonce 면 본문 토큰 반환(Set-Cookie 없음)하고 최초 email/fullName 을 저장한다.")
+    @Test
+    void appleNative_validToken_returnsTokensAndStoresProfile() {
+        String nonce = "client-nonce-1";
+        String token = issueAppleToken("apple-sub-1", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, "relay@privaterelay.appleid.com");
+
+        ResponseEntity<JsonNode> response = callAppleNative(
+                appleBody(token, nonce, "길동", "홍", "relay@privaterelay.appleid.com"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(setCookieHeaders(response)).isEmpty();
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("accessToken").asText()).isNotBlank();
+        assertThat(data.get("expiresIn").asLong()).isEqualTo(jwtProperties.accessTtlSeconds());
+
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-1")
+                .orElseThrow();
+        assertThat(stored.getNickname()).isEqualTo("길동 홍"); // AC-10: fullName 저장 (BR-12)
+        assertThat(stored.getEmail()).isEqualTo("relay@privaterelay.appleid.com");
+        assertThat(stored.getKakaoUserId()).isNull();
+    }
+
+    @DisplayName("AC-11: POST /api/v1/auth/apple/native - 재로그인 시 email/fullName null 전송해도 기존 값이 유지된다 (BR-9).")
+    @Test
+    void appleNative_reLogin_nullProfile_keepsExistingValues() {
+        String nonce = "client-nonce-1";
+        // 최초 로그인: fullName/email 저장.
+        String firstToken = issueAppleToken("apple-sub-2", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, "first@privaterelay.appleid.com");
+        callAppleNative(appleBody(firstToken, nonce, "철수", "김", "first@privaterelay.appleid.com"));
+
+        // 재로그인: fullName/email 미전송, 토큰 클레임에도 email 없음.
+        String secondToken = issueAppleToken("apple-sub-2", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, null);
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(secondToken, nonce, null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(userJpaRepository.findAll()).hasSize(1);
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-2")
+                .orElseThrow();
+        assertThat(stored.getNickname()).isEqualTo("철수 김"); // 불변
+        assertThat(stored.getEmail()).isEqualTo("first@privaterelay.appleid.com"); // 불변
+    }
+
+    @DisplayName("AC-12: POST /api/v1/auth/apple/native - aud 불일치면 401 AUTH_APPLE_TOKEN_INVALID.")
+    @Test
+    void appleNative_wrongAudience_returns401() {
+        String nonce = "client-nonce-1";
+        String token = issueAppleToken("apple-sub-3", nonce, "com.evil.app",
+                System.currentTimeMillis() + 600_000, null);
+
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_APPLE_TOKEN_INVALID");
+    }
+
+    @DisplayName("AC-13: POST /api/v1/auth/apple/native - 만료 토큰이면 401 AUTH_APPLE_TOKEN_INVALID.")
+    @Test
+    void appleNative_expiredToken_returns401() {
+        String nonce = "client-nonce-1";
+        String token = issueAppleToken("apple-sub-4", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() - 60_000, null);
+
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_APPLE_TOKEN_INVALID");
+    }
+
+    @DisplayName("AC-14: POST /api/v1/auth/apple/native - nonce 불일치면 401 AUTH_APPLE_TOKEN_INVALID.")
+    @Test
+    void appleNative_nonceMismatch_returns401() {
+        String token = issueAppleToken("apple-sub-5", "token-nonce", APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, null);
+
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, "different-nonce", null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_APPLE_TOKEN_INVALID");
+    }
+
+    @DisplayName("AC-15: POST /api/v1/auth/apple/native - 탈퇴자가 로그인 시도하면 401 AUTH_USER_DEACTIVATED.")
+    @Test
+    void appleNative_deactivatedUser_returns401() {
+        // 사전에 탈퇴 Apple 계정 저장.
+        UserModel user = UserModel.createOauth(OauthProvider.APPLE, "apple-sub-6", "Apple 사용자", null, null);
+        user.delete();
+        userJpaRepository.save(user);
+
+        String nonce = "client-nonce-1";
+        String token = issueAppleToken("apple-sub-6", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, null);
+
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_USER_DEACTIVATED");
+    }
+
+    @DisplayName("AC-22: POST /api/v1/auth/apple/native - fullName 없으면 임시 닉네임('Apple 사용자')으로 계정을 생성한다.")
+    @Test
+    void appleNative_noFullName_createsWithTemporaryNickname() {
+        String nonce = "client-nonce-1";
+        String token = issueAppleToken("apple-sub-7", nonce, APPLE_AUDIENCE,
+                System.currentTimeMillis() + 600_000, null);
+
+        ResponseEntity<JsonNode> response = callAppleNative(appleBody(token, nonce, null, null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        UserModel stored = userJpaRepository.findByOauthProviderAndOauthId(OauthProvider.APPLE, "apple-sub-7")
+                .orElseThrow();
+        assertThat(stored.getNickname()).isEqualTo("Apple 사용자");
+    }
+
+    // ------------------------------------------------------------------
+    // P1: refresh (body) (AC-16, AC-17, AC-18)
+    // ------------------------------------------------------------------
+
+    private ResponseEntity<JsonNode> callRefreshBody(String refreshToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"refreshToken\":\"" + refreshToken + "\"}", headers);
+        return restTemplate.exchange("/api/v1/auth/refresh", HttpMethod.POST, entity, JsonNode.class);
+    }
+
+    @DisplayName("AC-16: POST /api/v1/auth/refresh - 유효 refresh 면 새 쌍을 본문으로 반환하고 Set-Cookie 가 없다.")
+    @Test
+    void refreshBody_validToken_returnsNewPairWithoutCookies() {
+        stubKakaoUserInfo(KAKAO_USER_ID, "닉", "p.png");
+        String oldRefresh = callKakaoNative("kakao-access").getBody().get("data").get("refreshToken").asText();
+
+        ResponseEntity<JsonNode> response = callRefreshBody(oldRefresh);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(setCookieHeaders(response)).isEmpty();
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("accessToken").asText()).isNotBlank();
+        assertThat(data.get("refreshToken").asText()).isNotBlank().isNotEqualTo(oldRefresh);
+        assertThat(data.get("expiresIn").asLong()).isEqualTo(jwtProperties.accessTtlSeconds());
+    }
+
+    @DisplayName("AC-17: POST /api/v1/auth/refresh - 사용된(rotate 된) refresh 재호출이면 401 AUTH_REFRESH_TOKEN_INVALID.")
+    @Test
+    void refreshBody_reusedToken_returns401() {
+        stubKakaoUserInfo(KAKAO_USER_ID, "닉", "p.png");
+        String oldRefresh = callKakaoNative("kakao-access").getBody().get("data").get("refreshToken").asText();
+
+        // 1차 refresh 성공 → oldRefresh 무효화.
+        callRefreshBody(oldRefresh);
+
+        // 사용된 토큰 재호출.
+        ResponseEntity<JsonNode> response = callRefreshBody(oldRefresh);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_REFRESH_TOKEN_INVALID");
+    }
+
+    @DisplayName("AC-18: 기존 쿠키 /api/v1/auth/token/refresh 는 body refresh 추가 후에도 동일하게 동작한다 (회귀).")
+    @Test
+    void cookieRefresh_stillWorks_afterBodyRefreshAdded() {
+        stubKakaoSuccess("닉", "p.png");
+        ResponseEntity<JsonNode> loginRes = callKakaoCallback("code-login");
+        String refreshCookie = findCookie(setCookieHeaders(loginRes), "refresh_token").orElseThrow();
+        String refreshValue = extractCookieValue(refreshCookie, "refresh_token");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, "refresh_token=" + refreshValue);
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "/api/v1/auth/token/refresh", HttpMethod.POST, new HttpEntity<>(headers), JsonNode.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(findCookie(setCookieHeaders(response), "access_token")).isPresent();
+        assertThat(findCookie(setCookieHeaders(response), "refresh_token")).isPresent();
     }
 
 }

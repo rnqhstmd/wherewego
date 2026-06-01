@@ -3,6 +3,7 @@ package com.wherewego.domain.auth;
 import com.wherewego.application.auth.AuthResultInfo;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
 import com.wherewego.domain.auth.jwt.RefreshTokenHasher;
+import com.wherewego.domain.user.OauthProvider;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -68,6 +69,47 @@ public class UserLoginPersistence {
                 .orElseGet(() -> userRepository.saveAndFlush(
                         UserModel.create(kakaoUserId, nickname, profileImageUrl)));
 
+        return issueTokensFor(user);
+    }
+
+    /**
+     * P1: 네이티브(Kakao access token / Apple identityToken) 로그인의 DB 쓰기.
+     * (provider, oauthId) find-or-create 후 토큰 발급. 기존 {@link #upsertAndIssueTokens} 와
+     * 동일한 트랜잭션/재시도 정책을 공유한다(공통 헬퍼 {@link #issueTokensFor}).
+     *
+     * <p>BR-6: 탈퇴자 → AUTH_USER_DEACTIVATED(AC-15).
+     * <p>BR-9: Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
+     * <p>AC-7: 동시 최초 로그인 race → DataIntegrityViolation → @Retryable 재시도.
+     */
+    @Retryable(
+            retryFor = {CannotCreateTransactionException.class, DataIntegrityViolationException.class},
+            maxAttempts = 2,
+            backoff = @Backoff(delay = 500, multiplier = 2.0),
+            listeners = "loginRetryListener"
+    )
+    @Transactional
+    public AuthResultInfo upsertByOauthAndIssueTokens(NativeLoginCommand cmd) {
+        UserModel user = userRepository.findByOauthProviderAndOauthId(cmd.provider(), cmd.oauthId())
+                .map(existing -> {
+                    if (!existing.isActive()) {
+                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // BR-6, AC-15
+                    }
+                    if (cmd.provider() == OauthProvider.KAKAO) {
+                        existing.updateProfile(cmd.nickname(), cmd.profileImageUrl());
+                    }
+                    // BR-9: Apple 기존 계정은 갱신하지 않는다 (email/nickname 최초 1회만).
+                    return existing;
+                })
+                .orElseGet(() -> userRepository.saveAndFlush(cmd.toNewUser()));
+
+        return issueTokensFor(user);
+    }
+
+    /**
+     * 공통 토큰 발급: access/refresh 발급 + refreshTokenHash 저장 + AuthResultInfo 조립.
+     * 기존 Kakao 콜백 경로와 신규 네이티브 경로가 공유한다.
+     */
+    private AuthResultInfo issueTokensFor(UserModel user) {
         String accessRaw = jwtTokenProvider.issueAccessToken(user.getId());
         String refreshRaw = jwtTokenProvider.issueRefreshToken(user.getId());
 
@@ -112,5 +154,38 @@ public class UserLoginPersistence {
         // upsertAndIssueTokens 는 checked exception 을 던지지 않으므로 도달 불가.
         // 시그니처가 바뀌어 checked 가 가능해지면 즉시 fail-fast.
         throw new AssertionError("Unreachable: unexpected checked throwable from @Retryable target", e);
+    }
+
+    /**
+     * P1: {@link #upsertByOauthAndIssueTokens} 전용 @Recover (인자 1개 = NativeLoginCommand).
+     * 기존 3인자 @Recover 와 인자 개수·타입 모두 달라 Spring Retry 매칭 모호성이 없다.
+     *
+     * <p>retryFor(CCT/DataIntegrityViolation) 소진 시 provider 무관 일시적 서버 에러
+     * (AUTH_LOGIN_TEMPORARILY_UNAVAILABLE, 503) 로 변환한다. CCT(트랜잭션 생성 실패)·
+     * DIV(DB UNIQUE 동시성) 모두 provider 와 무관한 인프라/동시성 문제이므로, Apple 경로에서
+     * JWKS 무관한 AUTH_APPLE_JWKS_UNAVAILABLE 오탐을 내지 않는다.
+     * 그 외 예외(CoreException 등 비즈니스 예외) → 원본 그대로 전파(글로벌 advice 가 본래 코드로 응답).
+     */
+    @Recover
+    public AuthResultInfo recoverOauthRetryable(
+            CannotCreateTransactionException e, NativeLoginCommand cmd) {
+        throw temporarilyUnavailable();
+    }
+
+    @Recover
+    public AuthResultInfo recoverOauthRetryable(
+            DataIntegrityViolationException e, NativeLoginCommand cmd) {
+        throw temporarilyUnavailable();
+    }
+
+    @Recover
+    public AuthResultInfo recoverOauthNonRetryable(Throwable e, NativeLoginCommand cmd) {
+        if (e instanceof RuntimeException re) throw re;
+        if (e instanceof Error err) throw err;
+        throw new AssertionError("Unreachable: unexpected checked throwable from @Retryable target", e);
+    }
+
+    private CoreException temporarilyUnavailable() {
+        return new CoreException(ErrorType.AUTH_LOGIN_TEMPORARILY_UNAVAILABLE);
     }
 }
