@@ -1,101 +1,108 @@
-# iOS 네이티브 전환 계획 — SwiftUI 전용 + 인앱 커플 봇 채팅방
+# iOS 네이티브 전환 계획 — SwiftUI 전용 + 봇 방 + 1:1 커플방
 
-> 작성일 2026-05-31. 결정: **SwiftUI (iOS 앱스토어 전용, 영구)** · **챗봇 = 커플당 사람↔봇 채팅방 1개(두 파트너 공유)**.
-> 백엔드는 유지·확장. 카카오 채널 스킬 봇은 인앱 채팅으로 대체하며 봇 연동 레이어는 폐기.
+> 작성일 2026-05-31. 개정 2026-06-01. 결정: **SwiftUI (iOS 앱스토어 전용, 영구)** · **단일 공유 백엔드(웹은 앱 게시 시 종료, 그전까지 병행)** · **채팅 = 봇 방(유저별·저장 전용) + 1:1 커플방(사람 전용) 분리, 크로스포스트 없음**.
+> 백엔드는 유지·확장(additive). 카카오 채널 스킬 봇은 인앱 봇 방으로 대체하며 봇 연동 레이어는 **앱 게시 컷오버 때** 폐기.
 
 ## 0. 핵심 결정 요약
 
 | 항목 | 결정 |
 |---|---|
 | 클라이언트 | SwiftUI 네이티브, iOS 전용 (Android 계획 없음) |
+| 백엔드 | **단일 공유**(웹과 동일). 포크/복사 안 함. 변경은 전부 additive |
 | 지도 | Mapbox Maps SDK for iOS (mapbox-gl-js 대체, 네이티브 클러스터링) |
-| 인증 | Kakao iOS SDK 네이티브 로그인 → 백엔드 JWT 발급 → Keychain 저장, Bearer 헤더 |
-| 챗봇 | 카카오 웹훅 폐기 → 커플(그룹)당 사람↔봇 채팅방, 인증 REST + 실시간 |
-| 봇 연동 레이어 | **전체 폐기** (`domain/bot`, BotLinkCode, BotUserMapping, /bot/connect, KakaoSkillSecretFilter, LINK_CODE) |
-| 푸시 | APNs + 기기 토큰 등록 (폴링 알림 격상) |
-| 웹 | (열린 질문) 코드 변경은 모두 additive라 웹/앱 병행 가능. 웹 은퇴 여부는 별도 결정 |
+| 인증 | **Kakao + Apple** 네이티브 로그인 → 백엔드 JWT → Keychain, Bearer 헤더. (Apple은 Guideline 4.8 필수) |
+| 채팅 | **봇 방(유저별, 릴스→저장 전용)** + **1:1 커플방(두 파트너 사람 대화 전용, 봇 미개입)** 분리. **크로스포스트 없음**(파트너 통지는 푸시로). 인증 REST + 실시간 |
+| 봇 연동 레이어 | **앱 게시 컷오버 때 폐기** (`domain/bot`, BotLinkCode, BotUserMapping, /bot/connect, KakaoSkillSecretFilter, LINK_CODE, **쿠키 auth**) |
+| 푸시 | APNs(.p8 토큰 기반) + 기기 토큰 등록 (폴링 알림 격상) |
+| 계정 삭제 | `DELETE /users/me` — 개인 데이터 purge + **Apple 토큰 revoke** (Guideline 5.1.1v 필수) |
+| 방문 감지 | **포그라운드** CoreLocation(앱 활성 중) + 저장 핀 근접 컨페티 |
+| 앱스토어 자산 | Privacy Manifest(앱+SDK), 권한 문구, **리뷰어 데모 계정 시드 + 숨은 로그인**, 인스타 방어 노트 |
+| 웹 | **앱 앱스토어 게시 시 종료.** 그전까지 병행(쿠키+Bearer additive). 게시 후 쿠키 auth 제거 |
 
 ## 1. 백엔드: 재사용 / 폐기 / 신규
 
 ### 재사용 (전송 무관 코어 — 거의 그대로)
 - `domain/pin`, `domain/place`(parser, Gemini 추출), `domain/group`, `domain/user`, `domain/notification`, `domain/auth/jwt`
 - 챗봇 **코어**: `MessageClassifier`, `MessageHandler` 체인(InstagramLink, ReelMultiSelection, ReelMemoWaiting, PlaceSelection, TwoSecondMemo, Unknown), `PlaceCardBuilder`, 세션류(`ReelSavedSelectionSession` 등)
-- → 핸들러 인터페이스 유지, **입출력 어댑터만 교체**
+- → 핸들러 인터페이스 유지, **입출력 어댑터만 교체**. 봇 방은 유저별이라 세션 키(`userId`)도 기존과 동형.
 
-### 폐기
+### 폐기 (앱 게시 컷오버 때)
 - `domain/bot` 전체: `BotLinkCode*`, `BotUserMapping*`, `LinkCodeGenerator`
 - `handler/LinkCodeHandler`, `MessageType.LINK_CODE`
 - `KakaoSkillSecretFilter`, Kakao Skill DTO(`ChatbotV1Dto.SkillRequest/Response`, `BasicCard/QuickReply`, `useCallback`)
 - `ChatbotV1Controller`(/chatbot/webhook) → 신규 chat controller로 대체
-- 프론트 `/bot/connect`
+- 프론트 `/bot/connect`, **쿠키 인증**(웹 종료 시)
 
 ### 신규
-1. **Bearer 헤더 인증** — `JwtAuthenticationFilter.extractAccessTokenFromCookie`에 `Authorization: Bearer` 분기 추가(헤더 우선).
-2. **Kakao 네이티브 로그인** — iOS SDK가 받은 Kakao access token을 백엔드가 검증 → 우리 JWT 발급. 웹 리다이렉트 흐름과 별도 엔드포인트(`POST /api/v1/auth/kakao/native`). 응답은 `{accessToken, refreshToken, expiresIn}` JSON. `POST /api/v1/auth/refresh` 추가.
-3. **ChatMessage 영속화** — `chat_message(id, group_id, sender_type[USER|BOT], sender_user_id NULL허용, kind[TEXT|PLACE_CARDS|MEMO_PROMPT|SYSTEM], payload_json, created_at)` + repository.
-4. **ChatService** — `ChatbotWebhookService`를 리팩터: 입력을 `(groupId, senderUserId, text)`로, 출력을 `ChatMessage`(들)로. **세션 키를 botUserKey → groupId**로 변경(커플 공유 방). 봇 응답은 방에 BOT 메시지로 적재.
-5. **Chat REST** — `POST /api/v1/groups/{groupId}/chat/messages`(전송, 사용자 메시지 저장 + 봇 처리 트리거), `GET .../messages?cursor=`(히스토리).
-6. **실시간 전달** — WebSocket(STOMP) 또는 SSE 채널로 방 신규 메시지 push. 비동기 장소추출 결과도 동일 채널로 방에 추가.
-7. **APNs 푸시 + 기기 등록** — `POST /api/v1/devices`(APNs token 등록), `NotificationService`에서 APNs 디스패치. 앱 백그라운드 시 채팅/알림 푸시.
-8. **CORS** — 네이티브는 origin 없음 → 앱엔 불필요. 웹 병행 시 기존 유지.
+1. **Bearer 헤더 인증** — `JwtAuthenticationFilter`에 `Authorization: Bearer` 분기 추가(헤더 우선, 쿠키 병행).
+2. **Kakao 네이티브 로그인** — Kakao access token 검증 → 우리 JWT. `POST /api/v1/auth/kakao/native`, 응답 `{accessToken, refreshToken, expiresIn}`. `POST /api/v1/auth/refresh`.
+3. **Apple 로그인** — `POST /api/v1/auth/apple/native`. Apple `identityToken`을 JWKS로 서명 검증 + `iss`/`aud`(번들ID)/`nonce`/`exp` 검증 → `sub`로 find-or-create → JWT. **private relay 이메일·이름 최초 1회** 보존. User에 `oauth_provider`+`oauth_id` 일반화. (Guideline 4.8)
+4. **채팅 모델** — `chat_room(id, group_id, type[BOT|COUPLE], owner_user_id NULL허용)` + `chat_message(id, room_id, sender_type[USER|BOT|SYSTEM], sender_user_id, kind[TEXT|PLACE_CARDS|MEMO_PROMPT|PROCESSING|SYSTEM], payload_json, created_at)`.
+5. **BotChatService (봇 방, 유저별)** — `ChatbotWebhookService` 리팩터: 입력 `(userId, text, actionPayload?)`, 출력 `ChatMessage[]`. **세션 키 userId 유지**(동시성 문제 없음). 핸들러 체인·Gemini·PlaceCardBuilder 재사용. 봇 응답은 봇 방에 BOT 메시지로 적재.
+6. **CoupleChatService (1:1 방, 사람 전용)** — 분류기/봇 미개입. 텍스트 저장 + 상대에게 브로드캐스트만. 크로스포스트 없음.
+7. **Chat REST** — `POST/GET /api/v1/chat/bot/messages`, `POST/GET /api/v1/chat/couple/{groupId}/messages?cursor=`.
+8. **실시간 전달** — WebSocket(STOMP)로 봇 방·커플방 신규 메시지 push. 비동기 장소추출 결과도 동일 채널.
+9. **APNs 푸시 + 기기 등록** — `POST/DELETE /api/v1/devices`(.p8 토큰 기반), `NotificationService` 확장. 트리거: 파트너 핀 저장, 커플방 새 메시지, 봇 방 처리 완료.
+10. **계정 삭제** — `DELETE /api/v1/users/me`: 개인 데이터(oauth·refresh·device·본인 메시지·멤버십) 삭제, 마지막 1인까지 삭제 시 그룹+핀 삭제, **Apple 토큰 revoke**. (Guideline 5.1.1v)
+11. **CORS** — 네이티브는 origin 없음 → 앱엔 불필요. 웹 병행 시 기존 유지.
 
 ### 비동기 흐름 변화 (개선)
 ```
 [기존 카카오] 릴스 → "처리중"(useCallback) → 카카오 callbackUrl로 결과 push (5초 제약 회피)
-[인앱]       릴스 → BOT "처리중" 메시지 방에 즉시 게시 → Gemini 추출(@Async) 
-             → 완료 시 BOT "장소 카드" 메시지 방에 append + WebSocket/APNs push
+[인앱 봇 방]  릴스 → BOT "처리중" 메시지 즉시 게시 → Gemini 추출(@Async)
+             → 완료 시 BOT "장소 카드" 메시지 append + WebSocket/APNs push
 ```
 카카오 5초 동기 제약과 `useCallback` dance가 사라짐.
 
-### 주의: 공유 세션 동시성
-세션을 groupId로 키하면 두 파트너가 동시에 릴스를 던질 때 충돌 가능. 규칙: **방당 활성 릴스 세션 1개**(현재 유저당 1개 동작과 동형). 인메모리 세션은 재시작/수평확장에 취약 → 차기 과제로 DB 영속화 검토(이번 범위 밖).
+### 세션 동시성 (해소)
+봇 방을 **유저별(per-user)** 로 두고 세션 키를 `userId`로 유지하므로(기존 카카오 1인↔봇과 동형) 두 파트너가 동시에 릴스를 던져도 **충돌 없음**. 인메모리 세션은 재시작/수평확장에 취약 → DB 영속화는 차기 과제(이번 범위 밖).
 
 ## 2. iOS 앱 아키텍처 (SwiftUI)
 
 - 패턴: SwiftUI + MVVM(`ObservableObject` ViewModel), `async/await`
 - 네트워킹: `URLSession` 기반 `APIClient` — Bearer 자동 부착, 401→refresh→재시도. 응답 envelope(`{meta,data}`) 디코딩 공통화.
-- 인증: Kakao iOS SDK 로그인 → 백엔드 JWT → **Keychain** 저장. 플래그(locationAsked/nicknameSet 등)는 `UserDefaults`(웹 local-flags 대체).
+- 인증: **Kakao iOS SDK + Apple(`AuthenticationServices`)** 로그인 → 백엔드 JWT → **Keychain** 저장. 플래그(locationAsked/nicknameSet 등)는 `UserDefaults`(웹 local-flags 대체).
 - 지도: **MapboxMaps** iOS SDK. 클러스터링은 GeoJSON source `cluster:true`(웹 supercluster 대체). 카메라 이동·핀 마커·롤렛 등 `MapClient.tsx` 로직 포팅.
 - 카메라/사진: `PhotosUI`(PHPicker) + `AVFoundation`, 압축은 ImageIO. 멀티파트 업로드(기존 4MB 정책 유지).
-- 채팅: `ChatView`(메시지 버블 List) + `ChatViewModel`. 실시간 `URLSessionWebSocketTask`(또는 SSE). 장소 카드 = 선택 버튼 있는 커스텀 버블.
+- 채팅: **봇 방**(`BotChatView`) + **1:1 커플방**(`CoupleChatView`) 분리, 각 `ViewModel`. 실시간 `URLSessionWebSocketTask`. 봇 방 장소 카드 = 선택 버튼 커스텀 버블(텍스트 파싱 대신 버튼 actionPayload).
 - 푸시: `UNUserNotificationCenter` + APNs. 알림 탭 → 해당 핀/방으로 딥링크.
 - 내비게이션: `NavigationStack`. 온보딩 위저드 플로우 포팅.
 
 ### 화면 매핑 (기존 Next 라우트 → SwiftUI View)
 | Next 라우트 | SwiftUI | 비고 |
 |---|---|---|
-| `/login` | `LoginView` | Kakao 네이티브 |
+| `/login` | `LoginView` | Kakao + Apple 네이티브 |
 | `/onboarding/*` | 온보딩 플로우 | welcome/nickname/location/invite-code/notification/group-start |
 | `/map` (`MapClient.tsx` 최대 파일) | `MapView` | Mapbox iOS, 핀/클러스터/롤렛 |
 | `/pins` | `PinListView` | 핀 CRUD, 사진 |
 | `/groups`, `/groups/new`, `/groups/invite`, `/invite/[slug]` | 그룹/초대 Views | 초대 링크 딥링크 처리 |
-| `/settings`, `/settings/nickname` | `SettingsView` | (서브메뉴엔 ← 뒤로가기 필수) |
-| `/bot/connect` | **삭제** | 연동 불필요 |
-| — | `ChatRoomView` (신규) | 커플 봇 채팅방 |
+| `/settings`, `/settings/nickname` | `SettingsView` | (서브메뉴엔 ← 뒤로가기 필수) + **계정 삭제** |
+| `/bot/connect` | **삭제** | 연동 불필요(컷오버 때) |
+| — | `BotChatView` (신규) | 릴스→장소 저장 봇 방(유저별) |
+| — | `CoupleChatView` (신규) | 1:1 커플 대화방(사람 전용) |
 
 ## 3. PR / Phase 시퀀스
 
-### Phase A — 백엔드 (additive, 웹 무중단)
-- **A1**: `JwtAuthenticationFilter` Bearer 헤더 지원. (위험 0, 시작점)
-- **A2**: Kakao 네이티브 로그인 엔드포인트 + 토큰 JSON 발급 + refresh.
-- **A3**: `ChatMessage` 모델 + `ChatService`(핸들러 코어 재사용, 세션 groupId 키) + Chat REST.
-- **A4**: 실시간(WebSocket/SSE) + APNs + `POST /devices`.
-- **A5**: 봇 연동 레이어 폐기 — iOS 앱 출시 후 카카오 봇 병행 운영하다 하드 컷오버.
+세부 Phase 배치·의존성은 `roadmap.md` 참조. **큼직한 6 Phase + 런치 후 컷오버**로 정리(2026-06-01 개정):
 
-### Phase B — iOS 앱
-- **B1**: 프로젝트 스캐폴드(SwiftUI, APIClient, Keychain, Kakao SDK, 환경설정).
-- **B2**: 인증 + 온보딩 플로우.
-- **B3**: 지도(Mapbox iOS) + 핀 CRUD + 사진.
-- **B4**: 채팅방(신규) + 장소 카드 + 실시간.
-- **B5**: 푸시 + 폴리시 + 앱스토어 제출(아이콘/권한 문구/개인정보).
+- **P1 백엔드 인증 확장** — Bearer 헤더 + Kakao/Apple 네이티브 로그인 + refresh + 계정 모델 일반화
+- **P2 백엔드 앱 서비스** — 봇 방 + 1:1 커플방 + 실시간 + APNs 푸시 + 계정 삭제
+- **P3 iOS 골격+인증+온보딩** — Xcode/SPM/폰트/Keychain, Kakao+Apple 로그인, 온보딩
+- **P4 iOS 지도+핀+사진+방문감지(포그라운드)** — 최대 공수(`MapClient.tsx` 포팅)
+- **P5 iOS 채팅(봇 방+1:1 방)+푸시+제출 자산** — Privacy Manifest·데모 계정·인스타 방어
+- **P6 디자인 정합성 최종 QA(웹↔앱) → 앱스토어 제출**
+- **컷오버(런치 후)**: 웹 종료 + 봇 레이어/쿠키 auth 제거
 
 ## 4. 리스크 / 열린 질문
 
-- **웹 운명**: 웹 서비스를 은퇴할지 병행할지. 병행이면 백엔드는 쿠키+Bearer 둘 다 지원(현 계획 그대로 가능).
-- **카카오 봇 전환 기간**: 기존 사용자 데이터(BotUserMapping) 마이그레이션 — 이미 그룹 소속이면 자연 승계, 미연동 사용자 안내 필요.
-- **인메모리 세션**: 수평 확장/재시작 취약 → 채팅 영속화와 함께 세션 DB 이전 검토(차기).
-- **Mapbox 비용/SDK**: iOS SDK는 MAU 과금 모델 확인 필요.
-- **Kakao 토큰 검증**: 네이티브 로그인은 Kakao access token 검증 로직 신규(웹 code 교환과 다름).
+**해소된 결정(2026-06-01)**: 웹=앱 게시 시 종료(그전 병행) / 채팅=봇 방+1:1 방 분리, 크로스포스트 없음 / 방문감지=포그라운드 / 카카오 봇 마이그레이션=컷오버 시 그룹 자연 승계.
+
+남은 리스크:
+- **인메모리 세션**: 봇 방 유저별이라 동시성은 해소. 재시작/수평확장 대비 DB 영속화는 차기.
+- **Mapbox 비용/SDK**: iOS SDK MAU 과금 모델·무료 한도 확인 필요.
+- **Kakao/Apple 토큰 검증**: 네이티브 로그인은 토큰 검증 신규(Kakao access token, Apple identityToken JWKS).
+- **리뷰어 진입**: Kakao+초대 게이트라 데모 계정 시드 + 숨은 로그인 필수(P5).
+- **인스타 콘텐츠(5.2.2)**: 미디어 미저장·사용자 자발 입력 방어 논리 유지.
 
 ## 5. 기능 전환 가능성 (채팅 외 전 기능)
 
@@ -124,7 +131,7 @@
 | 사진 업로드 + 압축 | ✅ | PHPicker + ImageIO (browser-image-compression 대체), 멀티파트 유지 |
 | **사진 크롭** (react-easy-crop) | 🟡 | 직접 대응 없음 → SwiftUI 크롭 뷰 자작/라이브러리 |
 | 룰렛 (반경 추첨 + 스핀) | ✅ | 로직(`roulette.ts`) 포팅 + 스핀 애니 자명 |
-| 방문 감지 + 컨페티 축하 | ✅ | CoreLocation + 파티클 |
+| 방문 감지 + 컨페티 축하 | ✅ | **포그라운드** CoreLocation + 파티클 |
 | 알림함 (현재 폴링) | ✅↑ | APNs 푸시로 격상 |
 | 온보딩 위저드 | ✅ | NavigationStack 플로우 |
 | 카카오 로그인 | ✅ | Kakao iOS SDK (웹 리다이렉트 대체) |
@@ -135,9 +142,11 @@
 
 ### 시각/애니 충실도 보장 방법
 - `lib/design/tokens`(colors/fonts/spacing) → SwiftUI `Theme`/`Color`/`Font` 상수로 1:1 이식. 커스텀 폰트(serif/mono/sans) 번들 필수.
+- **토큰 단일 소스화**: `Theme.swift`는 `tokens.ts`의 수동 사본이라 드리프트 위험 → 코드 생성 또는 CI diff 가드로 단일 소스 유지.
 - 기존 작업이 디자인 번들(`screens-mobile.jsx` 등) **1:1 변환** 방식이었음 → 동일 워크플로를 SwiftUI에 적용(화면별 레퍼런스 대조 + 시각 QA).
 - ⚠️ 주의: CSS flow/absolute 레이아웃 ≠ SwiftUI 레이아웃. 픽셀 정합은 화면별로 의도적 보정 필요(자동 변환 아님).
+- **P6(디자인 정합성 최종 QA)**: 각 Phase가 화면별로 디자인을 이관하되, P6에서 전 화면을 웹과 한 번에 대조·보정(letter-spacing→`.tracking`, line-height→`.lineSpacing`, cubic-bezier→`.timingCurve`)하는 **별도 게이트**.
 
 ## 6. 즉시 시작점
 
-**Phase A1 + A2**(Bearer 헤더 + Kakao 네이티브 로그인/토큰 발급)가 위험이 가장 낮고 iOS 앱의 모든 인증을 잠금 해제. 그다음 A3(ChatMessage + ChatService) — 챗봇 코어 재사용이 핵심.
+**P1(백엔드 인증 확장)** 이 위험이 가장 낮고 iOS 인증 전체를 잠금 해제 — 여기부터 시작. 그다음 **P2**(봇 방+1:1 방+푸시+계정 삭제). iOS는 **P3**(골격+인증)부터 쌓고, 마지막 **P6**에서 웹과 디자인 정합성 최종 대조 후 제출.
