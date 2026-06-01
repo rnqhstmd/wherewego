@@ -18,6 +18,21 @@
 | FR-AUTH-5 | JWT 검증 필터 (Spring Security Stateless, 쿠키 access_token 추출) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 | FR-AUTH-6 | 로그아웃 (Refresh Token DB 폐기, Max-Age=0 쿠키, 멱등) | ✅ | [#3](https://github.com/rnqhstmd/wherewego/pull/3) |
 
+## iOS 네이티브 인증 (P1)
+
+> iOS 네이티브 전환 P1. 전부 **additive**(쿠키 웹 무중단). PRD/설계: `.dev/feat-ios-native-p1-auth/`.
+
+| ID | 요구사항 | 상태 | PR/커밋 |
+|----|----------|------|---------|
+| P1-FR-1 | Bearer 헤더 분기 (헤더 우선, 빈 Bearer는 쿠키 폴백) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+| P1-FR-2 | `POST /auth/kakao/native` (Kakao access token + app_id 앱 귀속 검증) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+| P1-FR-3 | `POST /auth/apple/native` (identityToken JWKS 서명 + iss/aud/exp/nonce) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+| P1-FR-4 | Apple private relay 이메일·이름 최초 1회 저장 (재로그인 불변) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+| P1-FR-5 | `POST /auth/refresh` (body 기반, 기존 쿠키 `/token/refresh` 유지) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+| P1-FR-6 | users `oauth_provider`/`oauth_id`/`email` 일반화 (V014, 기존 kakao_user_id 백필·UNIQUE 유지) | ✅ | [#86](https://github.com/rnqhstmd/wherewego/pull/86) |
+
+> 후속(P2 이월): 기존 웹 콜백 경로 Bulkhead/@Recover 에러코드 503 통일, 탈퇴 시 refresh hash 폐기, Apple `authorizationCode` 저장(revoke 대비).
+
 ## 운영 버그 수정
 
 | 항목 | 상태 | 상세 |
