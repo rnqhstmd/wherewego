@@ -14,6 +14,10 @@
 - 거리 계산: **Haversine** (애플리케이션 레벨). PostGIS 미사용
 - 추천 다양성: 직전 N회 추천된 핀을 클라이언트 측에 보관하고 가중치 낮추기 ❓ (MVP 후반 결정)
 
+## iOS 네이티브 룰렛 (P4, [PR #91](https://github.com/rnqhstmd/wherewego/pull/91))
+
+룰렛 추첨을 **클라이언트(iOS)에서 수행** — 백엔드 추천 API 없이 이미 로드된 핀 목록으로 추첨. `Roulette.swift`(순수 함수, RNG 주입으로 결정적 테스트)가 웹 `roulette.ts` 의 `pickRandomWithExpansion` 동치 이식: 현재 위치 기준 BBox 1차 필터 → Haversine 거리 보정 → 반경 내 후보 랜덤 1건, 0건 시 반경 확장. 기본 후보 태그 `[REEL, WISH]`(MEMORY 제외), "MEMORY 포함" 토글로 확장. "지도에서 보기" 시 flyTo(zoom15)+정보창, "다시" 재추첨(직전 핀 제외). 핀 목록 5분 캐시, 룰렛 직전 stale 시 재조회.
+
 ## 주제 문서
 
 | 주제 | 설명 |

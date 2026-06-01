@@ -36,8 +36,16 @@
 		<string>kakaokompassauth</string>
 		<string>kakaolink</string>
 	</array>
+	<key>MAPBOX_ACCESS_TOKEN</key>
+	<string>$(MAPBOX_ACCESS_TOKEN)</string>
+	<key>MAPBOX_STYLE_URL</key>
+	<string>$(MAPBOX_STYLE_URL)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>사진을 직접 찍어 추억으로 남길 수 있어요</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>근처에 어떤 핀이 있는지 보여드릴게요</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>추억 사진을 선택해 핀에 남길 수 있어요</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>NotoSerifKR-Regular.otf</string>

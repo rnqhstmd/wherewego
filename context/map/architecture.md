@@ -44,3 +44,16 @@
 | gl-migration-plan | DOM Marker → GL symbol layer 전환 시 변경 지점 사전 분석 (Phase 2.9) |
 | mapbox-token-sop | Mapbox 액세스 토큰 회전·발급·URL Restriction·폐기 SOP — 운영자 가이드 (Phase 2.10) |
 | mapbox-env | Mapbox 환경변수(`NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_MAPBOX_STYLE_URL`) 형식·사용처·설정 흐름 가이드 (Phase 2.10) |
+
+## iOS 네이티브 클라이언트 (P4, [PR #91](https://github.com/rnqhstmd/wherewego/pull/91))
+
+웹 `MapClient.tsx`/`MapboxView.tsx` 동작을 SwiftUI 로 포팅한 iOS 네이티브 지도(`ios/WhereWeGo/Features/Map`, `Core/Map`).
+
+- **Mapbox SDK 격리(배선 우선·토큰 나중)**: `MapRenderer` 프로토콜(SDK 비의존 모델 `MapMarker`/`CameraTarget`/`MapEvent`) 뒤로 SDK 의존을 숨긴다. `import MapboxMaps` 와 모든 Mapbox 타입 참조는 `Core/Map/MapboxMapView.swift` **단일 파일**에 `#if canImport(MapboxMaps)/#else stub`으로 격리(검증 게이트: `grep -rl "import MapboxMaps" == 1개`). `MapContainerView`(항상 컴파일)는 `MapConfig.isMapboxConfigured`로 Mapbox 뷰 vs `PlaceholderMapView` 선택. → **secret download token(.netrc) 없이도 빌드·테스트 통과**(DoD-A), 실렌더링은 token 발급 후(DoD-B).
+- **styleURL**: 웹과 동일, 미설정 시 `mapbox://styles/mapbox/standard` fallback. token/style 은 xcconfig `MAPBOX_ACCESS_TOKEN`/`MAPBOX_STYLE_URL`(placeholder `MAPBOX_TOKEN_NOT_SET`).
+- **마커**: 태그별 REEL/WISH/MEMORY 구분, GeoJSON `cluster:true`(radius 60/maxZoom 16/minPoints 2, 웹 clusterer.ts 동치) — #if 실구현(DoD-B). 카메라 flyTo(zoom15, 700ms)/fitBounds.
+- **상태(MapViewModel, @MainActor ObservableObject)**: `pins`/`activeFilters`(태그 필터)→`visiblePins`→`markers`, `cameraCommand`/`fitBoundsCommand`(소비 후 nil), `selectedPinId`, `activeSheet`(동시 1패널). 낙관적 patch/remove + 스냅샷 롤백(웹 useOptimistic 대응), 5분 캐시 + append-only 폴링(BR-7).
+- **검색→추가**: `PlaceAPI.search` → 태그 선택 → `PinAPI.create` → appendPin+flyTo. 크로스헤어 임의 좌표(중심 `cameraIdle` 추적, 7자리 반올림).
+- **룰렛**(`Roulette.swift` 순수, RNG 주입): `pickRandomWithExpansion` 반경 확장 추첨(웹 roulette.ts 동치), MEMORY 포함 토글.
+- **방문감지**: [[pin]] 도메인 참조 — 포그라운드 CoreLocation. `VisitDetectionEngine`(순수, now 주입): 정확도>50m 스킵·타이머 보존, 속도>1.4m/s 초기화, BBox+Haversine 100m·30초 → 최근접 1개, 세션 중복 차단. MEMORY 전환(`transitionedToMemoryNow=true`만 confetti+메모 시트).
+- 진입점: 온보딩 종착(`OnboardingRouter.groups`)이 `GroupsView`(삭제) → `MapView` 로 교체.

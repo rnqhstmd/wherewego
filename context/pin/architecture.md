@@ -47,3 +47,13 @@
 | [Phase 10 — 장소 방문 감지](phase-10-visit-detection.md) | WISH/REEL 핀 100m·30초 머무름 → 자동 MEMORY 전환 |
 | [Phase 12 — Pin Experience v2](phase-12-pin-experience-v2.md) | WANT 시스템(`pin_events`)·과반 WISH 전환·마커 3단계·챗봇 v2(콤마 입력)·오래된 핀 정리 |
 | [Phase 13 — 추억핀 사진 업로드](phase-13-memory-pin-photo.md) | MEMORY 핀 사진 1장 — S3 포트/어댑터·WebP 썸네일·blur-up 뷰어·업로더 3곳 재사용 |
+
+## iOS 네이티브 클라이언트 소비 (P4, [PR #91](https://github.com/rnqhstmd/wherewego/pull/91))
+
+기존 백엔드 핀 API를 변경 없이 SwiftUI 클라이언트가 소비(`ios/WhereWeGo/Features/Pin`, `Features/Map`). 백엔드 계약은 그대로.
+
+- **DTO 1:1**: `PinSummary`(Swift struct)가 백엔드 `PinSummaryResponse` 18필드 전부 매핑(id/groupId/createdBy `Int`, 좌표 `Double`, 날짜 `String`, tag `PinTag`, photoUrl/photoThumbnailUrl 등). `id` 등은 iOS 17 64bit `Int`.
+- **CRUD**: `PinAPIProtocol`(list legacy `{items}` 모드 / create / update / delete 204 / uploadPhoto / deletePhoto), 모두 `APIClient`(Bearer·401 refresh) 경유. **부분 PATCH**: `UpdatePinRequest` custom `encode(to:)`로 설정된 필드 키만 직렬화(백엔드 JsonNode "키 부재=미변경" 정합, 태그만 변경 시 memo 미전송).
+- **낙관적 업데이트**: `MapViewModel`이 로컬 `pins` 즉시 갱신 → PATCH/DELETE → 실패 시 스냅샷 복원(웹 useOptimistic patch/remove 대응). 권한 403 `GROUP_NOT_MEMBER` → "권한이 없어요". instagramUrl `https://` 가드(클라이언트 이중 방어).
+- **사진(Phase 13 계약 소비)**: MEMORY 핀 한정. PHPicker → SwiftUI 자작 1:1 크롭(`SquareCropView`) → `ImageCropper`(장변 1600px JPEG, ≤2MB 품질 단계 감소, 매직바이트 FFD8FF) → `POST .../photo` multipart `image/jpeg`(`APIClient.upload`, 401 재시도 공유). 교체=재 POST, 삭제=DELETE.
+- **방문감지(Phase 10 계약 소비)**: 포그라운드 CoreLocation, WISH·REEL 100m·30초 체류(정확도≤50m·속도1.4 게이트, Haversine, 최근접 1개) → `PATCH {tag:MEMORY}`. 응답 `transitionedToMemoryNow=true`(동시 전환 미충돌)일 때만 confetti+메모 시트, 세션 단위 중복 차단. **정확도 게이트는 50m**(웹 운영값 100m와 다름, 클라이언트 주석 명시 — 실기기 재튜닝 여지).
