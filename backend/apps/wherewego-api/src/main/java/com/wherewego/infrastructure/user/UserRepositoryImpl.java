@@ -19,13 +19,13 @@ public class UserRepositoryImpl implements UserRepository {
     private final UserJpaRepository jpaRepository;
 
     @Override
-    public Optional<UserModel> findByKakaoUserId(Long kakaoUserId) {
-        return jpaRepository.findByKakaoUserId(kakaoUserId);
+    public Optional<UserModel> findByKakaoUserIdAndDeletedAtIsNull(Long kakaoUserId) {
+        return jpaRepository.findByKakaoUserIdAndDeletedAtIsNull(kakaoUserId);
     }
 
     @Override
-    public Optional<UserModel> findByOauthProviderAndOauthId(OauthProvider oauthProvider, String oauthId) {
-        return jpaRepository.findByOauthProviderAndOauthId(oauthProvider, oauthId);
+    public Optional<UserModel> findByOauthProviderAndOauthIdAndDeletedAtIsNull(OauthProvider oauthProvider, String oauthId) {
+        return jpaRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(oauthProvider, oauthId);
     }
 
     @Override

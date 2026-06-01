@@ -62,7 +62,7 @@ class UserLoginPersistenceTest {
         void newUser_savesAndIssuesTokens() {
             // arrange
             UserModel saved = spy(UserModel.create(12345L, "닉네임", "img.png"));
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.empty());
+            when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(12345L)).thenReturn(Optional.empty());
             when(userRepository.saveAndFlush(any())).thenReturn(saved);
             when(userRepository.save(any())).thenReturn(saved);
 
@@ -81,7 +81,7 @@ class UserLoginPersistenceTest {
         void existingActiveUser_updatesProfileAndIssuesTokens() {
             // arrange
             UserModel existing = spy(UserModel.create(12345L, "OldName", "old.png"));
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.of(existing));
+            when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(12345L)).thenReturn(Optional.of(existing));
             when(userRepository.save(any())).thenReturn(existing);
 
             // act
@@ -91,13 +91,15 @@ class UserLoginPersistenceTest {
             verify(existing).updateProfile("NewName", "new.png");
         }
 
-        @DisplayName("기존 비활성(탈퇴) 사용자면, AUTH_USER_DEACTIVATED 예외가 발생한다.")
+        @DisplayName("활성 조회가 (조회-삭제 race 로) 비활성 행을 반환하면, 방어적 가드가 AUTH_USER_DEACTIVATED 예외를 던진다.")
         @Test
-        void deactivatedUser_throwsDeactivated() {
-            // arrange
+        void activeQueryReturnsInactive_throwsDeactivated() {
+            // P2 FR-24: 일반 로그인 경로는 활성 조회(findByKakaoUserIdAndDeletedAtIsNull)로 soft-delete 행을 미스하므로
+            // 탈퇴자는 신규 생성(재가입)으로 처리된다. 다만 조회 직후 삭제되는 동시성 race 에 대비해 source 에
+            // isActive() 방어 가드가 남아 있다. 이 테스트는 그 방어 분기만 직접 검증한다(활성 조회 stub 이 비활성 행을 반환).
             UserModel existing = UserModel.create(12345L, "닉", null);
             existing.delete();
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.of(existing));
+            when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(12345L)).thenReturn(Optional.of(existing));
 
             // act & assert
             assertThatThrownBy(() -> persistence.upsertAndIssueTokens(12345L, "닉", null))
@@ -111,9 +113,9 @@ class UserLoginPersistenceTest {
         void concurrentFirstLogin_dataIntegrityViolation_propagatesException() {
             // arrange
             // 단위 테스트에서는 @Retryable AOP 프록시가 동작하지 않으므로 예외가 그대로 전파된다.
-            // 실제 운영에서는 @Retryable이 잡아 재시도 → findByKakaoUserId가 기존 사용자를 반환해 정상 처리된다.
+            // 실제 운영에서는 @Retryable이 잡아 재시도 → findByKakaoUserIdAndDeletedAtIsNull가 기존 사용자를 반환해 정상 처리된다.
             // 재시도 후 정상 처리 경로는 existingActiveUser_updatesProfileAndIssuesTokens 테스트가 커버한다.
-            when(userRepository.findByKakaoUserId(12345L)).thenReturn(Optional.empty());
+            when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(12345L)).thenReturn(Optional.empty());
             when(userRepository.saveAndFlush(any()))
                     .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
 

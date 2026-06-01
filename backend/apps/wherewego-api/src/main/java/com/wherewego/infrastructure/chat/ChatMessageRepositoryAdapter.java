@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Repository
@@ -22,5 +23,10 @@ public class ChatMessageRepositoryAdapter implements ChatMessageRepository {
     @Override
     public List<ChatMessage> findByRoomIdBefore(Long roomId, Long cursor, int limit) {
         return chatMessageJpa.findByRoomIdBeforeCursor(roomId, cursor, PageRequest.of(0, limit));
+    }
+
+    @Override
+    public void nullifySenderByUserId(Long userId) {
+        chatMessageJpa.nullifySenderByUserId(userId, ZonedDateTime.now());
     }
 }

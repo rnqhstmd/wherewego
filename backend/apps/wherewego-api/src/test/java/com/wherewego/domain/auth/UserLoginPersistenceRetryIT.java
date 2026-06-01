@@ -110,7 +110,7 @@ class UserLoginPersistenceRetryIT {
     void retry_recoversFromRace() {
         // arrange: 1차 호출은 신규로 보이고, 2차에서는 race winner 가 만들어둔 사용자가 보임.
         UserModel existing = UserModel.create(1L, "닉네임", "img.png");
-        when(userRepository.findByKakaoUserId(1L))
+        when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(1L))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existing));
         when(userRepository.saveAndFlush(any()))
@@ -123,7 +123,7 @@ class UserLoginPersistenceRetryIT {
         // assert
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshToken()).isEqualTo("refresh-token");
-        verify(userRepository, times(2)).findByKakaoUserId(1L);  // 재시도 발동 증거
+        verify(userRepository, times(2)).findByKakaoUserIdAndDeletedAtIsNull(1L);  // 재시도 발동 증거
         assertThat(attempts("DataIntegrityViolationException")).isEqualTo(1.0);
         assertThat(meterRegistry.find("auth.login.retry.exhausted").counter()).isNull();
     }
@@ -133,7 +133,7 @@ class UserLoginPersistenceRetryIT {
     void retry_recoversFromColdStart() {
         // arrange: 1차에서 Neon cold start 시뮬레이션 (커넥션 못 만듦), 2차에서 정상 사용자 반환.
         UserModel existing = UserModel.create(1L, "닉네임", "img.png");
-        when(userRepository.findByKakaoUserId(1L))
+        when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(1L))
                 .thenThrow(new CannotCreateTransactionException("neon cold start"))
                 .thenReturn(Optional.of(existing));
         when(userRepository.save(any())).thenReturn(existing);
@@ -144,14 +144,14 @@ class UserLoginPersistenceRetryIT {
         // assert
         assertThat(result).isNotNull();
         assertThat(result.accessToken()).isEqualTo("access-token");
-        verify(userRepository, times(2)).findByKakaoUserId(1L);
+        verify(userRepository, times(2)).findByKakaoUserIdAndDeletedAtIsNull(1L);
     }
 
     @Test
     @DisplayName("재시도(2회)가 모두 실패하면 @Recover 가 친화 메시지 CoreException 으로 변환한다.")
     void retryExhausted_recoverConvertsToFriendlyError() {
         // arrange: 모든 시도에서 DataIntegrityViolation.
-        when(userRepository.findByKakaoUserId(1L)).thenReturn(Optional.empty());
+        when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(1L)).thenReturn(Optional.empty());
         when(userRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
 
@@ -160,7 +160,7 @@ class UserLoginPersistenceRetryIT {
                 .isInstanceOf(CoreException.class)
                 .hasMessageContaining("잠시 후 다시 로그인해 주세요.")
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_KAKAO_API_FAILED);
-        verify(userRepository, times(2)).findByKakaoUserId(1L);  // maxAttempts=2 검증
+        verify(userRepository, times(2)).findByKakaoUserIdAndDeletedAtIsNull(1L);  // maxAttempts=2 검증
         // onError 는 실패한 시도마다 호출(=2회), close(lastThrowable) 는 모든 시도 소진 후 1회 호출
         assertThat(attempts("DataIntegrityViolationException")).isEqualTo(2.0);
         assertThat(exhausted("DataIntegrityViolationException")).isEqualTo(1.0);
@@ -169,16 +169,17 @@ class UserLoginPersistenceRetryIT {
     @Test
     @DisplayName("retryFor 에 없는 예외(AUTH_USER_DEACTIVATED)는 재시도하지 않고 즉시 전파한다.")
     void nonRetryableException_propagatesImmediately() {
-        // arrange: 탈퇴(비활성) 사용자 → CoreException(AUTH_USER_DEACTIVATED).
+        // arrange: P2 FR-24 — 활성 조회가 (조회-삭제 race 로) 비활성 행을 반환하면 방어 가드가 즉시
+        // CoreException(AUTH_USER_DEACTIVATED) 를 던진다. retryFor 외 예외이므로 재시도 없이 전파됨을 검증.
         UserModel deleted = UserModel.create(1L, "닉네임", "img.png");
         deleted.delete();
-        when(userRepository.findByKakaoUserId(1L)).thenReturn(Optional.of(deleted));
+        when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(deleted));
 
         // act & assert
         assertThatThrownBy(() -> persistence.upsertAndIssueTokens(1L, "닉네임", "img.png"))
                 .isInstanceOf(CoreException.class)
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
-        verify(userRepository, times(1)).findByKakaoUserId(1L);  // 재시도 없음
+        verify(userRepository, times(1)).findByKakaoUserIdAndDeletedAtIsNull(1L);  // 재시도 없음
     }
 
     // ------------------------------------------------------------------
@@ -193,7 +194,7 @@ class UserLoginPersistenceRetryIT {
         NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-1", "Apple 사용자", null);
         UserModel existing = UserModel.createOauth(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1", "Apple 사용자", null, null);
-        when(userRepository.findByOauthProviderAndOauthId(
+        when(userRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existing));
@@ -207,7 +208,7 @@ class UserLoginPersistenceRetryIT {
         // assert
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshToken()).isEqualTo("refresh-token");
-        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+        verify(userRepository, times(2)).findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1");  // 재시도 발동 증거
         assertThat(attempts("DataIntegrityViolationException")).isEqualTo(1.0);
         assertThat(meterRegistry.find("auth.login.retry.exhausted").counter()).isNull();
@@ -218,7 +219,7 @@ class UserLoginPersistenceRetryIT {
     void oauthRetryExhausted_recoverConvertsToTemporarilyUnavailable() {
         // arrange: 모든 시도에서 DataIntegrityViolation.
         NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-2", "Apple 사용자", null);
-        when(userRepository.findByOauthProviderAndOauthId(
+        when(userRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-2"))
                 .thenReturn(Optional.empty());
         when(userRepository.saveAndFlush(any()))
@@ -228,7 +229,7 @@ class UserLoginPersistenceRetryIT {
         assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
                 .isInstanceOf(CoreException.class)
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_LOGIN_TEMPORARILY_UNAVAILABLE);
-        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+        verify(userRepository, times(2)).findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-2");  // maxAttempts=2
         assertThat(attempts("DataIntegrityViolationException")).isEqualTo(2.0);
         assertThat(exhausted("DataIntegrityViolationException")).isEqualTo(1.0);
@@ -239,7 +240,7 @@ class UserLoginPersistenceRetryIT {
     void oauthRetryExhausted_coldStart_recoverConvertsToTemporarilyUnavailable() {
         // arrange: 모든 시도에서 트랜잭션 생성 실패(Neon cold start).
         NativeLoginCommand cmd = NativeLoginCommand.kakao(777L, "닉네임", "img.png");
-        when(userRepository.findByOauthProviderAndOauthId(
+        when(userRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.KAKAO, "777"))
                 .thenThrow(new CannotCreateTransactionException("neon cold start"));
 
@@ -247,19 +248,20 @@ class UserLoginPersistenceRetryIT {
         assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
                 .isInstanceOf(CoreException.class)
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_LOGIN_TEMPORARILY_UNAVAILABLE);
-        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+        verify(userRepository, times(2)).findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.KAKAO, "777");
     }
 
     @Test
     @DisplayName("(c) Oauth 경로: 비즈니스 예외(AUTH_USER_DEACTIVATED)는 @Recover 가 삼키지 않고 즉시 전파한다.")
     void oauthNonRetryableException_propagatesImmediately() {
-        // arrange: 탈퇴 Apple 계정 → CoreException(AUTH_USER_DEACTIVATED).
+        // arrange: P2 FR-24 — 활성 조회가 (조회-삭제 race 로) 비활성 Apple 행을 반환하면 방어 가드가
+        // CoreException(AUTH_USER_DEACTIVATED) 를 던진다. @Recover 가 삼키지 않고 원본 코드로 전파됨을 검증.
         NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-3", "Apple 사용자", null);
         UserModel deleted = UserModel.createOauth(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3", "Apple 사용자", null, null);
         deleted.delete();
-        when(userRepository.findByOauthProviderAndOauthId(
+        when(userRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3"))
                 .thenReturn(Optional.of(deleted));
 
@@ -267,7 +269,7 @@ class UserLoginPersistenceRetryIT {
         assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
                 .isInstanceOf(CoreException.class)
                 .extracting("errorType").isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
-        verify(userRepository, times(1)).findByOauthProviderAndOauthId(
+        verify(userRepository, times(1)).findByOauthProviderAndOauthIdAndDeletedAtIsNull(
                 com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3");  // 재시도 없음
     }
 

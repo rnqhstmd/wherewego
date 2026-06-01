@@ -55,8 +55,10 @@ public class UserLoginPersistence {
     )
     @Transactional
     public AuthResultInfo upsertAndIssueTokens(Long kakaoUserId, String nickname, String profileImageUrl) {
-        UserModel user = userRepository.findByKakaoUserId(kakaoUserId)
+        UserModel user = userRepository.findByKakaoUserIdAndDeletedAtIsNull(kakaoUserId)
                 .map(existing -> {
+                    // P2 FR-24: 활성 조회로 soft-delete 행은 미스되므로 사실상 도달 불가하나,
+                    // 동시성(조회-삭제 race) 대비 방어적으로 유지한다.
                     if (!existing.isActive()) {
                         throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED);
                     }
@@ -65,7 +67,9 @@ public class UserLoginPersistence {
                 })
                 // saveAndFlush로 즉시 flush → 동시 최초 로그인 race 시 DataIntegrityViolationException 조기 감지.
                 // 위반 시 트랜잭션이 rollback-only가 되므로 catch 후 복구가 불가능하다.
-                // @Retryable이 예외를 잡아 새 트랜잭션으로 재시도 → findByKakaoUserId가 기존 사용자 반환.
+                // @Retryable이 예외를 잡아 새 트랜잭션으로 재시도 → findByKakaoUserIdAndDeletedAtIsNull가 기존 사용자 반환.
+                // P2 FR-24: 삭제 계정 재로그인 시 활성 조회 미스 → 여기서 신규 생성(재가입). partial unique index(V017)가
+                //           활성 행 1개만 강제하므로 soft-delete 행과 충돌하지 않는다.
                 .orElseGet(() -> userRepository.saveAndFlush(
                         UserModel.create(kakaoUserId, nickname, profileImageUrl)));
 
@@ -77,8 +81,9 @@ public class UserLoginPersistence {
      * (provider, oauthId) find-or-create 후 토큰 발급. 기존 {@link #upsertAndIssueTokens} 와
      * 동일한 트랜잭션/재시도 정책을 공유한다(공통 헬퍼 {@link #issueTokensFor}).
      *
-     * <p>BR-6: 탈퇴자 → AUTH_USER_DEACTIVATED(AC-15).
-     * <p>BR-9: Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
+     * <p>P2 FR-24(재가입 허용): 활성(deleted_at IS NULL) 조회 미스 시 신규 생성(재가입). 비활성 분기는
+     *    동시성(조회-삭제 race) 대비 방어용으로, 활성 조회상 사실상 도달 불가.
+     * <p>Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
      * <p>AC-7: 동시 최초 로그인 race → DataIntegrityViolation → @Retryable 재시도.
      */
     @Retryable(
@@ -89,10 +94,12 @@ public class UserLoginPersistence {
     )
     @Transactional
     public AuthResultInfo upsertByOauthAndIssueTokens(NativeLoginCommand cmd) {
-        UserModel user = userRepository.findByOauthProviderAndOauthId(cmd.provider(), cmd.oauthId())
+        UserModel user = userRepository.findByOauthProviderAndOauthIdAndDeletedAtIsNull(cmd.provider(), cmd.oauthId())
                 .map(existing -> {
+                    // P2 FR-24: 활성 조회로 soft-delete 행은 미스되므로 사실상 도달 불가하나,
+                    // 동시성(조회-삭제 race) 대비 방어적으로 유지한다.
                     if (!existing.isActive()) {
-                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // BR-6, AC-15
+                        throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // 동시성 방어(FR-24상 도달 불가)
                     }
                     if (cmd.provider() == OauthProvider.KAKAO) {
                         existing.updateProfile(cmd.nickname(), cmd.profileImageUrl());
@@ -100,6 +107,8 @@ public class UserLoginPersistence {
                     // BR-9: Apple 기존 계정은 갱신하지 않는다 (email/nickname 최초 1회만).
                     return existing;
                 })
+                // P2 FR-24: 삭제 계정 재로그인 시 활성 조회 미스 → 신규 생성(재가입). partial unique index(V017)가
+                //           활성 행 1개만 강제하므로 soft-delete 행과 충돌하지 않는다(빈 계정, AC-13/QE-2).
                 .orElseGet(() -> userRepository.saveAndFlush(cmd.toNewUser()));
 
         return issueTokensFor(user);
