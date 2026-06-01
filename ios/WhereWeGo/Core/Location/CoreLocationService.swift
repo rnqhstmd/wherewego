@@ -17,8 +17,15 @@ final class CoreLocationService: NSObject, LocationServiceProtocol {
     private let manager = CLLocationManager()
     /// requestOneShot 대기 continuation(1회 resume 보장).
     private var oneShotContinuation: CheckedContinuation<LocationSample?, Never>?
+    /// one-shot 대기 여부. 들어온 표본을 one-shot resume 전용으로 처리(onSample 비유발) 분기에 사용.
+    private var pendingOneShot = false
+    /// requestOneShot 타임아웃 Task(콜백 미수신 시 nil resume). resume 시 취소.
+    private var oneShotTimeout: Task<Void, Never>?
     /// 5초 폴링 타이머(FR-32). granted 시 startUpdating 에서 가동.
     private var pollTimer: Timer?
+
+    /// requestOneShot 타임아웃(초). 콜백이 끝내 안 와도 호출부 고착을 막는다.
+    private let oneShotTimeoutSeconds: UInt64 = 10
 
     override init() {
         super.init()
@@ -46,17 +53,34 @@ final class CoreLocationService: NSObject, LocationServiceProtocol {
     }
 
     /// 단발 현재 위치 1회 획득(룰렛). 권한 없으면 즉시 nil.
+    /// 콜백(didUpdateLocations/didFailWithError)이 끝내 안 와도 타임아웃으로 nil resume 하여
+    /// 호출부(RouletteViewModel.spin) 고착을 막는다. resume 은 성공/실패/타임아웃 어느 경로든 1회만.
     func requestOneShot() async -> LocationSample? {
         guard isGranted else { return nil }
         // 이전 대기 중 continuation 이 있으면 정리(중복 호출 방어).
-        if let pending = oneShotContinuation {
-            oneShotContinuation = nil
-            pending.resume(returning: nil)
-        }
+        resolveOneShot(with: nil)
         return await withCheckedContinuation { continuation in
             oneShotContinuation = continuation
+            pendingOneShot = true
+            // 타임아웃 Task 와 delegate 콜백은 모두 @MainActor 로 격리되어 직렬화된다.
+            oneShotTimeout = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: (self?.oneShotTimeoutSeconds ?? 10) * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.resolveOneShot(with: nil)
+            }
             manager.requestLocation()
         }
+    }
+
+    /// one-shot continuation 을 1회만 resume 한다(double-resume 방지).
+    /// continuation 을 먼저 nil 로 비운 뒤 호출하고, 타임아웃 Task·pending 플래그도 함께 정리한다.
+    private func resolveOneShot(with sample: LocationSample?) {
+        oneShotTimeout?.cancel()
+        oneShotTimeout = nil
+        pendingOneShot = false
+        guard let continuation = oneShotContinuation else { return }
+        oneShotContinuation = nil
+        continuation.resume(returning: sample)
     }
 
     // MARK: - Private
@@ -66,12 +90,14 @@ final class CoreLocationService: NSObject, LocationServiceProtocol {
         return status == .authorizedWhenInUse || status == .authorizedAlways
     }
 
-    /// 최신 위치를 onSample 로 전달하고, one-shot 대기 중이면 resume.
+    /// 최신 위치를 처리한다. one-shot/연속구독 표본을 분리한다(한 manager 공유).
+    /// - one-shot 대기 중이면: continuation resume 전용. onSample(방문감지 평가) 으로 흘리지 않는다.
+    /// - 그 외(연속 구독 startUpdating): onSample 로만 전달.
     /// (CLLocation → LocationSample 매핑은 nonisolated delegate 콜백에서 Sendable 값만 추출해 수행)
     private func handleSample(_ sample: LocationSample) {
-        if let continuation = oneShotContinuation {
-            oneShotContinuation = nil
-            continuation.resume(returning: sample)
+        if pendingOneShot {
+            resolveOneShot(with: sample)
+            return
         }
         onSample?(sample)
     }
@@ -123,11 +149,9 @@ extension CoreLocationService: CLLocationManagerDelegate {
         _ manager: CLLocationManager,
         didFailWithError error: Error
     ) {
-        // one-shot 대기 중이면 nil 로 resume(룰렛 graceful 실패).
+        // one-shot 대기 중이면 nil 로 resume(룰렛 graceful 실패). resolveOneShot 이 1회 resume 보장.
         Task { @MainActor [weak self] in
-            guard let self, let continuation = self.oneShotContinuation else { return }
-            self.oneShotContinuation = nil
-            continuation.resume(returning: nil)
+            self?.resolveOneShot(with: nil)
         }
     }
 }

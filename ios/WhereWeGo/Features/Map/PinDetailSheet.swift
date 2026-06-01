@@ -86,6 +86,9 @@ struct PinDetailSheet: View {
                 }
             }
         }
+        // 사진 업로드/삭제 중 스와이프 닫힘 차단(VisitMemoSheet 일관성, QE-3 silent 실패 방지).
+        // currentPin == nil 프로그래매틱 dismiss(타 사용자 삭제)는 스와이프와 무관하게 유지.
+        .interactiveDismissDisabled(detailVM.isPhotoBusy)
         .confirmationDialog("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("삭제", role: .destructive) { Task { await deletePin() } }
             Button("취소", role: .cancel) {}
