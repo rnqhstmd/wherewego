@@ -10,6 +10,9 @@ final class AppDependencies {
     let groupAPI: GroupAPI
     let kakao: KakaoAuthService
     let apple: AppleAuthService
+    let pinAPI: PinAPIProtocol
+    let placeAPI: PlaceAPIProtocol
+    let locationService: LocationServiceProtocol
 
     init() {
         let baseURL = AppConfig.apiBaseURL
@@ -34,6 +37,10 @@ final class AppDependencies {
         self.groupAPI = GroupAPI(client: client)
         self.kakao = KakaoAuthService(authAPI: authAPI)
         self.apple = AppleAuthService(authAPI: authAPI)
+        // P4 지도/핀/장소/위치(설계 §7·§12). client 주입(API), CoreLocationService 단독 생성.
+        self.pinAPI = PinAPI(client: client)
+        self.placeAPI = PlaceAPI(client: client)
+        self.locationService = CoreLocationService()
 
         // 5) 박스에 logout 핸들러 동기 주입(§12, 순환 차단). refresh 가 호출하는 시점(로그인 이후)엔
         //    이미 채워져 있어 RootView.task 순서에 의존하지 않는다.

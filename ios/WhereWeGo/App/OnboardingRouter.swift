@@ -113,7 +113,8 @@ struct OnboardingRouter: View {
             NotificationView(onDone: { onNotificationDone() })
 
         case .groups:
-            GroupsView()
+            // 온보딩 종착 = 지도 메인(설계 §7). GroupsView 플레이스홀더 대체.
+            MapView(dependencies: dependencies)
         }
     }
 

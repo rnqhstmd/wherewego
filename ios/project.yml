@@ -15,6 +15,12 @@ packages:
   KakaoOpenSDK:
     url: https://github.com/kakao/kakao-ios-sdk
     exactVersion: "2.24.5"
+  # Mapbox iOS SDK — secret download token(.netrc, Downloads:Read) 발급 후 아래 주석 해제:
+  #   MapboxMaps:
+  #     url: https://github.com/mapbox/mapbox-maps-ios
+  #     from: "11.0.0"
+  # 그리고 targets.WhereWeGo.dependencies 에 추가:
+  #   - { package: MapboxMaps, product: MapboxMaps }
 targets:
   WhereWeGo:
     type: application
@@ -31,8 +37,12 @@ targets:
           - Pretendard-Regular.otf
           - JetBrainsMono-Regular.ttf
         NSLocationWhenInUseUsageDescription: "근처에 어떤 핀이 있는지 보여드릴게요"
+        NSCameraUsageDescription: "사진을 직접 찍어 추억으로 남길 수 있어요"
+        NSPhotoLibraryUsageDescription: "추억 사진을 선택해 핀에 남길 수 있어요"
         API_BASE_URL: $(API_BASE_URL)
         KAKAO_NATIVE_APP_KEY: $(KAKAO_NATIVE_APP_KEY)
+        MAPBOX_ACCESS_TOKEN: $(MAPBOX_ACCESS_TOKEN)
+        MAPBOX_STYLE_URL: $(MAPBOX_STYLE_URL)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - kakao$(KAKAO_NATIVE_APP_KEY)

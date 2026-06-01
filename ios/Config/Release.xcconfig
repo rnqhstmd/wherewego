@@ -3,3 +3,6 @@
 // :// → /$()/ 이스케이프(xcconfig // 주석 회피). $() 빈 치환으로 최종 값은 https://api.wherewego.app
 API_BASE_URL = https:/$()/api.wherewego.app
 KAKAO_NATIVE_APP_KEY = KAKAO_APP_KEY_NOT_SET
+// Mapbox: token 발급(.netrc secret download + public token) 후 placeholder 교체.
+MAPBOX_ACCESS_TOKEN = MAPBOX_TOKEN_NOT_SET
+MAPBOX_STYLE_URL = mapbox:/$()/styles/mapbox/standard
