@@ -595,6 +595,20 @@ class AuthV1ControllerIntegrationTest {
         assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_API_FAILED");
     }
 
+    @DisplayName("AC-8: POST /api/v1/auth/kakao/native - 위변조 토큰(access_token_info 자체 4xx)이면 502 AUTH_KAKAO_API_FAILED.")
+    @Test
+    void kakaoNative_accessTokenInfo4xx_returns502() {
+        // 앱 귀속 검증 단계(access_token_info)에서 바로 4xx(401) → 위변조 토큰 경로. /v2/user/me 미도달.
+        wireMock.stubFor(get(urlEqualTo("/v1/user/access_token_info"))
+                .willReturn(aResponse().withStatus(401)));
+
+        ResponseEntity<JsonNode> response = callKakaoNative("forged-token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("AUTH_KAKAO_API_FAILED");
+        assertThat(userJpaRepository.findByKakaoUserId(KAKAO_USER_ID)).isEmpty();
+    }
+
     @DisplayName("앱 귀속 검증: POST /api/v1/auth/kakao/native - 다른 앱(app_id 불일치) 토큰이면 401 AUTH_KAKAO_APP_MISMATCH.")
     @Test
     void kakaoNative_foreignAppToken_returns401() {
