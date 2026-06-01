@@ -22,6 +22,7 @@ import com.wherewego.support.error.ErrorType;
 import org.springframework.stereotype.Component;
 
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.Set;
@@ -64,8 +65,8 @@ public class AppleIdentityTokenVerifier {
 
         URL jwksUrl;
         try {
-            jwksUrl = new URL(props.jwksUrl());
-        } catch (MalformedURLException e) {
+            jwksUrl = URI.create(props.jwksUrl()).toURL();
+        } catch (MalformedURLException | IllegalArgumentException e) {
             throw new IllegalStateException("apple.jwks-url 이 올바른 URL 이 아닙니다: " + props.jwksUrl(), e);
         }
 

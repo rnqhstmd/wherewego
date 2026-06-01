@@ -120,6 +120,9 @@ public class AuthService {
      */
     private void verifyKakaoTokenBelongsToOurApp(String kakaoAccessToken) {
         KakaoAccessTokenInfoResponse info = kakaoClient.fetchAccessTokenInfo(kakaoAccessToken);
+        if (info == null) {
+            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "카카오 토큰 정보를 가져올 수 없습니다.");
+        }
         Long expectedAppId = kakaoApiProperties.oauth().appId();
         if (info.appId() == null || !info.appId().equals(expectedAppId)) {
             throw new CoreException(ErrorType.AUTH_KAKAO_APP_MISMATCH);

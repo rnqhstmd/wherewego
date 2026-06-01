@@ -65,6 +65,20 @@ class JwtAuthenticationFilterTest {
         verify(filterChain).doFilter(any(), any());
     }
 
+    @DisplayName("소문자 bearer 스킴도 대소문자 무시로 인증된다 (RFC 7235).")
+    @Test
+    void lowercaseBearer_validToken_authenticates() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "bearer header-token");
+        stubValid("header-token", 42L);
+
+        filter().doFilter(request, new MockHttpServletResponse(), filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(42L);
+        verify(jwtTokenProvider).parseAccessToken("header-token");
+    }
+
     @DisplayName("AC-2: 쿠키만 있는 기존 웹 요청도 동일하게 인증된다.")
     @Test
     void cookieOnly_validToken_authenticates() throws Exception {

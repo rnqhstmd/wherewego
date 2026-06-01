@@ -60,7 +60,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private String extractToken(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
+        // Bearer 스킴은 RFC 7235 상 대소문자 무시(case-insensitive)다.
+        if (header != null && header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
             String value = header.substring(BEARER_PREFIX.length()).trim();
             if (!value.isEmpty()) {
                 return value;
