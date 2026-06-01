@@ -48,6 +48,22 @@
 
 > 발급물 후 검증: 실기기 카카오/Apple 로그인(Native Key·Apple 계정+capability), 폰트 렌더링(파일+PostScript 보정). 후속(P4): Mapbox SDK·지도/핀, 기존 사용자 `wizardShown` 직행 플래그.
 
+## iOS 클라이언트 지도·핀·사진·방문감지 (P4)
+
+> iOS 네이티브 전환 P4(최대 공수). 웹 `MapClient.tsx` 를 SwiftUI 로 포팅. **Mapbox 배선 우선·토큰 나중**(`#if canImport(MapboxMaps)` 단일 파일 격리 + 플레이스홀더 stub) → token 없이 빌드·XCTest 170개 통과(DoD-A), 실렌더링은 secret download token(.netrc)+public token 발급 후(DoD-B). PRD/설계: `.dev/feat-ios-native-p4-map-pin-photo/`.
+
+| ID | 요구사항 | 상태 | PR/커밋 |
+|----|----------|------|---------|
+| P4-FR-1~7 | Mapbox 추상화(MapRenderer 프로토콜+#if 격리+플레이스홀더)·MapView·태그별 마커(REEL/WISH/MEMORY)·클러스터·태그 필터·빈 상태 | ✅(배선) | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-FR-8~12 | 정보창(PinDetailSheet): 태그 변경·메모·장소명 편집·삭제(낙관적+롤백)·Instagram https 가드 | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-FR-13~15 | 장소 검색(PlaceAPI)→태그 선택→추가, 크로스헤어 임의좌표(7자리 반올림) | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-FR-16~19 | 사진(MEMORY 핀): PHPicker+SwiftUI 자작 1:1 크롭+1600px JPEG 압축, multipart 업로드/삭제, 카메라·사진 권한 문구 | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-FR-20~26 | 룰렛(반경 확장 추첨·RNG 주입·MEMORY 토글), 카메라 flyTo/fitBounds | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-FR-27~32 | 방문감지(포그라운드 CoreLocation, 100m·30초·정확도≤50m·속도1.4 게이트·Haversine)→MEMORY 전환+confetti+메모 시트, 세션 중복 차단 | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+| P4-인프라 | APIClient `performAuthorized` 추출(401 refresh 공유)+multipart upload+query 인코딩 보정, UpdatePinRequest 부분 인코딩, 5분 캐시+append-only 폴링 | ✅ | [#91](https://github.com/rnqhstmd/wherewego/pull/91) |
+
+> DoD-B(token 후 검증): Mapbox 실렌더링(마커 GeoJSON·클러스터·camera)·핀 CRUD/사진/방문감지 실기기 E2E. project.yml Mapbox SPM 주석 해제(`from: "11.0.0"`)+xcodegen generate 후.
+
 ## 운영 버그 수정
 
 | 항목 | 상태 | 상세 |

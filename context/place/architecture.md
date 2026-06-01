@@ -80,3 +80,7 @@ og:description
 | 주제 | 설명 |
 |------|------|
 | [Gemini 2.0 Flash 전환](gemini-migration.md) | Phase 2.5 PlaceNameExtractor → Gemini API 교체 명세 |
+
+## iOS 네이티브 소비 (P4, [PR #91](https://github.com/rnqhstmd/wherewego/pull/91))
+
+iOS 지도 검색이 `GET /api/v1/places/search?q=` 를 `PlaceAPI`(Swift)로 소비. `PlaceItem`(placeName/address?/latitude/longitude) 디코딩 → 검색 결과 목록 → 태그 선택 → [[pin]] 등록. 검색어 인코딩은 값 전용 문자셋(`urlQueryAllowed`에서 `=&+#?` 제외)으로 쿼리 파라미터 인젝션을 방어(보안 감사 HIGH 반영). 백엔드 계약 변경 없음.

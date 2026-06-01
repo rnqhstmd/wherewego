@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 branch: feat/ios-native-p4-map-pin-photo
 base: develop
 project-type: ios-swift-xcodegen
@@ -32,7 +32,9 @@ phases:
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
+pr: "https://github.com/rnqhstmd/wherewego/pull/91 (base develop)"
+context-sync: "auth/status.md, map/pin/place/recommendation architecture.md 갱신 (P4 iOS)"
 steps:
   implement:
     - 구현 계획 승인: completed
