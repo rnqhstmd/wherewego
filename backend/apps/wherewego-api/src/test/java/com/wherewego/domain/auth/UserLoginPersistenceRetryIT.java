@@ -181,6 +181,96 @@ class UserLoginPersistenceRetryIT {
         verify(userRepository, times(1)).findByKakaoUserId(1L);  // 재시도 없음
     }
 
+    // ------------------------------------------------------------------
+    // P1: upsertByOauthAndIssueTokens(NativeLoginCommand) — 신규 @Recover 시그니처 검증.
+    // 기존 3인자 @Recover 와 인자 1개(NativeLoginCommand) 로 매칭 모호성 없이 동작함을 실증한다(설계 MUST#1).
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("(a) Oauth 경로: 1차 DataIntegrityViolation 후 2차 재조회로 race 를 회복해 토큰을 발급한다.")
+    void oauthRetry_recoversFromRace() {
+        // arrange: 1차 신규로 보이나 saveAndFlush 가 DIV, 2차에서 race winner 가 만든 Apple 사용자 발견.
+        NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-1", "Apple 사용자", null);
+        UserModel existing = UserModel.createOauth(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1", "Apple 사용자", null, null);
+        when(userRepository.findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(existing));
+        when(userRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
+        when(userRepository.save(any())).thenReturn(existing);
+
+        // act
+        AuthResultInfo result = persistence.upsertByOauthAndIssueTokens(cmd);
+
+        // assert
+        assertThat(result.accessToken()).isEqualTo("access-token");
+        assertThat(result.refreshToken()).isEqualTo("refresh-token");
+        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-1");  // 재시도 발동 증거
+        assertThat(attempts("DataIntegrityViolationException")).isEqualTo(1.0);
+        assertThat(meterRegistry.find("auth.login.retry.exhausted").counter()).isNull();
+    }
+
+    @Test
+    @DisplayName("(b) Oauth 경로: 재시도(2회) 소진 시 신규 @Recover 가 provider 무관 503 으로 변환한다.")
+    void oauthRetryExhausted_recoverConvertsToTemporarilyUnavailable() {
+        // arrange: 모든 시도에서 DataIntegrityViolation.
+        NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-2", "Apple 사용자", null);
+        when(userRepository.findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-2"))
+                .thenReturn(Optional.empty());
+        when(userRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
+
+        // act & assert: APPLE 경로여도 JWKS 무관 — provider-agnostic AUTH_LOGIN_TEMPORARILY_UNAVAILABLE(503).
+        assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
+                .isInstanceOf(CoreException.class)
+                .extracting("errorType").isEqualTo(ErrorType.AUTH_LOGIN_TEMPORARILY_UNAVAILABLE);
+        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-2");  // maxAttempts=2
+        assertThat(attempts("DataIntegrityViolationException")).isEqualTo(2.0);
+        assertThat(exhausted("DataIntegrityViolationException")).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("(b') Oauth 경로: CannotCreateTransactionException 소진도 provider 무관 503 으로 변환한다.")
+    void oauthRetryExhausted_coldStart_recoverConvertsToTemporarilyUnavailable() {
+        // arrange: 모든 시도에서 트랜잭션 생성 실패(Neon cold start).
+        NativeLoginCommand cmd = NativeLoginCommand.kakao(777L, "닉네임", "img.png");
+        when(userRepository.findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.KAKAO, "777"))
+                .thenThrow(new CannotCreateTransactionException("neon cold start"));
+
+        // act & assert
+        assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
+                .isInstanceOf(CoreException.class)
+                .extracting("errorType").isEqualTo(ErrorType.AUTH_LOGIN_TEMPORARILY_UNAVAILABLE);
+        verify(userRepository, times(2)).findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.KAKAO, "777");
+    }
+
+    @Test
+    @DisplayName("(c) Oauth 경로: 비즈니스 예외(AUTH_USER_DEACTIVATED)는 @Recover 가 삼키지 않고 즉시 전파한다.")
+    void oauthNonRetryableException_propagatesImmediately() {
+        // arrange: 탈퇴 Apple 계정 → CoreException(AUTH_USER_DEACTIVATED).
+        NativeLoginCommand cmd = NativeLoginCommand.apple("apple-sub-3", "Apple 사용자", null);
+        UserModel deleted = UserModel.createOauth(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3", "Apple 사용자", null, null);
+        deleted.delete();
+        when(userRepository.findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3"))
+                .thenReturn(Optional.of(deleted));
+
+        // act & assert: 원본 코드 보존(503 으로 변질되지 않음).
+        assertThatThrownBy(() -> persistence.upsertByOauthAndIssueTokens(cmd))
+                .isInstanceOf(CoreException.class)
+                .extracting("errorType").isEqualTo(ErrorType.AUTH_USER_DEACTIVATED);
+        verify(userRepository, times(1)).findByOauthProviderAndOauthId(
+                com.wherewego.domain.user.OauthProvider.APPLE, "apple-sub-3");  // 재시도 없음
+    }
+
     private double attempts(String exceptionName) {
         return meterRegistry.get("auth.login.retry.attempts")
                 .tag("exception", exceptionName)

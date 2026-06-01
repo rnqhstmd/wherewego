@@ -50,10 +50,15 @@ dependencies {
     // retry (Neon cold start 대응 — UserLoginPersistence @Retryable)
     implementation("org.springframework.retry:spring-retry")
 
-    // jwt (jjwt 0.12.x)
+    // jwt (jjwt 0.12.x) — 대칭키 우리 JWT 발급/검증 전용
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
+    // Apple identityToken JWKS 검증 전용 (RemoteJWKSet 캐싱·키 로테이션·RS256 내장).
+    // Spring Boot 3.4 BOM 은 nimbus-jose-jwt 를 직접 관리하지 않으므로(spring-security-oauth2-jose 미사용)
+    // 버전을 명시한다 (9.x 최신 안정).
+    implementation("com.nimbusds:nimbus-jose-jwt:9.40")
 
     // test-fixtures
     testImplementation(testFixtures(project(":modules:jpa")))

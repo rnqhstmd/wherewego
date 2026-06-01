@@ -17,6 +17,11 @@ public enum ErrorType {
     AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "인증이 필요합니다."),
     AUTH_REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "AUTH_REFRESH_TOKEN_INVALID", "유효하지 않은 refresh token 입니다."),
     AUTH_KAKAO_API_FAILED(HttpStatus.BAD_GATEWAY, "AUTH_KAKAO_API_FAILED", "카카오 로그인을 일시적으로 사용할 수 없습니다."),
+    AUTH_KAKAO_APP_MISMATCH(HttpStatus.UNAUTHORIZED, "AUTH_KAKAO_APP_MISMATCH", "다른 앱에서 발급된 카카오 토큰입니다."),
+    AUTH_APPLE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "AUTH_APPLE_TOKEN_INVALID", "유효하지 않은 Apple 토큰입니다."),
+    AUTH_APPLE_JWKS_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "AUTH_APPLE_JWKS_UNAVAILABLE", "Apple 로그인을 일시적으로 사용할 수 없습니다."),
+    // provider 무관 일시적 서버 과부하/동시성 장애 (Bulkhead 미획득, DB 동시성 retry 소진 등). Kakao/Apple 공용.
+    AUTH_LOGIN_TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_LOGIN_TEMPORARILY_UNAVAILABLE", "로그인을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     AUTH_USER_DEACTIVATED(HttpStatus.UNAUTHORIZED, "AUTH_USER_DEACTIVATED", "탈퇴한 사용자입니다."),
     AUTH_USER_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_USER_NOT_FOUND", "사용자를 찾을 수 없습니다."),
 

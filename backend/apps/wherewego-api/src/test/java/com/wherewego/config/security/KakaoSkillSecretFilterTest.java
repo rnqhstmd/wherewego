@@ -24,7 +24,7 @@ class KakaoSkillSecretFilterTest {
     void setUp() {
         KakaoApiProperties properties = new KakaoApiProperties(
                 "local-api-key",
-                new KakaoApiProperties.OAuth("cid", "csec", "https://example/redirect"),
+                new KakaoApiProperties.OAuth("cid", "csec", "https://example/redirect", 123456L),
                 new KakaoApiProperties.Local("https://dapi.kakao.com", 2_000),
                 new KakaoApiProperties.Skill(EXPECTED_SECRET),
                 new KakaoApiProperties.Callback(3_000)

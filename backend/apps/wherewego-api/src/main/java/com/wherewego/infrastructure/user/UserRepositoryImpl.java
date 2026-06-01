@@ -1,5 +1,6 @@
 package com.wherewego.infrastructure.user;
 
+import com.wherewego.domain.user.OauthProvider;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,11 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public Optional<UserModel> findByKakaoUserId(Long kakaoUserId) {
         return jpaRepository.findByKakaoUserId(kakaoUserId);
+    }
+
+    @Override
+    public Optional<UserModel> findByOauthProviderAndOauthId(OauthProvider oauthProvider, String oauthId) {
+        return jpaRepository.findByOauthProviderAndOauthId(oauthProvider, oauthId);
     }
 
     @Override

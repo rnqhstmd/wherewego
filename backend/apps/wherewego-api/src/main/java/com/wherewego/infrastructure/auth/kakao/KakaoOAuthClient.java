@@ -73,6 +73,33 @@ public class KakaoOAuthClient {
         }
     }
 
+    /**
+     * P1: Kakao access token 의 메타정보 조회 ({@code /v1/user/access_token_info}).
+     * 응답의 {@code app_id} 로 토큰이 우리 앱 발급분인지 검증하는 데 사용한다(다른 앱 토큰 오용 차단).
+     * 위변조/만료 토큰 → 카카오 4xx → AUTH_KAKAO_API_FAILED(502) (fetchUserInfo 와 동일 정책).
+     */
+    public KakaoAccessTokenInfoResponse fetchAccessTokenInfo(String kakaoAccessToken) {
+        try {
+            return userClient.get()
+                    .uri("/v1/user/access_token_info")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + kakaoAccessToken)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED,
+                                "카카오 토큰 정보 조회 실패 (status=" + res.getStatusCode() + ").");
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED,
+                                "카카오 토큰 정보 조회 실패 (status=" + res.getStatusCode() + ").");
+                    })
+                    .body(KakaoAccessTokenInfoResponse.class);
+        } catch (CoreException e) {
+            throw e;
+        } catch (RestClientException e) {
+            throw new CoreException(ErrorType.AUTH_KAKAO_API_FAILED, "카카오 토큰 정보 조회 중 통신 오류가 발생했습니다.");
+        }
+    }
+
     public KakaoUserInfoResponse fetchUserInfo(String kakaoAccessToken) {
         try {
             return userClient.get()

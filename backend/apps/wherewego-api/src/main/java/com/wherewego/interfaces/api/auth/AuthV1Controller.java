@@ -2,6 +2,7 @@ package com.wherewego.interfaces.api.auth;
 
 import com.wherewego.application.auth.AuthResultInfo;
 import com.wherewego.application.auth.KakaoLoginUrlInfo;
+import com.wherewego.config.env.JwtProperties;
 import com.wherewego.config.security.AuthCookieFactory;
 import com.wherewego.domain.auth.AuthService;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
@@ -26,6 +27,7 @@ public class AuthV1Controller implements AuthV1ApiSpec {
     private final AuthService authService;
     private final AuthCookieFactory cookieFactory;
     private final JwtTokenProvider jwtTokenProvider;
+    private final JwtProperties jwtProperties;
 
     @GetMapping("/kakao/login-url")
     @Override
@@ -56,6 +58,33 @@ public class AuthV1Controller implements AuthV1ApiSpec {
                 .header(HttpHeaders.SET_COOKIE, cookieFactory.accessCookie(result.accessToken()).toString())
                 .header(HttpHeaders.SET_COOKIE, cookieFactory.refreshCookie(result.refreshToken()).toString())
                 .body(ApiResponse.success());
+    }
+
+    @PostMapping("/kakao/native")
+    @Override
+    public ApiResponse<AuthV1Dto.TokenResponse> kakaoNativeLogin(
+            @Valid @RequestBody AuthV1Dto.KakaoNativeLoginRequest request
+    ) {
+        AuthResultInfo result = authService.loginWithKakaoNative(request.kakaoAccessToken());
+        return ApiResponse.success(AuthV1Dto.TokenResponse.of(result, jwtProperties.accessTtlSeconds()));
+    }
+
+    @PostMapping("/apple/native")
+    @Override
+    public ApiResponse<AuthV1Dto.TokenResponse> appleNativeLogin(
+            @Valid @RequestBody AuthV1Dto.AppleNativeLoginRequest request
+    ) {
+        AuthResultInfo result = authService.loginWithApple(request.toCommand());
+        return ApiResponse.success(AuthV1Dto.TokenResponse.of(result, jwtProperties.accessTtlSeconds()));
+    }
+
+    @PostMapping("/refresh")
+    @Override
+    public ApiResponse<AuthV1Dto.TokenResponse> refresh(
+            @Valid @RequestBody AuthV1Dto.RefreshRequest request
+    ) {
+        AuthResultInfo result = authService.refreshTokens(request.refreshToken());
+        return ApiResponse.success(AuthV1Dto.TokenResponse.of(result, jwtProperties.accessTtlSeconds()));
     }
 
     @PostMapping("/logout")
