@@ -7,11 +7,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+import java.time.Duration;
 
 @Component
 public class KakaoOAuthClient {
@@ -26,8 +30,17 @@ public class KakaoOAuthClient {
             @Value("${kakao.oauth.user-base-url:https://kapi.kakao.com}") String userBaseUrl
     ) {
         this.props = props;
-        this.tokenClient = RestClient.builder().baseUrl(tokenBaseUrl).build();
-        this.userClient = RestClient.builder().baseUrl(userBaseUrl).build();
+        // kakao.callback.timeout-ms(3000) 를 connect+read 양쪽에 동일 적용 — 단일 factory 를 두 클라이언트가 공유.
+        ClientHttpRequestFactory factory = buildRequestFactory(props.callback().timeoutMs());
+        this.tokenClient = RestClient.builder().baseUrl(tokenBaseUrl).requestFactory(factory).build();
+        this.userClient = RestClient.builder().baseUrl(userBaseUrl).requestFactory(factory).build();
+    }
+
+    private static ClientHttpRequestFactory buildRequestFactory(int timeoutMs) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofMillis(timeoutMs));
+        factory.setReadTimeout(Duration.ofMillis(timeoutMs));
+        return factory;
     }
 
     public KakaoTokenResponse exchangeCodeForToken(String code) {
