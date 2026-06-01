@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GlobeBg } from "@/components/ui/GlobeBg";
 import { postKakaoCallback } from "@/lib/api/auth";
@@ -10,6 +10,14 @@ import { returnUrlStash } from "@/lib/oauth/return-url";
 import { locationAsked, nicknameSet } from "@/lib/storage/local-flags";
 import { colors, fonts } from "@/lib/design/tokens";
 import type { ActiveGroupResponse } from "@/lib/api/types";
+
+// 로그인 콜백이 3초 이상 걸리면(= Neon 콜드 스타트) 기존 "잠시만요" 대신 노출되는 대기 문구.
+// 베타 한정 인사이드 조크 — 외부 공개 시 이 배열만 교체하면 된다.
+const COLD_START_MESSAGES = [
+  "개발자 호출하는 중..",
+  "본슨씨..일어나..일해야지",
+  "서버 깨우는 중..",
+] as const;
 
 /**
  * Screen 0a — 카카오 콜백 처리 화면 (screens-login.jsx::Screen0aLoading 1:1 UI).
@@ -41,6 +49,30 @@ function CallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ranRef = useRef(false);
+
+  // (a) 처음 3초는 "잠시만요" 유지 → 콜드 스타트로 판단되면 유머 문구를 5초 주기로 교체.
+  // null = 아직 3초 전(기본 문구). 마운트 시 순서를 무작위 셔플해 세션마다 다르게 보인다.
+  const [coldMsg, setColdMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const order = [...COLD_START_MESSAGES]
+      .map((m) => ({ m, r: Math.random() }))
+      .sort((a, b) => a.r - b.r)
+      .map((x) => x.m);
+    let idx = 0;
+    let rotate: ReturnType<typeof setInterval> | undefined;
+    const kickoff = setTimeout(() => {
+      setColdMsg(order[idx]);
+      rotate = setInterval(() => {
+        idx = (idx + 1) % order.length;
+        setColdMsg(order[idx]);
+      }, 5000);
+    }, 3000);
+    return () => {
+      clearTimeout(kickoff);
+      if (rotate) clearInterval(rotate);
+    };
+  }, []);
 
   useEffect(() => {
     // React 18 StrictMode dev 중복 실행 방지 + state 1회 소비 보호
@@ -150,15 +182,20 @@ function CallbackInner() {
           }}
         />
         <div
+          key={coldMsg ?? "wait"}
           style={{
             fontFamily: fonts.emo,
             fontSize: 24,
             fontWeight: 700,
             color: colors.ink,
             letterSpacing: -0.5,
+            textAlign: "center",
+            padding: "0 24px",
+            // 문구가 바뀔 때만(key 변경 → remount) fade-in 재생. 초기 "잠시만요"는 애니메이션 없음.
+            animation: coldMsg ? "coldstart-msg-in 0.45s ease-out" : undefined,
           }}
         >
-          잠시만요
+          {coldMsg ?? "잠시만요"}
         </div>
         <div
           style={{

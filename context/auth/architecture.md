@@ -30,9 +30,12 @@
 
 - **탈퇴자 잔존 리스크**: `JwtAuthenticationFilter`가 매 요청 DB 조회를 하지 않으므로, `deleted_at` 설정 직후에도 access_token이 유효한 동안(최대 1시간) 보호 API 통과. Refresh/Login 시점에 `isActive()` 검사로 차단. 즉시 차단이 필요해지면 Phase 후반에서 Redis 블랙리스트 도입 검토.
 - **Refresh Token Rotation race**: 백엔드는 BR-3(DB 해시 일치)만 검사. 동시 refresh가 발생하면 일부 강제 로그아웃 가능 (FE 직렬화 계약으로 방어).
+- **Neon 콜드 스타트로 인한 로그인 간헐 실패**: Neon 무료 티어가 ~5분 유휴 시 컴퓨트를 suspend(scale-to-zero)하고 prod `minimum-idle: 0` + keep-warm 부재로, 유휴 후 첫 로그인은 매번 콜드 스타트를 유발한다. 콜드 스타트가 재시도 예산(~10.5s)을 넘기면 `AUTH_KAKAO_API_FAILED`(502)로 실패. → [phase-14-login-cold-start.md](phase-14-login-cold-start.md)에서 keep-warm + 재시도 예산 + 카카오 타임아웃으로 해소 예정.
+- **카카오 OAuth 클라이언트 타임아웃 미배선 (잠재 버그)**: `kakao.callback.timeout-ms: 3000`이 정의돼 있으나 `KakaoOAuthClient`가 `RestClient`에 연결하지 않아 실제 타임아웃이 없다. 카카오 API 지연 시 워커 스레드 무한 대기. Phase 14에서 함께 수정.
 
 ## 주제 문서
 
 | 주제 | 설명 |
 |------|------|
 | (Phase 1 산출물) | `.dev/feat-phase-1-auth/prd.md`, `design.md`, `trust-ledger.md` |
+| [Phase 14 — 로그인 콜드 스타트 안정화](phase-14-login-cold-start.md) | 카카오 로그인 간헐 502 원인 분석 + Neon keep-warm·재시도 예산·카카오 타임아웃 구현 계획 (⬜ 미시작) |

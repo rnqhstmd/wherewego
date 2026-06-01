@@ -34,13 +34,13 @@ public class UserLoginPersistence {
     private final RefreshTokenHasher refreshTokenHasher;
 
     /**
-     * Backoff 정책 — connection-timeout(5s) 단축에 맞춰 retry 예산도 축소:
+     * Backoff 정책 — connection-timeout(10s) 에 맞춘 retry 예산:
      *  - DataIntegrityViolationException (동시 첫 로그인 race): 수십~수백 ms 안에 회복 → 500ms 1차 대기 충분
-     *  - CannotCreateTransactionException (Neon cold start): 1차 5s timeout 동안 cold start 흡수 시도
+     *  - CannotCreateTransactionException (Neon cold start): 1차 10s timeout 동안 cold start 흡수 시도
      * 응답 시간 추정:
      *  - 일반(Neon active): 수백 ms 안에 1차 성공.
      *  - race 회복: ~0.5초 (1차 fail + 500ms + 2차 즉시 성공).
-     *  - cold start 회복(worst): 약 10.5s (5s + 500ms + 5s). 카카오 OAuth 콜백 SLA 와 정합.
+     *  - cold start 회복(worst): 약 20.5s (10s + 500ms + 10s). 카카오 OAuth 콜백 SLA 와 정합.
      *
      * 풀 점유 보호(Bulkhead)는 AuthService.loginWithKakao 호출부에 둔다.
      * 이 메서드에 두면 @Transactional 인터셉터가 Semaphore 보다 먼저 DataSource.getConnection() 을

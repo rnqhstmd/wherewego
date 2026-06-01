@@ -70,6 +70,14 @@ kakao:
   callback:
     timeout-ms: 3000
 
+db:
+  keep-warm:
+    enabled: ${DB_KEEP_WARM_ENABLED:false}   # 기본 OFF. Neon 잔여 컴퓨트 확인 후 true.
+    interval-ms: 240000                        # 4분 (< Neon suspend ~5분)
+    active-start-hour: 7                        # 07시 KST
+    active-end-hour: 23                         # 23시 KST (미만)
+    zone: Asia/Seoul
+
 place:
   instagram:
     # 베타 운영 결정: 사용자 2명 규모 — true로 운영. 차단 사고 발생 시 환경변수로 false 토글 후 재기동.
