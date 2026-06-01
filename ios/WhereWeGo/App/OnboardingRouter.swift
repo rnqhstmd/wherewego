@@ -145,9 +145,13 @@ struct OnboardingRouter: View {
     }
 
     /// 활성 그룹 유무로 분기: nil → groupStart, 있음 → afterGroupResolved.
-    /// 401(refresh 실패 후) 등 에러는 do/catch 로 흡수: route 를 변경하지 않고
-    /// .resolvingGroup(SplashView) 유지 → logoutHandler 가 phase=.unauthenticated 로 전환하면
-    /// RootView 가 LoginView 로 자동 리렌더(BR-5). try? 로 nil 변환 시 GroupStart 깜빡임 발생하므로 금지.
+    /// 에러는 401 과 비-401 로 분리해 처리한다:
+    /// - 401(refresh 1회 실패 후 전파): route 유지(.resolvingGroup/SplashView) → logoutHandler 가
+    ///   phase=.unauthenticated 로 전환하면 RootView 가 LoginView 로 자동 리렌더(BR-5).
+    ///   try? 로 nil 변환 시 GroupStart 깜빡임 발생하므로 금지.
+    /// - 비-401(네트워크 타임아웃/오프라인/5xx/파싱): .task 1회 실행이라 재시도가 없어 route 가
+    ///   .resolvingGroup 에 머물면 SplashView 무한 stuck. 그룹 없음으로 간주해 GroupStart 로 폴백
+    ///   (사용자가 계속 진행 가능).
     private func resolveGroupRoute() async {
         do {
             let group = try await dependencies.groupAPI.myActiveGroup()
@@ -156,9 +160,14 @@ struct OnboardingRouter: View {
             } else {
                 afterGroupResolved(group)
             }
-        } catch {
-            // 401 refresh 실패 → logoutHandler 가 phase 전환 → RootView 가 Login 으로.
+        } catch let apiError as APIError where apiError.status == 401 {
+            // 401 → refresh 실패 시 logoutHandler 가 phase 전환 처리(RootView 가 LoginView 로).
             // route 유지(깜빡임 방지).
+            return
+        } catch {
+            // 비-401(네트워크 타임아웃/오프라인/5xx/파싱) → SplashView 무한 stuck 방지.
+            // 그룹 없는 것으로 간주하여 GroupStart 로 폴백(사용자가 계속 진행 가능).
+            route = .groupStart
         }
     }
 

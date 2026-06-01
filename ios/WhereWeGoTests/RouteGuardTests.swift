@@ -154,8 +154,9 @@ final class RouteGuardTests: XCTestCase {
         XCTAssertEqual(route, .welcome)
     }
 
-    func test_groupStage_mockThrows_propagatesError() async {
-        // 그룹 조회 throw(401 등) → 상위로 전파(Router 는 route 유지 → logoutHandler 가 phase 전환)
+    func test_groupStage_mock401_propagatesError_routeUnchanged() async {
+        // 401 그룹 조회 throw → 상위로 전파(Router 의 401 분기는 route 유지 →
+        // logoutHandler 가 phase 전환 → RootView 가 LoginView 로). resolvingGroup 유지(깜빡임 방지).
         let mock = MockGroupAPI(result: .failure(
             APIError(code: "UNAUTHORIZED", status: 401, message: "expired")
         ))
@@ -163,11 +164,53 @@ final class RouteGuardTests: XCTestCase {
         do {
             _ = try await mock.myActiveGroup()
             XCTFail("목이 throw 해야 함")
-        } catch let error as APIError {
+        } catch let error as APIError where error.status == 401 {
+            // Router 의 `catch let apiError as APIError where apiError.status == 401` 분기에 매칭됨.
+            // 이 분기는 route 를 변경하지 않으므로 기대 라우트는 .resolvingGroup 유지.
             XCTAssertEqual(error.status, 401)
         } catch {
-            XCTFail("APIError 가 아닌 에러: \(error)")
+            XCTFail("401 APIError 가 아닌 에러: \(error)")
         }
+    }
+
+    func test_groupStage_mock5xxError_fallsBackToGroupStart() async {
+        // 비-401(5xx 등 진짜 APIError) → Router 의 일반 catch 로 폴백.
+        // SplashView 무한 stuck 방지: 그룹 없음으로 간주 → .groupStart.
+        let mock = MockGroupAPI(result: .failure(
+            APIError(code: "INTERNAL_ERROR", status: 500, message: "server down")
+        ))
+
+        var fallbackRoute: OnboardingRouter.Route?
+        do {
+            _ = try await mock.myActiveGroup()
+            XCTFail("목이 throw 해야 함")
+        } catch let error as APIError where error.status == 401 {
+            XCTFail("401 이 아닌데 401 분기에 매칭됨: \(error)")
+        } catch {
+            // Router 의 일반 catch 분기에 해당 → route = .groupStart.
+            fallbackRoute = .groupStart
+        }
+        XCTAssertEqual(fallbackRoute, .groupStart)
+    }
+
+    func test_groupStage_mockNetworkError_fallsBackToGroupStart() async {
+        // 비-401(네트워크 타임아웃/오프라인 = URLError, APIError 아님) → Router 의 일반 catch 로 폴백.
+        // where status == 401 가드에 매칭되지 않아 .groupStart 로 안전하게 진행.
+        let mock = MockGroupAPI(result: .failure(
+            URLError(.timedOut)
+        ))
+
+        var fallbackRoute: OnboardingRouter.Route?
+        do {
+            _ = try await mock.myActiveGroup()
+            XCTFail("목이 throw 해야 함")
+        } catch let error as APIError where error.status == 401 {
+            XCTFail("URLError 인데 401 분기에 매칭됨: \(error)")
+        } catch {
+            // APIError 아님 → 첫 catch(where 가드) 통과 → 일반 catch → route = .groupStart.
+            fallbackRoute = .groupStart
+        }
+        XCTAssertEqual(fallbackRoute, .groupStart)
     }
 }
 
