@@ -1,0 +1,31 @@
+# ===== Xcode =====
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ===== Swift Package Manager =====
+.swiftpm/
+.build/
+# Package.resolved 는 의존성 잠금을 위해 커밋한다 (주석 처리 = 추적).
+# Package.resolved
+
+# ===== CocoaPods (사용 시) =====
+# Pods/ 는 팀 정책에 따라. 기본은 커밋하지 않음.
+Pods/
+
+# ===== fastlane =====
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# ===== 기타 =====
+*.log
+.DS_Store
