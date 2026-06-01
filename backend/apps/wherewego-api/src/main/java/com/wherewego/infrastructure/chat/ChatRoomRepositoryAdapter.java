@@ -1,0 +1,36 @@
+package com.wherewego.infrastructure.chat;
+
+import com.wherewego.domain.chat.ChatRoom;
+import com.wherewego.domain.chat.ChatRoomRepository;
+import com.wherewego.domain.chat.ChatRoomType;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+@RequiredArgsConstructor
+public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
+
+    private final ChatRoomJpaRepository chatRoomJpa;
+
+    @Override
+    public ChatRoom save(ChatRoom room) {
+        return chatRoomJpa.save(room);
+    }
+
+    @Override
+    public Optional<ChatRoom> findActiveBotRoom(Long ownerUserId) {
+        return chatRoomJpa.findFirstByOwnerUserIdAndTypeAndDeletedAtIsNull(ownerUserId, ChatRoomType.BOT);
+    }
+
+    @Override
+    public Optional<ChatRoom> findActiveCoupleRoom(Long groupId) {
+        return chatRoomJpa.findFirstByGroupIdAndTypeAndDeletedAtIsNull(groupId, ChatRoomType.COUPLE);
+    }
+
+    @Override
+    public Optional<ChatRoom> findById(Long id) {
+        return chatRoomJpa.findById(id);
+    }
+}
