@@ -101,6 +101,7 @@ actor APIClient {
         let queryPart = String(path[path.index(after: queryIndex)...])
         let base = baseURL.appendingPathComponent("api/v1" + pathPart)
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
+        // 단일 쿼리 파라미터만 지원 — 기존 쿼리는 덮어써짐. 다중 파라미터는 URLComponents.queryItems로 확장 필요.
         components?.percentEncodedQuery = queryPart
         return components?.url ?? base
     }

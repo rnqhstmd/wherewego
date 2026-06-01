@@ -106,6 +106,10 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var loadState: LoadState = .idle
     /// 동시 1패널. 실제 시트 표시는 B4.
     @Published var activeSheet: ActiveSheet = .none
+    /// 방문 메모 시트 닫힘 후 열어야 할 핀 상세(정보창) id.
+    /// 단일 사이클 이중 시트 전환 경쟁 회피용 — VisitMemoSheet.finish() 가 세팅하고,
+    /// visitMemoSheet 의 onDismiss 에서 selectedPinId 로 소비한다(시트 dismiss 이후로 시퀀싱).
+    @Published var pendingDetailPinId: Int?
 
     // MARK: - 방문감지 게시 상태(FR-27~31, AC-15)
 

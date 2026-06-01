@@ -65,7 +65,11 @@ final class RouletteViewModel: ObservableObject {
     /// 권한 선행 → 현재 위치 → 추첨. 후보 0개면 exhausted.
     func spin() async {
         state = .spinning
-        guard let mapViewModel else { return }
+        // mapViewModel 해제 시 .spinning 고착(무한 로딩) 방지 — locationError 로 전이.
+        guard let mapViewModel else {
+            state = .locationError("지도 데이터를 불러올 수 없어요.")
+            return
+        }
 
         // FR-24 정합성 단일 보장점: 추첨 전에 캐시가 stale(>5분)이면 최신 핀을 먼저 확보한다.
         // (MapView fire-and-forget 제거 — 여기서 await 해야 candidatePins() 가 최신 풀을 본다.)
@@ -102,6 +106,9 @@ final class RouletteViewModel: ObservableObject {
     // MARK: - 다시(FR-22)
 
     /// 직전 결과 풀에서 직전 핀 제외 재추첨.
+    /// reRoll 은 mapViewModel 을 참조하지 않고 직전 결과의 candidates/radiusKm 만 사용한다
+    /// (apply 의 메타 보강만 mapViewModel?.pins 옵셔널 체이닝 — 해제돼도 안전).
+    /// 따라서 spin 과 달리 mapViewModel guard 가 없으며, .result 가 아니면 직전 상태를 그대로 유지한다(의도).
     func reRoll() async {
         guard case let .result(prevPin, _, _, _, _, radiusKm, candidates) = state else { return }
         guard let sample = await locationService.requestOneShot() else {

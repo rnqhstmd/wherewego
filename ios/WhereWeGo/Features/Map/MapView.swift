@@ -129,7 +129,14 @@ struct MapView: View {
             CrosshairAddView(mapViewModel: viewModel)
         }
         // 방문 메모 시트(activeSheet=.visitMemo, FR-29/30, AC-15).
-        .sheet(item: visitMemoSheetBinding) { pin in
+        // onDismiss: 시트가 완전히 닫힌 뒤 보류된 pendingDetailPinId 를 selectedPinId 로 소비한다.
+        // (finish() 단일 사이클의 이중 .sheet(item:) 전환 경쟁 회피 — selectedPinBinding 이 PinDetail 을 연다.)
+        .sheet(item: visitMemoSheetBinding, onDismiss: {
+            if let pinId = viewModel.pendingDetailPinId {
+                viewModel.pendingDetailPinId = nil
+                viewModel.selectedPinId = pinId
+            }
+        }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
         }
     }

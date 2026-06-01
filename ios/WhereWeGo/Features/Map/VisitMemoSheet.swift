@@ -145,9 +145,13 @@ struct VisitMemoSheet: View {
     }
 
     /// 시트 닫고 핀 상세(정보창) 자동 오픈(웹 Phase 10 UX).
+    /// 단일 사이클에 visitMemo 시트를 닫으면서 selectedPinId 까지 세팅하면
+    /// 두 .sheet(item:) 전환이 경쟁해 PinDetail 이 안 열릴 수 있다(시트 전환 경쟁).
+    /// → visitMemo 시트만 먼저 닫고(activeSheet=.none), 열어야 할 핀은 pendingDetailPinId 로 보류한다.
+    ///   selectedPinId 설정은 MapView 의 visitMemoSheet onDismiss 에서 소비(시트 dismiss 이후 시퀀싱).
     private func finish() {
+        mapViewModel.pendingDetailPinId = pin.id
         mapViewModel.activeSheet = .none
-        mapViewModel.selectedPinId = pin.id
         dismiss()
     }
 }
