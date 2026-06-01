@@ -33,6 +33,21 @@
 
 > 후속(P2 이월): 기존 웹 콜백 경로 Bulkhead/@Recover 에러코드 503 통일, 탈퇴 시 refresh hash 폐기, Apple `authorizationCode` 저장(revoke 대비).
 
+## iOS 클라이언트 인증·온보딩 (P3)
+
+> iOS 네이티브 전환 P3. P1 엔드포인트를 Bearer로 소비하는 SwiftUI 클라이언트. 키·계정 미보유로 **배선 + 시뮬레이터 빌드(iOS 26.5)·XCTest 60종**까지 검증(실로그인은 발급물 후). PRD/설계: `.dev/feat-ios-native-p3-shell-auth-onboarding/`.
+
+| ID | 요구사항 | 상태 | PR/커밋 |
+|----|----------|------|---------|
+| P3-FR-1~4 | XcodeGen 프로젝트(iOS 17)·xcconfig(API_BASE_URL/KAKAO key)·Kakao SDK SPM·폰트 번들 구조 | ✅ | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+| P3-FR-5 | `KeychainTokenStore` (actor SecItem 저장, 401→refresh→재시도, inFlight 직렬화, 네트워크오류 토큰 보존) | ✅ | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+| P3-FR-7 | 카카오 네이티브 로그인 배선 (앱 우선/계정 폴백, placeholder graceful) | ✅(배선) | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+| P3-FR-8 | Apple 네이티브 로그인 배선 (rawNonce→요청엔 SHA-256 hex, 서버엔 평문 BR-2, capability 방어) | ✅(배선) | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+| P3-FR-9/10 | refresh·로그아웃(LogoutHandlerBox 전파) + 라우트 가드(토큰→location→nickname→groups/me) | ✅ | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+| P3-FR-11~16 | 온보딩 6화면(위치/닉네임/그룹시작/초대코드/알림/Welcome 위저드 2스텝) | ✅ | [#90](https://github.com/rnqhstmd/wherewego/pull/90) |
+
+> 발급물 후 검증: 실기기 카카오/Apple 로그인(Native Key·Apple 계정+capability), 폰트 렌더링(파일+PostScript 보정). 후속(P4): Mapbox SDK·지도/핀, 기존 사용자 `wizardShown` 직행 플래그.
+
 ## 운영 버그 수정
 
 | 항목 | 상태 | 상세 |
