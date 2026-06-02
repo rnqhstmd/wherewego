@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/ios-native-p6-design-qa
 base: develop
@@ -12,7 +12,9 @@ mode: normal
 intent-source: user-selection
 scope: 코드측 전부(토큰 drift 가드 + SwiftUI 스펙 정적 대조·보정) + Mac 잔여(시각 QA·TestFlight·제출) 문서화
 started: 2026-06-02
-current-step: "review 완료(클린 통과, 확인 리뷰 passed) — complete 진입"
+current-step: "complete 완료 — PR #93 생성"
+pr: https://github.com/rnqhstmd/wherewego/pull/93
+acceptance: ACCEPT (Must AC-1~9 9/9)
 domain-context: context/place/, context/map/, context/pin/ (디자인·화면 도메인)
 references: (none)
 phases:
@@ -55,3 +57,8 @@ execution-log:
   - phase: review
     agent: coder(수정) + qa-manager(확인)
     result: "가드 보강4(성공메시지·try/catch·selftest⑤·한계주석)+GroupCreateView TODO+문서정정. 확인리뷰 통과(회귀 없음)"
+  - phase: complete
+    agent: product-owner(인수검증)
+    result: "ACCEPT — Must AC-1~9 9/9 충족. AC-10/11=Should Mac이연/미적용(정상)"
+  - phase: complete
+    result: "커밋 bf61b5e(gx-commit, rnqhstmd) → push → PR #93 생성(gx-pull-request, base develop). status.md/context환류=P6 도메인 매핑 없어 건너뜀"

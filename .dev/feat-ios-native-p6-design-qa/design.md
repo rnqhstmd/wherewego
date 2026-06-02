@@ -82,7 +82,7 @@ compare(web, ios)   → { missingInIOS[], missingInWeb[], mismatched[] }
 runSelftest()       → boolean
 main()              → process.exit(0|1)
 ```
-- 일치: `✓ 색상 21/21 키 일치` → exit 0 (AC-1)
+- 일치: `✓ 색상 22/22 키 일치` → exit 0 (AC-1)
 - 키 누락: `✗ 키 누락 — Theme.swift에 없음: [...]` / `tokens.ts에 없음: [...]` → exit 1 (AC-4)
 - 값 불일치: `✗ <key>: web=rgba(...) {r,g,b,a} vs ios=#... {r,g,b,a}` → exit 1 (AC-2)
 

@@ -1,7 +1,7 @@
 ## 코드 맵: iOS P6 — 디자인 정합성 최종 QA(웹↔앱) + 토큰 단일소스 가드
 
 ### 핵심 파일
-- frontend/src/lib/design/tokens.ts → 웹 디자인 토큰 단일소스(colors 21키 + fonts 4키). drift 가드의 기준(source of truth)
+- frontend/src/lib/design/tokens.ts → 웹 디자인 토큰 단일소스(colors 22키 + fonts 4키). drift 가드의 기준(source of truth)
 - ios/WhereWeGo/Core/DesignSystem/Theme.swift → iOS 토큰 이식본(WGColor enum + WGFont). tokens.ts와 1:1 대조 대상
 - frontend/src/app/globals.css → 웹 @theme 변수(폰트 var·spacing·기타 시각 토큰). 색/폰트 외 스펙 대조 레퍼런스
 - ios/WhereWeGo/Features → iOS 화면 11개 도메인(Auth/Chat{Bot,Couple}/Group/Map/Onboarding/Photo/Pin/Place/Common). 스펙 정적 대조·보정 대상

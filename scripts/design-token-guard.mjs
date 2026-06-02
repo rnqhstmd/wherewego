@@ -34,7 +34,7 @@ export function parseWebColors(src) {
   // `export const colors` 앵커로 다른 `colors`/`fonts` 블록과의 혼동 방지.
   const block = src.match(/export\s+const\s+colors\s*=\s*\{([\s\S]*?)\}\s*as\s+const/);
   if (!block) return map;
-  const lineRe = /^\s*(\w+)\s*:\s*"([^"]+)"/gm;
+  const lineRe = /^\s*(\w+)\s*:\s*["']([^"']+)["']/gm;
   let m;
   while ((m = lineRe.exec(block[1])) !== null) {
     map.set(m[1], m[2]);
@@ -109,7 +109,7 @@ export function normalize(raw) {
   }
 
   // 1/2) #RRGGBB | #RRGGBBAA
-  const hex = s.match(/#?([0-9a-f]{6}(?:[0-9a-f]{2})?)/i);
+  const hex = s.match(/^#?([0-9a-f]{6}(?:[0-9a-f]{2})?)$/i);
   if (hex) return hexToRgba(hex[1]);
 
   throw new Error(`정규화 불가: ${raw}`);
@@ -266,6 +266,11 @@ function main() {
   const iosSrc = readFileSync(IOS_PATH, "utf8");
   const web = parseWebColors(webSrc);
   const ios = parseIosColors(iosSrc);
+
+  if (web.size === 0 || ios.size === 0) {
+    console.error(`✗ 파싱 실패: 웹 색상 ${web.size}개, iOS 색상 ${ios.size}개 감지됨. 파일 형식이나 정규식을 확인하세요.`);
+    process.exit(1);
+  }
 
   let result;
   try {
