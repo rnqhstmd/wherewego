@@ -31,7 +31,14 @@ final class SessionStore: ObservableObject {
         phase = .authenticated
     }
 
+    /// 데모 로그인 성공(설계 §10, FR-26/AC-21) → 토큰 저장 후 인증 전환.
+    /// 일반 로그인과 토큰 저장/전환 절차가 동일하므로 didLogin 을 재사용한다(별도 분기 불요).
+    func didLoginDemo(access: String, refresh: String) async throws {
+        try await didLogin(access: access, refresh: refresh)
+    }
+
     /// 로그아웃. 멱등(이미 .unauthenticated 면 no-op) — 동시 refresh 실패 다중 호출 안전(CONSIDER).
+    /// 디바이스 토큰 해제·CurrentUser.clear 는 AppDependencies.logoutBox 핸들러가 함께 수행한다(설계 §8/§12).
     func logout() async {
         guard phase != .unauthenticated else { return }
         await tokens.clear()

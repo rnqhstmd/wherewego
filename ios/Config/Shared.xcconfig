@@ -1,2 +1,8 @@
 PRODUCT_BUNDLE_IDENTIFIER = com.wherewego.app
 PRODUCT_NAME = WhereWeGo
+
+// 데모 로그인 refreshToken(FR-26/BR-7/AC-21). 소스 비하드코딩 — 빌드 시 주입.
+// 미주입 시 placeholder 폴백 → AppConfig.demoRefreshToken 이 *_NOT_SET 을 nil 로 처리해
+// "데모 로그인" 버튼을 비활성한다. 실제 값은 비커밋 로컬 xcconfig 또는 CI 환경에서 덮어쓴다:
+//   예) xcodebuild ... DEMO_REFRESH_TOKEN=<seed-refresh-token>
+DEMO_REFRESH_TOKEN = DEMO_REFRESH_TOKEN_NOT_SET

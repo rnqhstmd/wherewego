@@ -21,6 +21,12 @@ struct MapView: View {
         )
     }
 
+    /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
+    /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
+    init(viewModel: MapViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
+
     var body: some View {
         ZStack {
             // 지도 배경(B2 선언적 바인딩). token 없으면 PlaceholderMapView 로 폴백.

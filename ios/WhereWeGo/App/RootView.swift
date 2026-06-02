@@ -22,7 +22,8 @@ struct RootView: View {
                 LoginView(
                     kakao: dependencies.kakao,
                     apple: dependencies.apple,
-                    session: dependencies.session
+                    session: dependencies.session,
+                    authAPI: dependencies.authAPI
                 )
             case .authenticated:
                 OnboardingRouter(dependencies: dependencies)

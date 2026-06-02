@@ -7,10 +7,20 @@ import AuthenticationServices
 struct LoginView: View {
     @StateObject private var viewModel: LoginViewModel
 
-    init(kakao: KakaoAuthServicing, apple: AppleAuthServicing, session: SessionStore) {
+    /// 워드마크 5회 연속 탭 게이트(설계 §10, FR-26/AC-17). 도달 시 데모 로그인 버튼 노출.
+    @State private var demoGate = DemoLoginGateState()
+    /// 데모 로그인 버튼 노출 여부(게이트 해제 후 true). demoRefreshToken nil 이면 노출돼도 비활성.
+    @State private var showDemoLogin = false
+
+    init(kakao: KakaoAuthServicing, apple: AppleAuthServicing, session: SessionStore, authAPI: AuthAPI) {
         _viewModel = StateObject(
-            wrappedValue: LoginViewModel(kakao: kakao, apple: apple, session: session)
+            wrappedValue: LoginViewModel(kakao: kakao, apple: apple, session: session, authAPI: authAPI)
         )
+    }
+
+    /// 데모 로그인 가능 여부(refreshToken 설정됨). placeholder 면 버튼 비표시.
+    private var isDemoAvailable: Bool {
+        AppConfig.demoRefreshToken != nil
     }
 
     var body: some View {
@@ -20,10 +30,17 @@ struct LoginView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // 브랜드 워드마크.
+                // 브랜드 워드마크. 5회 연속 탭 → 데모 로그인 게이트 해제(FR-26/AC-17).
                 Text("우리가 갈 지도")
                     .font(WGFont.emo(48))
                     .foregroundStyle(WGColor.ink)
+                    .onTapGesture {
+                        // 데모 refreshToken 미설정이면 게이트 자체를 무시(우연 노출 방지).
+                        guard isDemoAvailable else { return }
+                        if demoGate.registerTap(now: Date()) {
+                            showDemoLogin = true
+                        }
+                    }
 
                 // 태그라인.
                 Text("우리의 장소를 지도 위에 아카이빙해요")
@@ -86,6 +103,27 @@ struct LoginView: View {
                     .disabled(viewModel.isLoading)
                 }
                 .padding(.top, 10)
+
+                // 데모 로그인 버튼(FR-26/AC-21). 워드마크 5회 탭 게이트 해제 후 노출.
+                if showDemoLogin {
+                    Button {
+                        Task { await viewModel.loginDemo() }
+                    } label: {
+                        Text("데모 로그인")
+                            .font(WGFont.sans(14))
+                            .frame(maxWidth: 320)
+                            .padding(.vertical, 12)
+                            .background(WGColor.panel)
+                            .foregroundStyle(WGColor.ink)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(WGColor.hairline, lineWidth: 1)
+                            )
+                    }
+                    .disabled(viewModel.isLoading || !isDemoAvailable)
+                    .padding(.top, 12)
+                }
 
                 // 약관 안내.
                 Text("시작하면 서비스 이용약관 및 개인정보처리방침에 동의합니다")

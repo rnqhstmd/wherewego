@@ -110,11 +110,14 @@ struct OnboardingRouter: View {
             )
 
         case .notification:
-            NotificationView(onDone: { onNotificationDone() })
+            NotificationView(
+                onDone: { onNotificationDone() },
+                pushRegistration: dependencies.pushRegistration
+            )
 
         case .groups:
-            // 온보딩 종착 = 지도 메인(설계 §7). GroupsView 플레이스홀더 대체.
-            MapView(dependencies: dependencies)
+            // 온보딩 종착 = 메인 탭(설계 §10, FR-10). 지도/봇방/커플방 + 딥링크 탭 전환.
+            MainTabView(dependencies: dependencies)
         }
     }
 

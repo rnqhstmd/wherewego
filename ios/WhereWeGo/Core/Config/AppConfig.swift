@@ -18,6 +18,18 @@ enum AppConfig {
         isConfigured(kakaoKey: infoString("KAKAO_NATIVE_APP_KEY"))
     }
 
+    /// 데모 로그인용 refreshToken(설계 §10, FR-26/BR-7/AC-21). Info "DEMO_REFRESH_TOKEN" → 비하드코딩.
+    /// placeholder(`DEMO_REFRESH_TOKEN_NOT_SET`)/빈값이면 nil → "데모 로그인" 버튼 비표시·비활성.
+    static var demoRefreshToken: String? {
+        normalizeDemoRefreshToken(infoString("DEMO_REFRESH_TOKEN"))
+    }
+
+    /// Universal Links 도메인(설계 §9, FR-20). Info "APP_LINKS_DOMAIN" → 순수 호스트명.
+    /// 미설정/빈값이면 nil(AASA 미호스팅 시 Universal Link 미작동, P5 전제).
+    static var appLinksDomain: String? {
+        normalizeAppLinksDomain(infoString("APP_LINKS_DOMAIN"))
+    }
+
     // MARK: - 순수 함수(테스트 가능)
 
     /// 문자열을 URL 로 해석. nil/공백/파싱 실패 시 localhost 폴백.
@@ -37,6 +49,26 @@ enum AppConfig {
             return false
         }
         return key != "KAKAO_APP_KEY_NOT_SET" && !key.isEmpty
+    }
+
+    /// 데모 refreshToken 정규화(순수). placeholder/빈값 → nil, 그 외 trim 한 값.
+    static func normalizeDemoRefreshToken(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != "DEMO_REFRESH_TOKEN_NOT_SET" else {
+            return nil
+        }
+        return trimmed
+    }
+
+    /// AppLinks 도메인 정규화(순수). 빈값/placeholder → nil, 그 외 trim 한 호스트명.
+    static func normalizeAppLinksDomain(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != "APP_LINKS_DOMAIN_NOT_SET" else {
+            return nil
+        }
+        return trimmed
     }
 
     // MARK: - Private

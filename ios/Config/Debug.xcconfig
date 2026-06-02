@@ -6,3 +6,6 @@ KAKAO_NATIVE_APP_KEY = KAKAO_APP_KEY_NOT_SET
 // Mapbox: token 발급(.netrc secret download + public token) 후 placeholder 교체.
 MAPBOX_ACCESS_TOKEN = MAPBOX_TOKEN_NOT_SET
 MAPBOX_STYLE_URL = mapbox:/$()/styles/mapbox/standard
+// Universal Links 도메인(FR-20). entitlements applinks:$(APP_LINKS_DOMAIN) 에 주입.
+// scheme 없는 순수 호스트명. AASA(/.well-known/apple-app-site-association) 가 해당 도메인에 호스팅돼야 동작.
+APP_LINKS_DOMAIN = wherewego.app

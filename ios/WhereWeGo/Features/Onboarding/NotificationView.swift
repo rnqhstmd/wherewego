@@ -8,6 +8,8 @@ import UIKit
 struct NotificationView: View {
     /// 허용/다음에 어느 쪽이든 완료 시 호출. Router 가 notifAsked=true → Groups.
     let onDone: () -> Void
+    /// APNs 권한 요청 + 원격 등록 서비스(설계 §8, FR-17). 허용 시 호출.
+    let pushRegistration: PushRegistrationServicing
 
     var body: some View {
         PermissionDialogView(
@@ -33,7 +35,8 @@ struct NotificationView: View {
             }
             onDone()
         default:
-            _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
+            // 권한 요청 + 허용 시 원격 알림 등록(FR-17). 거부해도 진행(BR-9).
+            await pushRegistration.requestAuthorizationAndRegister()
             onDone()
         }
     }
