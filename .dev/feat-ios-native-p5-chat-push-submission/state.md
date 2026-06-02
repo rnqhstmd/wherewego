@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/ios-native-p5-chat-push-submission
 base: develop
@@ -35,7 +35,9 @@ phases:
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
+pr: https://github.com/rnqhstmd/wherewego/pull/92
+acceptance: ACCEPT (Must 21/21)
   complete: pending
 execution-log:
   - phase: setup

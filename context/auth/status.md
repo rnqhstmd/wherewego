@@ -64,6 +64,21 @@
 
 > DoD-B(token 후 검증): Mapbox 실렌더링(마커 GeoJSON·클러스터·camera)·핀 CRUD/사진/방문감지 실기기 E2E. project.yml Mapbox SPM 주석 해제(`from: "11.0.0"`)+xcodegen generate 후.
 
+## iOS 클라이언트 채팅·푸시·제출 자산 (P5)
+
+> iOS 네이티브 전환 P5. P2 백엔드 채팅·디바이스·STOMP API를 소비하는 SwiftUI 클라이언트 + 백엔드 데모 시드. **iOS는 Windows 빌드 불가 → 코드리뷰 검증, Mac에서 `xcodegen generate`+`xcodebuild`·XCTest 9종 최종 확인 필요**(DoD-B). PRD/설계: `.dev/feat-ios-native-p5-chat-push-submission/`.
+
+| ID | 요구사항 | 상태 | PR/커밋 |
+|----|----------|------|---------|
+| P5-FR-1~8 | 봇 채팅방(cursor 페이지네이션·PROCESSING→PLACE_CARDS 교체·카드 다중선택→PinAPI 저장 409흡수·릴스 URL 미디어 미저장) | ✅(배선) | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+| P5-FR-9~16 | 1:1 커플방(낙관 전송·STOMP 수신·messageId dedup) + 공통 UX(빈 상태·발신자 구분·최신 스크롤·키보드 회피) | ✅(배선) | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+| P5-FR-17~21 | APNs 등록/해제(로그아웃 unregister)·푸시 탭 딥링크(PIN_SAVED→지도)·Universal Link(applinks)·포그라운드 배너 | ✅(배선) | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+| P5-FR-22~27 | Privacy Manifest·권한 문구 3종·앱 아이콘 스캐폴드·데모 로그인(로고 5회 탭)·데모 시드·인스타 방어 노트 | ✅(배선) | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+| P5-실시간 | STOMP 1.2 직접 구현(단일 연결+화면별 SUBSCRIBE)·BR-8 재연결(즉시1+5초×3=4회)·cursor=null 보완조회 | ✅ | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+| P5-백엔드 | 데모 멱등 시드(봇방3·커플방3·핀3)+AuthService 데모 refresh 회전 예외(enabled 게이트) | ✅(compile 그린) | [#92](https://github.com/rnqhstmd/wherewego/pull/92) |
+
+> DoD-B(Mac 후 검증): `xcodegen generate`+`xcodebuild` 빌드·XCTest 9종, AppIcon 1024 PNG 추가, 데모 시드 env(`WHEREWEGO_DEMO_SEED_*`) 주입·실기기 푸시/딥링크 E2E, AASA 웹 호스팅.
+
 ## 운영 버그 수정
 
 | 항목 | 상태 | 상세 |
