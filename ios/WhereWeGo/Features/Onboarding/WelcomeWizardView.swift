@@ -97,6 +97,7 @@ struct WelcomeWizardView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("함께 갈 곳을 모아봐요")
                 .font(WGFont.emo(26))
+                .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                 .foregroundStyle(WGColor.ink)
 
             Text("새 그룹을 만들거나 초대받은 그룹에 합류할 수 있어요.")
@@ -149,6 +150,7 @@ struct WelcomeWizardView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("짝꿍에게 링크를 보내요")
                 .font(WGFont.emo(26))
+                .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                 .foregroundStyle(WGColor.ink)
 
             Text("이 링크를 받은 사람이 합류하면 함께 지도를 만들 수 있어요.")

@@ -18,6 +18,7 @@ struct NicknameView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("반가워요\n이름을 알려주세요")
                     .font(WGFont.emo(32))
+                    .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                     .foregroundStyle(WGColor.ink)
                     .lineSpacing(6)
                     .fixedSize(horizontal: false, vertical: true)

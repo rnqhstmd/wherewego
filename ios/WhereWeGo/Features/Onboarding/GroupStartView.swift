@@ -14,6 +14,7 @@ struct GroupStartView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("어떻게 시작할까요")
                     .font(WGFont.emo(28))
+                    .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                     .foregroundStyle(WGColor.ink)
 
                 Text("혼자서도, 함께서도 괜찮아요")
