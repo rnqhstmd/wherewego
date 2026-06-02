@@ -136,6 +136,20 @@ wherewego:
     region: ${S3_REGION:ap-northeast-2}
     # 공개 GetObject URL 베이스. 응답 photoUrl = ${public-base-url}/${key}.
     public-base-url: ${S3_PUBLIC_BASE_URL}
+  demo-seed:
+    # P5 FR-25/BR-7/AC-21: 앱스토어 리뷰어 데모 계정·시드. 기본 OFF — enabled=true 일 때만 DemoSeedRunner 실행.
+    # 자격증명(refresh-token/oauth-id)은 소스 비하드코딩(BR-7) — env(WHEREWEGO_DEMO_SEED_*)로만 주입.
+    enabled: ${WHEREWEGO_DEMO_SEED_ENABLED:false}
+    refresh-token: ${WHEREWEGO_DEMO_SEED_REFRESH_TOKEN:}
+    group-name: ${WHEREWEGO_DEMO_SEED_GROUP_NAME:데모 커플}
+    user1:
+      oauth-provider: ${WHEREWEGO_DEMO_SEED_USER1_PROVIDER:KAKAO}
+      oauth-id: ${WHEREWEGO_DEMO_SEED_USER1_OAUTH_ID:}
+      nickname: ${WHEREWEGO_DEMO_SEED_USER1_NICKNAME:데모 사용자}
+    user2:
+      oauth-provider: ${WHEREWEGO_DEMO_SEED_USER2_PROVIDER:KAKAO}
+      oauth-id: ${WHEREWEGO_DEMO_SEED_USER2_OAUTH_ID:}
+      nickname: ${WHEREWEGO_DEMO_SEED_USER2_NICKNAME:데모 파트너}
 
 app:
   invite:

@@ -27,10 +27,20 @@ targets:
     platform: iOS
     sources:
       - path: WhereWeGo
+    # Push Notifications(aps-environment) + Associated Domains(applinks) capability.
+    # entitlements 파일에 키를 두고 경로만 지정 — XcodeGen 이 CODE_SIGN_ENTITLEMENTS 로 배선.
+    entitlements:
+      path: WhereWeGo/WhereWeGo.entitlements
     info:
       path: WhereWeGo/Info.plist
       properties:
-        UILaunchScreen: {}
+        # 스플래시(FR-24) — 크림 배경(LaunchBackground colorset, #FAF8F5 디자인 토큰).
+        # 최종 로고/스플래시 에셋 교체는 P6 범위(비차단).
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # 원격 푸시(APNs) 수신용 백그라운드 모드(FR-17).
+        UIBackgroundModes:
+          - remote-notification
         UIAppFonts:
           - NotoSerifKR-Regular.otf
           - GowunBatang-Regular.ttf
@@ -43,6 +53,10 @@ targets:
         KAKAO_NATIVE_APP_KEY: $(KAKAO_NATIVE_APP_KEY)
         MAPBOX_ACCESS_TOKEN: $(MAPBOX_ACCESS_TOKEN)
         MAPBOX_STYLE_URL: $(MAPBOX_STYLE_URL)
+        # 데모 로그인 refreshToken(FR-26/BR-7/AC-21) — xcconfig DEMO_REFRESH_TOKEN 주입. AppConfig.demoRefreshToken 이 읽음.
+        DEMO_REFRESH_TOKEN: $(DEMO_REFRESH_TOKEN)
+        # Universal Links 도메인(FR-20) — xcconfig APP_LINKS_DOMAIN 주입. AppConfig.appLinksDomain 이 읽음.
+        APP_LINKS_DOMAIN: $(APP_LINKS_DOMAIN)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - kakao$(KAKAO_NATIVE_APP_KEY)

@@ -42,6 +42,11 @@ private struct UpdateNicknameRequest: Encodable {
     let nickname: String
 }
 
+/// 토큰 갱신 요청(설계 §10 데모 로그인). 백엔드 RefreshTokenRequest({"refreshToken": ...}) 대칭.
+private struct RefreshTokenRequest: Encodable {
+    let refreshToken: String
+}
+
 // MARK: - AuthAPI
 
 final class AuthAPI: Sendable {
@@ -81,5 +86,18 @@ final class AuthAPI: Sendable {
     func updateNickname(_ nickname: String) async throws -> UserResponse {
         let body = try JSONEncoder().encode(UpdateNicknameRequest(nickname: nickname))
         return try await client.request("/users/me", method: "PUT", body: body, type: UserResponse.self)
+    }
+
+    /// GET /users/me. 현재 사용자 식별자/닉네임 조회(설계 §11, CurrentUser 캐시 소스).
+    func me() async throws -> UserResponse {
+        try await client.request("/users/me", type: UserResponse.self)
+    }
+
+    /// POST /auth/refresh. 데모 로그인(설계 §10) — 시드 refreshToken 으로 새 토큰 쌍 발급.
+    /// 데모 식별자 매칭 시 백엔드가 회전을 스킵해 동일 시드 토큰을 재사용한다(§10 (a)).
+    /// (KeychainTokenStore.refresh 는 보관 토큰 전용이라 임의 시드 토큰 흐름에 부적합 → AuthAPI 경유.)
+    func refresh(refreshToken: String) async throws -> TokenResponse {
+        let body = try JSONEncoder().encode(RefreshTokenRequest(refreshToken: refreshToken))
+        return try await client.request("/auth/refresh", method: "POST", body: body, type: TokenResponse.self)
     }
 }

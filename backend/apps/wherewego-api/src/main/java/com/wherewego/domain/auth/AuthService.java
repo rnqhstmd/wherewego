@@ -15,6 +15,7 @@ import com.wherewego.infrastructure.auth.kakao.KakaoAccessTokenInfoResponse;
 import com.wherewego.infrastructure.auth.kakao.KakaoOAuthClient;
 import com.wherewego.infrastructure.auth.kakao.KakaoTokenResponse;
 import com.wherewego.infrastructure.auth.kakao.KakaoUserInfoResponse;
+import com.wherewego.support.demo.DemoSeedProperties;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class AuthService {
     private final UserLoginPersistence userLoginPersistence;
     private final AppleIdentityTokenVerifier appleVerifier;
     private final KakaoApiProperties kakaoApiProperties;
+    private final DemoSeedProperties demoSeedProperties;
 
     /**
      * Bulkhead — 카카오 로그인 DB 작업이 HikariCP main pool(10) 을 전부 점유하지 못하도록
@@ -207,6 +209,14 @@ public class AuthService {
         }
 
         String newAccess = jwtTokenProvider.issueAccessToken(userId);
+
+        // P5 §10: 데모 계정(데모 식별자 매칭)은 refresh 회전을 건너뛴다 — 정적 시드 refresh token 을
+        // iOS 리뷰어 로그인이 반복 재사용할 수 있도록(첫 사용 후 무효화 방지). accessToken 은 정상 발급하고,
+        // refresh token 은 입력받은 동일 토큰을 그대로 돌려준다. 운영 사용자는 기존대로 1회용 회전한다.
+        if (demoSeedProperties.matchesDemoAccount(user.getOauthProvider(), user.getOauthId())) {
+            return AuthResultInfo.of(user, newAccess, refreshTokenRaw);
+        }
+
         String newRefresh = jwtTokenProvider.issueRefreshToken(userId);
 
         user.replaceRefreshTokenHash(refreshTokenHasher.sha256Hex(newRefresh));

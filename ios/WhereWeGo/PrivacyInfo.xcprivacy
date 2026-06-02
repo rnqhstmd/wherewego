@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  WhereWeGo 앱 타깃 Privacy Manifest (FR-22 / AC-14).
+  - NSPrivacyTracking=false: 광고/추적 미사용, App Tracking Transparency 미요구.
+  - 수집 데이터(NSPrivacyCollectedDataTypes): 위치(방문 감지), 사진(핀 사진).
+    카메라로 촬영한 사진은 사진 라이브러리 데이터 타입에 포함된다.
+  - 접근 API(NSPrivacyAccessedAPITypes): UserDefaults(설정·토큰 보관) 등 required reason API.
+  - ⚠️ Mapbox / Kakao SDK 는 각 SDK 번들에 자체 내장된 PrivacyInfo.xcprivacy 에 의존한다.
+    (이 매니페스트는 앱 1st-party 코드만 선언) — 빌드 시 누락 경고가 나오면 SDK 버전을 확인하고
+    필요한 항목을 SDK 측 매니페스트 기준으로 보강한다(설계 §12 Q7).
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<!-- 위치(대략) — 방문 감지로 근처 핀 표시. 사용자에게 연결, 추적 미사용. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- 사진 — 핀에 첨부하는 추억 사진(카메라 촬영 포함). 사용자에게 연결, 추적 미사용. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- UserDefaults: 설정·APNs 토큰 보관 등 앱 내부 사용. CA92.1 = 앱 자체 데이터 접근. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
