@@ -93,6 +93,10 @@ struct MainTabView: View {
         .tint(WGColor.cta)
         // 딥링크 소비(설계 §9). 진입 시 보류분 1회 + 이후 변화 반영.
         .task {
+            // AC-11: 커플방 활성 그룹/방 부재 시 지도 탭으로 폴백(설계 §9 "대상 조회 실패 시 .map 폴백").
+            coupleViewModel.onUnavailable = { [weak deepLinkRouter] in
+                deepLinkRouter?.pending = .map
+            }
             consumePending()
         }
         .onChange(of: deepLinkRouter.pending) { _, _ in

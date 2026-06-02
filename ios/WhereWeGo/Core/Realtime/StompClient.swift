@@ -108,6 +108,11 @@ actor StompClient {
     /// Task 를 timeoutTask 에 보관해 connect 성공/실패 시 resumeConnect 에서 취소한다(잔존 방지).
     private func scheduleConnectTimeout() {
         timeoutTask?.cancel()
+        // 이미 연결 완료/실패로 continuation 이 소비되었으면 타임아웃 태스크를 예약하지 않는다(잔존 Task 방지).
+        guard connectContinuation != nil else {
+            timeoutTask = nil
+            return
+        }
         let timeout = connectTimeout
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))

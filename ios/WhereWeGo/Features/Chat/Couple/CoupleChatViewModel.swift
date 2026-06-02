@@ -41,6 +41,10 @@ final class CoupleChatViewModel: ObservableObject {
     private let realtime: ChatRealtimeServicing
     private let currentUser: CurrentUser
 
+    /// 활성 그룹/방 부재로 커플방 진입이 불가할 때의 폴백 콜백(AC-11, 설계 §9 "대상 조회 실패 시 .map 폴백").
+    /// MainTabView 가 주입해 지도 탭으로 전환한다. 봇방은 유저별 상존이라 폴백 불요 — 커플방·핀 한정.
+    var onUnavailable: (() -> Void)?
+
     // MARK: - 내부 상태
 
     /// 확보한 활성 그룹 id(커플 토픽 path·전송·로드의 groupId 출처). 확보 전 nil.
@@ -73,7 +77,15 @@ final class CoupleChatViewModel: ObservableObject {
     /// 도착 프레임과 load 결과는 messageId dedup(knownIds)로 중복 제거되므로 안전하다.
     func appear() async {
         observeRealtimeState()
-        guard let groupId = await ensureGroupId() else { return }
+        // 내 메시지 판별(senderType==USER & id 비교)에 필요한 userId 를 subscribe 이전에 선행 확보한다.
+        // 미확보 시 isMine 판별이 불안정해지는 문제 방지(load 실패해도 기존 흐름 유지, cross-review).
+        if currentUser.id == nil {
+            await currentUser.load()
+        }
+        guard let groupId = await ensureGroupId() else {
+            onUnavailable?()
+            return
+        }
         await realtime.subscribe(topic: .couple(groupId: groupId), id: Self.subscriptionId) { [weak self] frame in
             Task { @MainActor [weak self] in
                 self?.handleIncoming(frame)
@@ -183,11 +195,11 @@ final class CoupleChatViewModel: ObservableObject {
         guard let groupId else { return }
         guard let page = try? await chatAPI.coupleMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return }
         let fresh = page.messages.reversed().filter { !knownIds.contains($0.messageId) }
-        guard !fresh.isEmpty else { return }
         for frame in fresh {
             appendUnique(frame)
         }
-        // 최신 페이지 재조회 시 커서/hasMore 도 최신화(이후 loadMore 정합 — BotChatViewModel.reconcileLatest 와 동일).
+        // 재조회 결과가 dedup 으로 모두 중복이어도 커서/hasMore 는 최신 page 값으로 갱신한다
+        // (이후 loadMore 정합 — BotChatViewModel.reconcileLatest 와 대칭).
         nextCursor = page.nextCursor
         hasMore = page.hasMore
     }

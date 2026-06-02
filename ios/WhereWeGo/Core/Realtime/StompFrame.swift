@@ -50,7 +50,10 @@ struct StompFrame: Equatable {
     /// 다중 프레임이 한 메시지로 합쳐 들어올 수 있으므로 NUL 분할로 모두 추출한다.
     /// NUL 사이 공백/개행만 있는 조각(heart-beat·trailing)은 무시한다.
     static func decode(_ text: String) -> [StompFrame] {
-        text.split(separator: "\u{00}", omittingEmptySubsequences: false)
+        // CRLF 브로커 방어: 파싱 전 `\r\n`을 `\n`으로 정규화한다(헤더/본문 구분 `\n\n`·다중 프레임 분리 안전).
+        // 인코딩(encode)은 STOMP 송신 규약대로 `\n`만 사용하므로 변경하지 않는다.
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+        return normalized.split(separator: "\u{00}", omittingEmptySubsequences: false)
             .compactMap { parseSingle(String($0)) }
     }
 

@@ -74,6 +74,11 @@ final class BotChatViewModel: ObservableObject {
     /// 구독 등록 직후 load 하므로, 도착 프레임과 load 결과가 겹쳐도 messageId dedup(knownIds)로 중복 제거된다.
     func appear() async {
         observeRealtimeState()
+        // 봇 토픽 path(/topic/chat/bot/{userId})에 필요한 userId 를 subscribe 이전에 선행 확보한다.
+        // 미확보 시 .bot(userId:0) placeholder 로 구독되는 문제 방지(load 실패해도 기존 흐름 유지, cross-review).
+        if currentUser.id == nil {
+            await currentUser.load()
+        }
         // 재연결 성공 통지(AC-9) — id 키 옵저버로 등록(봇/커플 동시 구독 시 덮어쓰기 방지, Critical-5).
         realtime.addReconnectedObserver(id: Self.subscriptionId) { [weak self] in
             // 옵저버는 @MainActor 컨텍스트에서 호출되지만 Sendable 계약 유지 위해 Task 로 진입.
@@ -235,7 +240,6 @@ final class BotChatViewModel: ObservableObject {
     func reconcileLatest() async {
         guard let response = try? await chatAPI.botMessages(cursor: nil, limit: Self.pageLimit) else { return }
         let ascending = response.messages.reversed()
-        var appended = false
         for frame in ascending where !knownIds.contains(frame.messageId) {
             // 같은 turn 의 결과(BOT 결과 kind)가 들어오면 PROCESSING 을 교체(AC-2 정합).
             switch frame.kind {
@@ -245,13 +249,11 @@ final class BotChatViewModel: ObservableObject {
                 break
             }
             appendFrame(frame)
-            appended = true
         }
-        // 최신 페이지 갱신 시 커서/hasMore 도 최신화(이후 loadMore 일관).
-        if appended {
-            nextCursor = response.nextCursor
-            hasMore = response.hasMore
-        }
+        // 재조회 결과가 dedup 으로 모두 중복이어도 커서/hasMore 는 최신 page 값으로 갱신한다
+        // (이후 loadMore 일관 — CoupleChatViewModel.reconcileLatest 와 대칭, cross-review).
+        nextCursor = response.nextCursor
+        hasMore = response.hasMore
     }
 
     /// 수동 재시도(.disconnected 배너의 "다시 연결").

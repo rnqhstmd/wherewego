@@ -167,6 +167,20 @@ final class StompFrameTests: XCTestCase {
         )
     }
 
+    func test_decode_crlfNormalized_headerAndBodySeparated() {
+        // Given CRLF(\r\n) 줄 종단을 쓰는 브로커 프레임(헤더 구분 \r\n\r\n).
+        let text = "MESSAGE\r\nsubscription:sub-bot\r\n\r\nhello\u{00}"
+
+        // When
+        let frames = StompFrame.decode(text)
+
+        // Then \r\n → \n 정규화로 command/헤더/본문이 올바르게 분리된다.
+        XCTAssertEqual(frames.count, 1)
+        XCTAssertEqual(frames.first?.command, "MESSAGE")
+        XCTAssertEqual(frames.first?.headers["subscription"], "sub-bot")
+        XCTAssertEqual(frames.first?.body, "hello")
+    }
+
     func test_decode_bodyWithJsonContainingNoNul_preserved() {
         // Given 본문에 개행이 포함된 멀티라인 JSON.
         let body = "{\n  \"text\": \"hi\"\n}"

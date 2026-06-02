@@ -173,8 +173,39 @@ func drainFrames() async {
 
 @MainActor
 func makeCurrentUser() -> CurrentUser {
-    // CurrentUser 는 AuthAPI 의존이나 본 테스트는 id 미사용 경로만 검증 → 더미 주입.
-    CurrentUser(authAPI: AuthAPI(client: APIClient(baseURL: URL(string: "https://example.com")!, tokens: DummyTokenStore())))
+    // appear() 가 userId 선행 로드(currentUser.load() → GET /users/me)를 수행하므로(cross-review),
+    // 실제 외부 네트워크 호출 대신 StubURLProtocol 로 me() 응답을 가로채 결정적으로 id 를 채운다.
+    // (envelope { "data": {...} } 형식, status 200.)
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [StubMeURLProtocol.self]
+    let session = URLSession(configuration: config)
+    let client = APIClient(baseURL: URL(string: "https://example.com")!, tokens: DummyTokenStore(), session: session)
+    return CurrentUser(authAPI: AuthAPI(client: client))
+}
+
+/// GET /users/me 를 가로채 고정 UserResponse(id:1) envelope 를 반환하는 테스트용 URLProtocol.
+/// appear() 의 userId 선행 로드가 실제 네트워크로 나가지 않도록 한다(결정성·속도).
+final class StubMeURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.hasSuffix("/users/me") ?? false
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let body = Data(#"{"data":{"id":1,"nickname":"tester","profileImageUrl":null}}"#.utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 /// JSON 경유로 ChatFrame 구성(ChatFrame 은 커스텀 디코더만 보유 — 직접 init 불가).

@@ -93,6 +93,8 @@ struct PlaceCardsBubble: View {
             let selected = cards.filter { selectedIDs.contains($0.id) }
             guard !selected.isEmpty else { return }
             onSave(selected)
+            // 저장 완료 후 선택 초기화 — 체크박스 잔존·중복 저장 방지(Gemini).
+            selectedIDs = []
         } label: {
             Text(count > 0 ? "\(count)곳 저장" : "저장")
                 .font(WGFont.sans(13))
