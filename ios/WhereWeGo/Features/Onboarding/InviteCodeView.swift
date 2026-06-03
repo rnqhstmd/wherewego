@@ -27,6 +27,7 @@ struct InviteCodeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("초대 코드를 받았나요?")
                     .font(WGFont.emo(32))
+                    .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                     .foregroundStyle(WGColor.ink)
 
                 Text("친구가 보낸 링크의 코드를 입력해요")

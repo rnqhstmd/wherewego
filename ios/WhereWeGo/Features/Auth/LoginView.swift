@@ -33,6 +33,8 @@ struct LoginView: View {
                 // 브랜드 워드마크. 5회 연속 탭 → 데모 로그인 게이트 해제(FR-26/AC-17).
                 Text("우리가 갈 지도")
                     .font(WGFont.emo(48))
+                    .tracking(-1.5) // 웹: letterSpacing:-1.5 (AC-5)
+                    // 웹 lineHeight:1.05 — 단일줄이라 lineSpacing 효과없음, 행간 정합은 Mac QA(DoD-B-3)
                     .foregroundStyle(WGColor.ink)
                     .onTapGesture {
                         // 데모 refreshToken 미설정이면 게이트 자체를 무시(우연 노출 방지).
@@ -43,6 +45,8 @@ struct LoginView: View {
                     }
 
                 // 태그라인.
+                // 웹 태그라인엔 letterSpacing 없음 → tracking 미적용(BR-3, 웹에 없는 값 추가 금지).
+                // 웹 lineHeight:1.5 — 단일줄 렌더라 lineSpacing 효과없음, 다줄 시 Mac QA(DoD-B-3).
                 Text("우리의 장소를 지도 위에 아카이빙해요")
                     .font(WGFont.sans(15.5))
                     .foregroundStyle(WGColor.inkSoft)
