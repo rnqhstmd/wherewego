@@ -28,13 +28,20 @@ final class DeepLinkRouter: ObservableObject {
     @Published var pending: DeepLinkDestination?
 
     /// APNs userInfo 의 custom property 키(ApnsPushSender 직렬화 기준).
-    private static let typeKey = "type"
+    /// nonisolated — 콜백(AppNotificationDelegate) 의 nonisolated 컨텍스트에서 키만 읽어 type(String) 을 추출하기 위함.
+    nonisolated static let typeKey = "type"
 
     /// 푸시 탭 → userInfo type 으로 destination 결정 후 pending 세팅.
     /// unknown/누락 type 은 무시(pending 미변경) — 의도치 않은 이동 방지.
     func handlePush(userInfo: [AnyHashable: Any]) {
-        guard let type = userInfo[Self.typeKey] as? String,
-              let destination = Self.destination(forPushType: type) else {
+        handlePush(type: userInfo[Self.typeKey] as? String)
+    }
+
+    /// 추출된 push type(Sendable String) 으로 destination 결정 후 pending 세팅.
+    /// nonisolated 콜백이 non-Sendable userInfo 를 @MainActor 로 보내지 않도록, 키 추출은 호출부에서 하고
+    /// Sendable 한 type 만 넘겨받는 경로(Swift 6 동시성).
+    func handlePush(type: String?) {
+        guard let type, let destination = Self.destination(forPushType: type) else {
             return
         }
         pending = destination

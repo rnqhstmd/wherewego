@@ -4,6 +4,8 @@
 <dict>
 	<key>API_BASE_URL</key>
 	<string>$(API_BASE_URL)</string>
+	<key>APP_LINKS_DOMAIN</key>
+	<string>$(APP_LINKS_DOMAIN)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -29,6 +31,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>DEMO_REFRESH_TOKEN</key>
+	<string>$(DEMO_REFRESH_TOKEN)</string>
 	<key>KAKAO_NATIVE_APP_KEY</key>
 	<string>$(KAKAO_NATIVE_APP_KEY)</string>
 	<key>LSApplicationQueriesSchemes</key>
@@ -40,6 +44,11 @@
 	<string>$(MAPBOX_ACCESS_TOKEN)</string>
 	<key>MAPBOX_STYLE_URL</key>
 	<string>$(MAPBOX_STYLE_URL)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>사진을 직접 찍어 추억으로 남길 수 있어요</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

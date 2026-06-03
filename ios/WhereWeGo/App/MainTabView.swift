@@ -132,7 +132,7 @@ struct MainTabView: View {
             NavigationStack {
                 InviteCodeView(
                     groupAPI: dependencies.groupAPI,
-                    prefill: slug,
+                    prefill: slug.value,
                     onJoined: { inviteSlug = nil },
                     onCancel: { inviteSlug = nil }
                 )

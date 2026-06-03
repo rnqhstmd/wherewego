@@ -189,11 +189,12 @@ final class BotChatViewModel: ObservableObject {
     /// - 409(PLC_DUPLICATE_PIN)는 에러로 전파하지 않고 saveInfoMessage 로 흡수("이미 저장된 장소예요", AC-3).
     func savePlaceCards(_ selected: [PlaceCard], from messageId: Int) async {
         guard !selected.isEmpty else { return }
-        // try? await myActiveGroup()?.groupId 는 Int?? 이중 옵셔널이 되어 타입 불일치 → 단계 분리.
-        guard let group = try? await groupAPI.myActiveGroup(), let groupId = group?.groupId else {
+        // try? 가 throwing+ActiveGroup? 을 ActiveGroup? 로 평탄화 → guard let 후 group 은 비옵셔널.
+        guard let group = try? await groupAPI.myActiveGroup() else {
             saveInfoMessage = "활성 그룹을 찾지 못했어요. 잠시 후 다시 시도해 주세요."
             return
         }
+        let groupId = group.groupId
 
         var savedCount = 0
         var duplicateCount = 0

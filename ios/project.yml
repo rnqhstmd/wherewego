@@ -49,6 +49,9 @@ targets:
         NSLocationWhenInUseUsageDescription: "근처에 어떤 핀이 있는지 보여드릴게요"
         NSCameraUsageDescription: "사진을 직접 찍어 추억으로 남길 수 있어요"
         NSPhotoLibraryUsageDescription: "추억 사진을 선택해 핀에 남길 수 있어요"
+        # 로컬 백엔드(http://localhost) 접속 허용 — loopback/.local 만 예외이며 prod https 에는 영향 없음.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         API_BASE_URL: $(API_BASE_URL)
         KAKAO_NATIVE_APP_KEY: $(KAKAO_NATIVE_APP_KEY)
         MAPBOX_ACCESS_TOKEN: $(MAPBOX_ACCESS_TOKEN)

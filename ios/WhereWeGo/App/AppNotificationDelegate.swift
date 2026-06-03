@@ -29,10 +29,13 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        // 콜백 클로저는 nonisolated → 라우터(@MainActor) 접근은 Task 로 브리지.
+        // Swift 6 동시성: non-Sendable self/userInfo 를 @MainActor Task 로 보내지 않도록,
+        // nonisolated 컨텍스트에서 Sendable 값(type String, @MainActor 라우터)만 추출해 캡처한다.
+        let pushType = userInfo[DeepLinkRouter.typeKey] as? String
+        let router = deepLinkRouter
         Task { @MainActor in
             // 미주입 시 no-op(무크래시, BR-9).
-            self.deepLinkRouter?.handlePush(userInfo: userInfo)
+            router?.handlePush(type: pushType)
         }
         completionHandler()
     }

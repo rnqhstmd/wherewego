@@ -21,7 +21,7 @@ enum NotificationType: String, Decodable {
 
 /// 백엔드 NotificationV1Dto.NotificationItem 과 필드명·옵셔널 1:1.
 /// wishCount/reelCount 는 CHATBOT_PINS 외에는 0 또는 미전달 → Int? 로 안전 디코딩.
-struct NotificationItem: Decodable, Identifiable {
+struct NotificationItem: Decodable, Identifiable, Equatable {
     let id: Int
     let type: NotificationType
     let registeredBy: Int?
