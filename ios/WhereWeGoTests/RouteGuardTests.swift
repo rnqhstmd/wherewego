@@ -242,4 +242,6 @@ private final class MockGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     func issueInviteLink(groupId: Int) async throws -> InviteLink {
         InviteLink(token: "stub", slug: nil, shareUrl: nil)
     }
+
+    func leaveGroup(groupId: Int) async throws {}
 }

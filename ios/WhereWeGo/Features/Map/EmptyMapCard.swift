@@ -3,7 +3,7 @@ import SwiftUI
 // 빈 상태 카드(설계 §3, FR-7). 핀 0개 & loaded 일 때 표시.
 // frontend/src/app/map/MapClient.tsx 빈 상태 안내 + 핀 추가 유도 CTA 이식.
 struct EmptyMapCard: View {
-    /// 검색(핀 추가) 진입 콜백. MapView 가 SearchPinSheet 트리거(B4 연결)에 연결.
+    /// 장소 추가 진입 콜백(FR-8). MapView 가 AddPlaceSheet(activeSheet=.addPlace) 트리거에 연결(＋ 와 동일 컴포넌트).
     let onAddPin: () -> Void
 
     var body: some View {

@@ -93,6 +93,17 @@ final class AuthAPI: Sendable {
         try await client.request("/users/me", type: UserResponse.self)
     }
 
+    /// DELETE /users/me. 계정 삭제(FR-26).
+    // 204(빈 본문) 정상 성공 — APIClient.decodeEnvelope 는 data 키 부재로 NO_CONTENT 를 throw.
+    // 204 자체는 성공이므로 NO_CONTENT 만 정상 흡수하고 나머지는 전파(PinAPI.delete 패턴).
+    func deleteAccount() async throws {
+        do {
+            _ = try await client.request("/users/me", method: "DELETE", type: EmptyResponse.self)
+        } catch let error as APIError where error.code == "NO_CONTENT" {
+            return
+        }
+    }
+
     /// POST /auth/refresh. 데모 로그인(설계 §10) — 시드 refreshToken 으로 새 토큰 쌍 발급.
     /// 데모 식별자 매칭 시 백엔드가 회전을 스킵해 동일 시드 토큰을 재사용한다(§10 (a)).
     /// (KeychainTokenStore.refresh 는 보관 토큰 전용이라 임의 시드 토큰 흐름에 부적합 → AuthAPI 경유.)

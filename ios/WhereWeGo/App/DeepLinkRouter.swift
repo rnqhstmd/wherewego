@@ -3,8 +3,8 @@ import Foundation
 // 푸시 탭/Universal Link → 앱 내 이동 대상 라우팅(설계 §9, AC-10/AC-11, FR-19).
 // 입력원:
 //  (a) 푸시 탭 userInfo: ApnsPushSender 가 직렬화한 custom property "type"(String)/"roomId"(Long).
-//      - BOT_RESULT  → .botChat  (봇 방. userId 기반 토픽이므로 roomId 무시)
-//      - COUPLE_MESSAGE → .coupleChat (커플방. myActiveGroup 사용, payload roomId 미사용)
+//      - BOT_RESULT  → .chat  (채팅 탭. userId 기반 토픽이므로 roomId 무시)
+//      - COUPLE_MESSAGE → .chat (커플챗 제거 후 채팅 탭으로 재매핑 — 하위호환 폴백, FR-28)
 //      - PIN_SAVED   → .map      (roomId/pinId 없음 — 특정 핀 상세 아님, 지도/핀 목록으로)
 //  (b) Universal Link:
 //      - /invite/{slug} → .invite(slug)
@@ -14,8 +14,7 @@ import Foundation
 
 /// 딥링크 이동 대상(설계 §9). MainTabView 가 destination 별로 탭 전환/네비게이션.
 enum DeepLinkDestination: Equatable {
-    case botChat
-    case coupleChat
+    case chat
     case pin(pinId: Int)
     case invite(slug: String)
     case map
@@ -62,9 +61,10 @@ final class DeepLinkRouter: ObservableObject {
     static func destination(forPushType type: String) -> DeepLinkDestination? {
         switch type {
         case "BOT_RESULT":
-            return .botChat
+            return .chat
         case "COUPLE_MESSAGE":
-            return .coupleChat
+            // 커플챗 제거(FR-11/BR-2) 후 채팅 탭으로 재매핑(FR-28 하위호환 폴백).
+            return .chat
         case "PIN_SAVED":
             return .map
         default:

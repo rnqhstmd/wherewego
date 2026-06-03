@@ -16,6 +16,8 @@ final class AppDependencies {
     let pinAPI: PinAPIProtocol
     let placeAPI: PlaceAPIProtocol
     let locationService: LocationServiceProtocol
+    /// 알림 도메인 API(알림함 목록/읽음/상세, 설계 §6). NotificationInboxViewModel 조립에 사용.
+    let notificationAPI: NotificationAPIProtocol
 
     // MARK: - P5 채팅·푸시·딥링크(설계 §4·§8·§9·§11)
 
@@ -33,6 +35,10 @@ final class AppDependencies {
     let deepLinkRouter: DeepLinkRouter
     /// AppDelegate 가 알림 센터에 연결하는 델리게이트(강참조 보유는 AppDelegate).
     let notificationDelegate: AppNotificationDelegate
+
+    /// 앱 표준 로그아웃 경로(설계 §11/§12). logoutBox.handler 와 동일 — 디바이스 토큰 해제·CurrentUser.clear·SessionStore.logout 일괄.
+    /// MyInfo 로그아웃/계정삭제가 SessionStore.logout 단독이 아니라 표준 경로를 타도록 MainTabView 가 MyInfoViewModel 에 주입한다.
+    let logout: @Sendable () async -> Void
 
     init() {
         let baseURL = AppConfig.apiBaseURL
@@ -61,6 +67,8 @@ final class AppDependencies {
         self.pinAPI = PinAPI(client: client)
         self.placeAPI = PlaceAPI(client: client)
         self.locationService = CoreLocationService()
+        // 알림 도메인 API(설계 §6) — 기존 API 조립 스타일(client 주입) 동일.
+        self.notificationAPI = NotificationAPI(client: client)
 
         // 5) P5 채팅·푸시·딥링크(설계 §4·§8·§9·§11).
         let currentUser = CurrentUser(authAPI: authAPI)
@@ -89,11 +97,14 @@ final class AppDependencies {
         // 6) 박스에 logout 핸들러 동기 주입(§12, 순환 차단). refresh 가 호출하는 시점(로그인 이후)엔
         //    이미 채워져 있어 RootView.task 순서에 의존하지 않는다.
         //    로그아웃 시 디바이스 토큰 해제(FR-18/AC-12, 멱등)·CurrentUser 캐시 비움(다음 사용자 오염 방지)도 함께.
-        logoutBox.handler = { [weak session, weak currentUser] in
+        //    동일 핸들러를 self.logout 으로도 노출(설계 §11) — MyInfo 로그아웃/계정삭제가 표준 경로를 타도록 MainTabView 가 주입.
+        let logoutHandler: @Sendable () async -> Void = { [weak session, weak currentUser] in
             await pushRegistration.unregisterCurrentToken()
             await currentUser?.clear()
             await session?.logout()
         }
+        logoutBox.handler = logoutHandler
+        self.logout = logoutHandler
     }
 
     /// AppDelegate(@UIApplicationDelegateAdaptor 가 생성)에 푸시 의존을 setter 주입한다(설계 §8).

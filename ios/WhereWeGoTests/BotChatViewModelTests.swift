@@ -358,6 +358,7 @@ final class StubBotGroupAPI: GroupAPIProtocol, @unchecked Sendable {
 
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
+    func leaveGroup(groupId: Int) async throws {}
 }
 
 final class DummyTokenStore: TokenStore, @unchecked Sendable {

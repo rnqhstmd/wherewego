@@ -1,25 +1,14 @@
 import SwiftUI
 
-// 지도 메인 화면(설계 §3·§7, FR-2/6/7). 온보딩 종착 → 지도 진입(GroupsView 대체).
-// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 하단 액션바.
+// 지도 메인 화면(설계 §3·§7·§11, FR-2/6/7/8). 온보딩 종착 → 지도 진입(GroupsView 대체).
+// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치 우하단).
 //
-// 지도 배경은 MapContainerView(B2, 선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
-// 정보창(PinDetailSheet)·검색(SearchPinSheet)·룰렛(RouletteSheet) 의 실제 시트 연결은 B4.
-// B3 에서는 selectedPinId/activeSheet 상태만 산출하고 시트 표시 지점은 주석/placeholder 로 둔다.
+// 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
+// 정보창(PinDetailSheet)·장소추가(AddPlaceSheet)·룰렛(RouletteSheet) 시트를 activeSheet 로 연결한다.
+// P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼 + ＋ 통합 추가(AddPlaceSheet).
 struct MapView: View {
     @StateObject private var viewModel: MapViewModel
     @Environment(\.scenePhase) private var scenePhase
-
-    init(dependencies: AppDependencies) {
-        _viewModel = StateObject(
-            wrappedValue: MapViewModel(
-                pinAPI: dependencies.pinAPI,
-                placeAPI: dependencies.placeAPI,
-                groupAPI: dependencies.groupAPI,
-                locationService: dependencies.locationService
-            )
-        )
-    }
 
     /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
     /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
@@ -39,15 +28,6 @@ struct MapView: View {
             .ignoresSafeArea()
 
             content
-
-            // 크로스헤어 오버레이(FR-15). 임의 좌표 추가 시트가 열려 있는 동안 지도 정중앙에 조준점 표시.
-            if viewModel.activeSheet == .crosshair {
-                Image(systemName: "plus.viewfinder")
-                    .font(.system(size: 34, weight: .light))
-                    .foregroundStyle(WGColor.cta)
-                    .shadow(color: WGColor.shadow, radius: 4)
-                    .allowsHitTesting(false)
-            }
 
             // 방문 토스트(설계 §4, FR-27). 화면 정중앙 오버레이. PinDetail 시트와 별개.
             if let pin = viewModel.visitToastPin {
@@ -122,17 +102,13 @@ struct MapView: View {
         .sheet(item: selectedPinBinding) { pin in
             PinDetailSheet(pin: pin, mapViewModel: viewModel)
         }
-        // 검색(핀 추가) 시트(activeSheet=.search, FR-13/14).
-        .sheet(isPresented: searchSheetBinding) {
-            SearchPinSheet(mapViewModel: viewModel)
+        // ＋ 통합 장소 추가 시트(activeSheet=.addPlace, FR-8/12~16). EmptyMapCard 진입점(MainTabView ＋ 와 동일 컴포넌트).
+        .sheet(isPresented: addPlaceSheetBinding) {
+            AddPlaceSheet(mapViewModel: viewModel)
         }
         // 룰렛 시트(activeSheet=.roulette, FR-20~24).
         .sheet(isPresented: rouletteSheetBinding) {
             RouletteSheet(mapViewModel: viewModel, locationService: viewModel.locationService)
-        }
-        // 크로스헤어 임의 좌표 추가 시트(activeSheet=.crosshair, FR-15 Should).
-        .sheet(isPresented: crosshairSheetBinding) {
-            CrosshairAddView(mapViewModel: viewModel)
         }
         // 방문 메모 시트(activeSheet=.visitMemo, FR-29/30, AC-15).
         // onDismiss: 시트가 완전히 닫힌 뒤 보류된 pendingDetailPinId 를 selectedPinId 로 소비한다.
@@ -149,12 +125,12 @@ struct MapView: View {
 
     // MARK: - activeSheet → 시트 표시 바인딩
 
-    /// .search 표시 바인딩. 닫힘 시 activeSheet=.none.
-    private var searchSheetBinding: Binding<Bool> {
+    /// .addPlace 표시 바인딩. 닫힘 시 activeSheet=.none.
+    private var addPlaceSheetBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.activeSheet == .search },
+            get: { viewModel.activeSheet == .addPlace },
             set: { isPresented in
-                if !isPresented, viewModel.activeSheet == .search { viewModel.activeSheet = .none }
+                if !isPresented, viewModel.activeSheet == .addPlace { viewModel.activeSheet = .none }
             }
         )
     }
@@ -165,16 +141,6 @@ struct MapView: View {
             get: { viewModel.activeSheet == .roulette },
             set: { isPresented in
                 if !isPresented, viewModel.activeSheet == .roulette { viewModel.activeSheet = .none }
-            }
-        )
-    }
-
-    /// .crosshair 표시 바인딩. 닫힘 시 activeSheet=.none.
-    private var crosshairSheetBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.activeSheet == .crosshair },
-            set: { isPresented in
-                if !isPresented, viewModel.activeSheet == .crosshair { viewModel.activeSheet = .none }
             }
         )
     }
@@ -258,68 +224,86 @@ struct MapView: View {
     }
 
     private var loadedOverlay: some View {
-        VStack(spacing: 0) {
-            // 상단 태그 필터.
-            TagFilterBar(activeFilters: $viewModel.activeFilters)
-                .background(
-                    WGColor.bg.opacity(0.92)
-                        .clipShape(Capsule())
-                )
-                .padding(.top, 8)
+        ZStack {
+            // 상단 태그 필터 + (핀 0개 시) 빈 상태 카드.
+            VStack(spacing: 0) {
+                TagFilterBar(activeFilters: $viewModel.activeFilters)
+                    .background(
+                        WGColor.bg.opacity(0.92)
+                            .clipShape(Capsule())
+                    )
+                    .padding(.top, 8)
 
-            Spacer(minLength: 0)
-
-            // 핀 0개(loaded) → 빈 상태 카드(FR-7).
-            if viewModel.pins.isEmpty {
-                EmptyMapCard(onAddPin: { viewModel.activeSheet = .search })
                 Spacer(minLength: 0)
+
+                // 핀 0개(loaded) → 빈 상태 카드(FR-8). ＋ 와 동일하게 .addPlace 시트로 진입(단일 컴포넌트).
+                if viewModel.pins.isEmpty {
+                    EmptyMapCard(onAddPin: { viewModel.activeSheet = .addPlace })
+                    Spacer(minLength: 0)
+                }
             }
 
-            // 하단 액션바 placeholder(검색/룰렛 진입). 실제 시트 연결은 B4.
-            actionBar
-                .padding(.bottom, 24)
-        }
-    }
-
-    // MARK: - 하단 액션바(검색/룰렛 진입 버튼)
-
-    private var actionBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                viewModel.activeSheet = .search
-            } label: {
-                actionLabel(systemName: "magnifyingglass", title: "검색")
+            // 룰렛: 지도 우상단 플로팅 원형 버튼(태그필터 바 아래, FR-6).
+            VStack {
+                HStack {
+                    Spacer()
+                    rouletteButton
+                }
+                .padding(.top, 60)
+                Spacer()
             }
 
-            // 크로스헤어 임의 좌표 추가(FR-15). 지도 중앙 위치로 핀 추가.
-            Button {
-                viewModel.activeSheet = .crosshair
-            } label: {
-                actionLabel(systemName: "plus.viewfinder", title: "여기에 추가")
-            }
-
-            Button {
-                // 룰렛 진입(FR-24 stale 재조회는 RouletteViewModel.spin() 내부 await 가 단일 보장점).
-                viewModel.activeSheet = .roulette
-            } label: {
-                actionLabel(systemName: "dice", title: "룰렛")
+            // 내 위치: 지도 우하단 플로팅 버튼(FR-7). 룰렛(우상단)과 분리(ZStack alignment).
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    myLocationButton
+                }
+                .padding(.bottom, 28)
             }
         }
         .padding(.horizontal, 16)
     }
 
-    private func actionLabel(systemName: String, title: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemName)
-            Text(title)
-                .font(WGFont.sans(14))
+    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치 우하단, FR-6/7)
+
+    /// 룰렛 진입 플로팅 원형 버튼(FR-6). 우상단. stale 재조회는 RouletteViewModel.spin() 내부 await 가 단일 보장점.
+    private var rouletteButton: some View {
+        Button {
+            viewModel.activeSheet = .roulette
+        } label: {
+            Image(systemName: "dice")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(WGColor.cta)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(WGColor.panel))
+                .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
-        .foregroundStyle(WGColor.ink)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(WGColor.panel)
-        .clipShape(Capsule())
-        .shadow(color: WGColor.shadow, radius: 8, y: 3)
+        .accessibilityLabel("가볼까 룰렛")
+    }
+
+    /// 내 위치 플로팅 버튼(FR-7). 우하단. one-shot 현재 위치로 지도 카메라 이동.
+    private var myLocationButton: some View {
+        Button {
+            Task {
+                if let sample = await viewModel.locationService.requestOneShot() {
+                    viewModel.flyTo(
+                        lat: sample.latitude,
+                        lng: sample.longitude,
+                        zoom: MapViewModel.currentLocationZoom
+                    )
+                }
+            }
+        } label: {
+            Image(systemName: "location.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(WGColor.cta)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(WGColor.panel))
+                .shadow(color: WGColor.shadow, radius: 8, y: 3)
+        }
+        .accessibilityLabel("내 위치")
     }
 }
 
