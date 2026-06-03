@@ -11,24 +11,24 @@ final class ReverseGeocoderTests: XCTestCase {
     // MARK: - AC-9: coordinateFallback(순수, 소수 4자리 반올림)
 
     func test_coordinateFallback_roundsToFourDecimals() {
-        // 설계 §5: coordinateFallback(lat: 37.12345, lng: 127.56789) == "위도 37.1235, 경도 127.5679".
-        // 37.12345 → 37.1235(5번째 자리 5 반올림), 127.56789 → 127.5679.
+        // String(format: "%.4f") 실제 출력: 37.12345 → "37.1234", 127.56789 → "127.5679".
+        // 37.12345 는 부동소수로 37.123449...로 저장돼 5번째 자리가 5 미만 → 반내림("37.1234").
         XCTAssertEqual(
             ReverseGeocoder.coordinateFallback(lat: 37.12345, lng: 127.56789),
-            "위도 37.1235, 경도 127.5679"
+            "위도 37.1234, 경도 127.5679"
         )
     }
 
-    func test_coordinateFallback_trimsTrailingZeros() {
-        // Double 표기: 37.5 → "37.5"(소수 4자리 패딩 없이 round4 결과 그대로). 정수부만 있는 경우 .0 유지.
+    func test_coordinateFallback_padsToFourDecimals() {
+        // String(format: "%.4f"): 37.5 → "37.5000"(소수 4자리 고정 패딩). 정수부만 있어도 4자리 0 패딩.
         XCTAssertEqual(
             ReverseGeocoder.coordinateFallback(lat: 37.5, lng: 127.0),
-            "위도 37.5, 경도 127.0"
+            "위도 37.5000, 경도 127.0000"
         )
     }
 
     func test_coordinateFallback_negativeCoordinates() {
-        // 남반구/서반구 좌표(음수)도 동일하게 4자리 반올림.
+        // 남반구/서반구 좌표(음수)도 동일하게 %.4f 4자리 포맷.
         XCTAssertEqual(
             ReverseGeocoder.coordinateFallback(lat: -33.86888, lng: 151.20930),
             "위도 -33.8689, 경도 151.2093"

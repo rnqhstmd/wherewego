@@ -4,10 +4,11 @@ import Foundation
 // frontend/src/app/map/_components/notifications/NotificationPanel.tsx 의 목록/상세 흐름 이식.
 //
 // 책임:
-//  - 진입 load(): list 조회(FR-19) + didReadAll==false 일 때만 read-all 1회(FR-21/BR-4).
-//    read-all 성공 시 didReadAll=true + 로컬 unreadCount=0 낙관 갱신. 실패는 조용히 무시(에러 미노출·무재시도, BR-4).
+//  - 진입 load(): didReadAll=false 리셋 → list 조회(FR-19) + read-all 1회(FR-21/BR-4).
+//    탭 진입마다 read-all 1회 보장(재진입·새 알림 수신 시 읽음 누락 방지). read-all 성공 시 didReadAll=true + 로컬 unreadCount=0 낙관 갱신. 실패는 조용히 무시(에러 미노출·무재시도, BR-4).
 //  - 미읽음 수는 서버 unreadCount 사용(>0 → 빨간 점, FR-22).
-//  - onForeground(): list 만 재조회(read-all 미반복 — didReadAll, FR-19).
+//  - onForeground(): list 만 재조회(read-all 미호출, FR-19).
+//  - in-flight 가드(isLoading): load()/onForeground() 동시 호출 시 list 중복 차단(cross-review #1).
 //  - selectItem(_): detail(id:) 로드 → 핀 목록 표시.
 //  - flyToPin(_): deepLinkRouter.pending=.pin(pinId)(FR-20). soft delete 핀은 flyTo 비활성(호출 안 함).
 //  - 목록 조회 실패 → loadState=.error(재시도 버튼, BR-6).
@@ -40,8 +41,10 @@ final class NotificationInboxViewModel: ObservableObject {
 
     // MARK: - 내부 상태
 
-    /// read-all 1회 보장 플래그(BR-4). 최초 load() 성공 시 true → 이후 list 만 재조회.
+    /// read-all 1회 보장 플래그(BR-4). load() 진입 시 false 로 리셋 → 탭 진입(load)당 read-all 1회.
     private var didReadAll = false
+    /// list 조회 in-flight 가드(cross-review #1). load()/onForeground() 동시 진입 시 중복 list 차단.
+    private var isLoading = false
 
     init(api: NotificationAPIProtocol, deepLinkRouter: DeepLinkRouter) {
         self.api = api
@@ -50,9 +53,15 @@ final class NotificationInboxViewModel: ObservableObject {
 
     // MARK: - 진입 로드(FR-19/FR-21, BR-4)
 
-    /// 진입: list 조회(FR-19) + didReadAll==false 이면 read-all 1회(FR-21/BR-4).
-    /// 목록 실패 → .error(BR-6). read-all 실패는 조용히 무시(에러 미노출·무재시도).
+    /// 진입: didReadAll 리셋 → list 조회(FR-19) + read-all 1회(FR-21/BR-4).
+    /// 탭 진입마다 read-all 1회(재진입 읽음 누락 방지). 목록 실패 → .error(BR-6). read-all 실패는 조용히 무시(에러 미노출·무재시도).
     func load() async {
+        // in-flight 가드: load()/onForeground() 동시 진입 시 중복 list 차단(cross-review #1).
+        if isLoading { return }
+        isLoading = true
+        defer { isLoading = false }
+        // 탭 진입마다 read-all 1회 보장 — 재진입·새 알림 수신 시 읽음 누락 방지(Gemini HIGH).
+        didReadAll = false
         // 이미 목록을 보여주는 중(.loaded)이면 .loading 으로 덮지 않는다 — 재시도/재진입 시 빈 로딩 깜빡임 방지.
         // 최초 진입(.idle)·에러 후 재시도(.error)에서만 로딩 표시.
         if case .loaded = loadState {} else {
@@ -81,9 +90,13 @@ final class NotificationInboxViewModel: ObservableObject {
 
     // MARK: - 포그라운드 갱신(FR-19)
 
-    /// 포그라운드 복귀: list 만 재조회(read-all 미반복 — didReadAll). unreadCount 갱신.
+    /// 포그라운드 복귀: list 만 재조회(read-all 미호출). unreadCount 갱신.
     /// 실패 시 기존 목록 유지(조용히 무시) — 포그라운드 갱신은 부가 동작이므로 .error 로 덮지 않음.
     func onForeground() async {
+        // in-flight 가드: load() 와 동시 호출 시 중복 list 차단(cross-review #1).
+        if isLoading { return }
+        isLoading = true
+        defer { isLoading = false }
         do {
             let response = try await api.list()
             unreadCount = response.unreadCount

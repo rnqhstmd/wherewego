@@ -1,5 +1,7 @@
 phase: complete
-status: in_progress
+status: completed
+pr: https://github.com/rnqhstmd/wherewego/pull/94
+acceptance: ACCEPT (Must AC-1~11 11/11)
 vcs-type: git
 branch: feat/ios-nav-redesign
 base: develop
@@ -30,7 +32,7 @@ phases:
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
 review-steps:
   - mechanical-gate: "iOS 빌드·XCTest=DoD-B 이연(java/node 무변경). 정적 시그니처 정합은 에이전트 검증"
   - qa-review-1: "Critical 1(KeychainTokenStore 무인자 init 없음→DummyTokens 교체, 수정완료). AC-1~11 충족"

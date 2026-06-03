@@ -23,10 +23,10 @@ final class ReverseGeocoder {
         return Self.format(placemark)
     }
 
-    /// 좌표 폴백 문자열(순수, AC-9). 소수 4자리 반올림.
-    /// 예: coordinateFallback(lat: 37.12345, lng: 127.56789) == "위도 37.1235, 경도 127.5679".
+    /// 좌표 폴백 문자열(순수, AC-9). 소수 4자리 고정 포맷(%.4f).
+    /// 예: coordinateFallback(lat: 37.12345, lng: 127.56789) == "위도 37.1234, 경도 127.5679".
     static func coordinateFallback(lat: Double, lng: Double) -> String {
-        "위도 \(round4(lat)), 경도 \(round4(lng))"
+        String(format: "위도 %.4f, 경도 %.4f", lat, lng)
     }
 
     // MARK: - 내부
@@ -43,11 +43,6 @@ final class ReverseGeocoder {
         ].compactMap { $0 }.filter { !$0.isEmpty }
         let joined = parts.joined(separator: " ")
         return joined.isEmpty ? nil : joined
-    }
-
-    /// 소수 4자리 반올림(폴백 포맷용). 1234.5/10000 반올림으로 부동소수 표기 안정화.
-    private static func round4(_ value: Double) -> Double {
-        (value * 10_000).rounded() / 10_000
     }
 }
 

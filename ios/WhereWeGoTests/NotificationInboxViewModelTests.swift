@@ -1,10 +1,11 @@
 import XCTest
 @testable import WhereWeGo
 
-// NotificationInboxViewModel read-all 1회 보장 + 포그라운드 list-only 검증(설계 §7, FR-19/FR-21, BR-4).
+// NotificationInboxViewModel 탭 진입당 read-all 1회 + in-flight 가드 + 포그라운드 list-only 검증(설계 §7, FR-19/FR-21, BR-4).
 //
 // (CONSIDER) 케이스:
-//  - load() 2회 호출 → readAll 은 1회만(didReadAll 가드).
+//  - 순차 load() 2회 → 탭 진입마다 read-all 1회씩(누적 2회, 재진입 읽음 누락 방지).
+//  - 동시(concurrent) load() → in-flight 가드로 list/read-all 각 1회(cross-review #1).
 //  - readAll 성공 후 unreadCount==0 낙관 갱신.
 //  - onForeground() 는 list 만 호출(readAll 미호출).
 //
@@ -12,18 +13,34 @@ import XCTest
 @MainActor
 final class NotificationInboxViewModelTests: XCTestCase {
 
-    // MARK: - load 2회 → readAll 1회(didReadAll, BR-4)
+    // MARK: - 순차 load 2회 → 탭 진입마다 read-all 1회씩(재진입 읽음 누락 방지, Gemini HIGH)
 
-    func test_load_calledTwice_readAllOnlyOnce() async {
+    func test_load_sequentialTwice_readAllEachTime() async {
         let api = MockNotificationAPI(unreadCount: 5)
         let vm = NotificationInboxViewModel(api: api, deepLinkRouter: DeepLinkRouter())
 
         await vm.load()
         await vm.load()
 
-        // list 는 매 load 마다 호출(2회), readAll 은 didReadAll 가드로 1회만.
+        // 순차 load 는 매 탭 진입마다 didReadAll 리셋 → list·readAll 각각 2회(재진입 시 읽음 보장).
         XCTAssertEqual(api.listCount, 2)
-        XCTAssertEqual(api.readAllCount, 1, "read-all 은 최초 load 1회만 시도해야 한다(BR-4).")
+        XCTAssertEqual(api.readAllCount, 2, "탭 진입(load)마다 read-all 1회씩 시도해야 한다(재진입 읽음 누락 방지).")
+    }
+
+    // MARK: - 동시 load → in-flight 가드로 list/read-all 1회(cross-review #1)
+
+    func test_load_concurrent_inFlightGuardCallsOnce() async {
+        // 동시 진입(예: MainTabView .task + scenePhase .active) → in-flight 가드로 중복 list 차단.
+        let api = MockNotificationAPI(unreadCount: 5, listDelayNanos: 50_000_000)
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: DeepLinkRouter())
+
+        async let first: Void = vm.load()
+        async let second: Void = vm.load()
+        _ = await (first, second)
+
+        // 두 번째 load 는 isLoading 가드에 막혀 즉시 return → list/readAll 각 1회.
+        XCTAssertEqual(api.listCount, 1, "동시 load 는 in-flight 가드로 list 1회만(cross-review #1).")
+        XCTAssertEqual(api.readAllCount, 1, "동시 load 는 in-flight 가드로 read-all 1회만.")
     }
 
     // MARK: - readAll 성공 후 unreadCount==0 낙관 갱신
@@ -67,7 +84,7 @@ final class NotificationInboxViewModelTests: XCTestCase {
     }
 
     func test_loadThenForeground_readAllStillOnce() async {
-        // 진입 load 후 포그라운드 복귀 → list 추가 1회, read-all 은 누적 1회 유지.
+        // 진입 load(list+readAll 각 1) 후 포그라운드 복귀(list만 1) → list 누적 2회, read-all 은 1회 유지(onForeground 미호출).
         let api = MockNotificationAPI(unreadCount: 2)
         let vm = NotificationInboxViewModel(api: api, deepLinkRouter: DeepLinkRouter())
 
@@ -75,7 +92,7 @@ final class NotificationInboxViewModelTests: XCTestCase {
         await vm.onForeground()
 
         XCTAssertEqual(api.listCount, 2)
-        XCTAssertEqual(api.readAllCount, 1)
+        XCTAssertEqual(api.readAllCount, 1, "onForeground 는 read-all 을 호출하지 않으므로 누적 1회 유지(FR-19).")
     }
 
     // MARK: - 목록 조회 실패 → .error(BR-6)
@@ -137,11 +154,14 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
     private let unreadCount: Int
     private let listError: Error?
     private let readAllError: Error?
+    /// list() 응답 지연(ns). 동시 load in-flight 가드 검증용(첫 호출 진행 중 두 번째 진입 차단 확인).
+    private let listDelayNanos: UInt64
 
-    init(unreadCount: Int, listError: Error? = nil, readAllError: Error? = nil) {
+    init(unreadCount: Int, listError: Error? = nil, readAllError: Error? = nil, listDelayNanos: UInt64 = 0) {
         self.unreadCount = unreadCount
         self.listError = listError
         self.readAllError = readAllError
+        self.listDelayNanos = listDelayNanos
     }
 
     var listCount: Int { lock.lock(); defer { lock.unlock() }; return _listCount }
@@ -150,6 +170,7 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
 
     func list() async throws -> NotificationListResponse {
         lock.lock(); _listCount += 1; lock.unlock()
+        if listDelayNanos > 0 { try? await Task.sleep(nanoseconds: listDelayNanos) }
         if let listError { throw listError }
         return NotificationListResponse(items: [], unreadCount: unreadCount)
     }

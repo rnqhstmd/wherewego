@@ -104,6 +104,7 @@ final class AddPlaceViewModel: ObservableObject {
     /// 독립맵 드래그(cameraIdle) → 콕찍기 전환. query 비움 + .pinpoint + 중심 추적 + 디바운스 역지오 트리거.
     /// 역지오는 ReverseGeocoder 결과, 실패 시 coordinateFallback(AC-9)로 resolvedAddress 를 채운다.
     func onMapMoved(center: Coordinate) {
+        guard !isCreating else { return }   // 등록 진행 중 지도 드래그로 인한 상태 불일치 방지(Gemini MEDIUM).
         query = ""                  // AC-8 — 콕찍기 시작 시 검색어 초기화.
         inputMode = .pinpoint
         selectedPlace = nil
@@ -139,7 +140,11 @@ final class AddPlaceViewModel: ObservableObject {
     /// 검색: selectedPlace 의 좌표/주소 사용. 콕찍기: roundCoordinate 7자리 center + resolvedAddress.
     /// validatePinInput 재사용(BR-4 장소명 ≤200자·좌표 범위). 성공 시 View 가 시트를 닫는다.
     func createPin(tag: PinTag) async {
-        guard let mapViewModel else { return }
+        // weak mapViewModel 해제 시 무음 종료 대신 사용자 피드백(cross-review #3) — 확정 동선이므로 안내 노출.
+        guard let mapViewModel else {
+            errorMessage = "일시적인 오류가 발생했어요. 다시 시도해주세요."
+            return
+        }
         guard let groupId = mapViewModel.groupId else {
             errorMessage = MapError.noActiveGroup.errorDescription
             return
