@@ -37,6 +37,15 @@ P7 재설계가 **의도적으로 웹과 다르게** 만든 부분(인앱 채팅
 - "이상함" 원인: ① **Liquid Glass 미구현**(iOS26 분기/폴백 동일 코드 = 불투명 흰 캡슐, `FloatingTabBar.swift:100-122`) ② safe area 미처리 ③ **콘텐츠 겹침**(내위치/룰렛 버튼 `MapView.swift:263,252`, 채팅 입력바 `BotChatView.swift:122-124`가 탭바에 가림).
 - 수정안: Liquid Glass(`.glassEffect`/`.ultraThinMaterial`) 적용, safe area inset, 지도 플로팅 버튼·탭 콘텐츠 하단 패딩을 탭바 높이만큼 확보. 5탭 유지 vs 웹 액션바 회귀는 결정 필요(5탭 유지가 현실적).
 
+## 캡처 (2026-06-04 시뮬레이터 iPhone 17 / iOS 26.5, 실행 화면)
+`screens/` 폴더. 영역별 현 상태 시각 참고:
+- `01-map-floating-tabbar.png` — 지도 탭(Mapbox 웹 동일 스타일 렌더 ✅) + 하단 5탭 플로팅바·태그필터·룰렛(우상단)·내위치(우하단). **영역 4**.
+- `02-chat-reconnecting.png` — 채팅 탭 상단 "● 재연결 중…" 지속 + "릴스 링크를 입력해보세요". **영역 3**.
+- `03-add-place-sheet.png`, `04-add-place-sheet-2.png` — "장소 추가" 풀 시트(시트 안 별도 지도+검색+좌표+태그+여기등록). **영역 1**(웹은 메인 지도 인라인).
+- `05-notification-detail.png` — 알림 탭 상세("< 목록" + 핀 행). 알림함 동작.
+- `06-myinfo.png` — 마이페이지(사용자·활성그룹·계정). 정상 동작.
+- `07-roulette.png` — "가볼까 룰렛" 시트(추억 핀 포함 토글 + 로딩).
+
 ## 우선순위
 1. 영역 3(재연결중) — 제품 결정 우선(웹엔 없음 → 제거가 정합). + API_BASE_URL/ws 진단(소).
 2. 영역 4(플로팅바) — Liquid Glass + 겹침(소~중), 즉시 체감 개선.
