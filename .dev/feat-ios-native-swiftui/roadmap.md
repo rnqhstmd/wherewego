@@ -66,6 +66,18 @@
 - **완료 기준**: 5탭 통일·＋통합 추가·채팅(릴스)직행·알림함·내정보 동작(Mac 검증), 커플챗 제거.
 - **비고**: 원래 "채팅 = 봇방 + 1:1 커플방 분리" 결정을 **개정** — 커플챗 제거, 봇방을 "채팅" 탭(릴스 저장 전용)으로. 백엔드 커플방은 잔존 → 컷오버 시 정리. 주 작업은 **SwiftUI 뷰**(디자인·API·백엔드 기존).
 
+### P8 — iOS↔프론트엔드 기능 정합성 확인 및 수정 (후속, P7 머지 후)
+- **배경**: P7 머지 후 시뮬레이터 실행 중, 웹과 동작이 다른 4개 영역 발견. P7이 의도적으로 웹과 다르게 만든 부분(인앱 채팅·5탭)이 섞여 있어, 프론트엔드(frontend/) 코드 기준으로 재정합한다.
+- **범위(분석 상세: `.dev/feat-ios-nav-redesign/frontend-parity-findings.md`)**:
+  - 영역 1 [웹정합/대]: **핀 추가 인라인화** — ＋ 별도 시트 → 메인 지도 위 중앙 십자선 + 얇은 하단 카드(웹 CrosshairOverlay/AddPinPickerContent 동치).
+  - 영역 2 [웹정합/대]: **핀 상세 말풍선** — 풀 모달 시트 → 마커에 붙는 말풍선 팝업(웹 SpeechBubblePopup). `mapboxMap.point(for:)` 투영 노출 선행.
+  - 영역 3 [제품결정]: **채팅 "재연결중…"** — 웹엔 인앱 채팅 없음(카카오 연동만). 인앱 STOMP 제거 vs 연결 수정 결정 필요.
+  - 영역 4 [제품결정+시각]: **하단 5탭 플로팅바** — 웹엔 5탭 없음. Liquid Glass 미구현·safe area·콘텐츠 겹침 수정 + 5탭 유지 vs 웹 액션바 회귀 결정.
+- **공통 선행**: 영역 1·2는 좌표→화면점 투영(`MapboxMapView.point(for:)`) 노출 + 메인 지도 ZStack 오버레이 패턴.
+- **의존**: P7(머지됨). 별도 브랜치 권장(예: `feat/ios-frontend-parity`).
+- **완료 기준**: 4영역이 웹과 동작 정합(또는 제품 결정대로). 영역 3·4는 결정 후 착수.
+- **선행 결정**: (a) 인앱 채팅 제거 vs 유지, (b) 5탭 유지 vs 웹 액션바.
+
 ### 컷오버 (런치 후 — dev Phase 아님)
 - 앱 **앱스토어 게시 확정 → 웹 종료** + **봇 레이어/쿠키 auth 제거**: `domain/bot`, `BotLinkCode/Mapping`, `LinkCodeHandler`, `MessageType.LINK_CODE`, `KakaoSkillSecretFilter`, `/chatbot/webhook`, 프론트 `/bot/connect`, **쿠키 인증** 삭제. 기존 사용자 그룹 자연 승계 확인.
 
