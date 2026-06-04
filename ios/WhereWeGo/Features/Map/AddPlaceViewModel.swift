@@ -52,7 +52,7 @@ final class AddPlaceViewModel: ObservableObject {
     /// 생성 성공 시 true → View 가 시트를 닫는다.
     @Published private(set) var didCreate = false
 
-    /// 콕찍기 모드에서 추적 중인 독립맵 중심 좌표(확정 시 7자리 반올림 후 create). 초기 nil.
+    /// 콕찍기 모드에서 추적 중인 메인 지도 중심 좌표(확정 시 7자리 반올림 후 create). 초기 nil.
     private(set) var pinpointCenter: Coordinate?
 
     // MARK: - 의존성
@@ -95,7 +95,7 @@ final class AddPlaceViewModel: ObservableObject {
         }
     }
 
-    /// 검색 결과 1개 선택(FR-13) → selectedPlace 채움 + 독립맵 flyTo(View 가 cameraCommand 소비).
+    /// 검색 결과 1개 선택(FR-13) → selectedPlace 채움 + 메인 지도 flyTo(View 가 cameraCommand 소비).
     /// 콕찍기 상태(pinpointCenter/resolvedAddress)는 초기화한다(검색 좌표가 입력의 단일 출처).
     func selectResult(_ place: PlaceItem) {
         errorMessage = nil
@@ -108,7 +108,7 @@ final class AddPlaceViewModel: ObservableObject {
 
     // MARK: - 콕찍기(FR-14, AC-8)
 
-    /// 독립맵 드래그(cameraIdle) → 콕찍기 전환. query 비움 + .pinpoint + 중심 추적 + 디바운스 역지오 트리거.
+    /// 메인 지도 드래그(cameraIdle) → 콕찍기 전환. query 비움 + .pinpoint + 중심 추적 + 디바운스 역지오 트리거.
     /// 역지오는 ReverseGeocoder 결과, 실패 시 coordinateFallback(AC-9)로 resolvedAddress 를 채운다.
     func onMapMoved(center: Coordinate) {
         guard !isCreating else { return }   // 등록 진행 중 지도 드래그로 인한 상태 불일치 방지(Gemini MEDIUM).
