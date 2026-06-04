@@ -2,8 +2,8 @@ import Foundation
 import UserNotifications
 
 // 앱 의존성 조립(설계 §12). 초기화 순환을 차단하기 위해 2단계로 구성한다.
-// P5 채팅·푸시·딥링크(설계 §4·§8·§9·§11): chatAPI/deviceAPI/pushRegistration/currentUser/
-// chatRealtime(단일 인스턴스)/deepLinkRouter 조립 + 로그아웃 디바이스 해제·currentUser.clear 훅 배선.
+// P5 채팅·푸시·딥링크(설계 §4·§8·§9·§11 → 채팅 이벤트 전환): chatAPI/deviceAPI/pushRegistration/currentUser/
+// deepLinkRouter 조립 + 로그아웃 디바이스 해제·currentUser.clear 훅 배선. (봇 채팅 STOMP 제거 — 폴링/푸시 수신)
 @MainActor
 final class AppDependencies {
     let tokens: KeychainTokenStore
@@ -27,10 +27,8 @@ final class AppDependencies {
     let deviceAPI: DeviceAPIProtocol
     /// APNs 권한·토큰 등록/해제 서비스(NotificationView·AppDelegate·logout 에서 사용).
     let pushRegistration: PushRegistrationServicing
-    /// 현재 사용자 식별자/닉네임 캐시(봇 토픽 path·내 메시지 판별).
+    /// 현재 사용자 식별자/닉네임 캐시(내 메시지 판별·userId 선행 확보).
     let currentUser: CurrentUser
-    /// 채팅 실시간 단일 인스턴스(앱 수명, 설계 §4). 두 방이 공유한다.
-    let chatRealtime: ChatRealtimeService
     /// 푸시 탭/Universal Link → 앱 내 이동 라우터(MainTabView 가 pending 소비).
     let deepLinkRouter: DeepLinkRouter
     /// AppDelegate 가 알림 센터에 연결하는 델리게이트(강참조 보유는 AppDelegate).
@@ -74,13 +72,6 @@ final class AppDependencies {
         let currentUser = CurrentUser(authAPI: authAPI)
         let deviceAPI = DeviceAPI(client: client)
         let pushRegistration = PushRegistrationService(deviceAPI: deviceAPI)
-        // 단일 STOMP 연결(actor) → 단일 ChatRealtimeService(앱 수명). TokenStore·CurrentUser 주입.
-        let stompClient = StompClient(baseURL: baseURL)
-        let chatRealtime = ChatRealtimeService(
-            client: stompClient,
-            tokens: tokens,
-            currentUser: currentUser
-        )
         let deepLinkRouter = DeepLinkRouter()
         // 알림 델리게이트 — 탭 응답을 deepLinkRouter 로 위임(약결합 setter 주입).
         let notificationDelegate = AppNotificationDelegate()
@@ -90,7 +81,6 @@ final class AppDependencies {
         self.deviceAPI = deviceAPI
         self.pushRegistration = pushRegistration
         self.currentUser = currentUser
-        self.chatRealtime = chatRealtime
         self.deepLinkRouter = deepLinkRouter
         self.notificationDelegate = notificationDelegate
 

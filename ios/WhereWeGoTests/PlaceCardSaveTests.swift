@@ -86,7 +86,6 @@ final class PlaceCardSaveTests: XCTestCase {
             chatAPI: StubChatAPI(),
             pinAPI: pinAPI,
             groupAPI: StubBotGroupAPI(group: group),
-            realtime: StubChatRealtime(),
             currentUser: makeCurrentUser()
         )
     }

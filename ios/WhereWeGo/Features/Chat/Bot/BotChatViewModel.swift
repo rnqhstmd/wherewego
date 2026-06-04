@@ -1,16 +1,17 @@
 import Foundation
 
-// 봇 채팅 ViewModel(설계 §5, FR-2/3/5/6/7, BR-3/5/6, AC-2/3/4/9/20).
-//  - 로드(FR-2): botMessages(cursor:nil,limit:20) → id DESC 응답을 오름차순(오래된→최신)으로 유지(View 직접 소비).
-//  - 전송(FR-3/BR-3/AC-4): 2000자 가드 후 sendBotMessage → 응답 messageId 로 PROCESSING 버블 즉시 추가(pendingProcessingIds FIFO).
-//  - PROCESSING 교체(AC-2): STOMP onFrame 으로 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT) 도착 시
-//    가장 오래된 pendingProcessing 1건 제거 + 결과 append. dedup 은 messageId Set.
-//  - 카드 저장(FR-5/AC-3): 좌표 있는 카드만 pinAPI.create(tag:.REEL, groupId:활성그룹).
-//    409(PLC_DUPLICATE_PIN) 흡수 — saveInfoMessage 안내(에러 미전파). 좌표 없는 카드 스킵 + 안내.
-//  - 재연결 보완(AC-9): onReconnected → reconcileLatest() cursor=null 최신 재조회 + id dedup 병합.
+// 봇 채팅 ViewModel(설계 §5 → 이벤트 전환: STOMP 제거).
+// 수신 경로(상시 WebSocket 구독 대신):
+//  - 전송 직후 제한 폴링(FR-1/2): PROCESSING 대기 중에만 2초 간격·최대 10회 reconcileLatest.
+//  - APNs 푸시(BR-1): 백그라운드 통지(발송·라우팅은 푸시 도메인이 담당, 본 VM 무관).
+//  - scenePhase .active 재조회(FR-4): BotChatView 가 reconcileLatest 트리거.
 //
-// FR-6/BR-6/FR-27/AC-20: 사용자는 릴스 URL 텍스트만 전송한다. 미디어는 단말에 저장하지 않으며
-// 서버가 URL 로부터 장소를 추출한다(클라이언트는 텍스트 송수신만 담당).
+//  - 로드(FR-2): botMessages(cursor:nil,limit:20) → id DESC 응답을 오름차순(오래된→최신)으로 유지.
+//  - 전송(FR-3/BR-3/AC-4): 2000자 가드 후 sendBotMessage → 응답 messageId 로 PROCESSING 버블 추가(FIFO) + 폴링 시작.
+//  - 결과 반영(AC-2): reconcileLatest 가 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT) 병합 시 가장 오래된 PROCESSING 교체. dedup=knownIds.
+//  - 카드 저장(FR-5/AC-3): 좌표 있는 카드만 pinAPI.create(tag:.REEL). 409(PLC_DUPLICATE_PIN) 흡수.
+//
+// FR-6/BR-6/AC-20: 사용자는 릴스 URL 텍스트만 전송한다(클라이언트는 텍스트 송수신만).
 @MainActor
 final class BotChatViewModel: ObservableObject {
 
@@ -18,15 +19,15 @@ final class BotChatViewModel: ObservableObject {
     static let messageMaxLength = 2000
     /// 최신 페이지 1건 로드 크기(BR-4, 설계 §5).
     static let pageLimit = 20
-    /// 봇 구독 식별자(설계 §4 — `sub-bot`).
-    static let subscriptionId = "sub-bot"
+    /// 전송 후 결과 폴링 간격(초, FR-2).
+    static let pollIntervalSeconds: Double = 2.0
+    /// 폴링 최대 횟수(FR-2). 봇 처리 SLA(≈4.5초)의 약 4배 여유. 상한 초과는 scenePhase 복귀가 보완(BR-4).
+    static let maxPollAttempts = 10
 
     // MARK: - 게시 상태
 
     /// 화면 표시 순서(오름차순: 오래된 → 최신). ChatScrollContainer 가 그대로 소비.
     @Published private(set) var messages: [ChatFrame] = []
-    /// 실시간 연결 상태(상단 배너). ChatRealtimeService.state 미러.
-    @Published private(set) var realtimeState: ConnectionState = .connecting
     /// 입력 초안(입력바 바인딩). 전송 성공 시 초기화.
     @Published var draft: String = ""
     /// 카드 저장 안내/409 흡수 토스트(에러 아님). nil 이면 미표시.
@@ -37,12 +38,13 @@ final class BotChatViewModel: ObservableObject {
     private let chatAPI: ChatAPIProtocol
     private let pinAPI: PinAPIProtocol
     private let groupAPI: GroupAPIProtocol
-    private let realtime: ChatRealtimeServicing
     private let currentUser: CurrentUser
+    /// 폴링 간격 대기(테스트 주입). 실제는 Task.sleep, 테스트는 즉시/제어로 결정성 확보.
+    private let sleeper: @Sendable (Double) async -> Void
 
     // MARK: - 내부 상태
 
-    /// 표시 중인 messageId 집합(dedup, AC-2). 로드/전송/STOMP 공통 차단.
+    /// 표시 중인 messageId 집합(dedup, AC-2). 로드/전송/폴링 공통 차단.
     private var knownIds: Set<Int> = []
     /// PROCESSING 버블 messageId FIFO(전송 순서). 결과 도착 시 가장 오래된 1건을 교체 대상으로.
     private var pendingProcessingIds: [Int] = []
@@ -52,54 +54,39 @@ final class BotChatViewModel: ObservableObject {
     private var hasMore = false
     /// 중복 로드 방지(appear/loadMore 동시 진입).
     private var isLoading = false
+    /// 전송 후 결과 폴링 루프(중복 생성 방지·이탈 취소, FR-9). nil 이면 미실행.
+    private var pollingTask: Task<Void, Never>?
 
     init(
         chatAPI: ChatAPIProtocol,
         pinAPI: PinAPIProtocol,
         groupAPI: GroupAPIProtocol,
-        realtime: ChatRealtimeServicing,
-        currentUser: CurrentUser
+        currentUser: CurrentUser,
+        sleeper: @escaping @Sendable (Double) async -> Void = { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
     ) {
         self.chatAPI = chatAPI
         self.pinAPI = pinAPI
         self.groupAPI = groupAPI
-        self.realtime = realtime
         self.currentUser = currentUser
+        self.sleeper = sleeper
     }
 
     // MARK: - 라이프사이클(진입/이탈)
 
-    /// 진입: 봇 토픽 구독 + 재연결 보완 콜백 연결 → 최신 메시지 로드.
-    /// subscribe 를 load 보다 먼저 호출한다(Q2 레이스): load(수백 ms) 사이 도착한 STOMP 프레임 유실 방지.
-    /// 구독 등록 직후 load 하므로, 도착 프레임과 load 결과가 겹쳐도 messageId dedup(knownIds)로 중복 제거된다.
+    /// 진입: 최신 메시지 로드(STOMP 구독 제거 — 이벤트 전환). 봇 결과는 전송 직후 폴링/포그라운드 재조회/푸시로 수신한다.
+    /// userId 선행 확보(currentUser.load)는 기존 흐름 보존 차원에서 유지하되, 실패해도 로드는 진행한다.
     func appear() async {
-        observeRealtimeState()
-        // 봇 토픽 path(/topic/chat/bot/{userId})에 필요한 userId 를 subscribe 이전에 선행 확보한다.
-        // 미확보 시 .bot(userId:0) placeholder 로 구독되는 문제 방지(load 실패해도 기존 흐름 유지, cross-review).
         if currentUser.id == nil {
             await currentUser.load()
-        }
-        // 재연결 성공 통지(AC-9) — id 키 옵저버로 등록(봇/커플 동시 구독 시 덮어쓰기 방지, Critical-5).
-        realtime.addReconnectedObserver(id: Self.subscriptionId) { [weak self] in
-            // 옵저버는 @MainActor 컨텍스트에서 호출되지만 Sendable 계약 유지 위해 Task 로 진입.
-            Task { @MainActor [weak self] in
-                await self?.reconcileLatest()
-            }
-        }
-        await realtime.subscribe(topic: botTopic, id: Self.subscriptionId) { [weak self] frame in
-            // STOMP 콜백은 @Sendable — MainActor 로 hop 하여 상태 접근.
-            Task { @MainActor [weak self] in
-                self?.handleFrame(frame)
-            }
         }
         await load()
     }
 
-    /// 이탈: 구독 해제(연결은 유지 — 빠른 방 전환 대비). 상태/재연결 옵저버 정리(id 키).
+    /// 이탈: 진행 중 결과 폴링 루프 중단(연결 개념 없음 — 폴링만 정리).
     func disappear() async {
-        realtime.removeStateObserver(id: Self.subscriptionId)
-        realtime.removeReconnectedObserver(id: Self.subscriptionId)
-        await realtime.unsubscribe(id: Self.subscriptionId)
+        cancelPolling()
     }
 
     // MARK: - 로드(FR-2)
@@ -145,8 +132,8 @@ final class BotChatViewModel: ObservableObject {
 
     // MARK: - 전송(FR-3/BR-3/AC-4)
 
-    /// 입력 텍스트 전송. 2000자 초과 시 차단(앞 2000자 절단 후 진행하지 않고 가드만 — 입력바가 카운터로 안내).
-    /// 성공 시 응답 messageId 로 PROCESSING 버블 즉시 추가(pendingProcessingIds FIFO) + 입력 초기화.
+    /// 입력 텍스트 전송. 2000자 초과 시 차단(가드만 — 입력바가 카운터로 안내).
+    /// 성공 시 응답 messageId 로 PROCESSING 버블 즉시 추가(FIFO) + 입력 초기화 + 결과 폴링 시작.
     func send() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -158,28 +145,40 @@ final class BotChatViewModel: ObservableObject {
             draft = text
             return
         }
-        // 봇 방 응답은 PROCESSING 플레이스홀더 messageId. 즉시 버블 추가(kind 는 PROCESSING 고정).
+        // 봇 방 응답은 PROCESSING 플레이스홀더 messageId. 즉시 버블 추가 후 결과 폴링 시작.
         appendProcessing(messageId: response.messageId)
+        startPollingIfNeeded()
     }
 
-    // MARK: - STOMP 수신(AC-2)
+    // MARK: - 결과 폴링(FR-1/2/9, BR-3)
 
-    /// MESSAGE 프레임 1건 처리. dedup 후, BOT 결과면 가장 오래된 PROCESSING 제거 + 결과 append.
-    private func handleFrame(_ frame: ChatFrame) {
-        guard !knownIds.contains(frame.messageId) else { return }
-
-        switch frame.kind {
-        case .PLACE_CARDS, .SYSTEM, .MEMO_PROMPT:
-            // BOT 결과(같은 turn) — 가장 오래된 PROCESSING 1건을 교체한다(AC-2).
-            removeOldestProcessing()
-            appendFrame(frame)
-        case .TEXT:
-            // USER 에코/기타 텍스트 — 그대로 append(dedup 으로 자기 전송 중복은 없음).
-            appendFrame(frame)
-        case .PROCESSING:
-            // 서버발 PROCESSING(전송 응답이 아닌 푸시) — 추적 + 표시.
-            appendProcessing(messageId: frame.messageId)
+    /// 전송 직후 결과 대기 폴링 시작. 이미 실행 중이거나(FR-9 중복 방지) 대기 PROCESSING 이 없으면 무시한다.
+    private func startPollingIfNeeded() {
+        guard pollingTask == nil, !pendingProcessingIds.isEmpty else { return }
+        pollingTask = Task { [weak self] in
+            await self?.runPollingLoop()
         }
+    }
+
+    /// 2초 간격·최대 10회로 reconcileLatest. PROCESSING 소진/취소(이탈)/상한 도달 시 종료한다.
+    /// 사용자 전송 직후로만 한정한 제한 폴링(BR-3 — 앱 상시 폴링 아님).
+    private func runPollingLoop() async {
+        defer { pollingTask = nil }
+        var attempts = 0
+        while attempts < Self.maxPollAttempts {
+            guard !pendingProcessingIds.isEmpty else { return }
+            await sleeper(Self.pollIntervalSeconds)
+            if Task.isCancelled { return }
+            guard !pendingProcessingIds.isEmpty else { return }
+            await reconcileLatest()
+            attempts += 1
+        }
+    }
+
+    /// 진행 중 폴링 루프 취소(이탈 시). 다음 진입/푸시/scenePhase 복귀가 결과를 보완한다.
+    private func cancelPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 
     // MARK: - 카드 저장(FR-5/AC-3)
@@ -235,14 +234,14 @@ final class BotChatViewModel: ObservableObject {
         )
     }
 
-    // MARK: - 재연결 보완(AC-9)
+    // MARK: - 재조회(FR-4, 폴링·scenePhase 공용)
 
-    /// 재연결 성공 시 최신 N건 재조회 + id dedup 병합(서버 진실 소스). 끊김 동안 누락된 결과를 보완한다.
+    /// 최신 N건 재조회 + id dedup 병합(서버 진실 소스). 폴링 틱과 포그라운드 복귀(scenePhase .active)에서 호출한다.
+    /// 같은 turn 의 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT)가 들어오면 가장 오래된 PROCESSING 을 교체한다(AC-2 정합).
     func reconcileLatest() async {
         guard let response = try? await chatAPI.botMessages(cursor: nil, limit: Self.pageLimit) else { return }
         let ascending = response.messages.reversed()
         for frame in ascending where !knownIds.contains(frame.messageId) {
-            // 같은 turn 의 결과(BOT 결과 kind)가 들어오면 PROCESSING 을 교체(AC-2 정합).
             switch frame.kind {
             case .PLACE_CARDS, .SYSTEM, .MEMO_PROMPT:
                 removeOldestProcessing()
@@ -251,36 +250,12 @@ final class BotChatViewModel: ObservableObject {
             }
             appendFrame(frame)
         }
-        // 재조회 결과가 dedup 으로 모두 중복이어도 커서/hasMore 는 최신 page 값으로 갱신한다
-        // (이후 loadMore 일관 — CoupleChatViewModel.reconcileLatest 와 대칭, cross-review).
+        // 재조회 결과가 dedup 으로 모두 중복이어도 커서/hasMore 는 최신 page 값으로 갱신한다(이후 loadMore 일관).
         nextCursor = response.nextCursor
         hasMore = response.hasMore
     }
 
-    /// 수동 재시도(.disconnected 배너의 "다시 연결").
-    func retryRealtime() async {
-        await realtime.retryManually()
-    }
-
     // MARK: - Private 헬퍼
-
-    /// 봇 토픽(CurrentUser.id 기반). id 미확보면 0 placeholder — 서비스가 sendSubscribe 단계에서 최신 id 로 재구성한다.
-    private var botTopic: ChatTopic {
-        .bot(userId: currentUser.id ?? 0)
-    }
-
-    /// 서비스의 연결 상태를 realtimeState 로 미러링한다(상단 배너 구독원, C9 통합 보강).
-    /// ChatRealtimeServicing.currentState 로 즉시 1회 동기화 후, onStateChange 콜백으로 후속 전환을 반영한다.
-    /// (구체 타입 캐스팅·$state.values 관찰 제거 — 프로토콜 경유.)
-    private func observeRealtimeState() {
-        realtimeState = realtime.currentState
-        realtime.addStateObserver(id: Self.subscriptionId) { [weak self] state in
-            // 옵저버는 @MainActor 에서 호출되지만 Sendable 계약 유지 위해 Task 로 진입.
-            Task { @MainActor [weak self] in
-                self?.realtimeState = state
-            }
-        }
-    }
 
     /// PROCESSING 버블 추가(dedup + FIFO 추적). 표시는 ChatFrame(PROCESSING).
     private func appendProcessing(messageId: Int) {
@@ -316,7 +291,7 @@ final class BotChatViewModel: ObservableObject {
         return parts.joined(separator: ". ")
     }
 
-    /// PROCESSING 플레이스홀더 ChatFrame 생성(전송 응답/서버 푸시 공통).
+    /// PROCESSING 플레이스홀더 ChatFrame 생성(전송 응답/폴링 공통).
     /// ChatFrame 은 커스텀 디코더만 있어 직접 메모리 init 이 없으므로 고정 형식 JSON 경유로 구성한다(PROCESSING payload={}).
     /// 형식이 고정이라 디코딩은 항상 성공하지만, 방어적으로 옵셔널 반환(실패 시 호출부 no-op).
     private static func makeProcessingFrame(messageId: Int) -> ChatFrame? {

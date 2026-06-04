@@ -14,14 +14,15 @@ struct BotChatView: View {
     /// 입력바 포커스(전송 후 유지/해제 제어).
     @FocusState private var inputFocused: Bool
 
+    /// 포그라운드 복귀 감지(FR-4 — 백그라운드 수신/폴링 상한 초과 결과 보완 재조회).
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         VStack(spacing: 0) {
             ChatScrollContainer(
                 messages: viewModel.messages,
-                connectionState: viewModel.realtimeState,
                 emptyText: "릴스 링크를 입력해보세요",
                 onLoadMore: { Task { await viewModel.loadMore() } },
-                onRetry: { Task { await viewModel.retryRealtime() } },
                 onSavePlaceCards: { selected, messageId in
                     Task { await viewModel.savePlaceCards(selected, from: messageId) }
                 }
@@ -39,6 +40,12 @@ struct BotChatView: View {
         }
         .onDisappear {
             Task { await viewModel.disappear() }
+        }
+        // 포그라운드 복귀 시 결과 재조회(FR-4 — 폴링 상한 초과/백그라운드 수신 보완).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await viewModel.reconcileLatest() }
+            }
         }
     }
 

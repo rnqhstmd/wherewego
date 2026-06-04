@@ -1,6 +1,5 @@
 package com.wherewego.domain.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.push.PushNotificationService;
@@ -17,13 +16,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.List;
 
 /**
- * P2: 커플 방(1:1) 메시지 전송 서비스(FR-10). 봇은 개입하지 않으며 저장 + 실시간 브로드캐스트만 한다.
+ * P2: 커플 방(1:1) 메시지 전송 서비스(FR-10). 봇은 개입하지 않으며 저장 + 상대 멤버 APNs 푸시만 한다.
+ * (채팅 이벤트 전환: STOMP 실시간 발행 제거 — 실시간 표시는 클라이언트 폴링/포그라운드 재조회/푸시가 담당.)
  *
  * <p>흐름: 활성 멤버십 검증(BR-3/AC-5, 비멤버 → GROUP_NOT_MEMBER 403) → 활성 커플 방 확보(BR-2 부분 UNIQUE)
- * → 사용자 텍스트 append → 트랜잭션 <b>커밋 후(afterCommit)</b> 상대 멤버에게 STOMP 발행.</p>
+ * → 사용자 텍스트 append → 트랜잭션 <b>커밋 후(afterCommit)</b> 상대 멤버에게 APNs 푸시.</p>
  *
- * <p>상대 멤버가 없는 1인 그룹이면 구독자가 없으므로 STOMP 발행을 생략하고 저장만 한다(BR-5/AC-15).
- * 발행은 단방향 best-effort이며 실패해도 호출자에게 전파하지 않는다({@link ChatStompPublisher}가 격리).</p>
+ * <p>상대 멤버가 없는 1인 그룹이면 푸시 대상이 없으므로 푸시를 생략하고 저장만 한다(BR-5/AC-15).
+ * 푸시는 단방향 best-effort이며 실패해도 호출자에게 전파하지 않는다.</p>
  */
 @Slf4j
 @Service
@@ -35,8 +35,6 @@ public class CoupleChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageAppender chatMessageAppender;
-    private final ChatStompPublisher chatStompPublisher;
-    private final ObjectMapper objectMapper;
     private final PushNotificationService pushNotificationService;
 
     /**
@@ -107,11 +105,10 @@ public class CoupleChatService {
     }
 
     /**
-     * 상대 활성 멤버가 존재할 때만 커밋 후 STOMP 발행을 등록한다(BR-5/AC-15).
+     * 상대 활성 멤버가 존재할 때만 커밋 후 APNs 푸시를 등록한다(BR-5/AC-15).
      *
-     * <p>1인 그룹(상대 없음)이면 구독자가 없으므로 발행을 생략한다. {@code publishCouple}은
-     * {@code /topic/chat/couple/{groupId}} 토픽 발행이라 상대 userId가 직접 필요하지는 않으나,
-     * "상대 존재 여부"로 발행/생략을 판정한다.</p>
+     * <p>1인 그룹(상대 없음)이면 푸시 대상이 없으므로 생략한다. 상대 멤버 각각에게 roomId 기준으로
+     * 푸시한다(실시간 표시는 클라이언트 폴링/포그라운드 재조회가 담당 — STOMP 발행 제거).</p>
      */
     private void broadcastToOthersAfterCommit(Long groupId, Long userId, ChatMessage saved) {
         List<Long> otherMemberIds = groupMemberRepository.findOtherActiveMemberIds(groupId, userId);
@@ -121,8 +118,8 @@ public class CoupleChatService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                chatStompPublisher.publishCouple(groupId, ChatMessageFrame.from(saved, objectMapper));
                 // FR-17②: 커밋 후 상대 멤버 각각에게 APNs 푸시(best-effort). roomId는 저장된 메시지 기준.
+                // 실시간 표시는 클라이언트의 전송 직후 폴링/포그라운드 복귀 재조회가 담당(STOMP 발행 제거).
                 for (Long partnerUserId : otherMemberIds) {
                     pushNotificationService.pushCoupleMessage(partnerUserId, saved.getRoomId());
                 }

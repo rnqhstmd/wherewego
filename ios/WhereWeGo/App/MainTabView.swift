@@ -10,7 +10,7 @@ import SwiftUI
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
 //      읽음 처리(readAll)는 알림 탭 진입 시 NotificationInboxView.load() 에서만 발생한다.
 //
-// 채팅 실시간(ChatRealtimeService)은 단일 인스턴스(앱 수명)를 BotChatViewModel 이 사용한다(설계 §4).
+// 봇 채팅 수신은 STOMP 제거 후 전송 직후 폴링 + scenePhase 재조회 + APNs 푸시로 대체(채팅 이벤트 전환).
 // ViewModel 수명은 본 뷰가 @StateObject 로 보유(탭 전환에도 유지 — QE-1 map/bot VM 수명 보존).
 struct MainTabView: View {
 
@@ -48,7 +48,6 @@ struct MainTabView: View {
                 chatAPI: dependencies.chatAPI,
                 pinAPI: dependencies.pinAPI,
                 groupAPI: dependencies.groupAPI,
-                realtime: dependencies.chatRealtime,
                 currentUser: dependencies.currentUser
             )
         )
