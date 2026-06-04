@@ -4,8 +4,9 @@ import SwiftUI
 //  - 시스템 탭바 숨김 + .safeAreaInset(edge:.bottom) 으로 FloatingTabBar 부착(둥근 플로팅 필 바, 콘텐츠 자동 회피). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
 //  - 어디갈까: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
 //  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
-//  - ＋(P8 영역1): mapViewModel.enterAddPin() → 메인 지도 인라인 오버레이(시트 제거). selection 불변(AC-1).
-//    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1). EmptyMapCard 진입점과 동일 모드.
+//  - ＋ 장소 추가(P8 영역1·영역4 후속): 탭바에서 분리되어 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
+//    speed-dial 2선택지(✋ 콕찍기 / 🔍 검색) → mapViewModel.enterAddPin(mode:) → 메인 지도 인라인 오버레이(시트 제거).
+//    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1).
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil.
 //      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
@@ -105,13 +106,12 @@ struct MainTabView: View {
         //  자식 뷰로 전파되지 않는 SwiftUI 한계가 있다(콘텐츠가 바 뒤로 가림). 따라서 각 탭이
         //  .reserveFloatingTabBarSpace() 로 자체 footprint 를 확보하고, 바는 .overlay 로 얹는다.
         //  overlay 콘텐츠는 container safe area 를 존중하므로 바가 홈 인디케이터 위에 배치된다(AC-4).
-        // 둥근 플로팅 필 바(4탭 + 센터 ＋ FAB). 알림 미읽음 배지(unreadCount>0)·＋ 액션(#95+#97).
-        // ＋ 는 selection 불변(AC-1) — 인라인 추가 모드만 토글(시트 미표시, #97).
+        // 둥근 플로팅 필 바(4탭 순수 네비게이션). 알림 미읽음 배지(unreadCount>0)만 표시.
+        // 장소 추가(＋)는 지도 화면 우하단 speed-dial 로 분리됨(MapView.addPinSpeedDial) — 탭바에는 없다.
         .overlay(alignment: .bottom) {
             FloatingTabBar(
                 selection: $selection,
-                hasUnread: notificationInboxViewModel.unreadCount > 0,
-                onPlusTap: { mapViewModel.enterAddPin() }
+                hasUnread: notificationInboxViewModel.unreadCount > 0
             )
             // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
             //  TabView 전체에 걸면 채팅 입력바의 SwiftUI 키보드 회피까지 억제되어 입력바가 키보드에 가려진다.
@@ -126,10 +126,13 @@ struct MainTabView: View {
         .onChange(of: deepLinkRouter.pending) { _, _ in
             consumePending()
         }
-        // 탭 전환(selection 변경) 시 인라인 추가 모드 종료(BR-1/AC-12). ＋ 는 selection 불변이라 발화하지 않는다.
+        // 탭 전환(selection 변경) 시 인라인 추가 모드 종료(BR-1/AC-12). 지도 탭에서 ＋ FAB 로 추가 모드에
+        //  들어간 뒤 다른 탭으로 이동하면 작성 중 상태를 정리한다.
         // 작성 중 위치 정보는 exitAddPin 이 폐기(cancelPendingWork → 디바운스/생성 Task 취소).
+        // ＋ speed-dial 을 펼친 채(모드 미진입) 탭 이동한 경우도 메뉴를 닫아 잔여 펼침 상태를 정리한다.
         .onChange(of: selection) { _, _ in
             mapViewModel.exitAddPin()
+            mapViewModel.isAddMenuExpanded = false
         }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
         .onChange(of: scenePhase) { _, phase in

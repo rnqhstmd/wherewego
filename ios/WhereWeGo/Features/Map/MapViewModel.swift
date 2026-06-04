@@ -151,6 +151,9 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var isAddingPin = false
     /// 인라인 추가 VM(검색/콕찍기/생성 로직, AddPlaceSheet 에서 이관). 진입 시 생성, 종료 시 nil(작성 중 폐기, BR-1).
     @Published private(set) var addPlaceVM: AddPlaceViewModel?
+    /// ＋ FAB speed-dial 펼침 상태(P8 영역4 후속). ＋ 탭 시 "지도에서 찍기(콕찍기)/검색해서 찾기" 2선택지를 펼친다.
+    /// 모드 진입(enterAddPin) 시 false 로 닫는다. View 가 토글하므로 private(set) 아님.
+    @Published var isAddMenuExpanded = false
     /// cameraIdle 최신 줌(FR-11 진입 판단, MUST-4). idle 전에도 flyTo/applyInitialCamera 명령 줌으로 시드.
     @Published private(set) var mapZoom: Double?
 
@@ -493,18 +496,24 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 인라인 핀 추가 모드 진입/종료(P8 영역1, FR-1~11)
 
-    /// 인라인 추가 모드 진입(FR-1/2, AC-1). ＋ 탭·EmptyMapCard 두 진입점이 호출한다.
-    /// AddPlaceViewModel 생성 → isAddingPin=true → 진입 줌인/seed(applyAddPinEntry).
+    /// 인라인 추가 모드 진입(FR-1/2, AC-1). 지도 FAB speed-dial 의 2선택지·EmptyMapCard 가 호출한다.
+    /// AddPlaceViewModel 생성 → isAddingPin=true. 진입 모드(P8 영역4 후속):
+    ///  - `.pinpoint`(콕찍기, 기본): 진입 줌인 + 현재 중심 초기 seed(applyAddPinEntry) → 십자선으로 위치 지정.
+    ///  - `.search`(검색): 줌인/seed 생략. inputMode 기본값 .search 유지 → 검색바로 위치 지정(선택 시 flyTo).
     /// 이미 활성이면 무시(중복 진입 방어). 룰렛/메모 등 다른 시트와의 배타는 호출부에서 처리(BR-6).
-    func enterAddPin() {
+    func enterAddPin(mode: AddPlaceViewModel.InputMode = .pinpoint) {
         guard !isAddingPin else { return }
+        isAddMenuExpanded = false   // speed-dial 닫고 선택한 모드로 진입.
         // 진입 추적 플래그 초기화(이전 세션 잔여 제거).
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
         addPlaceVM = AddPlaceViewModel(mapViewModel: self)
         isAddingPin = true
-        applyAddPinEntry()
+        // 콕찍기만 진입 줌인/초기 seed. 검색은 사용자가 검색→선택할 때까지 콕찍기 중심을 만들지 않는다(십자선 미표시).
+        if mode == .pinpoint {
+            applyAddPinEntry()
+        }
     }
 
     /// 인라인 추가 모드 종료(FR-8, AC-12). 탭 전환/취소/생성 성공/룰렛 진입 등 모든 종료 경로 공통.

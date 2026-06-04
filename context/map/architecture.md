@@ -68,3 +68,22 @@ P7 머지 후 발견된 웹↔iOS 정합 차이 중 영역2(핀 상세) 재정�
 - **화면밖 판정**: `GeoMath.isPointVisible` 순수함수로 분리(clamp 없이 숨김, 복귀 시 재표시). Windows 단위테스트 가능.
 - **콘텐츠 재사용**: `PinDetailContent` 공통 뷰 추출(태그/장소명/메모/사진/삭제 액션 + `PinDetailViewModel` 재사용), `PinDetailSheet` 삭제. 시트 충돌 시 일시 숨김(`activeSheet==.none` 표시조건, selectedPinId 보존), 동일 핀 재탭 유지, 사진 작업 중 배경탭 닫기 무시.
 - 코드측 완료. 꼬리 픽셀 위치·추적 부드러움·시각 정합은 DoD-B(Mac) 최종 검증.
+
+### P8 영역1 — 핀 추가 인라인화 ([PR #97](https://github.com/rnqhstmd/wherewego/pull/97))
+
+풀모달 시트(`AddPlaceSheet`) → 메인 지도 위 인라인 **십자선**(`CrosshairOverlay`, `allowsHitTesting(false)`) + 하단 얇은 **확정 카드**(`InlineAddPlaceCard`: 검색창+결과+주소/폴백+태그3종+여기등록+취소)로 전환. 웹 `CrosshairOverlay`/`AddPinPickerContent` 동치.
+
+- **상태 소유 이전**: `AddPlaceViewModel` 수명을 `MapViewModel`이 소유(`isAddingPin`/`addPlaceVM`/`mapZoom`). ＋탭(`MainTabView.enterAddPin`)·`EmptyMapCard` 두 진입점이 동일 VM 공유, `exitAddPin` 시 작성 중 VM 폐기(BR-1). `AddPlaceSheet.swift` 삭제 + `ActiveSheet.addPlace` case 제거.
+- **검색+콕찍기 한 흐름**(토글 없음): `inputMode` search/pinpoint, 진입 즉시 콕찍기 seed. 중심 좌표는 메인 지도 `cameraIdle` 추적(영역2 `point(for:)` 인프라와 별개).
+- **역지오코딩**: 지도 이동 시 온디바이스 `CLGeocoder`(`ReverseGeocoder`)로 주소 실시간(디바운스, `enterAddPin` 측 5초 one-shot 타임아웃, 공유 `CoreLocationService` 10초 불변, 좌표 폴백). `isResolvingAddress` "주소를 찾는 중...".
+- **FR-11 줌인 분기**: `MapEvent.cameraIdle`에 `zoom` 추가(`MapboxMapView`에서만 SDK 줌 읽기, MUST-1 격리 유지). `addPinMinZoom=13`/`addPinLocatedZoom=15`/`addPinFallbackZoom=14`.
+- 코드측 완료, 시각/실렌더 DoD-B(Mac).
+
+### P8 영역4 — 하단 플로팅 5탭바 ([PR #95](https://github.com/rnqhstmd/wherewego/pull/95))
+
+하단 5탭(어디갈까·채팅·＋·알림·내정보) 플로팅 바(`FloatingTabBar`)의 시각 완성도 + 콘텐츠 가림 해소.
+
+- **`safeAreaInset` 부착**: `MainTabView`에서 `FloatingTabBar`를 ZStack 오버레이가 아니라 `TabView.safeAreaInset(edge: .bottom)`로 부착. SwiftUI가 바 높이만큼 각 탭 safe area를 자동 예약 → 채팅 입력바·알림/내정보 스크롤·맵 오버레이가 **자동 회피**(이중 가산 소멸). `.ignoresSafeArea(.keyboard, edges: .bottom)`로 키보드 표시 시 바 고정.
+- **맵 full-bleed**: `MapContainerView().ignoresSafeArea()`(배경 끝까지) vs `loadedOverlay`(내위치/룰렛)는 축소된 safe area를 따라 바 위로 자동 상승. 좌표계 분리.
+- **매직넘버 SSOT**: `FloatingTabBar.Metrics` 중첩 enum(`barHeight=64`/`bottomGap=12`), `FloatingBarBackground` glass(iOS26+)/solid 분기. 신규 파일 없음.
+- 코드측 완료, Liquid Glass·시각 DoD-B(Mac).

@@ -1,15 +1,17 @@
 import SwiftUI
 
-// 둥근 플로팅 필 바(설계 §1, FR-1~4, BR-1, AC-2).
+// 둥근 플로팅 필 바(설계 §1, FR-1~4).
 //  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
 //    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
-//  - 5칸 = 4탭 버튼(어디갈까·채팅·알림·내정보) + 가운데 ＋ FAB(주황 원, 바 안에 flush).
+//  - 4칸 = 4탭 버튼(어디갈까·채팅·알림·내정보). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
 //  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
 //  - 버전 분기(FR-4): iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 필(WGColor.panel) 폴백.
-//  - ＋(BR-1/AC-2): MainTab 에 미포함. onPlusTap 만 호출하고 selection 은 변경하지 않는다.
+//  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
+//    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리. 기존 센터 ＋는 selection 불변이라
+//    채팅/알림/내정보 탭에서 누르면 (안 보이는 지도에만 작용해) 무반응이 되는 비대칭이 있었다.
 
-/// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). ＋ 는 액션이므로 미포함.
+/// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). 장소 추가(＋)는 지도 화면 FAB 이므로 탭 미포함.
 enum MainTab: Hashable, CaseIterable {
     case map
     case chat
@@ -31,12 +33,10 @@ struct FloatingTabBar: View {
 
     @Binding private var selection: MainTab
     private let hasUnread: Bool
-    private let onPlusTap: () -> Void
 
-    init(selection: Binding<MainTab>, hasUnread: Bool, onPlusTap: @escaping () -> Void) {
+    init(selection: Binding<MainTab>, hasUnread: Bool) {
         self._selection = selection
         self.hasUnread = hasUnread
-        self.onPlusTap = onPlusTap
     }
 
     var body: some View {
@@ -46,7 +46,6 @@ struct FloatingTabBar: View {
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
                       label: "채팅")
-            plusButton
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
             tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")
         }
@@ -85,23 +84,6 @@ struct FloatingTabBar: View {
         }
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-
-    // MARK: - 센터 ＋ FAB(주황 원, 바 안에 flush, BR-1/AC-2)
-
-    private var plusButton: some View {
-        Button {
-            // BR-1/AC-2: selection 을 변경하지 않고 추가 액션만 호출.
-            onPlusTap()
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(WGColor.panel)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(WGColor.cta))
-                .frame(maxWidth: .infinity)
-        }
-        .accessibilityLabel("장소 추가")
     }
 }
 

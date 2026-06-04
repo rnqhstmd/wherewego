@@ -1,12 +1,15 @@
 import SwiftUI
 
 // 지도 메인 화면(설계 §3·§7·§11, FR-2/6/7/8). 온보딩 종착 → 지도 진입(GroupsView 대체).
-// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치 우하단).
+// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치/＋추가 우하단).
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
 // 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1), 룰렛(RouletteSheet)은 activeSheet 시트로 연결한다.
 // P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼.
 // P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin → CrosshairOverlay + InlineAddPlaceCard).
+// P8 영역4 후속: ＋ 진입점을 탭바 센터에서 지도 우하단 speed-dial(addPinSpeedDial)로 이전. 탭바는 4탭 순수 네비게이션.
+//   ＋ 탭 → 2선택지(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색) → enterAddPin(mode:). 모드별 UI 분리:
+//   십자선은 콕찍기 모드(inputMode==.pinpoint)만, 검색바는 검색 모드(.search)만 노출.
 struct MapView: View {
     @StateObject private var viewModel: MapViewModel
     @Environment(\.scenePhase) private var scenePhase
@@ -31,31 +34,31 @@ struct MapView: View {
 
             // 인라인 핀 추가 모드(P8 영역1, FR-3/4, AC-2/3). 십자선은 토스트보다 아래 레이어
             // (방문 토스트가 십자선 위에 표시 — PRD 엣지). 십자선은 지도 중심(=화면 중앙) 위 고정.
-            if viewModel.isAddingPin {
-                CrosshairOverlay()
-                    .transition(.opacity)   // QE-1
+            // 십자선은 콕찍기 모드(inputMode==.pinpoint)일 때만 노출(P8 영역4 후속 모드 분리). 검색 모드는 검색바로 위치 지정.
+            // inputMode 는 addPlaceVM(중첩 ObservableObject) 소유라 MapView body 가 직접 추종하지 못하므로,
+            // addVM 을 @ObservedObject 로 관찰하는 AddPinCrosshairLayer 로 분리해 모드 전환 시 십자선이 토글되게 한다.
+            if viewModel.isAddingPin, let addVM = viewModel.addPlaceVM {
+                AddPinCrosshairLayer(viewModel: addVM)
 
-                if let addVM = viewModel.addPlaceVM {
-                    VStack {
-                        Spacer()
-                        InlineAddPlaceCard(
-                            viewModel: addVM,
-                            onSelectResult: { place in
-                                // 검색 결과 선택 → VM 갱신 + 메인 지도 flyTo(B2 계약, AC-9).
-                                addVM.selectResult(place)   // 이미 unwrap 된 로컬 인스턴스 재사용(스타일 통일).
-                                viewModel.flyTo(
-                                    lat: place.latitude,
-                                    lng: place.longitude,
-                                    zoom: MapViewModel.pinFocusZoom
-                                )
-                            },
-                            onCancel: { viewModel.exitAddPin() }   // FR-8, AC-12
-                        )
-                        // QE-2/AC-14 — FloatingTabBar 와 겹치지 않도록 탭바 높이 이상 bottom padding.
-                        .padding(.bottom, Self.inlineCardBottomPadding)
-                    }
-                    .transition(.move(edge: .bottom))   // QE-1
+                VStack {
+                    Spacer()
+                    InlineAddPlaceCard(
+                        viewModel: addVM,
+                        onSelectResult: { place in
+                            // 검색 결과 선택 → VM 갱신 + 메인 지도 flyTo(B2 계약, AC-9).
+                            addVM.selectResult(place)   // 이미 unwrap 된 로컬 인스턴스 재사용(스타일 통일).
+                            viewModel.flyTo(
+                                lat: place.latitude,
+                                lng: place.longitude,
+                                zoom: MapViewModel.pinFocusZoom
+                            )
+                        },
+                        onCancel: { viewModel.exitAddPin() }   // FR-8, AC-12
+                    )
+                    // QE-2/AC-14 — FloatingTabBar 와 겹치지 않도록 탭바 높이 이상 bottom padding.
+                    .padding(.bottom, Self.inlineCardBottomPadding)
                 }
+                .transition(.move(edge: .bottom))   // QE-1
             }
 
             // 방문 토스트(설계 §4, FR-27). 화면 정중앙 오버레이. PinDetail 시트와 별개.
@@ -238,6 +241,16 @@ struct MapView: View {
 
     private var loadedOverlay: some View {
         ZStack {
+            // speed-dial 펼침 시 딤 배경(P8 영역4 후속). 패딩 밖 전체를 덮어 바깥 탭을 흡수한다(빈 곳 탭 → 메뉴 닫힘).
+            //  컨트롤(태그필터/룰렛/내위치/speed-dial)보다 아래 레이어 → 버튼은 정상 탭되고 빈 곳 탭만 닫힌다.
+            if viewModel.isAddMenuExpanded {
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { viewModel.isAddMenuExpanded = false }
+                    .transition(.opacity)
+            }
+
             // 상단 태그 필터 + (핀 0개 시) 빈 상태 카드.
             VStack(spacing: 0) {
                 TagFilterBar(activeFilters: $viewModel.activeFilters)
@@ -249,12 +262,13 @@ struct MapView: View {
 
                 Spacer(minLength: 0)
 
-                // 핀 0개(loaded) → 빈 상태 카드(FR-8). ＋ 와 동일하게 인라인 추가 모드로 진입(FR-2, AC-1).
+                // 핀 0개(loaded) → 빈 상태 카드(FR-8). 첫 장소는 검색으로 찾도록 검색 모드로 진입.
                 if viewModel.pins.isEmpty {
-                    EmptyMapCard(onAddPin: { viewModel.enterAddPin() })
+                    EmptyMapCard(onAddPin: { viewModel.enterAddPin(mode: .search) })
                     Spacer(minLength: 0)
                 }
             }
+            .padding(.horizontal, 16)
 
             // 룰렛: 지도 우상단 플로팅 원형 버튼(태그필터 바 아래, FR-6).
             VStack {
@@ -265,23 +279,34 @@ struct MapView: View {
                 .padding(.top, 60)
                 Spacer()
             }
+            .padding(.horizontal, 16)
 
-            // 내 위치: 지도 우하단 플로팅 버튼(FR-7). 룰렛(우상단)과 분리(ZStack alignment).
+            // 우하단 플로팅 컨트롤 세로 스택: 내 위치(위, 보조) + 장소 추가 ＋ speed-dial(아래, 주 액션).
+            //  룰렛(우상단)과 분리(ZStack alignment). ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
+            //  주 액션(＋, 56 주황)을 thumb-reach 코너 최하단에 두고, 보조(내위치, 48 흰)를 그 위에 둔다.
+            //  ＋ 탭 → speed-dial 펼침(✋ 지도에서 찍기 / 🔍 검색해서 찾기). 인라인 추가 모드(isAddingPin) 중엔
+            //  하단 InlineAddPlaceCard 가 떠 있으므로 speed-dial 전체를 숨긴다(중복 방지).
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
-                    myLocationButton
+                    VStack(alignment: .trailing, spacing: 14) {
+                        myLocationButton
+                        if !viewModel.isAddingPin {
+                            addPinSpeedDial
+                                .transition(.scale.combined(with: .opacity))   // QE-1 등장·퇴장
+                        }
+                    }
                 }
-                // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 내위치 버튼이 바를 직접 회피한다(PR리뷰).
+                // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 버튼 스택이 바를 직접 회피한다(PR리뷰).
                 //  바 footprint(contentFootprint = barHeight+bottomGap) 만큼 올리고 버튼-바 숨 여백(bottomGap)을 더한다(AC-2). 수치 보정 DoD-B.
                 .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
     }
 
-    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치 우하단, FR-6/7)
+    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
 
     /// 룰렛 진입 플로팅 원형 버튼(FR-6). 우상단. stale 재조회는 RouletteViewModel.spin() 내부 await 가 단일 보장점.
     private var rouletteButton: some View {
@@ -321,6 +346,92 @@ struct MapView: View {
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
         .accessibilityLabel("내 위치")
+    }
+
+    /// 장소 추가 ＋ speed-dial(P8 영역4 후속 — 탭바 센터 ＋ 분리·이동). 우하단 코너 주 액션.
+    ///  닫힘=＋ 원형 FAB(56 주황). ＋ 탭 → 위로 2선택지 펼침(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색).
+    ///  각 선택지가 enterAddPin(mode:)로 해당 모드 진입. isAddingPin 중엔 상위 스택에서 숨겨 중복을 막는다.
+    private var addPinSpeedDial: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            if viewModel.isAddMenuExpanded {
+                speedDialItem(
+                    icon: "hand.draw.fill",
+                    label: "지도에서 찍기",
+                    accessibility: "지도에서 찍어 추가"
+                ) { viewModel.enterAddPin(mode: .pinpoint) }
+                speedDialItem(
+                    icon: "magnifyingglass",
+                    label: "검색해서 찾기",
+                    accessibility: "검색해서 추가"
+                ) { viewModel.enterAddPin(mode: .search) }
+            }
+            mainPlusButton
+        }
+        .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
+    }
+
+    /// speed-dial 메인 ＋ 버튼(56 주황). 펼침 시 45° 회전해 ✕ 처럼 보인다(열기/닫기 토글).
+    private var mainPlusButton: some View {
+        Button {
+            viewModel.isAddMenuExpanded.toggle()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(WGColor.panel)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(WGColor.cta))
+                .rotationEffect(.degrees(viewModel.isAddMenuExpanded ? 45 : 0))
+                .shadow(color: WGColor.shadowMd, radius: 10, y: 4)
+        }
+        .accessibilityLabel(viewModel.isAddMenuExpanded ? "추가 메뉴 닫기" : "장소 추가")
+    }
+
+    /// speed-dial 펼침 항목: 좌측 라벨 캡슐 + 우측 원형 아이콘 버튼(48 주황). 픽셀 정렬 보정 DoD-B.
+    private func speedDialItem(
+        icon: String,
+        label: String,
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text(label)
+                    .font(WGFont.sans(13))
+                    .foregroundStyle(WGColor.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(WGColor.panel)
+                    .clipShape(Capsule())
+                    .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(WGColor.panel)
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(WGColor.cta))
+                    .shadow(color: WGColor.shadow, radius: 6, y: 2)
+            }
+        }
+        .accessibilityLabel(accessibility)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+}
+
+// MARK: - 인라인 추가 십자선 레이어(콕찍기 모드 전용)
+
+/// 콕찍기 모드(inputMode==.pinpoint)일 때만 중앙 십자선을 노출하는 얇은 래퍼(P8 영역4 후속 모드 분리).
+/// addPlaceVM 을 @ObservedObject 로 직접 관찰해, 검색↔콕찍기 전환(inputMode 변화) 시 십자선이 토글되게 한다
+/// (MapView body 는 중첩 ObservableObject 인 addPlaceVM 내부 변화를 추종하지 못하므로 분리, QE-1).
+private struct AddPinCrosshairLayer: View {
+    @ObservedObject var viewModel: AddPlaceViewModel
+
+    var body: some View {
+        ZStack {
+            if viewModel.inputMode == .pinpoint {
+                CrosshairOverlay()
+                    .transition(.opacity)   // QE-1
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: viewModel.inputMode)
     }
 }
 

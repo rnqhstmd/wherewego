@@ -114,6 +114,43 @@ final class InlineAddPlaceModeTests: XCTestCase {
         XCTAssertEqual(vm.addPlaceVM?.pinpointCenter, Coordinate(latitude: 37.5446, longitude: 127.0557))
     }
 
+    // MARK: - P8 영역4 후속: speed-dial 진입 모드(콕찍기/검색) 분리
+
+    func test_enterAddPin_searchMode_doesNotSeedPinpoint() {
+        // 검색 모드 진입: 콕찍기 seed/줌인 없이 inputMode 가 .search 유지(십자선 미표시 근거).
+        // 줌≥13(콕찍기였다면 seedInitialPinpoint 가 도는 조건)에서도 검색 모드는 seed 하지 않음을 확인.
+        let vm = makeViewModel(location: StubLocationService(status: .denied))
+        vm.handle(.cameraIdle(centerLat: 37.5, centerLng: 127.0, zoom: 15))
+        vm.cameraCommand = nil
+
+        vm.enterAddPin(mode: .search)
+
+        XCTAssertTrue(vm.isAddingPin, "검색 모드도 인라인 추가 모드는 활성.")
+        XCTAssertEqual(vm.addPlaceVM?.inputMode, .search, "검색 모드 진입 시 .search 유지(콕찍기 seed 없음 → 십자선 미표시).")
+        XCTAssertNil(vm.addPlaceVM?.pinpointCenter, "검색 모드는 콕찍기 중심을 만들지 않는다.")
+        XCTAssertNil(vm.cameraCommand, "검색 모드는 진입 줌인/카메라 이동이 없다.")
+    }
+
+    func test_enterAddPin_defaultMode_isPinpoint() {
+        // 인자 없는 enterAddPin() 은 콕찍기 기본(기존 호출 호환).
+        let vm = makeViewModel(location: StubLocationService(status: .denied))
+        vm.handle(.cameraIdle(centerLat: 37.5, centerLng: 127.0, zoom: 15))
+
+        vm.enterAddPin()
+
+        XCTAssertEqual(vm.addPlaceVM?.inputMode, .pinpoint, "기본 모드는 콕찍기(seed 수행).")
+    }
+
+    func test_enterAddPin_closesAddMenu() {
+        // speed-dial 펼친 상태에서 모드 진입 → 메뉴를 닫는다.
+        let vm = makeViewModel()
+        vm.isAddMenuExpanded = true
+
+        vm.enterAddPin(mode: .search)
+
+        XCTAssertFalse(vm.isAddMenuExpanded, "모드 진입 시 speed-dial 메뉴를 닫는다.")
+    }
+
     func test_enterAddPin_whenZoomBelowMin_seoulCityHall_bumpsZoomToFallback() {
         // 줌3(<13, 서울시청 전국뷰) 진입 → zoom14 bump(FR-11). mapZoom 이 private(set) 이라 nil 직접 주입 불가하므로
         // cameraIdle(zoom:3)로 동치 검증(가정값 addPinAssumeZoomWhenUnknown=3 과 동일 경로, MUST-4/AC-20).

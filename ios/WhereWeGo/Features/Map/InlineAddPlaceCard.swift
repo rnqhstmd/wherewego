@@ -18,7 +18,11 @@ struct InlineAddPlaceCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            searchBar
+            // 검색 모드일 때만 검색바 노출(P8 영역4 후속 모드 분리). 콕찍기 모드는 지도 십자선으로 위치를 지정하므로
+            //  검색바를 숨겨 화면을 단순화한다. 검색 중 지도를 드래그하면 콕찍기로 전환되며 검색바가 사라진다(inputMode 추종).
+            if viewModel.inputMode == .search {
+                searchBar
+            }
             confirmCard
         }
     }
