@@ -24,7 +24,8 @@ final class PushRegistrationService: PushRegistrationServicing {
     private static let tokenDefaultsKey = "push.apns.deviceToken"
 
     private let deviceAPI: DeviceAPIProtocol
-    private let defaults: UserDefaults
+    // UserDefaults 는 스레드 안전하나 Sendable 미표기 → Swift 6 동시성 검사 통과 위해 명시.
+    nonisolated(unsafe) private let defaults: UserDefaults
 
     init(deviceAPI: DeviceAPIProtocol, defaults: UserDefaults = .standard) {
         self.deviceAPI = deviceAPI

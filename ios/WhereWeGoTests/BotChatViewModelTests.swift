@@ -1,14 +1,14 @@
 import XCTest
 @testable import WhereWeGo
 
-// BotChatViewModel 단위 테스트(설계 §5, AC-2/4).
-// - 전송 → PROCESSING 버블 추가(pendingProcessingIds FIFO).
-// - BOT 결과(STOMP onFrame) 수신 → 가장 오래된 PROCESSING 교체 + 결과 append.
-// - dedup: 동일 messageId 중복 프레임 차단.
-// - BR-3/AC-4: 2000자 초과 전송 차단.
+// BotChatViewModel 단위 테스트(설계 §5 → 이벤트 전환: STOMP 제거, 폴링 기반).
+// - 전송 → PROCESSING 버블(FIFO).
+// - 전송 직후 폴링(2초·최대 10회) → reconcileLatest 가 BOT 결과 도착 시 가장 오래된 PROCESSING 교체(AC-6).
+// - 폴링 상한 종료(AC-7), 이탈 중단(AC-8), 다회 전송 단일 루프(AC-9, FR-9).
+// - dedup, 2000자 가드(BR-3/AC-4), 로드 오름차순.
 //
-// 의존(ChatAPI/PinAPI/GroupAPI/Realtime/CurrentUser)은 in-file 프로토콜 목으로 주입(MapViewModelTests 패턴).
-// VM 이 @MainActor 이므로 테스트 클래스도 @MainActor.
+// 폴링 간격(sleeper)을 주입해 결정성을 확보한다(실제 Task.sleep 대신 즉시/지연 제어).
+// 의존(ChatAPI/PinAPI/GroupAPI/CurrentUser)은 in-file 프로토콜 목으로 주입(MapViewModelTests 패턴).
 @MainActor
 final class BotChatViewModelTests: XCTestCase {
 
@@ -17,8 +17,7 @@ final class BotChatViewModelTests: XCTestCase {
     func test_send_appendsProcessingBubble() async {
         let chatAPI = StubChatAPI()
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+        let vm = makeViewModel(chatAPI: chatAPI)
         await vm.appear()
 
         vm.draft = "https://instagram.com/reel/abc"
@@ -29,24 +28,48 @@ final class BotChatViewModelTests: XCTestCase {
         XCTAssertEqual(vm.messages.first?.kind, .PROCESSING)
         XCTAssertEqual(vm.messages.first?.messageId, 100)
         XCTAssertEqual(vm.draft, "")
+        await vm.disappear()
     }
 
-    // MARK: - 결과 수신 → PROCESSING 교체(AC-2)
+    // MARK: - AC-6: 전송 → 폴링 자동 반영 → PROCESSING 교체
 
-    func test_resultFrame_replacesOldestProcessing() async {
+    func test_send_pollingAutoReflectsResult() async {
         let chatAPI = StubChatAPI()
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
-        await vm.appear()
+        let sleeper = DelayingSleeper(delaySeconds: 0.02)
+        let vm = makeViewModel(chatAPI: chatAPI, sleeper: { _ in await sleeper.sleep() })
+        await vm.appear() // 초기 로드(빈)
+
+        // 폴링이 가져올 봇 결과 설정(서버 id DESC: 결과 200 + 원 PROCESSING 100).
+        chatAPI.messagesResult = .success(MessagesResponse(
+            messages: [makeFrame(messageId: 200, kind: .PLACE_CARDS), makeFrame(messageId: 100, kind: .PROCESSING)],
+            hasMore: false, nextCursor: nil))
 
         vm.draft = "릴스 링크"
         await vm.send()
+
+        await waitUntil { vm.messages.contains { $0.messageId == 200 } }
+
+        XCTAssertTrue(vm.messages.contains { $0.messageId == 200 && $0.kind == .PLACE_CARDS })
+        XCTAssertFalse(vm.messages.contains { $0.kind == .PROCESSING }, "결과 도착 시 PROCESSING 교체(AC-2/6).")
+        await vm.disappear()
+    }
+
+    // MARK: - AC-2: reconcileLatest 결과 교체(폴링이 호출하는 단위 동작)
+
+    func test_reconcileLatest_replacesOldestProcessing() async {
+        let chatAPI = StubChatAPI()
+        chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
+        let vm = makeViewModel(chatAPI: chatAPI)
+        await vm.appear()
+        vm.draft = "릴스"; await vm.send()
+        await vm.disappear() // 자동 폴링 중단 후 직접 검증
         XCTAssertEqual(vm.messages.map(\.kind), [.PROCESSING])
 
-        // BOT 결과(PLACE_CARDS) 도착 → PROCESSING 제거 + 결과 append.
-        realtime.emit(makeFrame(messageId: 200, kind: .PLACE_CARDS))
-        await drainFrames()
+        chatAPI.messagesResult = .success(MessagesResponse(
+            messages: [makeFrame(messageId: 200, kind: .PLACE_CARDS), makeFrame(messageId: 100, kind: .PROCESSING)],
+            hasMore: false, nextCursor: nil))
+        await vm.reconcileLatest()
 
         XCTAssertEqual(vm.messages.count, 1)
         XCTAssertEqual(vm.messages.first?.kind, .PLACE_CARDS)
@@ -54,42 +77,84 @@ final class BotChatViewModelTests: XCTestCase {
         XCTAssertFalse(vm.messages.contains { $0.kind == .PROCESSING })
     }
 
-    func test_multipleSends_replaceProcessingFIFO() async {
+    func test_reconcileLatest_multiplePending_replacesFIFO() async {
         let chatAPI = StubChatAPI()
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+        let vm = makeViewModel(chatAPI: chatAPI)
         await vm.appear()
 
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
-        vm.draft = "첫 번째"
-        await vm.send()
+        vm.draft = "첫"; await vm.send()
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 101, kind: .PROCESSING))
-        vm.draft = "두 번째"
-        await vm.send()
-
-        // PROCESSING 2건(100, 101) 순서 유지.
+        vm.draft = "둘"; await vm.send()
+        await vm.disappear()
         XCTAssertEqual(vm.messages.map(\.messageId), [100, 101])
 
-        // 첫 결과 도착 → 가장 오래된 PROCESSING(100) 제거.
-        realtime.emit(makeFrame(messageId: 200, kind: .SYSTEM))
-        await drainFrames()
+        // 첫 결과(SYSTEM 200) → 가장 오래된 PROCESSING(100) 교체.
+        chatAPI.messagesResult = .success(MessagesResponse(
+            messages: [
+                makeFrame(messageId: 200, kind: .SYSTEM),
+                makeFrame(messageId: 101, kind: .PROCESSING),
+                makeFrame(messageId: 100, kind: .PROCESSING)
+            ], hasMore: false, nextCursor: nil))
+        await vm.reconcileLatest()
+
         XCTAssertEqual(Set(vm.messages.map(\.messageId)), [101, 200])
     }
 
-    // MARK: - dedup
+    // MARK: - AC-7: 폴링 상한(10회) 종료
 
-    func test_duplicateFrame_ignored() async {
+    func test_polling_stopsAtMaxAttempts() async {
+        let chatAPI = StubChatAPI() // messagesResult 빈(기본) → 결과 안 옴
+        chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
+        let sleeper = DelayingSleeper(delaySeconds: 0.01)
+        let vm = makeViewModel(chatAPI: chatAPI, sleeper: { _ in await sleeper.sleep() })
+        await vm.appear()
+        vm.draft = "릴스"; await vm.send()
+
+        await waitUntil { sleeper.count >= BotChatViewModel.maxPollAttempts }
+        // 상한 도달 후 추가로 돌지 않는다.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(sleeper.count, BotChatViewModel.maxPollAttempts, "폴링은 상한(10회)에서 종료한다.")
+        XCTAssertTrue(vm.messages.contains { $0.kind == .PROCESSING }, "결과 미수신 시 PROCESSING 유지.")
+    }
+
+    // MARK: - AC-8: 이탈(disappear) 시 폴링 중단
+
+    func test_disappear_stopsPolling() async {
         let chatAPI = StubChatAPI()
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+        chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
+        let sleeper = DelayingSleeper(delaySeconds: 0.1)
+        let vm = makeViewModel(chatAPI: chatAPI, sleeper: { _ in await sleeper.sleep() })
+        await vm.appear()
+        vm.draft = "릴스"; await vm.send()
+
+        await waitUntil { sleeper.count >= 1 } // 첫 폴링 sleep 진입
+        let countAtDisappear = sleeper.count
+        await vm.disappear() // cancel
+
+        // 취소 후 폴링이 더 진행되지 않는다(취소 시점 진행 중 1틱 외 증가 없음).
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertLessThanOrEqual(sleeper.count, countAtDisappear + 1, "disappear 후 폴링 중단(AC-8).")
+    }
+
+    // MARK: - AC-9: 다회 연속 전송 단일 폴링 루프(FR-9)
+
+    func test_multipleSends_singlePollingLoop() async {
+        let chatAPI = StubChatAPI() // 빈 → 단일 루프 10회까지 진행
+        let sleeper = DelayingSleeper(delaySeconds: 0.02)
+        let vm = makeViewModel(chatAPI: chatAPI, sleeper: { _ in await sleeper.sleep() })
         await vm.appear()
 
-        realtime.emit(makeFrame(messageId: 300, kind: .SYSTEM))
-        await drainFrames()
-        realtime.emit(makeFrame(messageId: 300, kind: .SYSTEM))
-        await drainFrames()
+        chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
+        vm.draft = "첫"; await vm.send()
+        await waitUntil { sleeper.count >= 1 } // 첫 폴링이 sleep 진입(루프 점유)
+        chatAPI.sendResult = .success(SendMessageResponse(messageId: 101, kind: .PROCESSING))
+        vm.draft = "둘"; await vm.send() // 실행 중 루프 재사용(중복 생성 금지)
 
-        XCTAssertEqual(vm.messages.filter { $0.messageId == 300 }.count, 1)
+        await waitUntil { sleeper.count >= BotChatViewModel.maxPollAttempts }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(sleeper.count, BotChatViewModel.maxPollAttempts, "단일 폴링 루프만 실행한다(중복 생성 시 초과).")
+        await vm.disappear()
     }
 
     // MARK: - BR-3/AC-4: 2000자 가드
@@ -97,14 +162,12 @@ final class BotChatViewModelTests: XCTestCase {
     func test_send_overLimit_blocked() async {
         let chatAPI = StubChatAPI()
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+        let vm = makeViewModel(chatAPI: chatAPI)
         await vm.appear()
 
         vm.draft = String(repeating: "가", count: BotChatViewModel.messageMaxLength + 1)
         await vm.send()
 
-        // 전송 호출되지 않고 버블 미추가, 입력 유지.
         XCTAssertEqual(chatAPI.sendCallCount, 0)
         XCTAssertTrue(vm.messages.isEmpty)
         XCTAssertFalse(vm.draft.isEmpty)
@@ -113,8 +176,7 @@ final class BotChatViewModelTests: XCTestCase {
     func test_send_atLimit_allowed() async {
         let chatAPI = StubChatAPI()
         chatAPI.sendResult = .success(SendMessageResponse(messageId: 100, kind: .PROCESSING))
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+        let vm = makeViewModel(chatAPI: chatAPI)
         await vm.appear()
 
         vm.draft = String(repeating: "a", count: BotChatViewModel.messageMaxLength)
@@ -122,6 +184,7 @@ final class BotChatViewModelTests: XCTestCase {
 
         XCTAssertEqual(chatAPI.sendCallCount, 1)
         XCTAssertEqual(vm.messages.count, 1)
+        await vm.disappear()
     }
 
     // MARK: - 로드(오름차순 reverse)
@@ -131,15 +194,27 @@ final class BotChatViewModelTests: XCTestCase {
         // 서버는 id DESC(최신순) 반환.
         chatAPI.messagesResult = .success(MessagesResponse(
             messages: [makeFrame(messageId: 3, kind: .TEXT), makeFrame(messageId: 2, kind: .TEXT), makeFrame(messageId: 1, kind: .TEXT)],
-            hasMore: false,
-            nextCursor: nil
-        ))
-        let realtime = StubChatRealtime()
-        let vm = makeViewModel(chatAPI: chatAPI, realtime: realtime)
+            hasMore: false, nextCursor: nil))
+        let vm = makeViewModel(chatAPI: chatAPI)
         await vm.appear()
 
         // 화면은 오름차순(1,2,3).
         XCTAssertEqual(vm.messages.map(\.messageId), [1, 2, 3])
+    }
+
+    // MARK: - dedup(reconcile 재호출 시 동일 id 차단)
+
+    func test_reconcileLatest_dedupesKnownIds() async {
+        let chatAPI = StubChatAPI()
+        let vm = makeViewModel(chatAPI: chatAPI)
+        await vm.appear()
+
+        chatAPI.messagesResult = .success(MessagesResponse(
+            messages: [makeFrame(messageId: 300, kind: .SYSTEM)], hasMore: false, nextCursor: nil))
+        await vm.reconcileLatest()
+        await vm.reconcileLatest() // 동일 id 재조회
+
+        XCTAssertEqual(vm.messages.filter { $0.messageId == 300 }.count, 1)
     }
 
     // MARK: - 헬퍼
@@ -148,34 +223,60 @@ final class BotChatViewModelTests: XCTestCase {
         chatAPI: StubChatAPI,
         pinAPI: PinAPIProtocol? = nil,
         groupAPI: GroupAPIProtocol? = nil,
-        realtime: StubChatRealtime
+        sleeper: @escaping @Sendable (Double) async -> Void = { _ in }
     ) -> BotChatViewModel {
         BotChatViewModel(
             chatAPI: chatAPI,
             pinAPI: pinAPI ?? StubBotPinAPI(),
             groupAPI: groupAPI ?? StubBotGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
-            realtime: realtime,
-            currentUser: makeCurrentUser()
+            currentUser: makeCurrentUser(),
+            sleeper: sleeper
         )
+    }
+}
+
+// MARK: - 폴링 테스트 지원
+
+/// 주입 가능한 폴링 sleeper. 호출 횟수를 기록하고, delaySeconds>0 이면 실제로 그만큼 대기한다(취소 가능).
+/// 즉시(0)는 빠른 루프 검증, 지연(>0)은 이탈/중복 타이밍 검증에 쓴다.
+final class DelayingSleeper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count = 0
+    private let delaySeconds: Double
+
+    init(delaySeconds: Double = 0) {
+        self.delaySeconds = delaySeconds
+    }
+
+    var count: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _count
+    }
+
+    func sleep() async {
+        lock.lock(); _count += 1; lock.unlock()
+        if delaySeconds > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+        }
+    }
+}
+
+/// 조건이 참이 될 때까지(또는 상한까지) 짧게 대기하며 폴링 비동기 완료를 기다린다.
+@MainActor
+func waitUntil(_ condition: () -> Bool, maxIterations: Int = 300) async {
+    var i = 0
+    while !condition() && i < maxIterations {
+        try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+        i += 1
     }
 }
 
 // MARK: - 공유 헬퍼(이 파일 + PlaceCardSaveTests)
 
-/// onFrame 콜백의 Task{@MainActor} hop 이 완료되도록 양보한다(emit 후 동기 검증 전 호출).
-/// 단일 hop 이지만 여러 emit 누적 대비 충분히 양보한다.
-@MainActor
-func drainFrames() async {
-    for _ in 0..<3 {
-        await Task.yield()
-    }
-}
-
 @MainActor
 func makeCurrentUser() -> CurrentUser {
     // appear() 가 userId 선행 로드(currentUser.load() → GET /users/me)를 수행하므로(cross-review),
     // 실제 외부 네트워크 호출 대신 StubURLProtocol 로 me() 응답을 가로채 결정적으로 id 를 채운다.
-    // (envelope { "data": {...} } 형식, status 200.)
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [StubMeURLProtocol.self]
     let session = URLSession(configuration: config)
@@ -184,7 +285,6 @@ func makeCurrentUser() -> CurrentUser {
 }
 
 /// GET /users/me 를 가로채 고정 UserResponse(id:1) envelope 를 반환하는 테스트용 URLProtocol.
-/// appear() 의 userId 선행 로드가 실제 네트워크로 나가지 않도록 한다(결정성·속도).
 final class StubMeURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool {
         request.url?.path.hasSuffix("/users/me") ?? false
@@ -254,69 +354,6 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
     }
 }
 
-// VM 은 상태/재연결을 ChatRealtimeServicing 의 id 키 옵저버로 연결한다(Critical-5 — 단일 var 덮어쓰기 방지).
-// 본 목은 currentState 기본값(.connected)으로 두어 배너를 숨기고, reconcileLatest 직접 호출로 보완조회를 검증한다.
-// 옵저버는 딕셔너리로 보관하고 emitState/emitReconnected 헬퍼로 수동 트리거한다(필요 테스트용).
-@MainActor
-final class StubChatRealtime: ChatRealtimeServicing, @unchecked Sendable {
-    private var onFrame: (@Sendable (ChatFrame) -> Void)?
-    private(set) var subscribeCallCount = 0
-    private(set) var unsubscribeCallCount = 0
-    private(set) var retryCallCount = 0
-
-    var currentState: ConnectionState = .connected
-    private var stateObservers: [String: @Sendable (ConnectionState) -> Void] = [:]
-    private var reconnectedObservers: [String: @Sendable () -> Void] = [:]
-
-    func addStateObserver(id: String, _ handler: @escaping @Sendable (ConnectionState) -> Void) {
-        stateObservers[id] = handler
-    }
-
-    func removeStateObserver(id: String) {
-        stateObservers.removeValue(forKey: id)
-    }
-
-    func addReconnectedObserver(id: String, _ handler: @escaping @Sendable () -> Void) {
-        reconnectedObservers[id] = handler
-    }
-
-    func removeReconnectedObserver(id: String) {
-        reconnectedObservers.removeValue(forKey: id)
-    }
-
-    func subscribe(topic: ChatTopic, id: String, onFrame: @escaping @Sendable (ChatFrame) -> Void) async {
-        subscribeCallCount += 1
-        self.onFrame = onFrame
-    }
-
-    func unsubscribe(id: String) async {
-        unsubscribeCallCount += 1
-    }
-
-    func onForeground() async {}
-
-    func retryManually() async {
-        retryCallCount += 1
-    }
-
-    /// 테스트에서 STOMP MESSAGE 수신을 시뮬레이션한다(구독된 onFrame 직접 호출).
-    /// VM 의 onFrame 은 Task{@MainActor} hop 으로 handleFrame 을 호출하므로,
-    /// 호출부는 emit 후 await Task.yield() 로 hop 완료를 보장해야 한다.
-    func emit(_ frame: ChatFrame) {
-        onFrame?(frame)
-    }
-
-    /// 상태 변화 수동 트리거(등록된 옵저버 전체 통지).
-    func emitState(_ state: ConnectionState) {
-        for observer in stateObservers.values { observer(state) }
-    }
-
-    /// 재연결 성공 수동 트리거(등록된 옵저버 전체 통지).
-    func emitReconnected() {
-        for observer in reconnectedObservers.values { observer() }
-    }
-}
-
 final class StubBotPinAPI: PinAPIProtocol, @unchecked Sendable {
     var createResult: Result<PinSummary, Error> = .failure(APIError(code: "UNSET", status: 0, message: ""))
     private(set) var createRequests: [CreatePinRequest] = []
@@ -358,6 +395,7 @@ final class StubBotGroupAPI: GroupAPIProtocol, @unchecked Sendable {
 
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
+    func leaveGroup(groupId: Int) async throws {}
 }
 
 final class DummyTokenStore: TokenStore, @unchecked Sendable {

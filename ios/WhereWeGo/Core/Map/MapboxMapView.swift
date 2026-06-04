@@ -15,6 +15,10 @@ import SwiftUI
 import MapboxMaps
 import CoreLocation
 
+// `MapView` 이름이 WhereWeGo 의 SwiftUI MapView(struct, Features/Map)와 충돌하므로
+// Mapbox 네이티브 MapView(UIView)를 별칭으로 명시한다(같은 모듈 struct 가 우선 바인딩되는 것 회피).
+typealias MBMapView = MapboxMaps.MapView
+
 // MARK: - 실구현(token 발급 후 컴파일·검증, DoD-B)
 
 /// Mapbox MapView 를 SwiftUI 로 래핑(UIViewRepresentable).
@@ -32,13 +36,13 @@ struct MapboxMapView: UIViewRepresentable {
         Coordinator(onEvent: onEvent)
     }
 
-    func makeUIView(context: Context) -> MapView {
+    func makeUIView(context: Context) -> MBMapView {
         // 토큰 주입 + 스타일 적용으로 MapView 초기화(서울시청 기본 카메라는 ViewModel flyTo 로 보정).
         MapboxOptions.accessToken = accessToken
         let initOptions = MapInitOptions(
             styleURI: StyleURI(rawValue: styleURL) ?? .standard
         )
-        let mapView = MapView(frame: .zero, mapInitOptions: initOptions)
+        let mapView = MBMapView(frame: .zero, mapInitOptions: initOptions)
         mapView.ornaments.options.scaleBar.visibility = .hidden
         context.coordinator.mapView = mapView
 
@@ -67,7 +71,7 @@ struct MapboxMapView: UIViewRepresentable {
         return mapView
     }
 
-    func updateUIView(_ uiView: MapView, context: Context) {
+    func updateUIView(_ uiView: MBMapView, context: Context) {
         context.coordinator.onEvent = onEvent
         context.coordinator.syncMarkers(markers)
 
@@ -94,7 +98,7 @@ struct MapboxMapView: UIViewRepresentable {
     /// frontend MapboxView.tsx + _lib/clusterer.ts(supercluster radius 60 / maxZoom 16 / minPoints 2) 동치.
     final class Coordinator: NSObject, GestureManagerDelegate {
         var onEvent: (MapEvent) -> Void
-        weak var mapView: MapView?
+        weak var mapView: MBMapView?
         var lastCenter: CLLocationCoordinate2D?
         var cancellables = Set<AnyCancelable>()
         var tapRecognizer: UITapGestureRecognizer?
@@ -119,7 +123,7 @@ struct MapboxMapView: UIViewRepresentable {
         /// 클러스터 소스/레이어 설치(FR-5). 스타일 로드 직후 1회. supercluster 옵션 동치.
         func installClusterLayers() {
             guard let mapView, !clusterInstalled else { return }
-            let map = mapView.mapboxMap
+            let map: MapboxMap = mapView.mapboxMap
             do {
                 var source = GeoJSONSource(id: sourceId)
                 source.data = .featureCollection(FeatureCollection(features: []))
@@ -265,10 +269,10 @@ struct MapboxMapView: UIViewRepresentable {
 /// MapRenderer SDK 구현체(설계 §1 규칙3). MapView 를 보유하고 프로토콜 메서드를 SDK 호출로 위임.
 final class MapboxMapRenderer: MapRenderer {
     var eventHandler: ((MapEvent) -> Void)?
-    private weak var mapView: MapView?
+    private weak var mapView: MBMapView?
     private var pointManager: PointAnnotationManager?
 
-    init(mapView: MapView) {
+    init(mapView: MBMapView) {
         self.mapView = mapView
         self.pointManager = mapView.annotations.makePointAnnotationManager()
     }

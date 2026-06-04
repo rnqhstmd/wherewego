@@ -1,6 +1,5 @@
 package com.wherewego.domain.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.chat.BotPlaceCardsPayloadBuilder.PlaceCardsPayload;
 import com.wherewego.domain.chatbot.ChatbotContext;
@@ -62,9 +61,7 @@ public class BotChatProcessor {
     private final PlaceSearchService placeSearchService;
     private final BotPlaceCardsPayloadBuilder payloadBuilder;
     private final ChatMessageAppender appender;
-    private final ChatStompPublisher publisher;
     private final PlaceProperties placeProperties;
-    private final ObjectMapper objectMapper;
     private final PushNotificationService pushNotificationService;
     private final ChatRoomRepository chatRoomRepository;
 
@@ -104,7 +101,7 @@ public class BotChatProcessor {
             log.warn("봇 1턴 처리 실패 (userId={}, roomId={}): {}", userId, roomId, e.getMessage());
             result = appendSystemSafely(roomId, MSG_FAILED);
         }
-        publishSafely(userId, roomId, result);
+        pushResultSafely(userId, roomId, result);
     }
 
     /**
@@ -204,21 +201,19 @@ public class BotChatProcessor {
     }
 
     /**
-     * STOMP 발행. appender의 {@code repository.save()}가 (트랜잭션 없는 @Async 컨텍스트에서)
-     * REQUIRED로 개별 트랜잭션 커밋된 직후 동기 호출되므로 read-after-write가 안전하다.
-     * publisher가 best-effort라 추가 방어는 null 가드만 둔다.
+     * 봇 결과 APNs 푸시(이벤트 전환 — STOMP 발행 제거). appender의 {@code repository.save()}가
+     * (트랜잭션 없는 @Async 컨텍스트에서) REQUIRED로 개별 트랜잭션 커밋된 직후 동기 호출된다.
      *
-     * <p>message가 null이면 결과/실패 안내 append가 모두 실패한 경우다(DB 장애). messageId가 없어
-     * 별도 에러 프레임 발행은 무의미하므로 발행은 생략하되, PROCESSING 고아가 STOMP 없이 남는 상황을
-     * {@code log.error}로 격상하여 운영 가시성을 확보한다(FR-7).</p>
+     * <p>message가 null이면 결과/실패 안내 append가 모두 실패한 경우다(DB 장애). PROCESSING 고아가
+     * 통지 없이 남는 상황을 {@code log.error}로 격상하여 운영 가시성을 확보한다(FR-7). 클라이언트는
+     * 전송 직후 폴링 / 포그라운드 복귀 시 {@code GET /bot/messages} 재조회로 복구한다.</p>
      */
-    private void publishSafely(Long userId, Long roomId, ChatMessage message) {
+    private void pushResultSafely(Long userId, Long roomId, ChatMessage message) {
         if (message == null) {
-            log.error("봇 1턴 결과 메시지 append 완전 실패 (userId={}, roomId={}) — STOMP 발행 불가",
+            log.error("봇 1턴 결과 메시지 append 완전 실패 (userId={}, roomId={}) — 푸시 불가",
                     userId, roomId);
             return;
         }
-        publisher.publishBot(userId, ChatMessageFrame.from(message, objectMapper));
         // FR-17③: 봇 장소 추천 성공 결과(PLACE_CARDS)일 때만 요청자에게 APNs 푸시(best-effort).
         // SYSTEM 실패/안내 메시지에는 "장소 추천 완료" 푸시가 부적절하므로 스킵한다.
         if (message.getKind() == MessageKind.PLACE_CARDS) {

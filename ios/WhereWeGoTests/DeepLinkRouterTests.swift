@@ -8,12 +8,13 @@ final class DeepLinkRouterTests: XCTestCase {
 
     // MARK: - 푸시 type → destination(순수 매핑)
 
-    func test_pushType_botResult_mapsToBotChat() {
-        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "BOT_RESULT"), .botChat)
+    func test_pushType_botResult_mapsToChat() {
+        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "BOT_RESULT"), .chat)
     }
 
-    func test_pushType_coupleMessage_mapsToCoupleChat() {
-        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "COUPLE_MESSAGE"), .coupleChat)
+    func test_pushType_coupleMessage_mapsToChat() {
+        // 커플챗 제거(FR-11/BR-2) 후 COUPLE_MESSAGE 는 채팅 탭으로 재매핑(FR-28 하위호환 폴백).
+        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "COUPLE_MESSAGE"), .chat)
     }
 
     func test_pushType_pinSaved_mapsToMap() {
@@ -26,12 +27,46 @@ final class DeepLinkRouterTests: XCTestCase {
         XCTAssertNil(DeepLinkRouter.destination(forPushType: ""))
     }
 
+    // MARK: - AC-3: DeepLinkDestination 에 .coupleChat/.botChat 부재(케이스 표면 검증)
+
+    func test_destination_cases_doNotContainCoupleChatOrBotChat() {
+        // AC-3: 커플챗 제거(FR-11/BR-2) + .botChat→.chat 리네임(FR-28) 후,
+        // DeepLinkDestination 의 모든 도달 가능한 케이스에 coupleChat/botChat 식별자가 없어야 한다.
+        // (.coupleChat/.botChat 케이스가 남아 있으면 컴파일 단계에서 .coupleChat 참조가 가능했을 것 — 부재의 표면 검증.)
+        let allReachable: [DeepLinkDestination] = [
+            .chat,
+            .pin(pinId: 1),
+            .invite(slug: "s"),
+            .map
+        ]
+        let labels = allReachable.map { String(describing: $0) }
+        XCTAssertFalse(labels.contains { $0.contains("coupleChat") })
+        XCTAssertFalse(labels.contains { $0.contains("botChat") })
+    }
+
+    func test_pushType_coupleAndBot_bothMapToChat_notSeparateDestinations() {
+        // AC-3/AC-4: COUPLE_MESSAGE/BOT_RESULT 둘 다 동일하게 .chat 으로 수렴(별도 .coupleChat/.botChat 없음).
+        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "COUPLE_MESSAGE"), .chat)
+        XCTAssertEqual(DeepLinkRouter.destination(forPushType: "BOT_RESULT"), .chat)
+        XCTAssertEqual(
+            DeepLinkRouter.destination(forPushType: "COUPLE_MESSAGE"),
+            DeepLinkRouter.destination(forPushType: "BOT_RESULT")
+        )
+    }
+
+    func test_handlePush_coupleMessage_setsPendingChat() {
+        // AC-4 인스턴스 경로: COUPLE_MESSAGE 푸시 → pending == .chat(채팅 탭 폴백).
+        let router = DeepLinkRouter()
+        router.handlePush(userInfo: ["type": "COUPLE_MESSAGE", "roomId": 3])
+        XCTAssertEqual(router.pending, .chat)
+    }
+
     // MARK: - handlePush(userInfo) → pending
 
     func test_handlePush_setsPendingFromType() {
         let router = DeepLinkRouter()
         router.handlePush(userInfo: ["type": "BOT_RESULT", "roomId": 7])
-        XCTAssertEqual(router.pending, .botChat)
+        XCTAssertEqual(router.pending, .chat)
     }
 
     func test_handlePush_pinSaved_noRoomId_setsMap() {

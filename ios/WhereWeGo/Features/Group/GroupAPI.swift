@@ -68,4 +68,20 @@ final class GroupAPI: GroupAPIProtocol {
             type: InviteLink.self
         )
     }
+
+    /// DELETE /groups/{groupId}/members/me (그룹 탈퇴, FR-25).
+    // 백엔드는 200 success()(data:null) 또는 204(빈 본문) 가능 — APIClient.decodeEnvelope 는
+    // data 키 부재로 HTTP_200/NO_CONTENT 를 throw 한다. 둘 다 성공이므로 흡수하고 나머지는 전파
+    // (myActiveGroup nil 정규화 패턴 모방).
+    func leaveGroup(groupId: Int) async throws {
+        do {
+            _ = try await client.request(
+                "/groups/\(groupId)/members/me",
+                method: "DELETE",
+                type: EmptyResponse.self
+            )
+        } catch let error as APIError where error.code == "HTTP_200" || error.code == "NO_CONTENT" {
+            return
+        }
+    }
 }

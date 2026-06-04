@@ -10,7 +10,7 @@ import Foundation
 //  - 낙관적 PATCH/DELETE 와 실패 시 스냅샷 복원(AC-6/7) — B4(PinDetail/Search/Roulette)가 호출.
 //  - 동시 1패널(activeSheet) 상태 — 실제 시트 표시는 B4 가 연결.
 // 비책임(B4): VisitDetectionEngine 오케스트레이션(여기서는 locationService 보유·startUpdating 훅 자리만),
-//            PinDetailSheet/SearchPinSheet/RouletteSheet 의 실제 UI·로직.
+//            PinDetailSheet/AddPlaceSheet/RouletteSheet 의 실제 UI·로직.
 //
 // 지도 제어는 MapRenderer 프로토콜이 아니라 선언적 바인딩(markers + cameraCommand)으로 한다(B2 계약).
 // VM 은 renderer 인스턴스를 직접 보유하지 않는다(MockMapRenderer 는 markers/cameraCommand 산출 검증에만 사용).
@@ -25,13 +25,12 @@ final class MapViewModel: ObservableObject {
         case error(String)
     }
 
-    /// 동시에 하나만 표시되는 패널(설계 §3). 실제 시트 표시·연결은 B4.
+    /// 동시에 하나만 표시되는 패널(설계 §3·§11). search/crosshair 는 AddPlaceSheet(.addPlace)로 흡수됨(P7).
     enum ActiveSheet: Equatable {
         case none
-        case search
+        /// ＋ 통합 장소 추가 시트(검색+콕찍기, FR-12~16). EmptyMapCard·MainTabView ＋ 와 동일 컴포넌트.
+        case addPlace
         case roulette
-        /// 지도 중앙 크로스헤어로 임의 좌표 핀 추가(FR-15 Should).
-        case crosshair
         /// 방문 "다녀왔어요" 후 메모 입력 시트(B4 가 트리거).
         case visitMemo(pinId: Int)
     }
@@ -62,7 +61,7 @@ final class MapViewModel: ObservableObject {
     nonisolated static let longitudeRange: ClosedRange<Double> = -180...180
 
     /// 핀 생성 입력 검증(BR-4, 순수). 장소명 ≤200자·좌표 범위 위반 시 MapError throw.
-    /// SearchPinViewModel/addPinAtCenter 공유 — 백엔드 400 전에 클라이언트에서 차단.
+    /// AddPlaceViewModel/addPinAtCenter 공유 — 백엔드 400 전에 클라이언트에서 차단.
     nonisolated static func validatePinInput(placeName: String, latitude: Double, longitude: Double) throws {
         guard placeName.count <= placeNameMaxLength else {
             throw MapError.placeNameTooLong
@@ -163,7 +162,7 @@ final class MapViewModel: ObservableObject {
 
     /// 핀 API. PinDetailViewModel(사진 업로드/삭제)이 직접 호출 후 replacePin 으로 반영하기 위해 읽기 전용 공개.
     let pinAPI: PinAPIProtocol
-    /// 장소 검색 API. SearchPinViewModel 이 검색에 사용(읽기 전용 공개).
+    /// 장소 검색 API. AddPlaceViewModel 이 검색에 사용(읽기 전용 공개).
     let placeAPI: PlaceAPIProtocol
     private let groupAPI: GroupAPIProtocol
     /// 위치 서비스. RouletteViewModel(one-shot)·방문감지 구독에 사용(읽기 전용 공개).

@@ -15,6 +15,8 @@ protocol GroupAPIProtocol: Sendable {
     func myActiveGroup() async throws -> ActiveGroup?
     func acceptInvite(token: String) async throws -> InviteAccept
     func issueInviteLink(groupId: Int) async throws -> InviteLink
+    /// 그룹 탈퇴(DELETE /groups/{groupId}/members/me, FR-25).
+    func leaveGroup(groupId: Int) async throws
 }
 
 /// 인증 흐름 에러. View 친화 메시지(BR-7).

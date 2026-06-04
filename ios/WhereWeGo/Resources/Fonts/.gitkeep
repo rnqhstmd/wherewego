@@ -1,2 +1,0 @@
-# 커스텀 폰트 파일(.otf/.ttf) 위치. 웹과 동일: Noto Serif KR, Gowun Batang, Pretendard, JetBrains Mono.
-# 파일 추가 후 Info.plist 의 UIAppFonts 에 등록하고 Theme.swift 의 PostScript 명을 맞춘다.
