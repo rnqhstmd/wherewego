@@ -39,10 +39,10 @@
 ### 1. FloatingTabBar.swift — 매직넘버 흡수(FR-1) + glass 분기 분리(FR-5)
 ```swift
 struct FloatingTabBar: View {
-    /// 바 레이아웃 상수 SSOT(설계 §1, FR-1/AC-1).
-    private enum Metrics {
+    /// 바 레이아웃 상수 SSOT(설계 §1, FR-1/AC-1·AC-2). internal — MapView 등 외부에서 bottomGap 참조(매직넘버 분산 금지).
+    enum Metrics {
         static let barHeight: CGFloat = 64   // 필 바 높이
-        static let bottomGap: CGFloat = 12   // 바와 safe area 사이 최소 여백(AC-4)
+        static let bottomGap: CGFloat = 12   // 바와 safe area 사이 최소 여백(AC-4) / 공통 간격 단위
     }
     // body: .frame(height: Metrics.barHeight) / .padding(.bottom, Metrics.bottomGap)
 }
@@ -136,4 +136,6 @@ VStack { Spacer(); HStack { Spacer(); myLocationButton }
 - [ ] Liquid Glass: iOS26.5 시뮬에서 glassBackground 반투명 렌더(불투명 흰캡슐 회귀 해소). .ultraThinMaterial→glassEffect 교체 보정.
 - [ ] 폴백 17~25: 솔리드 흰 캡슐 + shadowMd 유지(BR-5).
 - [ ] 키보드: 채팅 키보드 시 바 고정, 입력바만 위로, 빈 공간 없음(QE-2).
+- [ ] 키보드 **이중 밀림 없음**(cross-review ZT): safeAreaInset bottom inset이 키보드 시 변동해 입력바가 "키보드+바높이"만큼 이중으로 밀리지 않는지. 이상 시 키보드 처리를 FloatingTabBar body 내부로 격리 재검토.
+- [ ] (cross-review) Mac/Xcode 빌드에서 `FloatingBarBackground` glass/solid 분기(`some View` 불투명 타입) 컴파일 경고 0 확인.
 - [ ] 스크롤 잘림: 알림/내정보 마지막 항목까지 자연 스크롤.

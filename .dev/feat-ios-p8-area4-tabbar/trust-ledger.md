@@ -25,3 +25,10 @@
 ## 종합
 - 코드 수정 1건(ZT-3 키보드 범위) 적용.
 - 나머지 HIGH/MEDIUM/LOW는 전부 safeAreaInset 전파의 **시각 확정 의존** 항목 → 수동 코드 추가는 이중 가산 위험이라 **DoD-B(Mac/Xcode 26)** 검증으로 분리. design.md DoD-B 체크리스트 + 본 원장에 기록.
+
+## Cross-Review (claude advisor, 사후)
+- AC-1~9 코드검증 전항 충족, 설계 범위 이탈 없음, ZT-3(키보드 범위) 해소 확인.
+- [조치] design.md `private enum Metrics`→`enum Metrics` 문서 정정(코드가 정확).
+- [조치] `FloatingBarBackground.body`에 `@ViewBuilder` 명시 — glass/solid 분기 타입 상이로 인한 `some View` 불투명 타입 충돌 원천 차단(컴파일 보장).
+- [ZT-9 DoD-B] **키보드 이중 밀림**: safeAreaInset+키보드가 입력바를 "키보드+바높이"만큼 이중으로 밀 가능성(ZT-3 억제 위험의 반대 방향) → DoD-B 체크리스트 추가. 이상 시 키보드 처리를 FloatingTabBar body 내부로 격리.
+- [Low] Metrics internal 접근수준(단일 타겟 기준 정상), infoToast 90 상수화(차기) — 기록만.

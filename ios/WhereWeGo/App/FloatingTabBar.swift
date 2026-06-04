@@ -107,6 +107,10 @@ struct FloatingTabBar: View {
 /// 바 배경: iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 흰색 필 폴백.
 /// glass/solid 를 별도 메서드로 분리(설계 §1, FR-5/AC-5/BR-5) — iOS26 경로가 폴백과 시각적으로 달라야 한다.
 private struct FloatingBarBackground: ViewModifier {
+    // @ViewBuilder 명시(cross-review RISK): glass/solid 분기가 서로 다른 구체 View 타입을 반환하므로,
+    //  if/#available 를 _ConditionalContent 로 묶어 some View 불투명 타입 충돌을 원천 차단한다.
+    //  (ViewModifier.body 는 기본 @ViewBuilder 이나, 분기 타입 상이를 고려해 의도를 명시.)
+    @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             glassBackground(content)   // iOS26 전용 경로(반투명)
