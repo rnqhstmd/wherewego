@@ -1,5 +1,5 @@
-phase: setup
-status: in_progress
+phase: complete
+status: completed
 vcs-type: git
 branch: feat/ios-parity-pin-bubble
 base: develop
@@ -14,14 +14,15 @@ flags: ""
 mode: normal
 intent-source: user-selection
 started: 2026-06-04
-current-step: "review 완료(수정 4건+확인 통과), complete 진입"
+current-step: "완료 — PR #96 생성, context 환류. DoD-B(Mac) 시각검증 잔여"
+pr-url: https://github.com/rnqhstmd/wherewego/pull/96
 phases:
   setup: completed
   requirements: completed
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
   design: pending
   implement: pending
   review: pending
