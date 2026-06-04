@@ -24,6 +24,8 @@ struct FloatingTabBar: View {
     enum Metrics {
         static let barHeight: CGFloat = 64   // 필 바 높이
         static let bottomGap: CGFloat = 12   // 바와 safe area 사이 최소 여백(AC-4) / 공통 간격 단위
+        /// 콘텐츠가 바를 회피하기 위해 확보할 하단 footprint(safe area 위 기준 = barHeight + bottomGap).
+        static var contentFootprint: CGFloat { barHeight + bottomGap }
     }
 
     @Binding private var selection: MainTab

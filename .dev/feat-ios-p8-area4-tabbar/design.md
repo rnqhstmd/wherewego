@@ -138,4 +138,16 @@ VStack { Spacer(); HStack { Spacer(); myLocationButton }
 - [ ] 키보드: 채팅 키보드 시 바 고정, 입력바만 위로, 빈 공간 없음(QE-2).
 - [ ] 키보드 **이중 밀림 없음**(cross-review ZT): safeAreaInset bottom inset이 키보드 시 변동해 입력바가 "키보드+바높이"만큼 이중으로 밀리지 않는지. 이상 시 키보드 처리를 FloatingTabBar body 내부로 격리 재검토.
 - [ ] (cross-review) Mac/Xcode 빌드에서 `FloatingBarBackground` glass/solid 분기(`some View` 불투명 타입) 컴파일 경고 0 확인.
+
+## PR 리뷰 반영 — 메커니즘 개정 (gemini-code-assist, HIGH)
+> PR #95 봇 리뷰 지적: **`TabView`에 직접 `.safeAreaInset`을 걸면 그 safe area가 개별 탭 자식으로 전파되지 않는 SwiftUI 한계** → 콘텐츠가 바 뒤로 가림. (fatbobman/Swift with Majid 등 표준 자료와 일치 — 커스텀 탭바는 콘텐츠 측에 inset)
+>
+> **개정 채택**:
+> - `FloatingTabBar.Metrics.contentFootprint`(= barHeight+bottomGap) SSOT 추가.
+> - 바를 `TabView.safeAreaInset` → **`TabView.overlay(alignment:.bottom)`** 로 변경(바는 그리기만, 레이아웃 미점유). 바는 container safe area 존중 → 홈 인디케이터 위 배치(AC-4).
+> - 채팅·알림·내정보 3개 탭(NavigationStack)에 **`.reserveFloatingTabBarSpace()`**(= `.safeAreaInset(.bottom){Color.clear.frame(height: contentFootprint)}`) 직접 적용 → 콘텐츠 자동 회피(AC-3/9). NavigationStack은 safe area를 자식에 전파하므로 동작 보장.
+> - 맵 탭은 full-bleed라 reservation 미적용. 내위치 버튼이 `.padding(.bottom, contentFootprint + bottomGap)`로 바를 직접 회피(AC-2). 배경·룰렛 불변.
+> - 키보드: 바 overlay에 `.ignoresSafeArea(.keyboard)` 유지(바 고정).
+>
+> **잔여 DoD-B**: 채팅 탭에서 키보드 표시 시 per-tab reservation(contentFootprint)이 키보드 inset과 stack되어 입력바 위 빈 공간이 생길 수 있음 → Mac에서 확인, 필요 시 채팅 reservation을 키보드 시 collapse 처리.
 - [ ] 스크롤 잘림: 알림/내정보 마지막 항목까지 자연 스크롤.

@@ -260,9 +260,9 @@ struct MapView: View {
                     Spacer()
                     myLocationButton
                 }
-                // 바가 safe area 차지 → 자동 회피(footprint 자동 예약). 28은 중복 여백이라 제거하고,
-                //  버튼-바 사이 숨 여백만 남긴다(AC-2): 매직넘버 대신 바 레이아웃 상수를 참조. 수치 보정은 DoD-B.
-                .padding(.bottom, FloatingTabBar.Metrics.bottomGap)
+                // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 내위치 버튼이 바를 직접 회피한다(PR리뷰).
+                //  바 footprint(contentFootprint = barHeight+bottomGap) 만큼 올리고 버튼-바 숨 여백(bottomGap)을 더한다(AC-2). 수치 보정 DoD-B.
+                .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
         }
         .padding(.horizontal, 16)

@@ -32,3 +32,7 @@
 - [조치] `FloatingBarBackground.body`에 `@ViewBuilder` 명시 — glass/solid 분기 타입 상이로 인한 `some View` 불투명 타입 충돌 원천 차단(컴파일 보장).
 - [ZT-9 DoD-B] **키보드 이중 밀림**: safeAreaInset+키보드가 입력바를 "키보드+바높이"만큼 이중으로 밀 가능성(ZT-3 억제 위험의 반대 방향) → DoD-B 체크리스트 추가. 이상 시 키보드 처리를 FloatingTabBar body 내부로 격리.
 - [Low] Metrics internal 접근수준(단일 타겟 기준 정상), infoToast 90 상수화(차기) — 기록만.
+
+## PR 리뷰 반영 (gemini-code-assist, PR #95)
+- **[HIGH 해소] TabView safeAreaInset 미전파**: 봇이 "TabView에 직접 safeAreaInset → 자식 탭 미전파(콘텐츠 가림)" 지적. 표준 자료(fatbobman/Majid)와 일치 확인 → **메커니즘 개정 채택**: 바 `overlay(alignment:.bottom)` + 각 탭(NavigationStack) `.reserveFloatingTabBarSpace()`(contentFootprint inset) + 맵 내위치 버튼 직접 패딩. ZT-1/ZT-2(스크롤 자동inset 미보장)도 본 개정으로 코드 레벨 해소(전파 의존 제거).
+- 코드 검증 불가(Windows) — 표준 패턴 채택으로 위험 최소화, 최종 시각/빌드 확정은 DoD-B.

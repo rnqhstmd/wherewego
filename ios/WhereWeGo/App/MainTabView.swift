@@ -79,12 +79,14 @@ struct MainTabView: View {
             NavigationStack {
                 BotChatView(viewModel: botViewModel)
             }
+            .reserveFloatingTabBarSpace()   // 탭 콘텐츠가 바 footprint 회피(TabView는 safe area 전파 안 함 — PR리뷰)
             .tag(MainTab.chat)
 
             // 알림 탭. 진입 시 NotificationInboxView.load() 가 list+readAll(읽음 처리, 설계 §14).
             NavigationStack {
                 NotificationInboxView(viewModel: notificationInboxViewModel)
             }
+            .reserveFloatingTabBarSpace()
             .tag(MainTab.notification)
 
             // 내정보 탭. VM 은 본 뷰가 소유(@StateObject), authAPI 는 닉네임 수정 시트용으로 전달.
@@ -94,14 +96,17 @@ struct MainTabView: View {
                     viewModel: myInfoViewModel
                 )
             }
+            .reserveFloatingTabBarSpace()
             .tag(MainTab.myInfo)
         }
         // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1).
         .toolbar(.hidden, for: .tabBar)
         .tint(WGColor.cta)
-        // 바 부착(설계 §2): ZStack 오버레이 → safeAreaInset. SwiftUI 가 바 높이만큼 각 탭 safe area 자동 예약 →
-        //  콘텐츠 자동 회피(AC-3/9) + 바가 홈 인디케이터 위 자동 배치(AC-4). 4탭 + 센터 ＋ FAB·미읽음 배지(unreadCount>0).
-        .safeAreaInset(edge: .bottom) {
+        // 바 부착(설계 §2 개정 / PR리뷰): TabView 에 직접 .safeAreaInset 을 걸면 그 safe area 가 개별 탭
+        //  자식 뷰로 전파되지 않는 SwiftUI 한계가 있다(콘텐츠가 바 뒤로 가림). 따라서 각 탭이
+        //  .reserveFloatingTabBarSpace() 로 자체 footprint 를 확보하고, 바는 .overlay 로 얹는다.
+        //  overlay 콘텐츠는 container safe area 를 존중하므로 바가 홈 인디케이터 위에 배치된다(AC-4).
+        .overlay(alignment: .bottom) {
             FloatingTabBar(
                 selection: $selection,
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
@@ -170,6 +175,16 @@ struct MainTabView: View {
             get: { inviteSlug.map(InviteSlug.init) },
             set: { newValue in inviteSlug = newValue?.value }
         )
+    }
+}
+
+private extension View {
+    /// 하단 플로팅 탭바 footprint 만큼 콘텐츠 하단 safe area 를 확보한다(설계 §2 개정 / PR리뷰).
+    ///  TabView 는 safe area 를 자식 탭으로 전파하지 않으므로, 각 탭이 직접 적용해야 콘텐츠가 바를 회피한다.
+    func reserveFloatingTabBarSpace() -> some View {
+        safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: FloatingTabBar.Metrics.contentFootprint)
+        }
     }
 }
 
