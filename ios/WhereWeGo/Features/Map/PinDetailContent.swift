@@ -25,8 +25,7 @@ struct PinDetailContent: View {
     @State private var isEditingMemo = false
     @State private var isEditingPlaceName = false
 
-    // 작업 진행/에러.
-    @State private var isMutating = false
+    // 작업 진행/에러. isMutating 은 detailVM(공유)으로 이동 — 배경탭 닫기 가드(BR-3, N2)와 일관 관찰.
     @State private var inlineError: String?
 
     // 다이얼로그/시트 상태.
@@ -91,6 +90,9 @@ struct PinDetailContent: View {
             Button("삭제", role: .destructive) { Task { await detailVM.deletePhoto(pinId: pin.id) } }
             Button("취소", role: .cancel) {}
         }
+        // 사진 피커/크롭(아래 sheet·fullScreenCover)은 말풍선 내부 하위 모달로, MapViewModel.activeSheet(BR-2) 1패널
+        // 규칙을 거치지 않는 의도된 예외다. 크롭 중 외부 activeSheet 변경 시 BubbleOverlay unmount 로 크롭이 폐기되는 것은
+        // "편집 중 다른 시트 = 미저장 폐기" 정책과 일관된 허용 동작이다(N3).
         .sheet(isPresented: $showPhotoPicker) {
             PhotoPickerView(
                 onPicked: { pickedImage = PickedImage(image: $0) },
@@ -163,7 +165,7 @@ struct PinDetailContent: View {
 
     private func tagOption(_ tag: PinTag, isOn: Bool) -> some View {
         Button {
-            guard !isOn, !isMutating else { return }
+            guard !isOn, !detailVM.isMutating else { return }
             Task { await changeTag(tag) }
         } label: {
             HStack(spacing: 6) {
@@ -178,7 +180,7 @@ struct PinDetailContent: View {
             .overlay(Capsule().stroke(isOn ? tagColor(tag) : WGColor.hairline, lineWidth: 1))
             .clipShape(Capsule())
         }
-        .disabled(isMutating)
+        .disabled(detailVM.isMutating)
     }
 
     // MARK: - 장소명 편집(≤200 빈값 불가, Should)
@@ -356,7 +358,7 @@ struct PinDetailContent: View {
                 .foregroundStyle(WGColor.pinNew)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.pinNew, lineWidth: 1))
         }
-        .disabled(isMutating)
+        .disabled(detailVM.isMutating)
         .padding(.top, 4)
     }
 
@@ -387,7 +389,7 @@ struct PinDetailContent: View {
                 .font(WGFont.sans(12))
                 .foregroundStyle(WGColor.cta)
         }
-        .disabled(isMutating)
+        .disabled(detailVM.isMutating)
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -411,8 +413,8 @@ struct PinDetailContent: View {
 
     private func changeTag(_ tag: PinTag) async {
         inlineError = nil
-        isMutating = true
-        defer { isMutating = false }
+        detailVM.isMutating = true
+        defer { detailVM.isMutating = false }
         do {
             try await mapViewModel.applyTagOptimistic(pinId: pin.id, tag: tag)
         } catch {
@@ -422,8 +424,8 @@ struct PinDetailContent: View {
 
     private func saveMemo() async {
         inlineError = nil
-        isMutating = true
-        defer { isMutating = false }
+        detailVM.isMutating = true
+        defer { detailVM.isMutating = false }
         do {
             try await mapViewModel.updateMemoOptimistic(pinId: pin.id, memo: memoText)
             isEditingMemo = false
@@ -439,8 +441,8 @@ struct PinDetailContent: View {
             return
         }
         inlineError = nil
-        isMutating = true
-        defer { isMutating = false }
+        detailVM.isMutating = true
+        defer { detailVM.isMutating = false }
         do {
             try await mapViewModel.updatePlaceNameOptimistic(pinId: pin.id, placeName: trimmed)
             isEditingPlaceName = false
@@ -451,8 +453,8 @@ struct PinDetailContent: View {
 
     private func deletePin() async {
         inlineError = nil
-        isMutating = true
-        defer { isMutating = false }
+        detailVM.isMutating = true
+        defer { detailVM.isMutating = false }
         do {
             try await mapViewModel.deletePinOptimistic(pinId: pin.id)
             onRequestClose()
