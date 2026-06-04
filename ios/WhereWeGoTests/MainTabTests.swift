@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import CoreLocation
 @testable import WhereWeGo
 
 // MainTab 열거형 + ＋ 액션 독립성 검증(설계 §1·§2, FR-1/FR-2/FR-11, BR-1/BR-2, AC-1/AC-2).
@@ -10,6 +11,7 @@ import SwiftUI
 //  - AC-2: ＋ 액션의 selection 독립성 — FloatingTabBar 의 onPlusTap 클로저가
 //          selection 바인딩과 분리돼 있고(MainTab 에 plus 케이스 부재), onPlusTap 호출이
 //          selection 을 바꾸지 않음을 클로저 모델로 검증한다.
+//          (P8 영역1: onPlusTap = { mapViewModel.enterAddPin() } — 시트 대신 인라인 모드 토글, selection 불변.)
 //          (SwiftUI 버튼 탭 자체를 구동하는 뷰 상호작용 테스트는 DoD-B(Mac/Xcode) 이연 — 본 테스트는 로직/구조 검증.)
 @MainActor
 final class MainTabTests: XCTestCase {
@@ -37,21 +39,21 @@ final class MainTabTests: XCTestCase {
     // MARK: - AC-2: ＋ 액션 selection 독립성
 
     func test_plusAction_doesNotMutateSelection() {
-        // MainTabView 의 onPlusTap = { showAddPlace = true } 모델.
-        // ＋ 는 selection 을 건드리지 않고 showAddPlace 상태만 세팅한다(BR-1/AC-2).
+        // MainTabView 의 onPlusTap = { mapViewModel.enterAddPin() } 모델(P8 영역1).
+        // ＋ 는 selection 을 건드리지 않고 인라인 추가 모드만 활성화한다(BR-1/AC-1/AC-2).
         let selection: MainTab = .map
-        var showAddPlace = false
+        let mapViewModel = makeMapViewModel()
 
-        // FloatingTabBar(onPlusTap:) 와 동일 시그니처의 액션 클로저(선택 불변·시트 트리거).
-        let onPlusTap: () -> Void = { showAddPlace = true }
+        // FloatingTabBar(onPlusTap:) 와 동일 시그니처의 액션 클로저(선택 불변·인라인 모드 토글).
+        let onPlusTap: () -> Void = { mapViewModel.enterAddPin() }
 
-        // When ＋ 누름(여러 번)
+        // When ＋ 누름(여러 번 — 중복 진입 방어로 1회만 활성)
         onPlusTap()
         onPlusTap()
 
-        // Then selection 은 .map 유지(불변), showAddPlace 만 true.
+        // Then selection 은 .map 유지(불변), 인라인 추가 모드만 활성.
         XCTAssertEqual(selection, .map, "＋ 액션은 selection 을 변경하지 않아야 한다(BR-1).")
-        XCTAssertTrue(showAddPlace, "＋ 액션은 추가 시트 상태만 세팅해야 한다.")
+        XCTAssertTrue(mapViewModel.isAddingPin, "＋ 액션은 인라인 추가 모드만 활성화해야 한다(AC-1).")
     }
 
     func test_plusAction_independentFromTabSelectionBinding() {
@@ -72,4 +74,58 @@ final class MainTabTests: XCTestCase {
         XCTAssertEqual(selection, .chat)
         XCTAssertEqual(plusCallCount, 0, "생성만으로 onPlusTap 이 호출되면 안 된다.")
     }
+
+    // MARK: - 헬퍼
+
+    /// ＋ 액션 모델 검증용 MapViewModel(권한 거부 — enterAddPin 의 줌인은 부작용 없이 동기 종료).
+    private func makeMapViewModel() -> MapViewModel {
+        MapViewModel(
+            pinAPI: StubPinAPI(),
+            placeAPI: StubPlaceAPI(),
+            groupAPI: StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            locationService: StubLocationService()
+        )
+    }
+}
+
+// MARK: - In-file 프로토콜 목(MapViewModelTests/AddPlaceViewModelTests 패턴)
+
+private final class StubPinAPI: PinAPIProtocol, @unchecked Sendable {
+    func list(groupId: Int) async throws -> [PinSummary] { [] }
+    func create(groupId: Int, request: CreatePinRequest) async throws -> PinSummary {
+        throw APIError(code: "UNSUPPORTED", status: 0, message: "stub")
+    }
+    func update(groupId: Int, pinId: Int, request: UpdatePinRequest) async throws -> UpdatePinResponse {
+        throw APIError(code: "UNSUPPORTED", status: 0, message: "stub")
+    }
+    func delete(groupId: Int, pinId: Int) async throws {}
+    func uploadPhoto(groupId: Int, pinId: Int, imageData: Data) async throws -> PinSummary {
+        throw APIError(code: "UNSUPPORTED", status: 0, message: "stub")
+    }
+    func deletePhoto(groupId: Int, pinId: Int) async throws -> PinSummary {
+        throw APIError(code: "UNSUPPORTED", status: 0, message: "stub")
+    }
+}
+
+private final class StubPlaceAPI: PlaceAPIProtocol, @unchecked Sendable {
+    func search(_ keyword: String) async throws -> [PlaceItem] { [] }
+}
+
+private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
+    private let group: ActiveGroup?
+    init(group: ActiveGroup?) { self.group = group }
+    func myActiveGroup() async throws -> ActiveGroup? { group }
+    func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
+    func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
+    func leaveGroup(groupId: Int) async throws {}
+}
+
+@MainActor
+private final class StubLocationService: LocationServiceProtocol {
+    var authorizationStatus: CLAuthorizationStatus = .denied
+    var onSample: ((LocationSample) -> Void)?
+    func requestWhenInUsePermission() {}
+    func startUpdating() {}
+    func stopUpdating() {}
+    func requestOneShot() async -> LocationSample? { nil }
 }

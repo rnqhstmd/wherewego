@@ -10,7 +10,8 @@ import Foundation
 //  - 낙관적 PATCH/DELETE 와 실패 시 스냅샷 복원(AC-6/7) — B4(PinDetail/Search/Roulette)가 호출.
 //  - 동시 1패널(activeSheet) 상태 — 실제 시트 표시는 B4 가 연결.
 // 비책임(B4): VisitDetectionEngine 오케스트레이션(여기서는 locationService 보유·startUpdating 훅 자리만),
-//            PinDetailSheet/AddPlaceSheet/RouletteSheet 의 실제 UI·로직.
+//            PinDetailSheet/RouletteSheet 의 실제 UI·로직.
+// P8 영역1: 인라인 핀 추가 모드 상태(isAddingPin/addPlaceVM/mapZoom)와 AddPlaceViewModel 수명을 본 VM 이 소유한다.
 //
 // 지도 제어는 MapRenderer 프로토콜이 아니라 선언적 바인딩(markers + cameraCommand)으로 한다(B2 계약).
 // VM 은 renderer 인스턴스를 직접 보유하지 않는다(MockMapRenderer 는 markers/cameraCommand 산출 검증에만 사용).
@@ -25,11 +26,10 @@ final class MapViewModel: ObservableObject {
         case error(String)
     }
 
-    /// 동시에 하나만 표시되는 패널(설계 §3·§11). search/crosshair 는 AddPlaceSheet(.addPlace)로 흡수됨(P7).
+    /// 동시에 하나만 표시되는 패널(설계 §3·§11).
+    /// P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환되어 .addPlace case 제거(AC-11).
     enum ActiveSheet: Equatable {
         case none
-        /// ＋ 통합 장소 추가 시트(검색+콕찍기, FR-12~16). EmptyMapCard·MainTabView ＋ 와 동일 컴포넌트.
-        case addPlace
         case roulette
         /// 방문 "다녀왔어요" 후 메모 입력 시트(B4 가 트리거).
         case visitMemo(pinId: Int)
@@ -41,6 +41,19 @@ final class MapViewModel: ObservableObject {
     static let currentLocationZoom: Double = 15
     /// 핀 1개 선택 flyTo 시 줌 레벨.
     static let pinFocusZoom: Double = 15
+
+    // MARK: - 인라인 핀 추가 진입 줌(FR-11, AC-16). 웹 MapClient.tsx:1043-1066 동치.
+
+    /// 인라인 추가 진입 시 이 값 미만이면 줌인 분기(웹 getZoom() < 13).
+    static let addPinMinZoom: Double = 13
+    /// 위치 권한 허용 + 좌표 확보 시 그 위치로 flyTo 할 줌(웹 zoom 15).
+    static let addPinLocatedZoom: Double = 15
+    /// 위치 확보 실패/권한 거부 시 현재 중심 유지하며 올릴 줌(웹 zoom 14).
+    static let addPinFallbackZoom: Double = 14
+    /// mapZoom 이 끝내 nil 일 때 가정하는 줌(MUST-4, AC-20). 13 미만이라 줌인 시도를 보장한다.
+    static let addPinAssumeZoomWhenUnknown: Double = 3
+    /// 인라인 진입 줌인 시 one-shot 위치 자체 타임아웃(초, FR-11). 공유 CoreLocationService(10초)와 별개.
+    static let addPinOneShotTimeoutSeconds: Double = 5
 
     /// 핀 목록 캐시 TTL(초, FR-24). 웹 PINS_CACHE_TTL_MS = 5*60*1000 동치.
     static let pinsCacheTTL: TimeInterval = 5 * 60
@@ -125,6 +138,25 @@ final class MapViewModel: ObservableObject {
     /// 지도 카메라가 멈춘 시점의 최신 중심 좌표(cameraIdle 추적). 크로스헤어 임의 좌표 추가의 입력.
     /// 실값은 Mapbox(token 후)에서만 cameraIdle 이벤트로 들어온다. 플레이스홀더에선 nil 유지.
     @Published private(set) var mapCenter: Coordinate?
+
+    // MARK: - 인라인 핀 추가 모드(P8 영역1, FR-1~11, AC-11)
+
+    /// 인라인 핀 추가 모드 활성(FR-1/2, AC-11). true 시 MapView 가 십자선+하단 확정 카드를 오버레이한다.
+    @Published private(set) var isAddingPin = false
+    /// 인라인 추가 VM(검색/콕찍기/생성 로직, AddPlaceSheet 에서 이관). 진입 시 생성, 종료 시 nil(작성 중 폐기, BR-1).
+    @Published private(set) var addPlaceVM: AddPlaceViewModel?
+    /// cameraIdle 최신 줌(FR-11 진입 판단, MUST-4). idle 전에도 flyTo/applyInitialCamera 명령 줌으로 시드.
+    @Published private(set) var mapZoom: Double?
+
+    /// 프로그래매틱 카메라 이동(검색 flyTo/줌인/seed)으로 발생할 cameraIdle 대기 카운터(MUST-1).
+    /// flyTo 류에서 +1, handle(.cameraIdle)에서 >0 이면 1 감소 후 onMapMoved 스킵(검색 결과 보존, AC-17).
+    private var pendingProgrammaticIdle = 0
+    /// 진입 줌인 flyTo 의 idle 도착 시 1회 seed 를 수행할지(MUST-2, AC-18). 줌인 후 그 idle 에서 초기 역지오 1회.
+    private var seedOnNextProgrammaticIdle = false
+    /// 진입 후 사용자가 드래그(진짜 사용자 idle)했는지(MUST-2, AC-18). true 면 늦게 도착한 줌인 flyTo 를 스킵한다.
+    private var userDraggedSinceEntry = false
+    /// 진입 줌인 one-shot 위치 요청 Task. 모드 종료 시 취소해 위치 서비스 낭비를 막는다(review Warning).
+    private var entryZoomTask: Task<Void, Never>?
 
     // MARK: - 파생 값
 
@@ -241,8 +273,18 @@ final class MapViewModel: ObservableObject {
                 longitude: sample.longitude,
                 zoom: Self.currentLocationZoom
             )
+            mapZoom = Self.currentLocationZoom   // MUST-4 — idle 도착 전 명령 줌으로 시드(FR-11 평가 가능).
+            if mapCenter == nil {
+                // MEDIUM-3 — idle 도착 전 중심도 시드(seedInitialPinpoint/bumpZoomOnly 의 mapCenter nil no-op 방지).
+                mapCenter = Coordinate(latitude: sample.latitude, longitude: sample.longitude)
+            }
         } else {
             cameraCommand = Self.seoulCityHall
+            mapZoom = Self.seoulCityHall.zoom    // MUST-4 — 서울시청 zoom3 시드(<13 → 줌인 평가 보장).
+            if mapCenter == nil {
+                // MEDIUM-3 — Placeholder(토큰 미설정)/첫 진입 idle 미도착 race 에서도 seed/bump 동작 보장.
+                mapCenter = Coordinate(latitude: Self.seoulCityHall.latitude, longitude: Self.seoulCityHall.longitude)
+            }
         }
     }
 
@@ -329,15 +371,17 @@ final class MapViewModel: ObservableObject {
     /// 특정 핀으로 카메라 이동(zoom15).
     func flyTo(pinId: Int) {
         guard let pin = pins.first(where: { $0.id == pinId }) else { return }
-        cameraCommand = CameraTarget(
-            latitude: pin.latitude,
-            longitude: pin.longitude,
-            zoom: Self.pinFocusZoom
-        )
+        flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
     }
 
     /// 임의 좌표로 카메라 이동.
+    /// 인라인 추가 모드 중에는 이 flyTo 로 발생할 cameraIdle 을 프로그래매틱으로 표시(MUST-1)하고
+    /// mapZoom 을 명령 줌으로 즉시 시드(MUST-4)한다 → 검색 결과 보존 + FR-11 평가 정합.
     func flyTo(lat: Double, lng: Double, zoom: Double = MapViewModel.pinFocusZoom) {
+        if isAddingPin {
+            pendingProgrammaticIdle += 1
+            mapZoom = zoom
+        }
         cameraCommand = CameraTarget(latitude: lat, longitude: lng, zoom: zoom)
     }
 
@@ -437,20 +481,147 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 인라인 핀 추가 모드 진입/종료(P8 영역1, FR-1~11)
+
+    /// 인라인 추가 모드 진입(FR-1/2, AC-1). ＋ 탭·EmptyMapCard 두 진입점이 호출한다.
+    /// AddPlaceViewModel 생성 → isAddingPin=true → 진입 줌인/seed(applyAddPinEntry).
+    /// 이미 활성이면 무시(중복 진입 방어). 룰렛/메모 등 다른 시트와의 배타는 호출부에서 처리(BR-6).
+    func enterAddPin() {
+        guard !isAddingPin else { return }
+        // 진입 추적 플래그 초기화(이전 세션 잔여 제거).
+        pendingProgrammaticIdle = 0
+        seedOnNextProgrammaticIdle = false
+        userDraggedSinceEntry = false
+        addPlaceVM = AddPlaceViewModel(mapViewModel: self)
+        isAddingPin = true
+        applyAddPinEntry()
+    }
+
+    /// 인라인 추가 모드 종료(FR-8, AC-12). 탭 전환/취소/생성 성공/룰렛 진입 등 모든 종료 경로 공통.
+    /// 진행 중 작업(디바운스 역지오·생성 Task)을 취소(MUST-3/AC-19)하고 작성 중 위치 정보를 폐기(BR-1)한다.
+    func exitAddPin() {
+        guard isAddingPin else { return }
+        entryZoomTask?.cancel()   // review Warning — 진입 줌인 위치 요청 중단(모드 종료 후 최대 5초 낭비 방지).
+        entryZoomTask = nil
+        addPlaceVM?.cancelPendingWork()
+        isAddingPin = false
+        addPlaceVM = nil
+        pendingProgrammaticIdle = 0
+        seedOnNextProgrammaticIdle = false
+        userDraggedSinceEntry = false
+    }
+
+    /// 진입 직후 줌인 분기 + 초기 콕찍기 seed 를 배타적으로 수행(MUST-2/AC-18).
+    /// 줌 ≥ addPinMinZoom(가정값 포함): 줌인 불필요 → seed 1회 직접. 줌 < addPinMinZoom: 줌인 flyTo 의 idle 에서 seed.
+    private func applyAddPinEntry() {
+        let zoom = mapZoom ?? Self.addPinAssumeZoomWhenUnknown   // MUST-4/AC-20 — nil 이면 가정값(<13).
+        if zoom < Self.addPinMinZoom {
+            // 줌인 flyTo 가 일어나므로 그 프로그래매틱 idle 에서 seed(중복 역지오 방지, MUST-2).
+            seedOnNextProgrammaticIdle = true
+            applyAddPinEntryZoom()
+        } else {
+            // 이미 충분히 확대 → 줌인 없이 현재 중심으로 초기 역지오 1회(FR-9).
+            seedInitialPinpoint()
+        }
+    }
+
+    /// 진입 줌인(FR-11, AC-16). 웹 MapClient.tsx:1043-1066 동치.
+    /// 우선순위: 권한 허용+좌표 → 그 위치 zoom15 / 미결정 → 권한요청 후 현재중심 zoom14(Q7) / 거부 → 현재중심 zoom14.
+    private func applyAddPinEntryZoom() {
+        switch locationService.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            entryZoomTask?.cancel()
+            entryZoomTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                let sample = await self.requestOneShotWithTimeout(seconds: Self.addPinOneShotTimeoutSeconds)
+                // 위치 대기 사이 사용자가 드래그했거나 모드를 떠났으면 강제 점프하지 않는다(MUST-2/AC-18).
+                guard self.isAddingPin, !self.userDraggedSinceEntry else { return }
+                if let sample {
+                    self.flyTo(lat: sample.latitude, lng: sample.longitude, zoom: Self.addPinLocatedZoom)
+                } else {
+                    self.bumpZoomOnly(to: Self.addPinFallbackZoom)
+                }
+            }
+        case .notDetermined:
+            // Q7 — 권한만 요청하고 다이얼로그 응답을 기다리지 않는다(카메라 지연/점프 회피). 즉시 zoom14 bump.
+            // 권한 허용은 다음 진입/내위치 버튼에서 반영된다.
+            locationService.requestWhenInUsePermission()
+            bumpZoomOnly(to: Self.addPinFallbackZoom)
+        default:
+            // 거부/제한 → 현재 중심 유지하며 zoom14 로만 올림.
+            bumpZoomOnly(to: Self.addPinFallbackZoom)
+        }
+    }
+
+    /// 현재 지도 중심 유지하며 줌만 올림(웹 map.flyTo({ zoom }) 동치). mapCenter 미확보면 no-op.
+    /// 이 flyTo 의 프로그래매틱 idle 에서 (seedOnNextProgrammaticIdle 이면) 초기 seed 가 수행된다.
+    private func bumpZoomOnly(to zoom: Double) {
+        guard let center = mapCenter else { return }
+        flyTo(lat: center.latitude, lng: center.longitude, zoom: zoom)
+    }
+
+    /// 진입 즉시 현재 중심으로 초기 콕찍기 역지오 1회 트리거(FR-9). mapCenter 미확보면 스킵.
+    /// 줌인이 없던 경로(줌 ≥ 13)에서만 직접 호출 — 줌인 경로는 idle 에서 수행(중복 방지, MUST-2).
+    private func seedInitialPinpoint() {
+        guard let center = mapCenter else { return }
+        addPlaceVM?.onMapMoved(center: center)
+    }
+
+    /// one-shot 위치를 seconds 초 자체 타임아웃과 race(FR-11). 공유 CoreLocationService(10초)는 불변.
+    /// 타임아웃이 먼저면 nil 을 반환해 호출부가 fallback(zoom14)로 진행한다(설계 확정 결정 3).
+    /// withTaskGroup 으로 위치 요청 child task(@MainActor — LocationServiceProtocol 격리 정합)와 타임아웃
+    /// child task 를 동시에 띄워 먼저 끝난 결과(group.next())를 취한 뒤 나머지를 취소한다.
+    /// LocationSample 은 저장 프로퍼티가 모두 Double/Double? 이라 암시적 Sendable — 그룹 반환에 안전.
+    private func requestOneShotWithTimeout(seconds: Double) async -> LocationSample? {
+        await withTaskGroup(of: LocationSample?.self) { group in
+            group.addTask { @MainActor [weak self] in
+                await self?.locationService.requestOneShot() ?? nil
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+            let result = await group.next() ?? nil
+            group.cancelAll()
+            return result
+        }
+    }
+
     // MARK: - 지도 이벤트(MapContainerView onEvent 바인딩)
 
     /// 지도에서 올라오는 이벤트 처리. markerTapped → selectedPinId(정보창 연결은 B4).
     func handle(_ event: MapEvent) {
         switch event {
         case .markerTapped(let pinId):
+            // BR-2/AC-13 — 인라인 추가 모드 중에는 마커 탭(핀 상세 진입)을 차단(십자선 모드 선택 충돌 방지).
+            guard !isAddingPin else { return }
             selectedPinId = pinId
             // PinDetailSheet 표시(activeSheet)는 B4 가 연결.
         case .clusterTapped(let pinIds):
+            // BR-2 — 인라인 추가 모드 중 클러스터 탭(지도 강제이동→cameraIdle→콕찍기 좌표 오염)을 차단(markerTapped 와 동일).
+            guard !isAddingPin else { return }
             // 클러스터 탭(FR-5) → 포함 핀들이 모두 보이도록 fitBounds(FR-26).
             handleClusterTapped(pinIds)
-        case .cameraIdle(let centerLat, let centerLng):
-            // 카메라 멈춤 → 최신 중심 좌표 보유(FR-15 크로스헤어 임의 좌표 추가의 입력).
-            mapCenter = Coordinate(latitude: centerLat, longitude: centerLng)
+        case .cameraIdle(let lat, let lng, let zoom):
+            // 항상 최신 중심/줌 보유(기존 방문감지 입력 + MUST-4).
+            mapCenter = Coordinate(latitude: lat, longitude: lng)
+            mapZoom = zoom
+            guard isAddingPin else { return }
+            if pendingProgrammaticIdle > 0 {
+                // 내가 명령한 flyTo(검색/줌인/seed)로 인한 idle — onMapMoved 스킵(검색 결과 보존, MUST-1/AC-17).
+                pendingProgrammaticIdle -= 1
+                if seedOnNextProgrammaticIdle {
+                    // 줌인 flyTo 의 idle → 초기 콕찍기 중심 1회 확정(MUST-2/AC-18).
+                    seedOnNextProgrammaticIdle = false
+                    addPlaceVM?.onMapMoved(center: Coordinate(latitude: lat, longitude: lng))
+                }
+                return
+            }
+            // 여기부터는 진짜 사용자 드래그 idle.
+            userDraggedSinceEntry = true   // MUST-2 — 이후 늦게 도착한 줌인 flyTo 를 스킵하는 가드.
+            // MUST-1 2차 안전망: 검색 선택 직후 좌표는 콕찍기로 덮지 않는다(다음 수동 드래그부터 전환).
+            guard addPlaceVM?.inputMode != .search || addPlaceVM?.selectedPlace == nil else { return }
+            addPlaceVM?.onMapMoved(center: Coordinate(latitude: lat, longitude: lng))   // 사용자 드래그(AC-5)
         }
     }
 

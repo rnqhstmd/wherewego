@@ -64,8 +64,13 @@ struct MapboxMapView: UIViewRepresentable {
             coordinator.lastCenter = mv.mapboxMap.cameraState.center
         }.store(in: &context.coordinator.cancellables)
         mapView.mapboxMap.onMapIdle.observe { [weak coordinator = context.coordinator] _ in
-            guard let coordinator, let center = coordinator.lastCenter else { return }
-            coordinator.onEvent(.cameraIdle(centerLat: center.latitude, centerLng: center.longitude))
+            guard let coordinator, let mv = coordinator.mapView, let center = coordinator.lastCenter else { return }
+            // idle 시점의 줌을 함께 전달(FR-11 인라인 줌인 판단). center 와 동일 cameraState 출처.
+            coordinator.onEvent(.cameraIdle(
+                centerLat: center.latitude,
+                centerLng: center.longitude,
+                zoom: mv.mapboxMap.cameraState.zoom
+            ))
         }.store(in: &context.coordinator.cancellables)
 
         return mapView

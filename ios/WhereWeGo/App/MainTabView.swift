@@ -4,7 +4,8 @@ import SwiftUI
 //  - 시스템 탭바 숨김 + ZStack 하단 FloatingTabBar(둥근 플로팅 필 바). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
 //  - 어디갈까: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
 //  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
-//  - ＋: showAddPlace → AddPlaceSheet(MapView EmptyMapCard 진입점과 동일 컴포넌트, ＋ 2진입점·1컴포넌트).
+//  - ＋(P8 영역1): mapViewModel.enterAddPin() → 메인 지도 인라인 오버레이(시트 제거). selection 불변(AC-1).
+//    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1). EmptyMapCard 진입점과 동일 모드.
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil.
 //      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
@@ -28,8 +29,6 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selection: MainTab = .map
-    /// ＋ 통합 장소 추가 시트 트리거(설계 §2). EmptyMapCard 진입(MapViewModel.activeSheet)과 동일 컴포넌트.
-    @State private var showAddPlace = false
     /// .invite 딥링크 시 표시할 초대 슬러그(시트 트리거). nil 이면 미표시.
     @State private var inviteSlug: String?
 
@@ -102,10 +101,11 @@ struct MainTabView: View {
             .tint(WGColor.cta)
 
             // 둥근 플로팅 필 바(4탭 + 센터 ＋ FAB). 알림 미읽음 배지(unreadCount>0)·＋ 액션.
+            // ＋ 는 selection 불변(AC-1) — 인라인 추가 모드만 토글(시트 미표시).
             FloatingTabBar(
                 selection: $selection,
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
-                onPlusTap: { showAddPlace = true }
+                onPlusTap: { mapViewModel.enterAddPin() }
             )
         }
         // 딥링크 소비(설계 §3) + 알림 배지 최초 갱신(설계 §14). 진입 시 보류분 1회 + 배지 1회.
@@ -116,15 +116,16 @@ struct MainTabView: View {
         .onChange(of: deepLinkRouter.pending) { _, _ in
             consumePending()
         }
+        // 탭 전환(selection 변경) 시 인라인 추가 모드 종료(BR-1/AC-12). ＋ 는 selection 불변이라 발화하지 않는다.
+        // 작성 중 위치 정보는 exitAddPin 이 폐기(cancelPendingWork → 디바운스/생성 Task 취소).
+        .onChange(of: selection) { _, _ in
+            mapViewModel.exitAddPin()
+        }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await notificationInboxViewModel.onForeground() }
             }
-        }
-        // ＋ 통합 장소 추가 시트(설계 §2, ＋ 진입점). EmptyMapCard 와 동일 AddPlaceSheet.
-        .sheet(isPresented: $showAddPlace) {
-            AddPlaceSheet(mapViewModel: mapViewModel)
         }
         // 초대 코드 합류 시트(.invite 딥링크). 합류/취소 시 닫힘.
         .sheet(item: inviteSlugBinding) { slug in
