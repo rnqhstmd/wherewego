@@ -69,23 +69,51 @@ final class AddPlaceViewModelTests: XCTestCase {
         XCTAssertNil(vm.resolvedAddress, "디바운스 미발화 시 동기 시점 resolvedAddress 는 nil.")
     }
 
+    // MARK: - 초기 카메라 seed(＋시트 기본 카메라가 대서양으로 뜨던 결함 수정)
+
+    func test_initialCameraTarget_usesMainMapCenter_whenAvailable() {
+        let mapVM = makeMapViewModel()
+        // 메인 지도 카메라 멈춤(cameraIdle) → mapCenter 채움.
+        mapVM.handle(.cameraIdle(centerLat: 37.5446, centerLng: 127.0557))
+        let vm = makeViewModel(mapViewModel: mapVM)
+
+        let target = vm.initialCameraTarget
+        XCTAssertEqual(target.latitude, 37.5446, accuracy: 1e-7, "메인 지도 중심을 초기 카메라로 사용해야 한다.")
+        XCTAssertEqual(target.longitude, 127.0557, accuracy: 1e-7)
+        XCTAssertEqual(target.zoom, MapViewModel.pinFocusZoom, "초기 줌은 콕찍기 시가지 레벨(pinFocusZoom).")
+    }
+
+    func test_initialCameraTarget_fallsBackToSeoul_whenMapCenterNil() {
+        // 메인 지도 cameraIdle 가 한 번도 없던 상태(mapCenter == nil) → 서울시청 폴백(대서양 기본 카메라 회피).
+        let vm = makeViewModel()
+
+        let target = vm.initialCameraTarget
+        XCTAssertEqual(target.latitude, 37.5, accuracy: 1e-7, "mapCenter 없으면 서울시청으로 폴백해야 한다.")
+        XCTAssertEqual(target.longitude, 127.0, accuracy: 1e-7)
+    }
+
     // MARK: - 헬퍼
 
     /// 콕찍기 디바운스 work 를 보관만 하는(실행 안 하는) 스케줄러를 주입한 AddPlaceViewModel.
     /// → onMapMoved 의 동기 상태만 부작용 없이 검증 가능(CLGeocoder 비호출).
-    private func makeViewModel() -> AddPlaceViewModel {
-        let mapViewModel = MapViewModel(
+    /// mapViewModel 미지정 시 기본 stub 으로 구성(초기 카메라 테스트는 mapCenter 조작 위해 직접 주입).
+    private func makeViewModel(mapViewModel: MapViewModel? = nil) -> AddPlaceViewModel {
+        // scheduler 가 work 를 무시(보관/실행 안 함) → 디바운스 발화 차단.
+        let inertDebouncer = Debouncer(interval: 0.3, scheduler: { _, _ in })
+        return AddPlaceViewModel(
+            mapViewModel: mapViewModel ?? makeMapViewModel(),
+            reverseGeocoder: ReverseGeocoder(),
+            debouncer: inertDebouncer
+        )
+    }
+
+    /// 초기 카메라 seed 테스트에서 mapCenter(cameraIdle)를 조작하기 위해 분리한 MapViewModel 팩토리.
+    private func makeMapViewModel() -> MapViewModel {
+        MapViewModel(
             pinAPI: StubPinAPI(),
             placeAPI: StubPlaceAPI(),
             groupAPI: StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
             locationService: StubLocationService()
-        )
-        // scheduler 가 work 를 무시(보관/실행 안 함) → 디바운스 발화 차단.
-        let inertDebouncer = Debouncer(interval: 0.3, scheduler: { _, _ in })
-        return AddPlaceViewModel(
-            mapViewModel: mapViewModel,
-            reverseGeocoder: ReverseGeocoder(),
-            debouncer: inertDebouncer
         )
     }
 }

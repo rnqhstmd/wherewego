@@ -51,6 +51,15 @@ struct AddPlaceSheet: View {
         .onChange(of: viewModel.didCreate) { _, created in
             if created { dismiss() }
         }
+        // 독립맵 초기 카메라 1회 seed — 메인 지도 중심에서 시작(SDK 기본 카메라가 대서양으로 뜨던 결함 수정).
+        // 이 seed 의 flyTo 가 onMapIdle→onMapMoved 로 이어져 진입 즉시 콕찍기 중심을 확정한다(자동 콕찍기 허용, 설계 §4 보강).
+        // 이미 검색 선택/콕찍기 진행 중이거나 카메라 명령이 대기 중이면 건너뛴다(최초 진입 1회).
+        .onAppear {
+            guard mapCameraCommand == nil,
+                  viewModel.selectedPlace == nil,
+                  viewModel.pinpointCenter == nil else { return }
+            mapCameraCommand = viewModel.initialCameraTarget
+        }
     }
 
     // MARK: - 상단 검색바 + 결과(FR-13)

@@ -216,6 +216,22 @@ final class AddPlaceViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 초기 카메라 seed(＋시트 진입)
+
+    /// ＋ 시트 진입 시 독립맵 초기 카메라(설계 §4 보강 — 시트 독립맵이 SDK 기본 카메라(대서양)로 떠
+    /// 콕찍기 좌표가 엉뚱해지던 결함 수정). 메인 지도의 마지막 중심(mapViewModel.mapCenter)을 우선 쓰고,
+    /// 아직 cameraIdle 이 없었으면(mapCenter == nil) 서울시청 좌표로 폴백한다.
+    /// 줌은 콕찍기 시가지 레벨(pinFocusZoom) — seoulCityHall(zoom3 전국뷰)은 콕찍기엔 부적합해 좌표만 차용한다.
+    /// 이 seed 가 onMapIdle→onMapMoved 로 이어져 진입 즉시 콕찍기 중심을 확정한다(제품 결정: 자동 콕찍기 허용).
+    var initialCameraTarget: CameraTarget {
+        let center = mapViewModel?.mapCenter ?? Coordinate(latitude: 37.5, longitude: 127.0)
+        return CameraTarget(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            zoom: MapViewModel.pinFocusZoom
+        )
+    }
+
     // MARK: - Private 헬퍼
 
     /// 현재 입력 방식에 맞는 생성 요청(콕찍기 좌표는 7자리 반올림). 입력 미정 시 nil.
