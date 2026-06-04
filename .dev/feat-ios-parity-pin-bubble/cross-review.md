@@ -45,3 +45,10 @@
 - **N3 수정됨**: 사진 피커/크롭 = activeSheet 1패널 예외 정책 주석 추가(동작 변경 없음).
 - **N4 보류**: selectedPinId 캡슐화(selectPin/deselectPin)는 리팩토링 범위라 향후 과제로 기록.
 - 격리 게이트(import MapboxMaps 1파일) 유지. Windows 빌드 불가 → 시각/빌드 최종 검증 DoD-B(Mac).
+
+## code-reviewer 라운드 (oh-my-claudecode, 독립 시각)
+Critical 0 / High 0 / Medium 2 / Low 2 / Nit 2 → **APPROVE(조건부)**. 회귀 0(원본 PinDetailSheet 액션 7종 1:1 이관 확인), 격리·누수 점검 통과.
+- **M1 수정됨**: `MapboxMapView` G1 투영을 `DispatchQueue.main.async` 블록 **안으로 이동** → 시트 닫힘 직후 카메라 미안정 시 다음 런루프 재투영으로 자동 회복. 게이팅(coordinatesEqual/lastTrackedCoordinate) 동기 유지로 QE-1 보존. nil이면 미방출.
+- **Nit 수정됨**: PinBubbleView bubbleHeight 220 추정치 근거 주석.
+- **DoD-B(Mac) 검증 등록**: M2(빠른 핀 전환 시 stale cameraMoved 1프레임 앵커 — 완화요소 有), L2(lastMapSize zero 초기 창 첫 탭), 좌표계 정렬 실측·꼬리 테두리 연속(N1)·BubbleHeightKey 점프 폭·시트→말풍선 승격 첫 프레임.
+- L1(coordinatesEqual 부동소수 정확비교)·photoUrl 버튼 게이팅 비대칭(원본부터): 위험 아님, 조치 불필요.

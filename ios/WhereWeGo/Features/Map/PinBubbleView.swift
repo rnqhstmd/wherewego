@@ -18,6 +18,7 @@ struct PinBubbleView: View {
     @StateObject private var detailVM: PinDetailViewModel
 
     /// 측정한 말풍선 전체 높이(본체+꼬리). 측정 전에는 추정치로 위치를 잡고 onPreferenceChange 로 보정(1프레임 깜빡임 최소화).
+    /// 초기값 220 = PreferenceKey 측정 전 1프레임 추정치(헤더+태그+메모 2줄 기준 평균 높이). 측정 후 보정되며 점프 폭은 DoD-B 시각 확인.
     @State private var bubbleHeight: CGFloat = 220
 
     /// 말풍선 최대 폭(웹 SpeechBubblePopup 동치, compact). 초과 콘텐츠는 내부 ScrollView(FR-9).

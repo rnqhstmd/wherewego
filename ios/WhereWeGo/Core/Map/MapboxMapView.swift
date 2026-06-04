@@ -92,12 +92,16 @@ struct MapboxMapView: UIViewRepresentable {
                 latitude: selectedPin.latitude, longitude: selectedPin.longitude
             )
             context.coordinator.trackedPinCoordinate = coordinate
+            // 게이팅 판정·lastTrackedCoordinate 갱신은 동기 유지(매 updateUIView 중복 방출 차단, QE-1).
             if !coordinatesEqual(context.coordinator.lastTrackedCoordinate, coordinate) {
                 context.coordinator.lastTrackedCoordinate = coordinate
-                // 변경된 첫 갱신만 투영+async 방출(탭 경로와 공존, 추적은 여전히 onCameraChanged).
-                let screenPoint = context.coordinator.screenPoint(for: coordinate)
-                DispatchQueue.main.async {
-                    context.coordinator.onEvent(.cameraMoved(screenPoint: screenPoint))
+                // 투영+방출만 다음 런루프로 지연(M1): visitMemo 닫힘 직후 등 카메라/레이아웃 안정화 전에 투영하면
+                // 화면밖 좌표가 나와 말풍선이 안 뜨므로, async 블록 안에서 안정화 후 기준으로 재투영해 자동 회복성을 확보한다.
+                // coordinate(값타입)·coordinator(클래스) 명시 캡처 — async 시점에 최신 카메라로 투영.
+                DispatchQueue.main.async { [coordinator = context.coordinator, coordinate] in
+                    if let screenPoint = coordinator.screenPoint(for: coordinate) {
+                        coordinator.onEvent(.cameraMoved(screenPoint: screenPoint))
+                    }
                 }
             }
         } else {
