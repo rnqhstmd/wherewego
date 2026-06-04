@@ -4,11 +4,15 @@ import SwiftUI
 // frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치 우하단).
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
-// 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1), 장소추가(AddPlaceSheet)·룰렛(RouletteSheet)은 activeSheet 시트로 연결한다.
-// P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼 + ＋ 통합 추가(AddPlaceSheet).
+// 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1), 룰렛(RouletteSheet)은 activeSheet 시트로 연결한다.
+// P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼.
+// P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin → CrosshairOverlay + InlineAddPlaceCard).
 struct MapView: View {
     @StateObject private var viewModel: MapViewModel
     @Environment(\.scenePhase) private var scenePhase
+
+    /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
+    private static let inlineCardBottomPadding: CGFloat = 88
 
     /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
     /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
@@ -24,6 +28,35 @@ struct MapView: View {
             MapContainerView(viewModel: viewModel)
 
             content
+
+            // 인라인 핀 추가 모드(P8 영역1, FR-3/4, AC-2/3). 십자선은 토스트보다 아래 레이어
+            // (방문 토스트가 십자선 위에 표시 — PRD 엣지). 십자선은 지도 중심(=화면 중앙) 위 고정.
+            if viewModel.isAddingPin {
+                CrosshairOverlay()
+                    .transition(.opacity)   // QE-1
+
+                if let addVM = viewModel.addPlaceVM {
+                    VStack {
+                        Spacer()
+                        InlineAddPlaceCard(
+                            viewModel: addVM,
+                            onSelectResult: { place in
+                                // 검색 결과 선택 → VM 갱신 + 메인 지도 flyTo(B2 계약, AC-9).
+                                addVM.selectResult(place)   // 이미 unwrap 된 로컬 인스턴스 재사용(스타일 통일).
+                                viewModel.flyTo(
+                                    lat: place.latitude,
+                                    lng: place.longitude,
+                                    zoom: MapViewModel.pinFocusZoom
+                                )
+                            },
+                            onCancel: { viewModel.exitAddPin() }   // FR-8, AC-12
+                        )
+                        // QE-2/AC-14 — FloatingTabBar 와 겹치지 않도록 탭바 높이 이상 bottom padding.
+                        .padding(.bottom, Self.inlineCardBottomPadding)
+                    }
+                    .transition(.move(edge: .bottom))   // QE-1
+                }
+            }
 
             // 방문 토스트(설계 §4, FR-27). 화면 정중앙 오버레이. PinDetail 시트와 별개.
             if let pin = viewModel.visitToastPin {
@@ -57,6 +90,8 @@ struct MapView: View {
         }
         .animation(.easeOut(duration: 0.2), value: viewModel.visitToastPinId)
         .animation(.easeOut(duration: 0.2), value: viewModel.visitInfoMessage)
+        // QE-1 — 십자선/하단 카드 등장·퇴장 전환(opacity + slide).
+        .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
         .navigationBarBackButtonHidden(true)
         .task {
             if case .idle = viewModel.loadState {
@@ -93,12 +128,11 @@ struct MapView: View {
                 }
             }
         }
-        // 핀 상세(정보창): 마커 탭 → selectedPinId → 말풍선 오버레이(MapContainerView, 설계 §6 D-1).
+        // 핀 생성 성공 시 인라인 모드 종료는 AddPlaceViewModel.performCreate 가 didCreate 직후 직접 수행한다(견고화, #97).
+        // (기존 onChange(addPlaceVM?.didCreate) Optional 체인 관찰 제거 — addPlaceVM nil 전환 시 관찰 누락 창 방지.)
+        // 핀 상세(정보창): 마커 탭 → selectedPinId → 말풍선 오버레이(MapContainerView, 설계 §6 D-1, #96).
         // 시트(.sheet) 대신 메인 지도 ZStack 오버레이로 표시 — 표시조건 D-4(selectedPin != nil && activeSheet == .none)는 MapContainerView 에서 파생.
-        // ＋ 통합 장소 추가 시트(activeSheet=.addPlace, FR-8/12~16). EmptyMapCard 진입점(MainTabView ＋ 와 동일 컴포넌트).
-        .sheet(isPresented: addPlaceSheetBinding) {
-            AddPlaceSheet(mapViewModel: viewModel)
-        }
+        // 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환됨(#97) — AddPlaceSheet/.sheet(item:selectedPinBinding) 제거.
         // 룰렛 시트(activeSheet=.roulette, FR-20~24).
         .sheet(isPresented: rouletteSheetBinding) {
             RouletteSheet(mapViewModel: viewModel, locationService: viewModel.locationService)
@@ -121,16 +155,6 @@ struct MapView: View {
     }
 
     // MARK: - activeSheet → 시트 표시 바인딩
-
-    /// .addPlace 표시 바인딩. 닫힘 시 activeSheet=.none.
-    private var addPlaceSheetBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.activeSheet == .addPlace },
-            set: { isPresented in
-                if !isPresented, viewModel.activeSheet == .addPlace { viewModel.activeSheet = .none }
-            }
-        )
-    }
 
     /// .roulette 표시 바인딩. 닫힘 시 activeSheet=.none.
     private var rouletteSheetBinding: Binding<Bool> {
@@ -225,9 +249,9 @@ struct MapView: View {
 
                 Spacer(minLength: 0)
 
-                // 핀 0개(loaded) → 빈 상태 카드(FR-8). ＋ 와 동일하게 .addPlace 시트로 진입(단일 컴포넌트).
+                // 핀 0개(loaded) → 빈 상태 카드(FR-8). ＋ 와 동일하게 인라인 추가 모드로 진입(FR-2, AC-1).
                 if viewModel.pins.isEmpty {
-                    EmptyMapCard(onAddPin: { viewModel.activeSheet = .addPlace })
+                    EmptyMapCard(onAddPin: { viewModel.enterAddPin() })
                     Spacer(minLength: 0)
                 }
             }
@@ -262,6 +286,8 @@ struct MapView: View {
     /// 룰렛 진입 플로팅 원형 버튼(FR-6). 우상단. stale 재조회는 RouletteViewModel.spin() 내부 await 가 단일 보장점.
     private var rouletteButton: some View {
         Button {
+            // BR-6 — 인라인 추가 모드 중 룰렛 진입 요청 시 추가 모드를 먼저 종료(작성 중 위치 폐기).
+            viewModel.exitAddPin()
             viewModel.activeSheet = .roulette
         } label: {
             Image(systemName: "dice")

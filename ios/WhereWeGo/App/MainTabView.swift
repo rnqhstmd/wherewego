@@ -4,7 +4,8 @@ import SwiftUI
 //  - 시스템 탭바 숨김 + .safeAreaInset(edge:.bottom) 으로 FloatingTabBar 부착(둥근 플로팅 필 바, 콘텐츠 자동 회피). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
 //  - 어디갈까: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
 //  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
-//  - ＋: showAddPlace → AddPlaceSheet(MapView EmptyMapCard 진입점과 동일 컴포넌트, ＋ 2진입점·1컴포넌트).
+//  - ＋(P8 영역1): mapViewModel.enterAddPin() → 메인 지도 인라인 오버레이(시트 제거). selection 불변(AC-1).
+//    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1). EmptyMapCard 진입점과 동일 모드.
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil.
 //      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
@@ -28,8 +29,6 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selection: MainTab = .map
-    /// ＋ 통합 장소 추가 시트 트리거(설계 §2). EmptyMapCard 진입(MapViewModel.activeSheet)과 동일 컴포넌트.
-    @State private var showAddPlace = false
     /// .invite 딥링크 시 표시할 초대 슬러그(시트 트리거). nil 이면 미표시.
     @State private var inviteSlug: String?
 
@@ -99,18 +98,20 @@ struct MainTabView: View {
             .reserveFloatingTabBarSpace()
             .tag(MainTab.myInfo)
         }
-        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1).
+        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1, #95 5탭 플로팅).
         .toolbar(.hidden, for: .tabBar)
         .tint(WGColor.cta)
         // 바 부착(설계 §2 개정 / PR리뷰): TabView 에 직접 .safeAreaInset 을 걸면 그 safe area 가 개별 탭
         //  자식 뷰로 전파되지 않는 SwiftUI 한계가 있다(콘텐츠가 바 뒤로 가림). 따라서 각 탭이
         //  .reserveFloatingTabBarSpace() 로 자체 footprint 를 확보하고, 바는 .overlay 로 얹는다.
         //  overlay 콘텐츠는 container safe area 를 존중하므로 바가 홈 인디케이터 위에 배치된다(AC-4).
+        // 둥근 플로팅 필 바(4탭 + 센터 ＋ FAB). 알림 미읽음 배지(unreadCount>0)·＋ 액션(#95+#97).
+        // ＋ 는 selection 불변(AC-1) — 인라인 추가 모드만 토글(시트 미표시, #97).
         .overlay(alignment: .bottom) {
             FloatingTabBar(
                 selection: $selection,
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
-                onPlusTap: { showAddPlace = true }
+                onPlusTap: { mapViewModel.enterAddPin() }
             )
             // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
             //  TabView 전체에 걸면 채팅 입력바의 SwiftUI 키보드 회피까지 억제되어 입력바가 키보드에 가려진다.
@@ -125,15 +126,16 @@ struct MainTabView: View {
         .onChange(of: deepLinkRouter.pending) { _, _ in
             consumePending()
         }
+        // 탭 전환(selection 변경) 시 인라인 추가 모드 종료(BR-1/AC-12). ＋ 는 selection 불변이라 발화하지 않는다.
+        // 작성 중 위치 정보는 exitAddPin 이 폐기(cancelPendingWork → 디바운스/생성 Task 취소).
+        .onChange(of: selection) { _, _ in
+            mapViewModel.exitAddPin()
+        }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await notificationInboxViewModel.onForeground() }
             }
-        }
-        // ＋ 통합 장소 추가 시트(설계 §2, ＋ 진입점). EmptyMapCard 와 동일 AddPlaceSheet.
-        .sheet(isPresented: $showAddPlace) {
-            AddPlaceSheet(mapViewModel: mapViewModel)
         }
         // 초대 코드 합류 시트(.invite 딥링크). 합류/취소 시 닫힘.
         .sheet(item: inviteSlugBinding) { slug in

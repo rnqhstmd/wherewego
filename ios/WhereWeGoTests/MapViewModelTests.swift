@@ -339,8 +339,9 @@ final class MapViewModelTests: XCTestCase {
         vm.updateMapSize(CGSize(width: 390, height: 844))
         vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
 
-        // 시트 충돌(예: addPlace) → 말풍선은 일시 숨김(표시조건은 View 에서 파생) 이지만 선택 상태는 보존.
-        vm.activeSheet = .addPlace
+        // 시트 충돌(예: roulette) → 말풍선은 일시 숨김(표시조건은 View 에서 파생) 이지만 선택 상태는 보존.
+        // (P8 영역1: .addPlace 는 인라인 오버레이로 전환되며 ActiveSheet 에서 제거됨 — 동치 충돌 시트인 .roulette 로 검증.)
+        vm.activeSheet = .roulette
 
         // 표시 파생 false(시트 떠 있음) 이지만 selectedPin 은 유지(시트 닫으면 복귀).
         XCTAssertFalse(vm.selectedPin != nil && vm.activeSheet == .none)

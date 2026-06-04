@@ -2,7 +2,7 @@ import Foundation
 import CoreLocation
 
 // 온디바이스 역지오코딩 + 디바운서 + 좌표 폴백(설계 §5, FR-14/BR-3/AC-5/AC-9).
-// 콕찍기(AddPlaceSheet) cameraIdle → Debouncer(300ms) → ReverseGeocoder → resolvedAddress.
+// 콕찍기(인라인 추가 모드) cameraIdle → Debouncer(300ms) → ReverseGeocoder → resolvedAddress.
 // 실패/무결과 시 coordinateFallback("위도 ..., 경도 ...") 로 대체(AC-9).
 // CLGeocoder 는 실디바이스/네트워크 의존이라 단위 테스트 제외. 순수 로직(coordinateFallback)·
 // Debouncer 동작(주입 스케줄러)만 검증 가능하게 분리한다.
@@ -78,5 +78,11 @@ final class Debouncer {
             guard let self, token == self.generation else { return }
             action()
         }
+    }
+
+    /// 예약된 작업을 취소(MUST-3, AC-19). generation 을 증가시켜 대기 중인 예약 실행을 무효화한다.
+    /// 인라인 추가 모드 종료(exitAddPin) 시 디바운스된 역지오 work 가 뒤늦게 발화하는 것을 막는다.
+    func cancel() {
+        generation += 1
     }
 }

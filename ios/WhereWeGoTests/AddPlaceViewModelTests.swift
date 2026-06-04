@@ -74,7 +74,7 @@ final class AddPlaceViewModelTests: XCTestCase {
     func test_initialCameraTarget_usesMainMapCenter_whenAvailable() {
         let mapVM = makeMapViewModel()
         // 메인 지도 카메라 멈춤(cameraIdle) → mapCenter 채움.
-        mapVM.handle(.cameraIdle(centerLat: 37.5446, centerLng: 127.0557))
+        mapVM.handle(.cameraIdle(centerLat: 37.5446, centerLng: 127.0557, zoom: 15))
         let vm = makeViewModel(mapViewModel: mapVM)
 
         let target = vm.initialCameraTarget

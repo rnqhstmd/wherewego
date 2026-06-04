@@ -59,16 +59,23 @@ final class CoreLocationService: NSObject, LocationServiceProtocol {
         guard isGranted else { return nil }
         // 이전 대기 중 continuation 이 있으면 정리(중복 호출 방어).
         resolveOneShot(with: nil)
-        return await withCheckedContinuation { continuation in
-            oneShotContinuation = continuation
-            pendingOneShot = true
-            // 타임아웃 Task 와 delegate 콜백은 모두 @MainActor 로 격리되어 직렬화된다.
-            oneShotTimeout = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: (self?.oneShotTimeoutSeconds ?? 10) * 1_000_000_000)
-                guard !Task.isCancelled else { return }
-                self?.resolveOneShot(with: nil)
+        // L4(code-review) — 외부 Task 취소(예: requestOneShotWithTimeout 의 5초 타임아웃 후 cancelAll)에 반응해
+        // 즉시 nil resume 한다. 없으면 CoreLocation 자체 타임아웃(10초)까지 블록되어 "5초 상한"이 깨진다.
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                oneShotContinuation = continuation
+                pendingOneShot = true
+                // 타임아웃 Task 와 delegate 콜백은 모두 @MainActor 로 격리되어 직렬화된다.
+                oneShotTimeout = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: (self?.oneShotTimeoutSeconds ?? 10) * 1_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    self?.resolveOneShot(with: nil)
+                }
+                manager.requestLocation()
             }
-            manager.requestLocation()
+        } onCancel: {
+            // double-resume 은 resolveOneShot 의 continuation nil 가드가 방지한다.
+            Task { @MainActor [weak self] in self?.resolveOneShot(with: nil) }
         }
     }
 
