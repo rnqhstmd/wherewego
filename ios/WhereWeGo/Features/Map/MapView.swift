@@ -249,7 +249,9 @@ struct MapView: View {
                     Spacer()
                     myLocationButton
                 }
-                .padding(.bottom, 28)
+                // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 내위치 버튼이 바를 직접 회피한다(PR리뷰).
+                //  바 footprint(contentFootprint = barHeight+bottomGap) 만큼 올리고 버튼-바 숨 여백(bottomGap)을 더한다(AC-2). 수치 보정 DoD-B.
+                .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
         }
         .padding(.horizontal, 16)
