@@ -1,7 +1,7 @@
 import SwiftUI
 
 // 메인 탭 화면(설계 §1·§2·§11, FR-1~4/10/19). 온보딩 종착 — 5탭 재구성(어디갈까·채팅·＋·알림·내정보).
-//  - 시스템 탭바 숨김 + ZStack 하단 FloatingTabBar(둥근 플로팅 필 바). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
+//  - 시스템 탭바 숨김 + .safeAreaInset(edge:.bottom) 으로 FloatingTabBar 부착(둥근 플로팅 필 바, 콘텐츠 자동 회피). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
 //  - 어디갈까: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
 //  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
 //  - ＋: showAddPlace → AddPlaceSheet(MapView EmptyMapCard 진입점과 동일 컴포넌트, ＋ 2진입점·1컴포넌트).
@@ -70,43 +70,47 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selection) {
-                // 어디갈까(지도) 탭 — 외부 주입 VM 공유(딥링크 flyTo 대상).
-                MapView(viewModel: mapViewModel)
-                    .tag(MainTab.map)
+        TabView(selection: $selection) {
+            // 어디갈까(지도) 탭 — 외부 주입 VM 공유(딥링크 flyTo 대상).
+            MapView(viewModel: mapViewModel)
+                .tag(MainTab.map)
 
-                // 채팅(봇 방) 탭. navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
-                NavigationStack {
-                    BotChatView(viewModel: botViewModel)
-                }
-                .tag(MainTab.chat)
-
-                // 알림 탭. 진입 시 NotificationInboxView.load() 가 list+readAll(읽음 처리, 설계 §14).
-                NavigationStack {
-                    NotificationInboxView(viewModel: notificationInboxViewModel)
-                }
-                .tag(MainTab.notification)
-
-                // 내정보 탭. VM 은 본 뷰가 소유(@StateObject), authAPI 는 닉네임 수정 시트용으로 전달.
-                NavigationStack {
-                    MyInfoView(
-                        authAPI: dependencies.authAPI,
-                        viewModel: myInfoViewModel
-                    )
-                }
-                .tag(MainTab.myInfo)
+            // 채팅(봇 방) 탭. navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
+            NavigationStack {
+                BotChatView(viewModel: botViewModel)
             }
-            // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1).
-            .toolbar(.hidden, for: .tabBar)
-            .tint(WGColor.cta)
+            .tag(MainTab.chat)
 
-            // 둥근 플로팅 필 바(4탭 + 센터 ＋ FAB). 알림 미읽음 배지(unreadCount>0)·＋ 액션.
+            // 알림 탭. 진입 시 NotificationInboxView.load() 가 list+readAll(읽음 처리, 설계 §14).
+            NavigationStack {
+                NotificationInboxView(viewModel: notificationInboxViewModel)
+            }
+            .tag(MainTab.notification)
+
+            // 내정보 탭. VM 은 본 뷰가 소유(@StateObject), authAPI 는 닉네임 수정 시트용으로 전달.
+            NavigationStack {
+                MyInfoView(
+                    authAPI: dependencies.authAPI,
+                    viewModel: myInfoViewModel
+                )
+            }
+            .tag(MainTab.myInfo)
+        }
+        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1).
+        .toolbar(.hidden, for: .tabBar)
+        .tint(WGColor.cta)
+        // 바 부착(설계 §2): ZStack 오버레이 → safeAreaInset. SwiftUI 가 바 높이만큼 각 탭 safe area 자동 예약 →
+        //  콘텐츠 자동 회피(AC-3/9) + 바가 홈 인디케이터 위 자동 배치(AC-4). 4탭 + 센터 ＋ FAB·미읽음 배지(unreadCount>0).
+        .safeAreaInset(edge: .bottom) {
             FloatingTabBar(
                 selection: $selection,
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
                 onPlusTap: { showAddPlace = true }
             )
+            // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
+            //  TabView 전체에 걸면 채팅 입력바의 SwiftUI 키보드 회피까지 억제되어 입력바가 키보드에 가려진다.
+            //  바에만 적용 → 바는 고정(키보드 뒤), 채팅 입력바는 키보드 위로 정상 회피.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         // 딥링크 소비(설계 §3) + 알림 배지 최초 갱신(설계 §14). 진입 시 보류분 1회 + 배지 1회.
         .task {

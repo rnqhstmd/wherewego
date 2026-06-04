@@ -260,7 +260,9 @@ struct MapView: View {
                     Spacer()
                     myLocationButton
                 }
-                .padding(.bottom, 28)
+                // 바가 safe area 차지 → 자동 회피(footprint 자동 예약). 28은 중복 여백이라 제거하고,
+                //  버튼-바 사이 숨 여백만 남긴다(AC-2): 매직넘버 대신 바 레이아웃 상수를 참조. 수치 보정은 DoD-B.
+                .padding(.bottom, FloatingTabBar.Metrics.bottomGap)
             }
         }
         .padding(.horizontal, 16)
