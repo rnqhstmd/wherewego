@@ -1,7 +1,8 @@
 import SwiftUI
 
 // 둥근 플로팅 필 바(설계 §1, FR-1~4, BR-1, AC-2).
-//  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .safeAreaInset(edge:.bottom) 으로 부착한다(콘텐츠 자동 회피).
+//  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
+//    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
 //  - 5칸 = 4탭 버튼(어디갈까·채팅·알림·내정보) + 가운데 ＋ FAB(주황 원, 바 안에 flush).
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
 //  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
@@ -18,9 +19,9 @@ enum MainTab: Hashable, CaseIterable {
 
 struct FloatingTabBar: View {
 
-    /// 바 레이아웃 상수 SSOT(설계 §1, FR-1/AC-1·AC-2). safeAreaInset 자동 회피로 footprint(바 점유 높이)는
-    /// SwiftUI 가 자동 예약하며, bottomGap 은 "바-인디케이터/콘텐츠 사이 간격 단위"다.
-    /// MapView 내위치 버튼 등 외부에서도 동일 간격 단위로 참조한다(매직넘버 분산 금지, AC-2).
+    /// 바 레이아웃 상수 SSOT(설계 §1, FR-1/AC-1·AC-2). barHeight/bottomGap 으로 footprint(바 점유 높이)를 정의한다.
+    /// 각 탭은 contentFootprint 만큼 하단 safe area 를 확보(reserveFloatingTabBarSpace)하고, 바는 overlay 로 얹는다.
+    /// MapView 내위치 버튼 등 외부에서도 동일 상수를 참조한다(매직넘버 분산 금지, AC-2).
     enum Metrics {
         static let barHeight: CGFloat = 64   // 필 바 높이
         static let bottomGap: CGFloat = 12   // 바와 safe area 사이 최소 여백(AC-4) / 공통 간격 단위
