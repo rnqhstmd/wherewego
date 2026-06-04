@@ -42,3 +42,20 @@
 - ✅ [스타일] `MapView.onSelectResult` → `addVM.selectResult` 통일.
 - ✅ [견고화] `MapView.onChange(addPlaceVM?.didCreate)` 제거 → `performCreate`가 didCreate 직후 `exitAddPin()` 직접 호출(Optional 체인 관찰 누락 창 제거).
 - ✅ [테스트] `InlineAddPlaceModeTests` 함수명 `test_enterAddPin_whenZoomBelowMin_seoulCityHall_bumpsZoomToFallback`로 정정.
+
+## code-reviewer 추가 리뷰 (oh-my-claudecode, 2026-06-04, 사용자 요청)
+> COMMENT(병합 차단 없음). Critical/High 0, Medium 3, Low 4, Info 2. gx qa/security/cross-review가 놓친 신규 발견.
+
+### 즉시 수정 ✅
+- [L4/High신뢰] `requestOneShotWithTimeout`이 실제 5초 아닌 최대 10초 블록(`requestOneShot`이 Task 취소 미반응) → `CoreLocationService.requestOneShot`에 `withTaskCancellationHandler` 추가(취소 시 `resolveOneShot(nil)` 즉시). "5초 상한" 정합.
+- [I2] `AddPlaceViewModel` 헤더 "독립맵" 죽은 주석 → 메인 지도 기준 정정.
+
+### DoD-B 검증 + 후속 리팩터 기록 (Mapbox onMapIdle 실측 필요)
+- [M1/M2/Med] `pendingProgrammaticIdle` 카운터 flyTo:idle **1:1 가정 위반** — 검색 연타/애니메이션 중 터치/목적지=현위치 시 idle 횟수 어긋나 좌표 1회 오분류. **DoD-B에서 Mapbox `onMapIdle`의 flyTo당 발화 횟수 실측** 후 어긋나면 카운터→**좌표매칭(generation+목적지 ±epsilon)** 리팩터. 이때 [L1] `flyTo` SRP 분리(인라인 전용 진입점 vs 범용)도 함께 — 외부 flyTo(딥링크/내위치) 카운터 오염 해소.
+- [M3/Med] `mapZoom` `exitAddPin` 미리셋 → 빠른 재진입 시 미확정 명령 줌으로 줌인 오판. 명령 줌/실제 도달 줌 분리 판단(DoD-B).
+- [L2/Low] 위치 미정 시 태그 UI 노출 — 웹 AddPinPickerContent 대조(DoD-B 시각).
+- [L3/Low] mapCenter nil 진입 안내문구 — `applyInitialCamera`(MEDIUM-3) 시드로 실경로 거의 차단, 잔여 타이밍만.
+- [I1/Info] `requestOneShot` 단일 continuation 동시성 표면 확대 — 구조 개선은 범위 밖, 추적.
+
+### 강점 (code-reviewer)
+취소·생명주기 가드 대칭 일관성, 비동기 진입 race 인식(userDraggedSinceEntry/applyInitialCamera 선시드) 인정.

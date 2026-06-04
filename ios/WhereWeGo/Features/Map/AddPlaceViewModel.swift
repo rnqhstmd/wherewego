@@ -1,12 +1,12 @@
 import Foundation
 
 // ＋ 통합 장소 추가 ViewModel(설계 §4, FR-12~16, AC-8/AC-9).
-// SearchPinViewModel(검색→선택→태그→create)과 CrosshairAddView(중앙좌표→addPinAtCenter)를 하나로 흡수한다.
-// 토글/탭 없이 검색바·독립맵(콕찍기)·확정 카드가 한 화면에 공존하며, 마지막 상호작용으로 inputMode 가 결정된다.
+// SearchPinViewModel(검색→선택→태그→create)과 콕찍기(중앙좌표→create)를 하나로 흡수한다.
+// 검색바·확정 카드가 인라인 하단 카드에 공존하며, 마지막 상호작용으로 inputMode 가 결정된다(P8 영역1 인라인화).
 //
 // 흐름:
-//  - 검색(FR-13): query → placeAPI.search → results → selectResult → selectedPlace(이름·주소·좌표) + 독립맵 flyTo.
-//  - 콕찍기(FR-14, AC-8): 독립맵 드래그(cameraIdle) → onMapMoved(center:) → query="" + .pinpoint + 디바운스 역지오 → resolvedAddress.
+//  - 검색(FR-13): query → placeAPI.search → results → selectResult → selectedPlace(이름·주소·좌표) + 메인 지도 flyTo.
+//  - 콕찍기(FR-14, AC-8): 메인 지도 드래그(cameraIdle) → onMapMoved(center:) → query="" + .pinpoint + 디바운스 역지오 → resolvedAddress.
 //    실패 시 ReverseGeocoder.coordinateFallback(AC-9).
 //  - 확정(FR-15): createPin(tag:) → validatePinInput 재사용 → pinAPI.create
 //    (검색=selectedPlace 좌표, 콕찍기=roundCoordinate 7자리 center) → mapViewModel.appendPin + flyTo → didCreate.
