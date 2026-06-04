@@ -1,6 +1,10 @@
-status: in_progress
+status: completed
 advisor: claude
 started: 2026-06-04
+completed: 2026-06-04
+processed:
+  fixed: 3   # N1 꼬리테두리, N2 삭제중 가드, N3 정책주석 (커밋 6ea0834)
+  deferred: 1  # N4 selectedPinId 캡슐화 (향후 리팩토링)
 findings:
   ac_total: 14
   ac_met: 14

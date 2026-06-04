@@ -38,3 +38,10 @@
 - 강점: (1) self-check Critical이던 `.position` 앵커 분리 + PreferenceKey 높이보정을 코드로 완전 해소. (2) QE-1 3중 차단이 설계대로 구현+distinct 테스트 검증.
 - 합산: Critical 0, Warning 1(N1 시각), MEDIUM 2(N2 삭제중 가드 / N3 사진시트 정책), LOW 1(N4 캡슐화).
 - 권고: N2(삭제 중 배경탭 보호)가 실질 — 코드 수정 권장. N1(꼬리 테두리)은 시각 정합 코드 1~2줄. N3는 정책 주석. N4는 향후.
+
+## 처리 결과 (커밋 6ea0834, PR #96 반영)
+- **N1 수정됨**: 본체+꼬리를 단일 `BubbleShape` 외곽선으로 합쳐 접합부 테두리 연속(꼬리 윗변 이중선 없음). 픽셀 미세조정 DoD-B.
+- **N2 수정됨**: `isMutating`을 `PinDetailViewModel`로 이동(@Published 단일 관찰원), 배경탭 가드를 `!isPhotoBusy, !isMutating`로 확장 → 삭제/저장 진행 중 말풍선 닫힘 방지 + closeBubble 이중호출 차단.
+- **N3 수정됨**: 사진 피커/크롭 = activeSheet 1패널 예외 정책 주석 추가(동작 변경 없음).
+- **N4 보류**: selectedPinId 캡슐화(selectPin/deselectPin)는 리팩토링 범위라 향후 과제로 기록.
+- 격리 게이트(import MapboxMaps 1파일) 유지. Windows 빌드 불가 → 시각/빌드 최종 검증 DoD-B(Mac).
