@@ -15,6 +15,14 @@ struct MapMarker {
     let tag: PinTag
 }
 
+/// 좌표→화면 투영 결과(논리 pt, 원점 좌상단). 말풍선 앵커(.position)·화면밖 판정의 입력.
+/// SDK(CGPoint)·UIKit 비노출 — MUST-1 격리(Double 만 운반). MapboxMapView 가 CGPoint↔ScreenPoint 변환.
+/// frontend/src/app/map/_components/PinPopup.tsx 의 map.project([lng,lat]) 화면좌표 동치.
+struct ScreenPoint: Equatable {
+    let x: Double
+    let y: Double
+}
+
 /// 카메라 이동 목표. flyTo 애니메이션 대상(설계 §3 cameraCommand).
 struct CameraTarget {
     let latitude: Double
@@ -26,12 +34,16 @@ struct CameraTarget {
 
 /// 지도에서 올라오는 사용자 상호작용 이벤트. ViewModel 이 소비.
 enum MapEvent {
-    /// 단일 마커 탭(pinId).
-    case markerTapped(Int)
+    /// 단일 마커 탭(pinId + 마커 중심 화면좌표). screenPoint 로 말풍선을 탭 즉시 앵커(지연 0, MUST-ADDRESS②).
+    /// 투영 실패 시 screenPoint nil(VM 이 화면밖 처리와 동일하게 흡수).
+    case markerTapped(pinId: Int, screenPoint: ScreenPoint?)
     /// 클러스터 탭(포함 pinId 목록, FR-5 Should).
     case clusterTapped([Int])
     /// 카메라 이동이 멈춘 시점의 중심 좌표(크로스헤어/방문감지 좌표 추적용).
     case cameraIdle(centerLat: Double, centerLng: Double)
+    /// 선택핀 추적 중 카메라 변화로 갱신된 선택핀 화면좌표(QE-1 게이팅: 추적 좌표 있을 때만 방출).
+    /// 화면밖이어도 raw 투영값을 그대로 운반 — 안/밖 판정·distinct 는 VM 책임(MUST-ADDRESS③④).
+    case cameraMoved(screenPoint: ScreenPoint?)
 }
 
 /// 지도 렌더러 추상 인터페이스. SDK 구현체(MapboxMapRenderer)와 테스트용 MockMapRenderer 가 채택.
@@ -43,6 +55,9 @@ protocol MapRenderer: AnyObject {
     func flyTo(_ target: CameraTarget)
     /// 다수 마커가 모두 보이도록 카메라 맞춤(FR-26 Should).
     func fitBounds(_ markers: [MapMarker], padding: Double, maxZoom: Double)
+    /// 위경도 좌표를 현재 카메라 기준 화면점(논리 pt, 원점 좌상단)으로 투영(MUST-ADDRESS②).
+    /// 좌표가 지도 뷰 밖이거나 투영 불가면 nil. SDK stub(MapboxMapRenderer #else)·Mock 은 nil 반환.
+    func point(for latitude: Double, longitude: Double) -> ScreenPoint?
     /// 지도 → ViewModel 이벤트 콜백.
     var eventHandler: ((MapEvent) -> Void)? { get set }
 }

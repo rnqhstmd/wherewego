@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // 지도 메인 ViewModel(설계 §3, FR-2/6/7, AC-4/6/7). 웹 MapClient.tsx 의 상태/낙관적 업데이트 이식.
@@ -10,7 +11,7 @@ import Foundation
 //  - 낙관적 PATCH/DELETE 와 실패 시 스냅샷 복원(AC-6/7) — B4(PinDetail/Search/Roulette)가 호출.
 //  - 동시 1패널(activeSheet) 상태 — 실제 시트 표시는 B4 가 연결.
 // 비책임(B4): VisitDetectionEngine 오케스트레이션(여기서는 locationService 보유·startUpdating 훅 자리만),
-//            PinDetailSheet/AddPlaceSheet/RouletteSheet 의 실제 UI·로직.
+//            PinBubbleView(핀 상세 말풍선)/AddPlaceSheet/RouletteSheet 의 실제 UI·로직.
 //
 // 지도 제어는 MapRenderer 프로토콜이 아니라 선언적 바인딩(markers + cameraCommand)으로 한다(B2 계약).
 // VM 은 renderer 인스턴스를 직접 보유하지 않는다(MockMapRenderer 는 markers/cameraCommand 산출 검증에만 사용).
@@ -52,7 +53,7 @@ final class MapViewModel: ObservableObject {
     nonisolated static let placeNameMaxLength = 200
 
     /// 메모 최대 길이(API 계층 방어 검증). 백엔드 검증(≤500자)과 동치.
-    /// 호출부 UI(PinDetailSheet/VisitMemoSheet)가 이미 절단하지만 PATCH 직전 한 번 더 절단해 방어한다.
+    /// 호출부 UI(PinDetailContent/VisitMemoSheet)가 이미 절단하지만 PATCH 직전 한 번 더 절단해 방어한다.
     nonisolated static let memoMaxLength = 500
 
     /// 위도 허용 범위(BR-4, -90~90). 좌표 범위 클라이언트 검증.
@@ -95,8 +96,13 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var pins: [PinSummary] = []
     /// 표시 태그 필터(FR-6). 기본 전체 ON.
     @Published var activeFilters: Set<PinTag> = [.REEL, .WISH, .MEMORY]
-    /// 선택된 핀(마커 탭). 정보창(PinDetailSheet) 연결은 B4.
+    /// 선택된 핀(마커 탭). 정보창(말풍선 오버레이) 연결은 MapContainerView.
     @Published var selectedPinId: Int?
+    /// 선택핀의 현재 화면좌표(말풍선 .position 앵커). markerTapped 가 즉시 세팅(지연 0, MUST-ADDRESS②),
+    /// cameraMoved 가 추적 갱신(distinct + 화면밖 nil, MUST-ADDRESS③④). 화면밖/미투영이면 nil → 말풍선 숨김.
+    @Published private(set) var selectedPinScreenPoint: ScreenPoint?
+    /// 지도 뷰 크기(MapContainerView GeometryReader geo.size → updateMapSize 보관). 화면밖 판정 입력(AC-14).
+    private(set) var lastMapSize: CGSize = .zero
     /// 카메라 이동 명령. MapContainerView 가 flyTo 후 nil 로 리셋(B2 계약).
     @Published var cameraCommand: CameraTarget?
     /// 다수 마커 일괄 표시 카메라 명령(FR-26). 클러스터 탭 확장 등에서 사용.
@@ -140,7 +146,7 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// 현재 선택된 핀(selectedPinId 기준). B4 PinDetailSheet 가 소비.
+    /// 현재 선택된 핀(selectedPinId 기준). 말풍선 오버레이(PinBubbleView)가 소비.
     var selectedPin: PinSummary? {
         guard let id = selectedPinId else { return nil }
         return pins.first { $0.id == id }
@@ -303,7 +309,11 @@ final class MapViewModel: ObservableObject {
         guard let groupId else { throw MapError.noActiveGroup }
         let snapshot = pins
         pins.removeAll { $0.id == pinId }
-        if selectedPinId == pinId { selectedPinId = nil }
+        if selectedPinId == pinId {
+            selectedPinId = nil
+            // 선택핀 삭제 시 말풍선 화면좌표도 함께 해제(AC-7 — 말풍선 잔상 방지).
+            selectedPinScreenPoint = nil
+        }
         do {
             try await pinAPI.delete(groupId: groupId, pinId: pinId)
         } catch {
@@ -439,18 +449,59 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 지도 이벤트(MapContainerView onEvent 바인딩)
 
-    /// 지도에서 올라오는 이벤트 처리. markerTapped → selectedPinId(정보창 연결은 B4).
+    /// 지도에서 올라오는 이벤트 처리. markerTapped → selectedPinId + 말풍선 화면좌표 즉시 세팅.
     func handle(_ event: MapEvent) {
         switch event {
-        case .markerTapped(let pinId):
+        case let .markerTapped(pinId, screenPoint):
+            // 동일 핀 재탭은 무시(D-2/AC-13)하되, 프로그래밍 선택 등으로 selectedPinScreenPoint 가 nil 인 상태면
+            // 재탭으로 좌표를 복구한다(G1 투영 실패 시 마커 재탭이 말풍선 복구 안전망).
+            guard selectedPinId != pinId || selectedPinScreenPoint == nil else { return }
             selectedPinId = pinId
-            // PinDetailSheet 표시(activeSheet)는 B4 가 연결.
+            // 탭 즉시 화면좌표 세팅(지연 0, MUST-ADDRESS②). 화면밖이면 숨김(AC-14) — 이후 추적이 재표시.
+            setSelectedPinScreenPoint(visibleOrNil(screenPoint))
+        case let .cameraMoved(screenPoint):
+            // 선택핀 추적 갱신(MUST-ADDRESS③). distinct + 화면밖 nil(GeoMath.isPointVisible) → 그 자식 뷰만 무효화.
+            // 선택 해제 상태(selectedPinId nil)의 잔여 방출은 무시(게이팅 b 방어).
+            guard selectedPinId != nil else { return }
+            setSelectedPinScreenPoint(visibleOrNil(screenPoint))
         case .clusterTapped(let pinIds):
             // 클러스터 탭(FR-5) → 포함 핀들이 모두 보이도록 fitBounds(FR-26).
             handleClusterTapped(pinIds)
         case .cameraIdle(let centerLat, let centerLng):
             // 카메라 멈춤 → 최신 중심 좌표 보유(FR-15 크로스헤어 임의 좌표 추가의 입력).
             mapCenter = Coordinate(latitude: centerLat, longitude: centerLng)
+        }
+    }
+
+    /// 지도 뷰 크기 갱신(MapContainerView GeometryReader). 화면밖 판정의 기준(AC-14).
+    func updateMapSize(_ size: CGSize) {
+        lastMapSize = size
+    }
+
+    /// 말풍선 화면좌표 해제(선택 해제/삭제 시). 닫기 흐름에서 selectedPinId nil 과 함께 호출.
+    func clearSelectedPinScreenPoint() {
+        selectedPinScreenPoint = nil
+    }
+
+    /// raw 투영점을 화면 영역으로 필터(D-3 clamp 없음 — 밖이면 nil 로 숨김, AC-14).
+    /// lastMapSize 미확보(.zero) 시 isPointVisible 이 false → nil(투영 기준 없음 방어).
+    private func visibleOrNil(_ screenPoint: ScreenPoint?) -> ScreenPoint? {
+        guard let screenPoint, GeoMath.isPointVisible(screenPoint, in: lastMapSize) else { return nil }
+        return screenPoint
+    }
+
+    /// distinctUntilChanged(QE-1 게이팅 b): 1pt 반올림 비교로 같으면 set 생략(불필요 무효화 차단).
+    private func setSelectedPinScreenPoint(_ next: ScreenPoint?) {
+        guard !screenPointsEqual(selectedPinScreenPoint, next) else { return }
+        selectedPinScreenPoint = next
+    }
+
+    /// 화면좌표 동등 비교(1pt 반올림). nil↔값 전환은 변화로 본다.
+    private func screenPointsEqual(_ lhs: ScreenPoint?, _ rhs: ScreenPoint?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): return true
+        case let (l?, r?): return l.x.rounded() == r.x.rounded() && l.y.rounded() == r.y.rounded()
+        default: return false
         }
     }
 

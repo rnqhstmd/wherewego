@@ -15,6 +15,10 @@ final class MockMapRenderer: MapRenderer {
     private(set) var flyToCalls: [CameraTarget] = []
     /// fitBounds 호출 인자(markers/padding/maxZoom).
     private(set) var fitBoundsCalls: [(markers: [MapMarker], padding: Double, maxZoom: Double)] = []
+    /// point(for:) 가 반환할 투영 결과(테스트가 주입). 기본 nil(stub/플레이스홀더 동치).
+    var pointForResult: ScreenPoint?
+    /// point(for:) 로 들어온 좌표(호출 순서대로 기록).
+    private(set) var pointForCalls: [(latitude: Double, longitude: Double)] = []
 
     func setMarkers(_ markers: [MapMarker]) {
         setMarkersCalls.append(markers)
@@ -28,7 +32,13 @@ final class MockMapRenderer: MapRenderer {
         fitBoundsCalls.append((markers: markers, padding: padding, maxZoom: maxZoom))
     }
 
+    func point(for latitude: Double, longitude: Double) -> ScreenPoint? {
+        pointForCalls.append((latitude: latitude, longitude: longitude))
+        return pointForResult
+    }
+
     /// 테스트에서 지도 이벤트를 강제로 발생시켜 ViewModel 반응을 검증.
+    /// .markerTapped(pinId:screenPoint:)/.cameraMoved(screenPoint:) 신규 시그니처를 그대로 운반한다.
     func emit(_ event: MapEvent) {
         eventHandler?(event)
     }
