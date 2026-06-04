@@ -1,9 +1,11 @@
+import CoreGraphics
 import Foundation
 
 // 좌표 거리·BBox 계산 순수 로직(설계 §4).
 // frontend/src/app/map/_lib/roulette.ts(haversineKm) +
 // frontend/src/app/map/_hooks/useVisitDetection.ts(BBox prefilter) 와 동치 이식.
 // SwiftUI/CoreLocation 의존 없이 결정적으로 테스트 가능한 순수 함수만 보유.
+// (CGSize 는 CoreGraphics — 화면밖 판정용. MapboxMaps 격리와 무관.)
 
 /// 위경도 좌표. 백엔드 BigDecimal → Double 수용(7자리 반올림 안전, 설계 CONSIDER).
 struct Coordinate: Equatable {
@@ -47,6 +49,17 @@ enum GeoMath {
         var lngDiff = abs(point.longitude - center.longitude)
         if lngDiff > 180 { lngDiff = 360 - lngDiff }
         if lngDiff > lngDelta { return false }
+        return true
+    }
+
+    /// 화면점이 지도 뷰 영역 안에 있는지 판정(AC-14, 순수). bboxContains 패턴 동형.
+    /// 밖이면 말풍선 숨김(D-3 clamp 없음 — 화면밖은 nil 로 숨기고 복귀 시 재표시).
+    /// - margin: 가장자리 여유(pt). 양수면 영역을 넓혀 경계 직전까지 보이게, 0 이면 정확히 [0, size] 닫힌 구간.
+    /// 경계값(0/size)은 포함(closed). size 가 0 이하면 항상 false(투영 불가 상태 방어).
+    static func isPointVisible(_ p: ScreenPoint, in size: CGSize, margin: Double = 0) -> Bool {
+        guard size.width > 0, size.height > 0 else { return false }
+        if p.x < -margin || p.x > Double(size.width) + margin { return false }
+        if p.y < -margin || p.y > Double(size.height) + margin { return false }
         return true
     }
 

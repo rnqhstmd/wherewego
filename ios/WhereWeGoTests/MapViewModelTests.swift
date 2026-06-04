@@ -1,4 +1,6 @@
 import XCTest
+import Combine
+import CoreGraphics
 import CoreLocation
 @testable import WhereWeGo
 
@@ -142,6 +144,207 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertEqual(vm.cameraCommand?.latitude, 37.5)
         XCTAssertEqual(vm.cameraCommand?.longitude, 127.0)
         XCTAssertEqual(vm.cameraCommand?.zoom, 12)
+    }
+
+    // MARK: - AC-14: isPointVisible 화면밖 판정 순수함수(경계값)
+
+    func test_isPointVisible_insideBounds_returnsTrue() {
+        let size = CGSize(width: 390, height: 844)
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: 100, y: 200), in: size))
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: 195, y: 422), in: size))
+    }
+
+    func test_isPointVisible_onBoundary_returnsTrue() {
+        let size = CGSize(width: 390, height: 844)
+        // 경계(0/size)는 닫힌 구간 포함.
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: 0, y: 0), in: size))
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: 390, y: 844), in: size))
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: 0, y: 844), in: size))
+    }
+
+    func test_isPointVisible_outsideBounds_returnsFalse() {
+        let size = CGSize(width: 390, height: 844)
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: -1, y: 200), in: size))
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: 391, y: 200), in: size))
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: 100, y: -1), in: size))
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: 100, y: 845), in: size))
+    }
+
+    func test_isPointVisible_withMargin_extendsBounds() {
+        let size = CGSize(width: 390, height: 844)
+        // margin 만큼 영역을 넓혀 경계 밖도 보이게.
+        XCTAssertTrue(GeoMath.isPointVisible(ScreenPoint(x: -10, y: 200), in: size, margin: 20))
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: -30, y: 200), in: size, margin: 20))
+    }
+
+    func test_isPointVisible_zeroSize_returnsFalse() {
+        // 투영 기준 미확보(.zero) — 항상 false(화면밖 처리로 숨김).
+        XCTAssertFalse(GeoMath.isPointVisible(ScreenPoint(x: 0, y: 0), in: .zero))
+    }
+
+    // MARK: - markerTapped: 화면좌표 즉시 세팅(MUST-ADDRESS②)
+
+    func test_markerTapped_setsSelectedPinAndScreenPointImmediately() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 100, y: 200))
+    }
+
+    func test_markerTapped_offScreenPoint_keepsScreenPointNil() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+
+        // 화면 밖(x 음수) → screenPoint nil(D-3 clamp 없음, 숨김). 선택 자체는 유지.
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: -50, y: 200)))
+
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertNil(vm.selectedPinScreenPoint)
+    }
+
+    func test_markerTapped_sameId_doesNotChange_D2() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+        // 동일 핀 재탭(다른 좌표) → 재탭 가드(D-2): 좌표를 흔들지 않는다.
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 250, y: 400)))
+
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 100, y: 200))
+    }
+
+    // MARK: - cameraMoved: 추적 갱신(distinct + 화면밖, MUST-ADDRESS③④)
+
+    func test_cameraMoved_updatesScreenPointWhenSelected() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        // 카메라 이동으로 선택핀 화면좌표 갱신.
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 150, y: 250)))
+
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 150, y: 250))
+    }
+
+    func test_cameraMoved_offScreen_setsScreenPointNil() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        // 추적 중 화면밖으로 나가면 nil(숨김, AC-14).
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 500, y: 200)))
+
+        XCTAssertNil(vm.selectedPinScreenPoint)
+    }
+
+    func test_cameraMoved_whenNotSelected_isIgnored() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+
+        // 선택 없음 → cameraMoved 무시(게이팅 b 방어).
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 150, y: 250)))
+
+        XCTAssertNil(vm.selectedPinId)
+        XCTAssertNil(vm.selectedPinScreenPoint)
+    }
+
+    func test_cameraMoved_distinctSamePoint_doesNotRepublish() async {
+        // QE-1 (b): 동일(또는 1pt 미만 차이) ScreenPoint 재방출 시 selectedPinScreenPoint 를 불필요하게 재세팅하지 않는다.
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 150.2, y: 250.4)))
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 150.2, y: 250.4))
+
+        // markerTapped 이후 추가 objectWillChange 발화 횟수만 센다(추적 시점 한정).
+        var publishCount = 0
+        let cancellable = vm.objectWillChange.sink { _ in publishCount += 1 }
+        defer { cancellable.cancel() }
+
+        // 동일 위치 + 1pt 미만 차이(반올림 동일) → distinct 로 set 생략, 발화 없음.
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 150.2, y: 250.4)))
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 150.4, y: 250.1)))
+
+        XCTAssertEqual(publishCount, 0, "distinct(1pt 반올림) 동일 좌표는 재발화하지 않아야 함")
+        // 값은 최초 세팅 유지.
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 150.2, y: 250.4))
+
+        // 1pt 이상 차이는 정상 갱신(distinct 가 변화는 통과).
+        vm.handle(.cameraMoved(screenPoint: ScreenPoint(x: 160, y: 260)))
+        XCTAssertGreaterThan(publishCount, 0, "유의미한 좌표 변화는 갱신/발화되어야 함")
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 160, y: 260))
+    }
+
+    // MARK: - 선택핀 삭제 시 selectedPinId/screenPoint nil(AC-7)
+
+    func test_deleteSelectedPin_clearsSelectionAndScreenPoint() async throws {
+        let pinAPI = StubPinAPI(listResult: .success([
+            makePin(id: 1, tag: .WISH),
+            makePin(id: 2, tag: .REEL)
+        ]))
+        pinAPI.deleteResult = .success(())
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        try await vm.deletePinOptimistic(pinId: 1)
+
+        XCTAssertNil(vm.selectedPinId)
+        XCTAssertNil(vm.selectedPinScreenPoint)
+    }
+
+    // MARK: - 표시조건 파생: activeSheet 시 selectedPinId 보존(D-4/AC-9/11)
+
+    func test_selectedPinPreserved_whenActiveSheet() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        // 시트 충돌(예: addPlace) → 말풍선은 일시 숨김(표시조건은 View 에서 파생) 이지만 선택 상태는 보존.
+        vm.activeSheet = .addPlace
+
+        // 표시 파생 false(시트 떠 있음) 이지만 selectedPin 은 유지(시트 닫으면 복귀).
+        XCTAssertFalse(vm.selectedPin != nil && vm.activeSheet == .none)
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertNotNil(vm.selectedPin)
+
+        // 시트 닫으면 표시 파생 true 로 복귀.
+        vm.activeSheet = .none
+        XCTAssertTrue(vm.selectedPin != nil && vm.activeSheet == .none)
+    }
+
+    // MARK: - clearSelectedPinScreenPoint
+
+    func test_clearSelectedPinScreenPoint_resetsScreenPoint() async {
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+
+        vm.clearSelectedPinScreenPoint()
+
+        XCTAssertNil(vm.selectedPinScreenPoint)
     }
 
     // MARK: - 마커 동기화(MockMapRenderer 활용)

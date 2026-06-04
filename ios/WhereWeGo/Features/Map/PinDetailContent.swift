@@ -1,21 +1,23 @@
 import SwiftUI
 
-// 핀 상세(정보창) 시트(설계 §3·§6, FR-8~12/16~19, AC-8/9/17).
-// frontend/src/app/map/MapClient.tsx 정보창 + MemoTagPanelContent.tsx 의 표시/편집/삭제 흐름 이식.
+// 핀 상세 공통 콘텐츠(설계 §6, D-5). 풀 모달 시트(PinDetailSheet)에서 콘텐츠만 분리·이관한 뷰.
+// NavigationStack/ScrollView 풀모달 래퍼·툴바·dismiss 는 제거하고, 말풍선(PinBubbleView)이 래핑·앵커·닫기를 담당한다.
+// frontend/src/app/map/_components/MemoTagPanelContent.tsx 의 표시/편집/삭제 흐름 이식.
 //
 // 표시: 장소명·주소(있을 때)·메모(있을 때)·Instagram 바로가기(https 가드 AC-17)·태그 배지·등록자.
-// 편집: 태그 변경(REEL/WISH/MEMORY 세그먼트, 낙관 PATCH), 메모(≤500), 장소명(≤200 빈값 불가, Should).
-// 삭제: confirmationDialog → 낙관 DELETE → 시트 닫기.
+// 편집: 태그 변경(REEL/WISH/MEMORY, 낙관 PATCH), 메모(≤500), 장소명(≤200 빈값 불가, Should).
+// 삭제: confirmationDialog → 낙관 DELETE → onRequestClose().
 // 사진: MEMORY 태그일 때만 영역 노출(AC-9). 썸네일/추가·변경/삭제 + 업로드 로딩(QE-3).
 //
 // 태그/메모/장소명/삭제는 MapViewModel 의 낙관적 메서드에 위임(pins 단일 출처).
-// 사진은 PinDetailViewModel 이 pinAPI 직접 호출 후 MapViewModel.replacePin 으로 반영.
-struct PinDetailSheet: View {
+// 사진은 PinDetailViewModel(detailVM, PinBubbleView 가 @StateObject 로 소유·주입)이 직접 호출 후 replacePin 으로 반영.
+struct PinDetailContent: View {
     let pin: PinSummary
     @ObservedObject var mapViewModel: MapViewModel
-    @StateObject private var detailVM: PinDetailViewModel
-
-    @Environment(\.dismiss) private var dismiss
+    /// 사진 상태(업로드/삭제) 소유 VM. PinBubbleView 가 @StateObject 로 보유하고 주입한다(말풍선 닫힘 가드와 공유).
+    @ObservedObject var detailVM: PinDetailViewModel
+    /// 닫기 요청(삭제 완료/다른 사용자 삭제). PinBubbleView 가 selectedPinId·화면좌표 해제로 연결.
+    var onRequestClose: () -> Void
 
     // 편집 입력 버퍼.
     @State private var memoText: String
@@ -37,58 +39,48 @@ struct PinDetailSheet: View {
     private let memoLimit = 500
     private let placeNameLimit = 200
 
-    init(pin: PinSummary, mapViewModel: MapViewModel) {
+    init(
+        pin: PinSummary,
+        mapViewModel: MapViewModel,
+        detailVM: PinDetailViewModel,
+        onRequestClose: @escaping () -> Void
+    ) {
         self.pin = pin
         self.mapViewModel = mapViewModel
-        _detailVM = StateObject(wrappedValue: PinDetailViewModel(pinAPI: mapViewModel.pinAPI, mapViewModel: mapViewModel))
+        self.detailVM = detailVM
+        self.onRequestClose = onRequestClose
         _memoText = State(initialValue: pin.memo ?? "")
         _placeNameText = State(initialValue: pin.placeName)
     }
 
-    /// pins 단일 출처에서 최신 핀을 읽는다(낙관/사진 갱신 즉시 반영). 삭제되면 시트 닫힘 트리거.
+    /// pins 단일 출처에서 최신 핀을 읽는다(낙관/사진 갱신 즉시 반영). 삭제되면 닫기 트리거.
     private var currentPin: PinSummary? {
         mapViewModel.pins.first { $0.id == pin.id }
     }
 
     var body: some View {
         let live = currentPin ?? pin
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header(live)
-                    if let address = live.address, !address.isEmpty {
-                        addressRow(address)
-                    }
-                    Divider().overlay(WGColor.hairline)
-                    tagSection(live)
-                    placeNameSection(live)
-                    memoSection(live)
-                    if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
-                        photoSection(live)
-                    }
-                    if let url = instagramLink(live) {
-                        instagramRow(url)
-                    }
-                    if let error = inlineError ?? detailVM.photoError {
-                        errorBanner(error)
-                    }
-                    deleteButton
-                }
-                .padding(20)
+        VStack(alignment: .leading, spacing: 18) {
+            header(live)
+            if let address = live.address, !address.isEmpty {
+                addressRow(address)
             }
-            .background(WGColor.bg)
-            .navigationTitle("핀 상세")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }
-                        .foregroundStyle(WGColor.cta)
-                }
+            Divider().overlay(WGColor.hairline)
+            tagSection(live)
+            placeNameSection(live)
+            memoSection(live)
+            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
+                photoSection(live)
             }
+            if let url = instagramLink(live) {
+                instagramRow(url)
+            }
+            if let error = inlineError ?? detailVM.photoError {
+                errorBanner(error)
+            }
+            deleteButton
         }
-        // 사진 업로드/삭제 중 스와이프 닫힘 차단(VisitMemoSheet 일관성, QE-3 silent 실패 방지).
-        // currentPin == nil 프로그래매틱 dismiss(타 사용자 삭제)는 스와이프와 무관하게 유지.
-        .interactiveDismissDisabled(detailVM.isPhotoBusy)
+        .padding(20)
         .confirmationDialog("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("삭제", role: .destructive) { Task { await deletePin() } }
             Button("취소", role: .cancel) {}
@@ -116,9 +108,13 @@ struct PinDetailSheet: View {
                 onCancel: { pickedImage = nil }
             )
         }
-        // 다른 사용자/낙관 삭제로 pins 에서 사라지면 시트 닫기.
+        // 다른 사용자/낙관 삭제로 pins 에서 사라지면 말풍선 닫기.
         .onChange(of: currentPin == nil) { _, gone in
-            if gone { dismiss() }
+            if gone { onRequestClose() }
+        }
+        // 진입 시점에 이미 삭제된 핀(극단 케이스)이면 onChange 가 발동하지 않으므로 onAppear 에서 한 번 더 방어.
+        .onAppear {
+            if currentPin == nil { onRequestClose() }
         }
     }
 
@@ -459,7 +455,7 @@ struct PinDetailSheet: View {
         defer { isMutating = false }
         do {
             try await mapViewModel.deletePinOptimistic(pinId: pin.id)
-            dismiss()
+            onRequestClose()
         } catch {
             inlineError = (error as? LocalizedError)?.errorDescription ?? "핀을 삭제하지 못했어요."
         }
