@@ -83,13 +83,26 @@ struct MapboxMapView: UIViewRepresentable {
         context.coordinator.syncMarkers(markers)
 
         // 선택핀 추적 좌표 갱신(MUST-ADDRESS③ 게이팅 입력). 선택 해제 시 nil → onCameraChanged 가 방출 skip.
-        // 첫 표시는 markerTapped 가 운반하므로 여기서 강제 emit 하지 않는다(updateUIView 강제 방출 제거).
+        // 탭 경로(markerTapped)는 좌표를 즉시 운반하지만, 프로그래밍 선택(visitMemo onDismiss 승격·룰렛/검색 결과 등
+        // markerTapped 없이 selectedPinId 만 set)은 운반자가 없어 onCameraChanged 전까지 말풍선이 안 뜬다(G1).
+        // → selectedPin 좌표가 직전과 다르게 바뀐 "첫 갱신"에만 투영해 cameraMoved 를 방출한다.
+        //   QE-1: 매 updateUIView(부모 body 재평가) 마다 방출하지 않도록 lastTrackedCoordinate 와 비교해 변경 시에만 수행.
         if let selectedPin {
-            context.coordinator.trackedPinCoordinate = CLLocationCoordinate2D(
+            let coordinate = CLLocationCoordinate2D(
                 latitude: selectedPin.latitude, longitude: selectedPin.longitude
             )
+            context.coordinator.trackedPinCoordinate = coordinate
+            if !coordinatesEqual(context.coordinator.lastTrackedCoordinate, coordinate) {
+                context.coordinator.lastTrackedCoordinate = coordinate
+                // 변경된 첫 갱신만 투영+async 방출(탭 경로와 공존, 추적은 여전히 onCameraChanged).
+                let screenPoint = context.coordinator.screenPoint(for: coordinate)
+                DispatchQueue.main.async {
+                    context.coordinator.onEvent(.cameraMoved(screenPoint: screenPoint))
+                }
+            }
         } else {
             context.coordinator.trackedPinCoordinate = nil
+            context.coordinator.lastTrackedCoordinate = nil
         }
 
         // cameraCommand 소비: 비어있지 않으면 flyTo 후 바인딩 nil 로 리셋(설계 §3 1회 소비).
@@ -109,6 +122,15 @@ struct MapboxMapView: UIViewRepresentable {
         }
     }
 
+    /// 추적 좌표 변경 비교(G1, CLLocationCoordinate2D 는 Equatable 아님). 같은 핀이면 동일 Double 값이 들어와 정확 일치한다.
+    private func coordinatesEqual(_ lhs: CLLocationCoordinate2D?, _ rhs: CLLocationCoordinate2D?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): return true
+        case let (l?, r?): return l.latitude == r.latitude && l.longitude == r.longitude
+        default: return false
+        }
+    }
+
     // MARK: Coordinator
 
     /// 클러스터링 GeoJSON 소스/레이어를 보유하고 탭→이벤트, 카메라 명령을 SDK 호출로 위임.
@@ -119,6 +141,9 @@ struct MapboxMapView: UIViewRepresentable {
         var lastCenter: CLLocationCoordinate2D?
         /// 추적 중인 선택핀 좌표(MUST-ADDRESS③ 게이팅). nil 이면 onCameraChanged 가 투영·방출 skip.
         var trackedPinCoordinate: CLLocationCoordinate2D?
+        /// updateUIView 에서 좌표 변경을 감지하기 위한 직전 추적 좌표(G1). 변경된 첫 갱신에만 투영·방출(QE-1).
+        /// selectedPin 이 nil 로 바뀌면 함께 nil 로 리셋한다.
+        var lastTrackedCoordinate: CLLocationCoordinate2D?
         // AnyCancelable = MapboxMaps SDK 타입(Combine 의 AnyCancellable 아님). observe API 반환.
         var cancellables = Set<AnyCancelable>()
         var tapRecognizer: UITapGestureRecognizer?

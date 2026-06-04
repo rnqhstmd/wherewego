@@ -453,8 +453,9 @@ final class MapViewModel: ObservableObject {
     func handle(_ event: MapEvent) {
         switch event {
         case let .markerTapped(pinId, screenPoint):
-            // D-2 동일 핀 재탭 시 말풍선/좌표를 흔들지 않는다(재탭 가드, AC-13).
-            guard selectedPinId != pinId else { return }
+            // 동일 핀 재탭은 무시(D-2/AC-13)하되, 프로그래밍 선택 등으로 selectedPinScreenPoint 가 nil 인 상태면
+            // 재탭으로 좌표를 복구한다(G1 투영 실패 시 마커 재탭이 말풍선 복구 안전망).
+            guard selectedPinId != pinId || selectedPinScreenPoint == nil else { return }
             selectedPinId = pinId
             // 탭 즉시 화면좌표 세팅(지연 0, MUST-ADDRESS②). 화면밖이면 숨김(AC-14) — 이후 추적이 재표시.
             setSelectedPinScreenPoint(visibleOrNil(screenPoint))

@@ -223,6 +223,25 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 100, y: 200))
     }
 
+    func test_markerTapped_sameId_whenScreenPointNil_recoversCoordinate_G2() async {
+        // 프로그래밍 선택 등으로 selectedPinId 는 설정됐으나 selectedPinScreenPoint == nil 인 좀비 상태에서,
+        // 동일 핀 재탭은 재탭 가드를 우회해 좌표를 복구해야 한다(G2 안전망).
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+
+        // 화면밖 좌표로 첫 탭 → 선택은 되지만 screenPoint 는 nil(화면밖 숨김, AC-14).
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: -50, y: 200)))
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertNil(vm.selectedPinScreenPoint)
+
+        // 동일 핀 재탭(화면 안 좌표) → screenPoint == nil 예외로 가드 우회, 좌표 복구.
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
+        XCTAssertEqual(vm.selectedPinId, 1)
+        XCTAssertEqual(vm.selectedPinScreenPoint, ScreenPoint(x: 100, y: 200))
+    }
+
     // MARK: - cameraMoved: 추적 갱신(distinct + 화면밖, MUST-ADDRESS③④)
 
     func test_cameraMoved_updatesScreenPointWhenSelected() async {
