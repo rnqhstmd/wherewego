@@ -29,6 +29,8 @@ struct MapboxMapView: UIViewRepresentable {
     /// 다수 마커 일괄 표시 명령(FR-26). 소비 후 nil 리셋(cameraCommand 와 동일 1회 소비 계약).
     @Binding var fitBoundsCommand: [MapMarker]?
     let onEvent: (MapEvent) -> Void
+    /// 추적 대상 선택핀 좌표(말풍선 앵커, MUST-ADDRESS③ 게이팅). nil 이면 onCameraChanged 에서 투영·방출 skip.
+    let selectedPin: (latitude: Double, longitude: Double)?
     let styleURL: String
     let accessToken: String
 
@@ -59,9 +61,14 @@ struct MapboxMapView: UIViewRepresentable {
         context.coordinator.tapRecognizer = tap
 
         // 카메라 멈춤(cameraIdle) 추적 — 크로스헤어/방문감지 중심 좌표(FR-15).
+        // + 선택핀 추적(MUST-ADDRESS③): trackedPinCoordinate 있을 때만 투영→cameraMoved 방출(게이팅 a).
+        // 화면밖 판정·distinct 는 VM 책임 — 여기선 raw 투영값만 운반(throttle 없음, 점1개 투영 비용).
         mapView.mapboxMap.onCameraChanged.observe { [weak coordinator = context.coordinator] _ in
             guard let coordinator, let mv = coordinator.mapView else { return }
             coordinator.lastCenter = mv.mapboxMap.cameraState.center
+            guard let tracked = coordinator.trackedPinCoordinate else { return }
+            let screenPoint = coordinator.screenPoint(for: tracked)
+            coordinator.onEvent(.cameraMoved(screenPoint: screenPoint))
         }.store(in: &context.coordinator.cancellables)
         mapView.mapboxMap.onMapIdle.observe { [weak coordinator = context.coordinator] _ in
             guard let coordinator, let mv = coordinator.mapView, let center = coordinator.lastCenter else { return }
@@ -80,6 +87,33 @@ struct MapboxMapView: UIViewRepresentable {
         context.coordinator.onEvent = onEvent
         context.coordinator.syncMarkers(markers)
 
+        // 선택핀 추적 좌표 갱신(MUST-ADDRESS③ 게이팅 입력). 선택 해제 시 nil → onCameraChanged 가 방출 skip.
+        // 탭 경로(markerTapped)는 좌표를 즉시 운반하지만, 프로그래밍 선택(visitMemo onDismiss 승격·룰렛/검색 결과 등
+        // markerTapped 없이 selectedPinId 만 set)은 운반자가 없어 onCameraChanged 전까지 말풍선이 안 뜬다(G1).
+        // → selectedPin 좌표가 직전과 다르게 바뀐 "첫 갱신"에만 투영해 cameraMoved 를 방출한다.
+        //   QE-1: 매 updateUIView(부모 body 재평가) 마다 방출하지 않도록 lastTrackedCoordinate 와 비교해 변경 시에만 수행.
+        if let selectedPin {
+            let coordinate = CLLocationCoordinate2D(
+                latitude: selectedPin.latitude, longitude: selectedPin.longitude
+            )
+            context.coordinator.trackedPinCoordinate = coordinate
+            // 게이팅 판정·lastTrackedCoordinate 갱신은 동기 유지(매 updateUIView 중복 방출 차단, QE-1).
+            if !coordinatesEqual(context.coordinator.lastTrackedCoordinate, coordinate) {
+                context.coordinator.lastTrackedCoordinate = coordinate
+                // 투영+방출만 다음 런루프로 지연(M1): visitMemo 닫힘 직후 등 카메라/레이아웃 안정화 전에 투영하면
+                // 화면밖 좌표가 나와 말풍선이 안 뜨므로, async 블록 안에서 안정화 후 기준으로 재투영해 자동 회복성을 확보한다.
+                // coordinate(값타입)·coordinator(클래스) 명시 캡처 — async 시점에 최신 카메라로 투영.
+                DispatchQueue.main.async { [coordinator = context.coordinator, coordinate] in
+                    if let screenPoint = coordinator.screenPoint(for: coordinate) {
+                        coordinator.onEvent(.cameraMoved(screenPoint: screenPoint))
+                    }
+                }
+            }
+        } else {
+            context.coordinator.trackedPinCoordinate = nil
+            context.coordinator.lastTrackedCoordinate = nil
+        }
+
         // cameraCommand 소비: 비어있지 않으면 flyTo 후 바인딩 nil 로 리셋(설계 §3 1회 소비).
         if let command = cameraCommand {
             context.coordinator.fly(to: command)
@@ -97,6 +131,15 @@ struct MapboxMapView: UIViewRepresentable {
         }
     }
 
+    /// 추적 좌표 변경 비교(G1, CLLocationCoordinate2D 는 Equatable 아님). 같은 핀이면 동일 Double 값이 들어와 정확 일치한다.
+    private func coordinatesEqual(_ lhs: CLLocationCoordinate2D?, _ rhs: CLLocationCoordinate2D?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): return true
+        case let (l?, r?): return l.latitude == r.latitude && l.longitude == r.longitude
+        default: return false
+        }
+    }
+
     // MARK: Coordinator
 
     /// 클러스터링 GeoJSON 소스/레이어를 보유하고 탭→이벤트, 카메라 명령을 SDK 호출로 위임.
@@ -105,6 +148,12 @@ struct MapboxMapView: UIViewRepresentable {
         var onEvent: (MapEvent) -> Void
         weak var mapView: MBMapView?
         var lastCenter: CLLocationCoordinate2D?
+        /// 추적 중인 선택핀 좌표(MUST-ADDRESS③ 게이팅). nil 이면 onCameraChanged 가 투영·방출 skip.
+        var trackedPinCoordinate: CLLocationCoordinate2D?
+        /// updateUIView 에서 좌표 변경을 감지하기 위한 직전 추적 좌표(G1). 변경된 첫 갱신에만 투영·방출(QE-1).
+        /// selectedPin 이 nil 로 바뀌면 함께 nil 로 리셋한다.
+        var lastTrackedCoordinate: CLLocationCoordinate2D?
+        // AnyCancelable = MapboxMaps SDK 타입(Combine 의 AnyCancellable 아님). observe API 반환.
         var cancellables = Set<AnyCancelable>()
         var tapRecognizer: UITapGestureRecognizer?
 
@@ -226,14 +275,34 @@ struct MapboxMapView: UIViewRepresentable {
             )
             mapView.mapboxMap.queryRenderedFeatures(with: point, options: options) { [weak self] result in
                 guard let self, case let .success(features) = result, let first = features.first else { return }
-                let props = first.queriedFeature.feature.properties
+                let feature = first.queriedFeature.feature
+                let props = feature.properties
                 if let pointCountValue = props?["point_count"], case .number = pointCountValue {
                     // 클러스터 탭 → 포함 핀 id 수집 → clusterTapped(FR-5).
-                    self.handleClusterTap(first.queriedFeature.feature)
+                    self.handleClusterTap(feature)
                 } else if let pinIdValue = props?["pinId"], case let .number(pinId) = pinIdValue {
-                    self.onEvent(.markerTapped(Int(pinId)))
+                    // 마커 중심 좌표를 화면점으로 투영해 운반(MUST-ADDRESS②) — 탭과 동시 말풍선 앵커(지연 0).
+                    // feature geometry(마커 중심) 우선, 실패 시 탭 지점(point) 폴백.
+                    let screenPoint = self.markerScreenPoint(feature: feature) ?? ScreenPoint(x: Double(point.x), y: Double(point.y))
+                    self.onEvent(.markerTapped(pinId: Int(pinId), screenPoint: screenPoint))
                 }
             }
+        }
+
+        /// feature 의 Point geometry(마커 중심 좌표)를 화면점으로 투영. geometry/투영 실패 시 nil(탭 지점 폴백).
+        private func markerScreenPoint(feature: Feature) -> ScreenPoint? {
+            guard case let .point(point) = feature.geometry else { return nil }
+            return screenPoint(for: point.coordinates)
+        }
+
+        /// 위경도 좌표를 mapView.bounds 로컬 화면점(논리 pt, 원점 좌상단)으로 투영(MUST-ADDRESS②/④).
+        /// 결과가 뷰 밖이어도 raw 값을 그대로 반환 — 안/밖 판정은 VM(GeoMath.isPointVisible) 책임.
+        func screenPoint(for coordinate: CLLocationCoordinate2D) -> ScreenPoint? {
+            guard let mapView else { return nil }
+            let cgPoint = mapView.mapboxMap.point(for: coordinate)
+            // 투영 불가(지구 반대편 등) 시 SDK 가 (-1,-1) 류 sentinel 을 줄 수 있어 NaN/무한대만 차단한다.
+            guard cgPoint.x.isFinite, cgPoint.y.isFinite else { return nil }
+            return ScreenPoint(x: Double(cgPoint.x), y: Double(cgPoint.y))
         }
 
         /// 클러스터 leaves 조회 → 포함 pinId 목록으로 clusterTapped 이벤트.
@@ -317,6 +386,13 @@ final class MapboxMapRenderer: MapRenderer {
             mapView.camera.fly(to: cameraOptions, duration: 0.7)
         }
     }
+
+    func point(for latitude: Double, longitude: Double) -> ScreenPoint? {
+        guard let mapView else { return nil }
+        let cgPoint = mapView.mapboxMap.point(for: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+        guard cgPoint.x.isFinite, cgPoint.y.isFinite else { return nil }
+        return ScreenPoint(x: Double(cgPoint.x), y: Double(cgPoint.y))
+    }
 }
 
 #else
@@ -325,12 +401,14 @@ final class MapboxMapRenderer: MapRenderer {
 // MapContainerView 가 분기 무관하게 컴파일되도록 #if 실구현과 동일한 공개 시그니처를 유지한다.
 
 /// MapboxMapView stub: Mapbox 모듈 부재 시 PlaceholderMapView 를 렌더한다.
-/// 생성자 시그니처는 #if 실구현과 정확히 동일(markers/cameraCommand/fitBoundsCommand/onEvent/styleURL/accessToken).
+/// 생성자 시그니처는 #if 실구현과 정확히 동일(markers/cameraCommand/fitBoundsCommand/onEvent/selectedPin/styleURL/accessToken).
+/// stub 은 좌표 투영이 없으므로 selectedPin 을 받기만 하고 사용하지 않는다(AC-10 selectedPin 영원 nil 경로).
 struct MapboxMapView: View {
     let markers: [MapMarker]
     @Binding var cameraCommand: CameraTarget?
     @Binding var fitBoundsCommand: [MapMarker]?
     let onEvent: (MapEvent) -> Void
+    let selectedPin: (latitude: Double, longitude: Double)?
     let styleURL: String
     let accessToken: String
 
@@ -340,12 +418,14 @@ struct MapboxMapView: View {
 }
 
 /// MapboxMapRenderer stub: no-op MapRenderer(SDK 부재). 시그니처는 #if 실구현과 동일.
+/// point(for:) 는 항상 nil — stub 에선 투영 불가하므로 말풍선이 표시되지 않는다(AC-10).
 final class MapboxMapRenderer: MapRenderer {
     var eventHandler: ((MapEvent) -> Void)?
 
     func setMarkers(_ markers: [MapMarker]) {}
     func flyTo(_ target: CameraTarget) {}
     func fitBounds(_ markers: [MapMarker], padding: Double, maxZoom: Double) {}
+    func point(for latitude: Double, longitude: Double) -> ScreenPoint? { nil }
 }
 
 #endif

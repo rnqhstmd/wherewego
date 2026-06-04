@@ -4,7 +4,7 @@ import SwiftUI
 // frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치 우하단).
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
-// 정보창(PinDetailSheet)·룰렛(RouletteSheet) 시트를 activeSheet 로 연결한다.
+// 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1), 룰렛(RouletteSheet)은 activeSheet 시트로 연결한다.
 // P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼.
 // P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin → CrosshairOverlay + InlineAddPlaceCard).
 struct MapView: View {
@@ -22,14 +22,10 @@ struct MapView: View {
 
     var body: some View {
         ZStack {
-            // 지도 배경(B2 선언적 바인딩). token 없으면 PlaceholderMapView 로 폴백.
-            MapContainerView(
-                markers: viewModel.markers,
-                cameraCommand: $viewModel.cameraCommand,
-                fitBoundsCommand: $viewModel.fitBoundsCommand,
-                onEvent: viewModel.handle
-            )
-            .ignoresSafeArea()
+            // 지도 배경(B2 선언적 바인딩) + 핀 상세 말풍선 오버레이(설계 §6, D-1).
+            // 말풍선 좌표 정렬을 위해 ignoresSafeArea 는 MapContainerView 내부 ZStack 이 일괄 적용한다(MUST-ADDRESS①).
+            // token 없으면 PlaceholderMapView 로 폴백.
+            MapContainerView(viewModel: viewModel)
 
             content
 
@@ -132,24 +128,26 @@ struct MapView: View {
                 }
             }
         }
-        // 핀 생성 성공 시 인라인 모드 종료는 AddPlaceViewModel.performCreate 가 didCreate 직후 직접 수행한다(견고화).
+        // 핀 생성 성공 시 인라인 모드 종료는 AddPlaceViewModel.performCreate 가 didCreate 직후 직접 수행한다(견고화, #97).
         // (기존 onChange(addPlaceVM?.didCreate) Optional 체인 관찰 제거 — addPlaceVM nil 전환 시 관찰 누락 창 방지.)
-        // 핀 상세(정보창): 마커 탭 → selectedPinId → PinDetailSheet(B4-1).
-        // selectedPinId 를 PinSummary? 로 투영한 바인딩으로 .sheet(item:) 연결, 닫힘 시 선택 해제.
-        .sheet(item: selectedPinBinding) { pin in
-            PinDetailSheet(pin: pin, mapViewModel: viewModel)
-        }
+        // 핀 상세(정보창): 마커 탭 → selectedPinId → 말풍선 오버레이(MapContainerView, 설계 §6 D-1, #96).
+        // 시트(.sheet) 대신 메인 지도 ZStack 오버레이로 표시 — 표시조건 D-4(selectedPin != nil && activeSheet == .none)는 MapContainerView 에서 파생.
+        // 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환됨(#97) — AddPlaceSheet/.sheet(item:selectedPinBinding) 제거.
         // 룰렛 시트(activeSheet=.roulette, FR-20~24).
         .sheet(isPresented: rouletteSheetBinding) {
             RouletteSheet(mapViewModel: viewModel, locationService: viewModel.locationService)
         }
         // 방문 메모 시트(activeSheet=.visitMemo, FR-29/30, AC-15).
         // onDismiss: 시트가 완전히 닫힌 뒤 보류된 pendingDetailPinId 를 selectedPinId 로 소비한다.
-        // (finish() 단일 사이클의 이중 .sheet(item:) 전환 경쟁 회피 — selectedPinBinding 이 PinDetail 을 연다.)
+        // (finish() 단일 사이클의 시트→말풍선 전환 경쟁 회피 — selectedPinId 세팅이 말풍선 오버레이를 연다.)
         .sheet(item: visitMemoSheetBinding, onDismiss: {
             if let pinId = viewModel.pendingDetailPinId {
                 viewModel.pendingDetailPinId = nil
-                viewModel.selectedPinId = pinId
+                // 시트 열린 사이 해당 핀이 삭제(낙관삭제/폴링)됐으면 승격하지 않는다 — 좀비 selectedPinId(selectedPin nil) 방지.
+                // 좀비 상태면 재탭 가드(D-2)가 오동작할 수 있어 pins 존재를 먼저 검증한다.
+                if viewModel.pins.contains(where: { $0.id == pinId }) {
+                    viewModel.selectedPinId = pinId
+                }
             }
         }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
@@ -189,14 +187,6 @@ struct MapView: View {
             .background(WGColor.ink.opacity(0.92))
             .clipShape(Capsule())
             .shadow(color: WGColor.shadowMd, radius: 12, y: 4)
-    }
-
-    /// selectedPinId → 현재 선택 핀(PinSummary?) 바인딩. 시트 닫힘 시 selectedPinId 를 nil 로 리셋.
-    private var selectedPinBinding: Binding<PinSummary?> {
-        Binding(
-            get: { viewModel.selectedPin },
-            set: { newValue in viewModel.selectedPinId = newValue?.id }
-        )
     }
 
     @ViewBuilder
@@ -283,7 +273,9 @@ struct MapView: View {
                     Spacer()
                     myLocationButton
                 }
-                .padding(.bottom, 28)
+                // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 내위치 버튼이 바를 직접 회피한다(PR리뷰).
+                //  바 footprint(contentFootprint = barHeight+bottomGap) 만큼 올리고 버튼-바 숨 여백(bottomGap)을 더한다(AC-2). 수치 보정 DoD-B.
+                .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
         }
         .padding(.horizontal, 16)

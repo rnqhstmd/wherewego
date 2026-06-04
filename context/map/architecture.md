@@ -57,3 +57,14 @@
 - **룰렛**(`Roulette.swift` 순수, RNG 주입): `pickRandomWithExpansion` 반경 확장 추첨(웹 roulette.ts 동치), MEMORY 포함 토글.
 - **방문감지**: [[pin]] 도메인 참조 — 포그라운드 CoreLocation. `VisitDetectionEngine`(순수, now 주입): 정확도>50m 스킵·타이머 보존, 속도>1.4m/s 초기화, BBox+Haversine 100m·30초 → 최근접 1개, 세션 중복 차단. MEMORY 전환(`transitionedToMemoryNow=true`만 confetti+메모 시트).
 - 진입점: 온보딩 종착(`OnboardingRouter.groups`)이 `GroupsView`(삭제) → `MapView` 로 교체.
+
+### P8 영역2 — 핀 상세 말풍선 오버레이 ([PR #96](https://github.com/rnqhstmd/wherewego/pull/96))
+
+P7 머지 후 발견된 웹↔iOS 정합 차이 중 영역2(핀 상세) 재정합. 마커 탭 시 풀모달 시트(`PinDetailSheet`) → 마커에 앵커되는 말풍선(`PinBubbleView`)로 전환(웹 `SpeechBubblePopup` 정합).
+
+- **좌표 투영 격리**: SDK 비의존 `ScreenPoint`(Double x/y) + `MapRenderer.point(for:)`를 도입하되, 실제 `mapboxMap.point(for:)` 변환은 `MapboxMapView` 단일 격리 파일 안에서만(`import MapboxMaps` 1파일 게이트 유지). stub은 nil 반환(DoD-A 빌드).
+- **좌표계 정렬**: 지도(UIViewRepresentable)와 말풍선 오버레이를 `MapContainerView`의 동일 ZStack(`alignment:.topLeading` + `ignoresSafeArea` 일괄)에 배치 → `point(for:)`의 mapView 로컬좌표를 `.position`에 그대로 사용.
+- **첫배치/추적 분리**: 탭 즉시 배치는 `markerTapped(pinId, screenPoint)`가 마커 화면좌표를 운반, 이후 pan/zoom 추적은 `onCameraChanged` 게이팅(선택핀 있을 때만 방출) → `cameraMoved` → distinct(1pt) → `BubbleOverlay` 관찰 격리로 MapView body 재평가 차단(QE-1).
+- **화면밖 판정**: `GeoMath.isPointVisible` 순수함수로 분리(clamp 없이 숨김, 복귀 시 재표시). Windows 단위테스트 가능.
+- **콘텐츠 재사용**: `PinDetailContent` 공통 뷰 추출(태그/장소명/메모/사진/삭제 액션 + `PinDetailViewModel` 재사용), `PinDetailSheet` 삭제. 시트 충돌 시 일시 숨김(`activeSheet==.none` 표시조건, selectedPinId 보존), 동일 핀 재탭 유지, 사진 작업 중 배경탭 닫기 무시.
+- 코드측 완료. 꼬리 픽셀 위치·추적 부드러움·시각 정합은 DoD-B(Mac) 최종 검증.

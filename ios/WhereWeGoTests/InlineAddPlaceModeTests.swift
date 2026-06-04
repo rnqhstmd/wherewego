@@ -206,7 +206,7 @@ final class InlineAddPlaceModeTests: XCTestCase {
         await vm.load()
         vm.enterAddPin()
 
-        vm.handle(.markerTapped(1))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
 
         XCTAssertNil(vm.selectedPinId, "인라인 모드 중 마커 탭은 selectedPinId 를 설정하지 않는다(BR-2/AC-13).")
     }
@@ -216,7 +216,7 @@ final class InlineAddPlaceModeTests: XCTestCase {
         let vm = makeViewModel(pinAPI: pinAPI)
         await vm.load()
 
-        vm.handle(.markerTapped(1))
+        vm.handle(.markerTapped(pinId: 1, screenPoint: ScreenPoint(x: 100, y: 200)))
 
         XCTAssertEqual(vm.selectedPinId, 1, "일반 모드에선 마커 탭이 selectedPinId 를 설정.")
     }

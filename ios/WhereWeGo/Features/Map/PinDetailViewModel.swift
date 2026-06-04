@@ -29,6 +29,9 @@ final class PinDetailViewModel: ObservableObject {
 
     /// 사진 업로드/삭제 진행 중(QE-3 로딩 인디케이터). 진행 중에는 버튼 비활성.
     @Published private(set) var isPhotoBusy = false
+    /// 태그/메모/장소명/삭제 낙관 PATCH·DELETE 진행 중(PinDetailContent 가 set). 진행 중 배경탭 닫기 가드(BR-3, N2).
+    /// 삭제 응답 대기 중 바깥 탭으로 말풍선이 닫혀 결과/실패 inlineError 를 놓치는 것을 막는다.
+    @Published var isMutating = false
     /// 사진 작업 인라인 에러 메시지. 표시 후 다음 시도 시 nil 로 초기화.
     @Published var photoError: String?
 
