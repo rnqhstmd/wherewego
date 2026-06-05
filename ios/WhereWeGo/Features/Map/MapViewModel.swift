@@ -655,8 +655,13 @@ final class MapViewModel: ObservableObject {
             }
             // 여기부터는 진짜 사용자 드래그 idle.
             userDraggedSinceEntry = true   // MUST-2 — 이후 늦게 도착한 줌인 flyTo 를 스킵하는 가드.
-            // MUST-1 2차 안전망: 검색 선택 직후 좌표는 콕찍기로 덮지 않는다(다음 수동 드래그부터 전환).
-            guard addPlaceVM?.inputMode != .search || addPlaceVM?.selectedPlace == nil else { return }
+            // MUST-1 2차 안전망: 검색 flyTo 좌표 잔여 idle(선택 좌표와 동일)만 콕찍기로 덮지 않고 보존한다.
+            //  다른 좌표로의 실제 수동 드래그는 콕찍기로 전환한다(AC-17 엣지 — 검색 후 드래그 시 전환).
+            //  (selectedPlace 유무만으로 막으면 진짜 드래그도 영구 보존되어 콕찍기 전환이 불가능해진다.)
+            if addPlaceVM?.inputMode == .search, let selected = addPlaceVM?.selectedPlace,
+               abs(lat - selected.latitude) < 1e-6, abs(lng - selected.longitude) < 1e-6 {
+                return
+            }
             addPlaceVM?.onMapMoved(center: Coordinate(latitude: lat, longitude: lng))   // 사용자 드래그(AC-5)
         }
     }
