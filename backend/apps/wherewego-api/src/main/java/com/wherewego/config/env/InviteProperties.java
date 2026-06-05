@@ -12,7 +12,7 @@ import java.time.Duration;
  *
  * @param ttl           초대 링크 유효 기간 (기본 P7D = 7일)
  * @param shareBaseUrl  공유 URL 베이스 (예: https://wherewego.app). slug 와 결합되어 shareUrl 생성
- * @param rateLimit     /api/v1/groups/invite-links/by-slug/** 의 IP 기반 레이트리밋
+ * @param rateLimit     by-slug(GET) + accept(POST) 초대 링크 경로의 IP 기반 레이트리밋 (IP 예산 공유)
  */
 @Validated
 @ConfigurationProperties(prefix = "app.invite")

@@ -2,6 +2,7 @@ package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
@@ -74,8 +75,6 @@ class GroupMemberServiceTest {
         when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
         when(groupMemberRepository.save(any(GroupMember.class))).thenAnswer(inv -> inv.getArgument(0));
         when(inviteLinkRepository.save(any(InviteLink.class))).thenAnswer(inv -> inv.getArgument(0));
-        // 토큰 1회용 보장 UPDATE: 단건 수락 경로 기본값은 1(수락 성공). LENIENT 라 미사용 케이스는 무시된다.
-        when(inviteLinkRepository.markAcceptedIfPending(any(), any(Instant.class))).thenReturn(1);
         when(slugGenerator.generate()).thenReturn(SLUG);
         // InviteProperties 가 record 라 @InjectMocks 가 자동 주입하지 못한다 (생성자 시그니처 일치 시는 성공).
         // @RequiredArgsConstructor 가 전체 필드 생성자를 만들고 inviteProperties 도 그 자리에 포함되므로,
@@ -218,23 +217,23 @@ class GroupMemberServiceTest {
     @Nested
     class AcceptInviteLink {
 
-        @DisplayName("정상 토큰을 수락하면 markAccepted 와 GroupMember save 가 호출된다 (AC-6).")
+        @DisplayName("정상 토큰을 수락하면 GroupMember save 가 호출되고 결과를 반환한다 (AC-6).")
         @Test
-        void acceptInviteLink_valid_marksAcceptedAndSavesMember() {
+        void acceptInviteLink_valid_savesMember() {
             // arrange
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
-            when(inviteLinkRepository.markAcceptedIfPending(any(), any())).thenReturn(1);
 
             // act
             InviteAcceptResult result = groupMemberService.acceptInviteLink(USER_ID, TOKEN);
 
-            // assert : 토큰 1회용은 조건부 원자적 UPDATE(markAcceptedIfPending)로 기록된다.
-            verify(inviteLinkRepository).markAcceptedIfPending(any(), any());
+            // assert : IC-1 재사용 모델 — 토큰 소진 UPDATE 없이 group_members INSERT 로 가입한다.
             verify(groupMemberRepository).save(any(GroupMember.class));
             assertThat(result.groupId()).isEqualTo(group.getId());
             assertThat(result.acceptedAt()).isNotNull();
@@ -255,20 +254,25 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.INVITE_LINK_EXPIRED);
         }
 
-        @DisplayName("이미 수락된 토큰이면 INVITE_LINK_ALREADY_USED 가 발생한다 (AC-8).")
+        @DisplayName("IC-1: 이미 해당 그룹의 활성 멤버이면 GROUP_ALREADY_MEMBER 가 발생하고 정원 검사/멤버 저장은 수행되지 않는다 (AC-4).")
         @Test
-        void acceptInviteLink_alreadyUsed_throwsAlreadyUsed() {
-            // arrange
+        void acceptInviteLink_alreadyMember_throwsAlreadyMember() {
+            // arrange : 사전 가드(findActiveByGroupIdAndUserId)가 활성 멤버를 찾는다.
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
-            link.markAccepted(Instant.now().minus(Duration.ofMinutes(5)));
+            Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
+            when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(group.getId(), USER_ID, Instant.now())));
 
             // act & assert
             assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
-                    .isEqualTo(ErrorType.INVITE_LINK_ALREADY_USED);
+                    .isEqualTo(ErrorType.GROUP_ALREADY_MEMBER);
+            // 가드가 정원 검사 앞에 있으므로 멤버 수는 불변(저장 미호출).
+            verify(groupMemberRepository, never()).save(any(GroupMember.class));
         }
 
         @DisplayName("soft-deleted 그룹의 토큰이면 INVITE_LINK_EXPIRED 가 발생한다 (AC-9).")
@@ -292,19 +296,20 @@ class GroupMemberServiceTest {
         @Test
         void acceptInviteLink_alreadyActive_stillSucceeds() {
             // arrange : GM-1 으로 existsActiveByUserId 사전검사가 제거됨 — 활성 보유 여부와 무관하게 수락 가능.
+            //   IC-1: 같은 그룹의 활성 멤버는 아니므로(다른 그룹 보유) 중복 가드는 empty 를 반환한다.
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
-            when(inviteLinkRepository.markAcceptedIfPending(any(), any())).thenReturn(1);
 
             // act
             InviteAcceptResult result = groupMemberService.acceptInviteLink(USER_ID, TOKEN);
 
-            // assert : 멤버 저장이 그대로 수행된다. 토큰 수락은 markAcceptedIfPending 로 기록된다.
-            verify(inviteLinkRepository).markAcceptedIfPending(any(), any());
+            // assert : 멤버 저장이 그대로 수행된다 (IC-1 재사용 모델).
             verify(groupMemberRepository).save(any(GroupMember.class));
             assertThat(result.groupId()).isEqualTo(group.getId());
         }
@@ -333,6 +338,8 @@ class GroupMemberServiceTest {
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(10L);
 
             // act & assert
@@ -340,8 +347,8 @@ class GroupMemberServiceTest {
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED);
-            // 정원검사가 토큰 수락보다 앞서므로 정원 초과 시 토큰은 소진되지 않아야 한다.
-            verify(inviteLinkRepository, never()).markAcceptedIfPending(any(), any());
+            // IC-1: 정원 초과 시 멤버 저장 없음(가입 차단). 코드는 TTL 까지 유지된다(Option A).
+            verify(groupMemberRepository, never()).save(any(GroupMember.class));
         }
 
         @DisplayName("GM-1: 동일 그룹 재가입(uq_group_members_pair 위반)이면 GROUP_REJOIN_FORBIDDEN 으로 변환된다 (BR-1).")
@@ -353,6 +360,8 @@ class GroupMemberServiceTest {
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
             when(groupMemberRepository.save(any(GroupMember.class)))
                     .thenThrow(new DataIntegrityViolationException(
@@ -376,6 +385,8 @@ class GroupMemberServiceTest {
                     "could not execute statement; foreign key constraint [fk_group_members_group_id]");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
             when(groupMemberRepository.save(any(GroupMember.class))).thenThrow(fkViolation);
 
@@ -383,6 +394,65 @@ class GroupMemberServiceTest {
             assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
                     .isInstanceOf(DataIntegrityViolationException.class)
                     .isSameAs(fkViolation);
+        }
+    }
+
+    @DisplayName("slug 로 초대 링크를 미리볼 때,")
+    @Nested
+    class PreviewBySlug {
+
+        @DisplayName("IC-1: 유효 코드 + 정원 미도달이면 그룹명/초대자/만료시각 미리보기를 반환한다.")
+        @Test
+        void previewBySlug_valid_returnsPreview() {
+            // arrange
+            Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofDays(7));
+            Group group = newGroup("우리커플");
+            UserModel inviter = UserModel.create(10000003L, "초대자닉", null);
+            when(inviteLinkRepository.findActiveBySlug(eq(SLUG), any(Instant.class))).thenReturn(Optional.of(link));
+            when(groupRepository.findById(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
+            when(userRepository.findById(link.getInviterId())).thenReturn(Optional.of(inviter));
+
+            // act
+            InviteLinkPreviewResult result = groupMemberService.previewBySlug(SLUG);
+
+            // assert
+            assertThat(result.token()).isEqualTo(TOKEN);
+            assertThat(result.groupName()).isEqualTo("우리커플");
+            assertThat(result.inviterNickname()).isEqualTo("초대자닉");
+            assertThat(result.expiresAt()).isNotNull();
+        }
+
+        @DisplayName("IC-1(D4): 유효 코드이지만 그룹 정원(10)에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-6).")
+        @Test
+        void previewBySlug_capacityReached_throwsCapacityExceeded() {
+            // arrange
+            Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofDays(7));
+            Group group = newGroup("우리커플");
+            when(inviteLinkRepository.findActiveBySlug(eq(SLUG), any(Instant.class))).thenReturn(Optional.of(link));
+            when(groupRepository.findById(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(10L);
+
+            // act & assert : 만료/없음의 NOT_FOUND 가 아니라 정원 초과로 구분 응답한다.
+            assertThatThrownBy(() -> groupMemberService.previewBySlug(SLUG))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED);
+        }
+
+        @DisplayName("IC-1: 만료/존재하지 않는 코드이면 INVITE_LINK_NOT_FOUND 가 발생한다.")
+        @Test
+        void previewBySlug_expiredOrNotFound_throwsNotFound() {
+            // arrange : findActiveBySlug(slug, now) 가 만료/없음으로 empty 를 반환.
+            when(inviteLinkRepository.findActiveBySlug(eq(SLUG), any(Instant.class))).thenReturn(Optional.empty());
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.previewBySlug(SLUG))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.INVITE_LINK_NOT_FOUND);
         }
     }
 

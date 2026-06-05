@@ -96,21 +96,21 @@ public class GroupMemberService {
     }
 
     /**
-     * 초대 링크 수락. 토큰 유효성/만료/중복 사용/자기수락 검사 후
-     * 그룹 잠금 → 정원 검사 → 멤버 등록 순으로 처리한다.
-     * <p>GM-1: 1인 다중 활성 그룹 지원으로 1인1활성 제약 사전검사(existsActiveByUserId)를 제거했다.
-     * 기존 그룹에 INSERT 하므로 createGroup 과 달리 catch 가 필요하며, uq_group_members_pair(동일 그룹 재가입)
-     * 만 {@code GROUP_REJOIN_FORBIDDEN} 으로 변환하고 그 외 위반(FK 등)은 rethrow 한다.</p>
-     * 정원 도달 직후 미수락 초대를 일괄 만료하여 R-2(폐기된 초대 잔존) 를 차단한다.
+     * 초대 링크 수락. 토큰 유효성/만료/자기수락 검사 후
+     * 그룹 잠금 → 중복 멤버 가드 → 정원 검사 → 멤버 등록 순으로 처리한다.
+     * <p>IC-1: 1회용 소진(accepted_at) 시맨틱을 제거하여 코드는 TTL 동안 정원 한도 내에서 복수 사용자가 재사용한다(FR-1).
+     * 정원 도달은 '만료'가 아니라 '가입 차단'이라 코드는 TTL 까지 유지하며, 정원 도달 후처리(expirePendingByGroupId)를
+     * 호출하지 않는다(Option A) — 이로써 by-slug 가 코드를 찾아 GROUP_CAPACITY_EXCEEDED 를 구분 응답할 수 있다(D4).</p>
+     * <p>중복 멤버 가드: 정원 검사 앞에서 findActiveByGroupIdAndUserId 사전검사로 이미 활성 멤버이면
+     * {@code GROUP_ALREADY_MEMBER} 를 던진다(FR-3). race 로 가드를 통과한 동시 INSERT 의 uq_group_members_pair
+     * 위반은 catch 에서 {@code GROUP_REJOIN_FORBIDDEN} 으로 변환한다(탈퇴 재가입 차단, BR-4 안전망).</p>
+     * <p>동시성: findByIdForUpdate(group 비관락)로 직렬화되어 정원 초과 INSERT 가 차단된다(AC-8).</p>
      */
     @Transactional
     public InviteAcceptResult acceptInviteLink(Long userId, String token) {
         Instant now = Instant.now();
         InviteLink link = inviteLinkRepository.findByToken(token)
                 .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
-        if (link.getAcceptedAt() != null) {
-            throw new CoreException(ErrorType.INVITE_LINK_ALREADY_USED);
-        }
         if (link.isExpired(now)) {
             throw new CoreException(ErrorType.INVITE_LINK_EXPIRED);
         }
@@ -122,22 +122,22 @@ public class GroupMemberService {
         if (group.getDeletedAt() != null) {
             throw new CoreException(ErrorType.INVITE_LINK_EXPIRED);
         }
+        // 중복 멤버 사전 가드(FR-3): 이미 활성 멤버이면 가입 처리 없이 GROUP_ALREADY_MEMBER. 정원 검사 앞에 둔다.
+        if (groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), userId).isPresent()) {
+            throw new CoreException(ErrorType.GROUP_ALREADY_MEMBER);
+        }
         // 정원 검사. 동일 그룹 동시 수락은 findByIdForUpdate(group 비관락, 위)로 직렬화되므로
         //   정원 초과(동시 11번째 진입)는 발생하지 않는다 — 락 안에서 count→검사→INSERT 가 순차 보장된다.
+        //   IC-1: 1회용 토큰 소진이 사라져 정원 검사 직렬화가 유일한 동시성 방어선이다(BR-4).
         if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
             throw new CoreException(ErrorType.GROUP_CAPACITY_EXCEEDED);
-        }
-        // 토큰 1회용 보장: 조건부 원자적 UPDATE. 동시 수락 시 1건만 1 반환, 나머지 0 → ALREADY_USED.
-        //   락 전 빠른 실패 체크(getAcceptedAt != null, 위)는 유지하되, 동시성은 이 UPDATE 로 직렬화한다.
-        //   동일 TX 내 실행 — 이후 save 실패(rethrow) 시 롤백되어 accepted_at 도 복원된다(토큰 재사용 없음).
-        if (inviteLinkRepository.markAcceptedIfPending(link.getId(), now) == 0) {
-            throw new CoreException(ErrorType.INVITE_LINK_ALREADY_USED);
         }
         try {
             groupMemberRepository.save(GroupMember.createActive(group.getId(), userId, now));
         } catch (DataIntegrityViolationException e) {
-            // GM-1: acceptInviteLink 는 기존 그룹에 INSERT 하므로 createGroup 과 달리 catch 필요.
-            //   - uq_group_members_pair(동일 그룹 재가입) → GROUP_REJOIN_FORBIDDEN (BR-1).
+            // IC-1: 기존 그룹에 INSERT 하므로 catch 필요.
+            //   - uq_group_members_pair(탈퇴 후 동일 그룹 재가입) → GROUP_REJOIN_FORBIDDEN (D5).
+            //     사전 가드를 race 로 통과한 동시 INSERT 의 잔존 안전망이기도 하다.
             //   - 그 외(FK group_id→groups / user_id→users 위반: 동시 그룹 soft-delete 중 INSERT 등)는
             //     rethrow → 전역 ApiControllerAdvice 가 INTERNAL_ERROR 처리(REJOIN 오분류 방지).
             //   uq_group_members_active_user 는 DROP 됐으므로 이 경로에서 발생하지 않음.
@@ -147,17 +147,17 @@ public class GroupMemberService {
             }
             throw e;
         }
-        // 정원 도달 시 남은 미수락 초대 일괄 만료 (R-2).
-        // 주의: :127 은 INSERT 전(나 제외), 여기는 INSERT 후(나 포함) 카운트라 값이 1 다르다. 캐싱 금지(정원 도달 판정 깨짐).
-        if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
-            inviteLinkRepository.expirePendingByGroupId(group.getId(), now);
-        }
+        // IC-1(Option A): 정원 도달 후처리(expirePendingByGroupId)를 호출하지 않는다.
+        //   정원 도달은 만료가 아니라 가입 차단이며, 코드는 TTL 까지 유지되어 by-slug 가
+        //   count>=10 으로 GROUP_CAPACITY_EXCEEDED 를 구분 응답할 수 있게 한다(D4).
         return new InviteAcceptResult(group.getId(), now);
     }
 
     /**
      * slug 로 초대 링크 미리보기. 공개 GET by-slug API 의 진입점.
-     * 만료/소진/존재하지 않음/그룹 삭제됨 모두 INVITE_LINK_NOT_FOUND 로 통일한다 (정보 노출 방지).
+     * 만료/존재하지 않음/그룹 삭제됨 모두 INVITE_LINK_NOT_FOUND 로 통일한다 (정보 노출 방지).
+     * <p>IC-1(D4): 코드가 유효(TTL 미만료)하되 그룹 정원(10) 도달이면 NOT_FOUND 가 아니라
+     * GROUP_CAPACITY_EXCEEDED 로 구분 응답한다 — IC-3 웹 랜딩의 "정원 가득" vs "만료" 안내용.</p>
      */
     @Transactional(readOnly = true)
     public InviteLinkPreviewResult previewBySlug(String slug) {
@@ -170,6 +170,10 @@ public class GroupMemberService {
         Group group = groupRepository.findById(link.getGroupId())
                 .filter(g -> g.getDeletedAt() == null)
                 .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
+        // IC-1(D4): 유효 코드 + 정원 도달은 GROUP_CAPACITY_EXCEEDED 로 구분(만료/없음의 NOT_FOUND 와 별도).
+        if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
+            throw new CoreException(ErrorType.GROUP_CAPACITY_EXCEEDED);
+        }
         UserModel inviter = userRepository.findById(link.getInviterId())
                 .orElseThrow(() -> new CoreException(ErrorType.INVITE_LINK_NOT_FOUND));
         return new InviteLinkPreviewResult(

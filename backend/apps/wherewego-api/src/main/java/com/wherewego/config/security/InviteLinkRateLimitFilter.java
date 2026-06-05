@@ -18,24 +18,46 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * {@code GET /api/v1/groups/invite-links/by-slug/{slug}} 의 IP 기반 레이트리밋 Filter.
+ * by-slug(GET) + accept(POST) 의 IP 기반 레이트리밋 Filter.
  *
- * <p>공개 엔드포인트이므로 무차별 대입(brute-force)을 막기 위해 IP당 분당 30회로 제한.
+ * <ul>
+ *   <li>{@code GET /api/v1/groups/invite-links/by-slug/{slug}} — 공개 미리보기 엔드포인트</li>
+ *   <li>{@code POST /api/v1/groups/invite-links/{token}/accept} — 초대 수락 엔드포인트
+ *       (IC-1 재사용 모델로 유효 토큰 반복 accept 가 가능해져 무차별 호출 방지를 위해 추가)</li>
+ * </ul>
+ *
+ * <p>두 엔드포인트 모두 IP당 분당 30회로 제한하며, IP 예산을 공유한다.
  * 초과 시 429 + INVITE_LINK_RATE_LIMITED 코드를 반환한다.</p>
+ *
+ * <p>issue 엔드포인트({@code POST /api/v1/groups/{groupId}/invite-links})는 URI 가
+ * {@link #BY_SLUG_PREFIX}/{@link #ACCEPT_PREFIX} 와 매칭되지 않으므로 대상에서 제외된다.</p>
  */
 @Component
 @RequiredArgsConstructor
 public class InviteLinkRateLimitFilter extends OncePerRequestFilter {
 
-    private static final String PATH_PREFIX = "/api/v1/groups/invite-links/by-slug/";
+    private static final String BY_SLUG_PREFIX = "/api/v1/groups/invite-links/by-slug/";
+    private static final String ACCEPT_PREFIX = "/api/v1/groups/invite-links/";
+    private static final String ACCEPT_SUFFIX = "/accept";
 
     private final InviteLinkRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
-        return !(HttpMethod.GET.matches(request.getMethod())
-                && request.getRequestURI().startsWith(PATH_PREFIX));
+        return !(isBySlugPreview(request) || isInviteAccept(request));
+    }
+
+    private boolean isBySlugPreview(HttpServletRequest request) {
+        return HttpMethod.GET.matches(request.getMethod())
+                && request.getRequestURI().startsWith(BY_SLUG_PREFIX);
+    }
+
+    private boolean isInviteAccept(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return HttpMethod.POST.matches(request.getMethod())
+                && uri.startsWith(ACCEPT_PREFIX)
+                && uri.endsWith(ACCEPT_SUFFIX);
     }
 
     @Override

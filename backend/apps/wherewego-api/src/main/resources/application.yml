@@ -159,7 +159,7 @@ app:
     # 운영 기본값 = 서비스 도메인. 로컬 개발은 .env 에 APP_INVITE_SHARE_BASE_URL=http://localhost:3000 으로 override.
     share-base-url: ${APP_INVITE_SHARE_BASE_URL:https://wherewego.win}
     rate-limit:
-      # /api/v1/groups/invite-links/by-slug/** 의 IP 분당 허용 요청 수.
+      # by-slug(GET) + accept(POST) 초대 링크 경로의 IP 분당 허용 요청 수 (IP 예산 공유).
       capacity: 30
       refill-seconds: 60
       max-keys: 10000

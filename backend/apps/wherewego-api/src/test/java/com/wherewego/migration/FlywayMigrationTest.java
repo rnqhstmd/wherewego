@@ -64,7 +64,8 @@ class FlywayMigrationTest {
 
         Set<String> inviteLinksColumns = columnNames("invite_links");
         assertThat(inviteLinksColumns).containsExactlyInAnyOrder(
-                "id", "group_id", "inviter_id", "token", "expires_at", "accepted_at",
+                "id", "group_id", "inviter_id", "token", "expires_at",
+                // V019(IC-1): accepted_at 제거(1회용→정원 재사용, 가입=group_members 판정).
                 "created_at", "updated_at", "deleted_at", // V003: deleted_at 추가
                 "slug" // V011: 단축 URL slug 추가
         );

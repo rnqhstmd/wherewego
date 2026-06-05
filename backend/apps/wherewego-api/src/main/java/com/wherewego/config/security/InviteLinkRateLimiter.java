@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * {@code /api/v1/groups/invite-links/by-slug/**} 에 적용하는 IP 기반 카운터.
+ * 초대 링크 by-slug(GET) + accept(POST) 경로에 적용하는 IP 기반 카운터.
  *
  * <p>Caffeine TTL 을 슬라이딩 윈도우로 사용한다. 키마다 카운터를 증가시키고,
  * refillSeconds 가 지나면 키가 만료되어 자동으로 리셋된다.</p>

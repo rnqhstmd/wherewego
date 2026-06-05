@@ -20,7 +20,7 @@ class InviteLinkTest {
     @Nested
     class Issue {
 
-        @DisplayName("expiresAt = now + ttl, slug 가 채워지고, acceptedAt = null, isPending() = true 가 된다.")
+        @DisplayName("IC-1: expiresAt = now + ttl, slug 가 채워진다 (1회용 소진 accepted_at 제거).")
         @Test
         void issue_setsFields() {
             // arrange
@@ -36,29 +36,6 @@ class InviteLinkTest {
             assertThat(link.getToken()).isEqualTo(TOKEN);
             assertThat(link.getSlug()).isEqualTo(SLUG);
             assertThat(link.getExpiresAt()).isEqualTo(now.plus(ttl));
-            assertThat(link.getAcceptedAt()).isNull();
-            assertThat(link.isPending()).isTrue();
-        }
-    }
-
-    @DisplayName("초대 링크를 수락 처리할 때,")
-    @Nested
-    class MarkAccepted {
-
-        @DisplayName("acceptedAt 이 기록되고 isPending() = false 가 된다.")
-        @Test
-        void markAccepted_setsAcceptedAt() {
-            // arrange
-            Instant now = Instant.parse("2026-01-01T00:00:00Z");
-            InviteLink link = InviteLink.issue(GROUP_ID, INVITER_ID, TOKEN, SLUG, now, Duration.ofDays(7));
-            Instant acceptedAt = now.plusSeconds(60);
-
-            // act
-            link.markAccepted(acceptedAt);
-
-            // assert
-            assertThat(link.getAcceptedAt()).isEqualTo(acceptedAt);
-            assertThat(link.isPending()).isFalse();
         }
     }
 

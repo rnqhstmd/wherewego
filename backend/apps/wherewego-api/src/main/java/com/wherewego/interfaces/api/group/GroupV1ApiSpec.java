@@ -34,7 +34,10 @@ public interface GroupV1ApiSpec {
     @Operation(
             summary = "초대 링크 수락",
             description = "유효한 토큰을 수락하면 활성 멤버로 추가됩니다 (FR-GRP-3). " +
-                    "자기수락/만료/중복 사용/정원 초과는 거부됩니다."
+                    "IC-1: 하나의 코드는 TTL(7일) 동안 그룹 정원(10명) 한도 내에서 복수 사용자가 재사용 수락할 수 있습니다. " +
+                    "정원 도달은 만료가 아니라 가입 차단이라 코드는 TTL까지 유지됩니다. " +
+                    "자기수락(INVITE_LINK_SELF_ACCEPT)/만료(INVITE_LINK_EXPIRED)/이미 멤버(GROUP_ALREADY_MEMBER)/정원 초과(GROUP_CAPACITY_EXCEEDED)는 거부됩니다. " +
+                    "요청(토큰 경로변수)·응답({groupId, acceptedAt}) 구조는 유지됩니다 (BC)."
     )
     ApiResponse<GroupV1Dto.InviteAcceptResponse> acceptInviteLink(
             @Parameter(hidden = true) Long userId,
@@ -44,7 +47,8 @@ public interface GroupV1ApiSpec {
     @Operation(
             summary = "초대 링크 미리보기 (공개)",
             description = "단축 슬러그로 그룹명/초대자 닉네임/만료시각을 조회합니다. " +
-                    "로그인 전 카톡 미리보기 용. 만료/소진/존재하지 않음은 404 INVITE_LINK_NOT_FOUND. " +
+                    "로그인 전 카톡 미리보기 용. 유효(TTL 미만료 + 정원 미도달)는 200. 만료/존재하지 않음은 404 INVITE_LINK_NOT_FOUND. " +
+                    "IC-1(D4): 유효 코드이지만 그룹 정원(10명) 도달이면 409 GROUP_CAPACITY_EXCEEDED 로 구분 응답합니다. " +
                     "IP 기반 분당 30회 레이트리밋이 적용되며, 초과 시 429 INVITE_LINK_RATE_LIMITED."
     )
     ApiResponse<GroupV1Dto.InviteLinkPreviewResponse> previewInviteLinkBySlug(String slug);
