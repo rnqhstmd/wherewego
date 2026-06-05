@@ -63,6 +63,13 @@ struct MyInfoView: View {
                     Task { await viewModel.refreshNickname() }
                 }
             }
+            // 글래스 통일: NicknameView 는 Spacer 기반 풀스크린 레이아웃 + 자체 WGColor.bg 불투명 배경을
+            //  가진다(OnboardingRouter 풀스크린 재사용). 그 배경을 제거하면 온보딩이 깨지므로 보존하고,
+            //  시트에서는 large detent + 드래그 인디케이터 + 코너로 "OS 기본 전체화면이 아닌 시트"로 표현한다.
+            //  (콘텐츠가 불투명 bg 를 채우므로 .presentationBackground 머티리얼은 가려져 생략.)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(24)
         }
         .confirmationDialog(
             leaveDialogTitle,

@@ -140,6 +140,7 @@ private final class MockGroupAPI: GroupAPIProtocol, @unchecked Sendable {
         case .failure(let error): throw error
         }
     }
+    func createGroup(name: String) async throws -> GroupCreated { GroupCreated(groupId: 0, name: name) }
     func previewBySlug(slug: String) async throws -> InvitePreview { InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil) }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }

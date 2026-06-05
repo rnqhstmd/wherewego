@@ -19,6 +19,11 @@ struct PinDetailContent: View {
     /// 닫기 요청(삭제 완료/다른 사용자 삭제). PinBubbleView 가 selectedPinId·화면좌표 해제로 연결.
     var onRequestClose: () -> Void
 
+    // 표시 모드(C-b): 웹 PinPopup 처럼 보기(view)가 기본이고, ⋮ 메뉴의 "수정"으로만 편집(edit) 진입.
+    // 편집 UI(태그 변경·장소명/메모 토글·사진 추가/삭제·삭제 버튼)는 edit 모드에서만 노출한다.
+    private enum Mode { case view, edit }
+    @State private var mode: Mode = .view
+
     // 편집 입력 버퍼.
     @State private var memoText: String
     @State private var placeNameText: String
@@ -59,25 +64,12 @@ struct PinDetailContent: View {
 
     var body: some View {
         let live = currentPin ?? pin
-        VStack(alignment: .leading, spacing: 18) {
-            header(live)
-            if let address = live.address, !address.isEmpty {
-                addressRow(address)
+        Group {
+            if mode == .edit {
+                editBody(live)
+            } else {
+                viewBody(live)
             }
-            Divider().overlay(WGColor.hairline)
-            tagSection(live)
-            placeNameSection(live)
-            memoSection(live)
-            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
-                photoSection(live)
-            }
-            if let url = instagramLink(live) {
-                instagramRow(url)
-            }
-            if let error = inlineError ?? detailVM.photoError {
-                errorBanner(error)
-            }
-            deleteButton
         }
         .padding(20)
         .confirmationDialog("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -120,9 +112,61 @@ struct PinDetailContent: View {
         }
     }
 
-    // MARK: - 헤더(장소명 + 태그 배지 + 등록자)
+    // MARK: - 보기 모드(기본). 읽기 전용 + 우상단 ⋮ 메뉴(수정/삭제)
 
-    private func header(_ live: PinSummary) -> some View {
+    private func viewBody(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            viewHeader(live)
+            if let address = live.address, !address.isEmpty {
+                addressRow(address)
+            }
+            if let date = displayDate(live) {
+                dateRow(date)
+            }
+            Divider().overlay(WGColor.hairline)
+            memoReadOnly(live)
+            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag),
+               let urlString = live.photoThumbnailUrl ?? live.photoUrl,
+               let url = URL(string: urlString) {
+                photoThumbnail(url)
+            }
+            if let url = instagramLink(live) {
+                instagramRow(url)
+            }
+            if let error = inlineError ?? detailVM.photoError {
+                errorBanner(error)
+            }
+        }
+    }
+
+    // MARK: - 편집 모드(⋮ → "수정" 진입). 기존 편집/삭제 UI 재사용
+
+    private func editBody(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            editHeader(live)
+            if let address = live.address, !address.isEmpty {
+                addressRow(address)
+            }
+            Divider().overlay(WGColor.hairline)
+            tagSection(live)
+            placeNameSection(live)
+            memoSection(live)
+            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
+                photoSection(live)
+            }
+            if let url = instagramLink(live) {
+                instagramRow(url)
+            }
+            if let error = inlineError ?? detailVM.photoError {
+                errorBanner(error)
+            }
+            deleteButton
+        }
+    }
+
+    // MARK: - 보기 헤더(장소명 + 태그 배지 + ⋮ 메뉴 + 등록자)
+
+    private func viewHeader(_ live: PinSummary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(live.placeName)
@@ -130,12 +174,117 @@ struct PinDetailContent: View {
                     .foregroundStyle(WGColor.ink)
                 Spacer(minLength: 0)
                 tagBadge(live.tag)
+                menuButton
             }
             if let nickname = live.createdByNickname, !nickname.isEmpty {
                 Text("\(nickname) 님이 추가")
                     .font(WGFont.sans(12))
                     .foregroundStyle(WGColor.inkSoft)
             }
+        }
+    }
+
+    /// ⋮ 메뉴(수정/삭제). 웹 PinPopup 의 menu popover 와 동치.
+    private var menuButton: some View {
+        Menu {
+            Button("수정") {
+                inlineError = nil
+                detailVM.photoError = nil
+                mode = .edit
+            }
+            Button("삭제", role: .destructive) {
+                showDeleteConfirm = true
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .disabled(detailVM.isMutating)
+    }
+
+    // MARK: - 편집 헤더(장소명 + 태그 배지 + "보기로" 복귀)
+
+    private func editHeader(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(live.placeName)
+                    .font(WGFont.serif(22))
+                    .foregroundStyle(WGColor.ink)
+                Spacer(minLength: 0)
+                tagBadge(live.tag)
+                Button {
+                    isEditingMemo = false
+                    isEditingPlaceName = false
+                    inlineError = nil
+                    mode = .view
+                } label: {
+                    Text("완료")
+                        .font(WGFont.sans(13))
+                        .foregroundStyle(WGColor.cta)
+                }
+                .disabled(detailVM.isMutating)
+            }
+            if let nickname = live.createdByNickname, !nickname.isEmpty {
+                Text("\(nickname) 님이 추가")
+                    .font(WGFont.sans(12))
+                    .foregroundStyle(WGColor.inkSoft)
+            }
+        }
+    }
+
+    // MARK: - 보기 모드 날짜/메모/사진(읽기 전용)
+
+    /// 표시 날짜: MEMORY + visitedAt 이면 "다녀온 날", 그 외 createdAt. 웹 PinPopup dateSource 동치.
+    private func displayDate(_ live: PinSummary) -> String? {
+        let iso = (live.tag == .MEMORY ? live.visitedAt : nil) ?? live.createdAt
+        guard let date = VisitDateFormatter.parse(iso) else { return nil }
+        return VisitDateFormatter.dotted(date)
+    }
+
+    private func dateRow(_ date: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "calendar")
+                .font(.system(size: 12))
+                .foregroundStyle(WGColor.inkSoft)
+            Text(date)
+                .font(WGFont.sans(13))
+                .foregroundStyle(WGColor.inkSoft)
+        }
+    }
+
+    private func memoReadOnly(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("메모")
+            if let memo = live.memo, !memo.isEmpty {
+                Text(memo)
+                    .font(WGFont.sans(14))
+                    .foregroundStyle(WGColor.ink)
+            } else {
+                Text("메모가 없어요")
+                    .font(WGFont.sans(13))
+                    .foregroundStyle(WGColor.inkFaint)
+            }
+        }
+    }
+
+    private func photoThumbnail(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("사진")
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                case .failure:
+                    placeholderTile(systemName: "photo")
+                default:
+                    ProgressView().tint(WGColor.cta)
+                }
+            }
+            .frame(width: 140, height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 

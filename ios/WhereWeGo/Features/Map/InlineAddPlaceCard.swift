@@ -111,6 +111,9 @@ struct InlineAddPlaceCard: View {
 
     private var confirmCard: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // 바텀시트임을 표시하는 공통 드래그 핸들(글래스 통일).
+            DragHandle()
+
             placeSummary
 
             VStack(alignment: .leading, spacing: 10) {
@@ -141,9 +144,8 @@ struct InlineAddPlaceCard: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WGColor.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: WGColor.shadow, radius: 12, y: -2)
+        // 글래스 통일: 불투명 panel fill + 단일 shadow 를 glassCard(Material+hairline+그림자)로 대체.
+        .glassCard(cornerRadius: 18)
         .padding(.horizontal, 12)
         .padding(.top, 10)
     }

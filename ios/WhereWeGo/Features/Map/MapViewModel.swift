@@ -508,7 +508,7 @@ final class MapViewModel: ObservableObject {
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
-        addPlaceVM = AddPlaceViewModel(mapViewModel: self)
+        addPlaceVM = AddPlaceViewModel(mapViewModel: self, entryMode: mode)   // B-2 — 진입 모드 보존(검색 진입 시 드래그 가드).
         isAddingPin = true
         // 콕찍기만 진입 줌인/초기 seed. 검색은 사용자가 검색→선택할 때까지 콕찍기 중심을 만들지 않는다(십자선 미표시).
         if mode == .pinpoint {

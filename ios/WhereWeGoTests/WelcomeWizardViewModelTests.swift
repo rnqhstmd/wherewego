@@ -146,6 +146,9 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     init(issueResult: IssueOutcome) { self.issueResult = issueResult }
 
     func myActiveGroup() async throws -> ActiveGroup? { nil }
+    func createGroup(name: String) async throws -> GroupCreated {
+        GroupCreated(groupId: 0, name: name)
+    }
     func previewBySlug(slug: String) async throws -> InvitePreview {
         InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil)
     }

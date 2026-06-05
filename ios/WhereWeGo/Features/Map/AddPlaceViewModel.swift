@@ -55,6 +55,11 @@ final class AddPlaceViewModel: ObservableObject {
     /// 콕찍기 모드에서 추적 중인 메인 지도 중심 좌표(확정 시 7자리 반올림 후 create). 초기 nil.
     private(set) var pinpointCenter: Coordinate?
 
+    /// 진입 모드(콕찍기 vs 검색, 작업 B-2). enterAddPin(mode:)에서 전달.
+    /// 검색으로 진입했으면 지도 드래그(onMapMoved)가 콕찍기로 전환되지 않게 가드한다(검색 결과/선택 유지).
+    /// 웹은 검색/콕찍기가 완전 별개 패널이라 이 전환 자체가 없다.
+    let entryMode: InputMode
+
     // MARK: - 의존성
 
     private weak var mapViewModel: MapViewModel?
@@ -65,10 +70,12 @@ final class AddPlaceViewModel: ObservableObject {
 
     init(
         mapViewModel: MapViewModel,
+        entryMode: InputMode = .pinpoint,
         reverseGeocoder: ReverseGeocoder = ReverseGeocoder(),
         debouncer: Debouncer = Debouncer()
     ) {
         self.mapViewModel = mapViewModel
+        self.entryMode = entryMode
         self.reverseGeocoder = reverseGeocoder
         self.debouncer = debouncer
     }
@@ -110,7 +117,13 @@ final class AddPlaceViewModel: ObservableObject {
 
     /// 메인 지도 드래그(cameraIdle) → 콕찍기 전환. query 비움 + .pinpoint + 중심 추적 + 디바운스 역지오 트리거.
     /// 역지오는 ReverseGeocoder 결과, 실패 시 coordinateFallback(AC-9)로 resolvedAddress 를 채운다.
+    ///
+    /// 작업 B-2 가드: 검색으로 진입(entryMode==.search)했으면 지도 드래그를 무시한다.
+    ///  검색 모드 진입 후 지도만 움직여도 검색이 콕찍기로 날아가던 버그 차단(검색 결과/선택 유지).
+    ///  콕찍기로 진입(entryMode==.pinpoint)한 경우만 드래그가 좌표를 갱신한다.
+    ///  (콕찍기 진입의 초기 seed/줌인 idle 도 .pinpoint 경로라 정상 통과한다.)
     func onMapMoved(center: Coordinate) {
+        guard entryMode == .pinpoint else { return }   // B-2 — 검색 진입 시 드래그로 콕찍기 전환 안 함.
         guard !isCreating else { return }   // 등록 진행 중 지도 드래그로 인한 상태 불일치 방지(Gemini MEDIUM).
         query = ""                  // AC-8 — 콕찍기 시작 시 검색어 초기화.
         inputMode = .pinpoint

@@ -4,8 +4,8 @@ import SwiftUI
 // frontend/src/app/map/_components/notifications/NotificationPanel.tsx + NotificationItem.tsx + NotificationPinList.tsx 이식.
 //
 //  - 상태별: 로딩 ProgressView / 빈 "아직 알림이 없어요" / 에러 메시지+재시도(BR-6) / 목록.
-//  - 목록 행: 종류 아이콘(MANUAL_PIN=mappin.circle / CHATBOT_PINS=bubble.left / VISIT_DETECTED=location)
-//    + 문구(FR-18) + 시간(웹 formatTime 이식) + 미읽음 강조(readAt==nil → 옅은 cta 배경).
+//  - 목록: 날짜 그룹(오늘/어제/이번 주/이전) 섹션 헤더 + 행. 행은 아이콘 없는 2행 레이아웃
+//    (Row1 행위자 카피+시간 / Row2 장소 요약, 웹 NotificationItem 이식) + 미읽음 강조(readAt==nil → 옅은 cta 배경).
 //  - 행 탭 → selectItem(detail 로드) → 핀 목록(activeDetail) 표시. "← 목록" 으로 복귀.
 //  - 핀 탭 → flyToPin(딥링크 pending). soft delete 핀은 "삭제된 장소: {이름}" + flyTo 비활성.
 //
@@ -117,20 +117,38 @@ struct NotificationInboxView: View {
     private func listView(_ items: [NotificationItem]) -> some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(items) { item in
-                    Button {
-                        Task { await viewModel.selectItem(item) }
-                    } label: {
-                        NotificationRow(item: item)
-                    }
-                    .buttonStyle(.plain)
+                // 날짜 그룹(오늘/어제/이번 주/이전) 섹션 + 헤더(웹 NotificationPanel groupByDate 이식).
+                ForEach(NotificationInboxViewModel.groupByDate(items)) { group in
+                    sectionHeader(group.label)
 
-                    Rectangle()
-                        .fill(WGColor.hairline)
-                        .frame(height: 1)
+                    ForEach(group.items) { item in
+                        Button {
+                            Task { await viewModel.selectItem(item) }
+                        } label: {
+                            NotificationRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+
+                        Rectangle()
+                            .fill(WGColor.hairline)
+                            .frame(height: 1)
+                    }
                 }
             }
         }
+    }
+
+    /// 날짜 그룹 섹션 헤더(웹: 11px·600·uppercase·letterSpacing).
+    private func sectionHeader(_ label: String) -> some View {
+        Text(label.uppercased())
+            .font(WGFont.sans(11))
+            .fontWeight(.semibold)
+            .tracking(0.4)
+            .foregroundStyle(WGColor.inkSoft)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
     }
 
     // MARK: - 상세(핀 목록)
@@ -194,67 +212,50 @@ struct NotificationInboxView: View {
 
 // MARK: - 알림 행
 
-/// 알림 1건 행. 종류 아이콘 + 문구(FR-18) + 시간 + 미읽음 강조(readAt==nil → 옅은 cta 배경).
+/// 알림 1건 행(아이콘 없는 2행 레이아웃, 웹 NotificationItem.tsx 이식).
+/// Row1 = 행위자 카피(굵게) + 시간(우측 mono), Row2 = 장소 요약.
+/// 미읽음(readAt==nil)은 옅은 cta 배경 + 우측 미읽음 점으로 강조.
 private struct NotificationRow: View {
     let item: NotificationItem
 
     private var isUnread: Bool { item.readAt == nil }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: Self.icon(for: item.type))
-                .font(.system(size: 18))
-                .foregroundStyle(WGColor.cta)
-                .frame(width: 24, alignment: .center)
-                .padding(.top, 1)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Self.message(for: item))
-                    .font(WGFont.sans(14))
+        VStack(alignment: .leading, spacing: 5) {
+            // Row1: 행위자 카피 + 시간(우측) + 미읽음 점.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(NotificationInboxViewModel.actorLabel(for: item))
+                    .font(WGFont.sans(13))
+                    .fontWeight(.semibold)
                     .foregroundStyle(WGColor.ink)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
+                Spacer(minLength: 4)
+
                 Text(NotificationInboxViewModel.formatTime(item.createdAt))
                     .font(WGFont.mono(11))
                     .foregroundStyle(WGColor.inkSoft)
+
+                if isUnread {
+                    Circle()
+                        .fill(WGColor.pinNew)
+                        .frame(width: 7, height: 7)
+                }
             }
 
-            Spacer(minLength: 0)
-
-            if isUnread {
-                Circle()
-                    .fill(WGColor.pinNew)
-                    .frame(width: 7, height: 7)
-                    .padding(.top, 5)
-            }
+            // Row2: 장소 요약.
+            Text(NotificationInboxViewModel.placeSummary(for: item))
+                .font(WGFont.sans(14))
+                .foregroundStyle(WGColor.ink)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isUnread ? WGColor.cta.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
-    }
-
-    /// 종류별 SF Symbol(설계 §7).
-    static func icon(for type: NotificationType) -> String {
-        switch type {
-        case .MANUAL_PIN: return "mappin.circle"
-        case .CHATBOT_PINS: return "bubble.left"
-        case .VISIT_DETECTED: return "location"
-        }
-    }
-
-    /// 종류별 문구(FR-18).
-    static func message(for item: NotificationItem) -> String {
-        switch item.type {
-        case .MANUAL_PIN:
-            return "파트너가 새 장소를 등록했어요"
-        case .CHATBOT_PINS:
-            return "릴스에서 \(item.totalPinCount)개 장소가 저장됐어요"
-        case .VISIT_DETECTED:
-            return "방문 장소가 감지됐어요"
-        }
     }
 }
 

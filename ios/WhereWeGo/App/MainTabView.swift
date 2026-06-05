@@ -1,10 +1,10 @@
 import SwiftUI
 
-// 메인 탭 화면(설계 §1·§2·§11). 온보딩 종착 — 5탭(지도·어디갈까·채팅·알림·내정보).
-//  - 지도=전체 핀 보기/관리, 어디갈까=위치기반 룰렛 추천(구 지도 우상단 🎲 시트 → 탭 승격, RouletteView). 둘은 레벨이 다른 별개 기능.
+// 메인 탭 화면(설계 §1·§2·§11). 온보딩 종착 — 4탭(지도·채팅·알림·내정보).
+//  - 지도=전체 핀 보기/관리. 룰렛("어디갈까")은 독립 탭에서 지도 위 시트로 환원(웹 정합) — MapView 우상단 🎲 버튼 → .sheet(RouletteView).
 //  - 시스템 탭바 숨김 + .safeAreaInset(edge:.bottom) 으로 FloatingTabBar 부착(둥근 플로팅 필 바, 콘텐츠 자동 회피). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
 //  - 지도: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
-//  - 어디갈까: RouletteView(rouletteViewModel — mapViewModel 공유로 추첨 풀=pins, "지도에서 보기" flyTo). 진입 시 자동 추첨.
+//      룰렛 VM(rouletteViewModel)도 MapView 로 주입한다 — 룰렛 시트는 지도 화면에서 표시하되 VM 수명은 본 뷰가 보유(탭 전환에도 결과 유지).
 //  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
 //  - ＋ 장소 추가(P8 영역1·영역4 후속): 탭바에서 분리되어 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
 //    speed-dial 2선택지(✋ 콕찍기 / 🔍 검색) → mapViewModel.enterAddPin(mode:) → 메인 지도 인라인 오버레이(시트 제거).
@@ -21,7 +21,8 @@ struct MainTabView: View {
     private let dependencies: AppDependencies
 
     @StateObject private var mapViewModel: MapViewModel
-    /// 어디갈까(룰렛) VM. mapViewModel 공유(추첨 풀=pins, "지도에서 보기" flyTo). 탭 전환에도 결과 유지.
+    /// 룰렛("어디갈까") VM. mapViewModel 공유(추첨 풀=pins, "지도에서 보기" flyTo). 본 뷰가 소유해 탭 전환에도 결과 유지.
+    /// 표시는 지도 화면 위 .sheet(MapView 우상단 🎲) — VM 만 본 뷰가 보유하고 MapView 로 주입한다.
     @StateObject private var rouletteViewModel: RouletteViewModel
     @StateObject private var botViewModel: BotChatViewModel
     /// 알림함 VM(설계 §2). 미읽음 배지(unreadCount)를 FloatingTabBar 가 항상 관찰 — 탭 진입 전에도 노출.
@@ -80,19 +81,9 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selection) {
             // 지도 탭 — 전체 핀 보기/관리. 외부 주입 VM 공유(딥링크 flyTo 대상).
-            MapView(viewModel: mapViewModel)
+            //  룰렛("어디갈까") 시트도 이 화면에서 표시(우상단 🎲) — rouletteViewModel 주입. "지도에서 보기"는 시트만 닫으므로 탭 전환 콜백 불필요.
+            MapView(viewModel: mapViewModel, rouletteViewModel: rouletteViewModel)
                 .tag(MainTab.map)
-
-            // 어디갈까(룰렛) 탭 — 위치기반 무작위 추천. 진입(selection→.discover) 시 자동 추첨(아래 onChange).
-            //  "지도에서 보기" → showOnMap() 후 onShowOnMap 콜백으로 지도 탭 전환.
-            NavigationStack {
-                RouletteView(
-                    viewModel: rouletteViewModel,
-                    onShowOnMap: { selection = .map }
-                )
-            }
-            .reserveFloatingTabBarSpace()
-            .tag(MainTab.discover)
 
             // 채팅(봇 방) 탭. navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
             NavigationStack {
@@ -118,7 +109,7 @@ struct MainTabView: View {
             .reserveFloatingTabBarSpace()
             .tag(MainTab.myInfo)
         }
-        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1, #95 5탭 플로팅).
+        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1, #95 플로팅 / 룰렛 탭 환원 후 4탭).
         .toolbar(.hidden, for: .tabBar)
         .tint(WGColor.cta)
         // 바 부착(설계 §2 개정 / PR리뷰): TabView 에 직접 .safeAreaInset 을 걸면 그 safe area 가 개별 탭
@@ -149,13 +140,10 @@ struct MainTabView: View {
         //  들어간 뒤 다른 탭으로 이동하면 작성 중 상태를 정리한다.
         // 작성 중 위치 정보는 exitAddPin 이 폐기(cancelPendingWork → 디바운스/생성 Task 취소).
         // ＋ speed-dial 을 펼친 채(모드 미진입) 탭 이동한 경우도 메뉴를 닫아 잔여 펼침 상태를 정리한다.
-        .onChange(of: selection) { _, newValue in
+        .onChange(of: selection) { _, _ in
             mapViewModel.exitAddPin()
             mapViewModel.isAddMenuExpanded = false
-            // 어디갈까 탭 진입 즉시 자동 추첨(GPS one-shot → 반경 10km 무작위 1곳). 매 진입마다 새로 돌린다.
-            if newValue == .discover {
-                Task { await rouletteViewModel.spin() }
-            }
+            // 룰렛 자동 추첨은 탭 진입이 아니라 지도 화면 룰렛 시트 표시 시점에 수행한다(MapView 가 트리거).
         }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
         .onChange(of: scenePhase) { _, phase in

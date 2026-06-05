@@ -3,11 +3,14 @@ import SwiftUI
 // 위치 기반 룰렛 화면(설계 §5, FR-20~24, AC-10/11).
 // frontend/src/app/map/_components/RouletteResultContent.tsx + RouletteSpinContent.tsx 이식.
 //
-// 구 RouletteSheet(지도 우상단 🎲 → 시트)에서 "어디갈까" 탭 전체 화면으로 승격(네이밍/멘탈모델 정리):
-//  - "지도" 탭 = 전체 핀 보기·관리, "어디갈까" 탭 = 위치기반 무작위 1곳 추천(둘은 레벨이 다른 별개 기능).
-//  - 진입(탭 선택) 즉시 자동 추첨 — MainTabView 가 selection==.discover 전이 시 spin() 트리거.
-//  - "지도에서 보기" → showOnMap()(flyTo+정보창) 후 onShowOnMap 콜백으로 지도 탭 전환(시트 dismiss 대체).
-//  - VM 수명은 MainTabView 가 @StateObject 로 보유(탭 전환에도 결과 유지, mapViewModel 공유).
+// 룰렛("어디갈까")은 독립 탭에서 지도 위 시트로 환원(웹 MapClient activeSheet==="roulette" 정합, 작업 D):
+//  - "지도" 화면 우상단 🎲 → .sheet(RouletteSheetContent). 표시 즉시 자동 추첨(MapView 가 isRoulettePresented 토글 시 spin() 트리거).
+//  - "지도에서 보기" → showOnMap()(flyTo+정보창) 후 onShowOnMap 콜백으로 시트 dismiss(지도를 드러냄).
+//  - VM 수명은 MainTabView 가 @StateObject 로 보유(시트 닫혀도 결과 유지, mapViewModel 공유).
+//
+// 본 파일 구성:
+//  - RouletteSheetContent: 시트 래퍼(상단 "어디갈까" 타이틀 + 닫기 버튼 + RouletteView 본문). 글래스 시트 detents 는 MapView 가 지정.
+//  - RouletteView: 토글/상태별 본문(시트·전체화면 공용 — 자체 타이틀/네비게이션 미보유).
 //
 // 상태별 표시:
 //  - .idle/.spinning: 안내 + 진행 스피너.
@@ -15,9 +18,49 @@ import SwiftUI
 //  - .exhausted: "추첨할 핀이 없어요"(AC-10).
 //  - .locationError: 위치 권한 안내.
 //  MEMORY 포함 토글(기본 OFF) → 추첨 풀 확장(AC-11).
+
+/// 룰렛 시트 래퍼(작업 D). 상단 "어디갈까" 타이틀 + 닫기 버튼 헤더 + RouletteView 본문.
+///  글래스 시트 표현(detents/배경/코너)은 호출부(MapView)가 .sheet 수식어로 지정한다.
+struct RouletteSheetContent: View {
+    @ObservedObject var viewModel: RouletteViewModel
+    /// "지도에서 보기" → 시트 닫기(showOnMap() 직후 호출, MapView 가 isRoulettePresented=false).
+    let onShowOnMap: () -> Void
+    /// 헤더 닫기(✕) 버튼 → 시트 닫기.
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            RouletteView(viewModel: viewModel, onShowOnMap: onShowOnMap)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// 상단 헤더(navigationTitle 대체 — 시트엔 NavigationStack 미사용). 좌측 "어디갈까" 타이틀 + 우측 닫기(✕).
+    private var header: some View {
+        HStack {
+            Text("어디갈까")
+                .font(WGFont.serif(18))
+                .foregroundStyle(WGColor.ink)
+            Spacer()
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(WGColor.inkSoft)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(WGColor.panel.opacity(0.6)))
+            }
+            .accessibilityLabel("닫기")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 4)
+    }
+}
+
 struct RouletteView: View {
     @ObservedObject var viewModel: RouletteViewModel
-    /// "지도에서 보기" → 지도 탭 전환(MainTabView selection=.map). showOnMap() 직후 호출.
+    /// "지도에서 보기" → 시트 닫기(MapView isRoulettePresented=false). showOnMap() 직후 호출.
     let onShowOnMap: () -> Void
 
     var body: some View {
@@ -28,9 +71,6 @@ struct RouletteView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WGColor.bg)
-        .navigationTitle("어디갈까")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - MEMORY 포함 토글(FR-23, AC-11)

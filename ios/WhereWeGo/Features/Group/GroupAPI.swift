@@ -11,6 +11,13 @@ struct ActiveGroup: Decodable {
     let memberCount: Int
 }
 
+/// 그룹 생성 응답(POST /groups). 생성 직후 멤버는 생성자 1명(FR-18).
+struct GroupCreated: Decodable {
+    let groupId: Int
+    let name: String
+    var createdAt: String? = nil
+}
+
 /// 초대 링크 발급 응답.
 struct InviteLink: Decodable {
     let token: String
@@ -31,6 +38,13 @@ struct InvitePreview: Decodable, Equatable {
     let groupName: String
     let inviterNickname: String?
     let expiresAt: String?
+}
+
+// MARK: - 요청 DTO
+
+/// 그룹 생성 요청. 이름은 trim 후 1~30자 검증을 통과해야 한다(백엔드 GROUP_NAME_INVALID 규칙).
+private struct CreateGroupRequest: Encodable {
+    let name: String
 }
 
 // MARK: - GroupAPI
@@ -59,6 +73,18 @@ final class GroupAPI: GroupAPIProtocol {
             if error.code == "HTTP_200" || error.code == "NO_CONTENT" { return nil }
             throw error                                          // errorCode 있는 FAIL, 4xx/5xx 등 진짜 에러
         }
+    }
+
+    /// POST /groups (201) — 그룹 생성, 생성자가 첫 멤버가 된다(FR-18).
+    // 이름 검증(trim 1~30자)은 호출 전 ViewModel 에서 수행한다. 위반 시 백엔드가 GROUP_NAME_INVALID 반환.
+    func createGroup(name: String) async throws -> GroupCreated {
+        let body = try JSONEncoder().encode(CreateGroupRequest(name: name))
+        return try await client.request(
+            "/groups",
+            method: "POST",
+            body: body,
+            type: GroupCreated.self
+        )
     }
 
     /// GET /groups/invite-links/by-slug/{slug} — slug 로 프리뷰(token 획득, FR-3).

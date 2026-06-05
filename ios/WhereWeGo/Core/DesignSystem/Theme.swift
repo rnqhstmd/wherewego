@@ -61,3 +61,39 @@ enum WGFont {
     static func sans(_ size: CGFloat) -> Font  { .custom("Pretendard-Regular", size: size) }   // 웹: Pretendard
     static func mono(_ size: CGFloat) -> Font  { .custom("JetBrainsMono-Regular", size: size) }// 웹: JetBrains Mono
 }
+
+// MARK: - 글래스 디자인 시스템(클러스터 A — 글래스 플로팅 룩 통일)
+//
+// 웹의 불투명 카드 대신 iOS 네이티브 글래스(Material) 룩으로 통일한다.
+// 탭바·시트·인라인 카드가 동일한 "글래스 플로팅"(Material 배경 + hairline 보더 + 그림자)을 공유한다.
+// 지도 위에서도 가독성 있도록 .regularMaterial 을 사용한다(.ultraThinMaterial 은 너무 투명).
+
+extension View {
+    /// 글래스 플로팅 카드: Material 배경 + hairline 보더 + 그림자.
+    /// 웹 Sheet/패널의 iOS 글래스 대응물. 지도 위에서도 떠 보이도록 보더+그림자를 함께 둔다.
+    func glassCard(cornerRadius: CGFloat = 20) -> some View {
+        self
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(WGColor.hairline, lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 8)
+    }
+
+    /// 글래스 캡슐: 탭바·칩 등 알약형 플로팅 요소용. Material 배경 + hairline 보더 + 그림자.
+    func glassCapsule() -> some View {
+        self
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+            .overlay(Capsule(style: .continuous).stroke(WGColor.hairline, lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 8)
+    }
+}
+
+/// 시트·카드 상단의 공통 드래그 핸들(36x4, inkFaint, Capsule). 바텀시트임을 시각적으로 표시한다.
+struct DragHandle: View {
+    var body: some View {
+        Capsule()
+            .fill(WGColor.inkFaint)
+            .frame(width: 36, height: 4)
+            .padding(.top, 8)
+            .frame(maxWidth: .infinity)
+    }
+}

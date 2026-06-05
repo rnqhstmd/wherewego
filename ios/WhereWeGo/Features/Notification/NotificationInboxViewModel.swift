@@ -152,6 +152,80 @@ final class NotificationInboxViewModel: ObservableObject {
         return dateFormatter.string(from: date)
     }
 
+    // MARK: - 날짜 그룹(웹 NotificationPanel.groupByDate 이식)
+
+    /// 날짜 버킷 1개(라벨 + 해당 알림들). 섹션 헤더 렌더에 사용.
+    struct NotificationDateGroup: Identifiable {
+        let label: String
+        let items: [NotificationItem]
+        var id: String { label }
+    }
+
+    /// createdAt 을 오늘/어제/이번 주/이전 4개 버킷으로 그룹화.
+    /// frontend NotificationPanel.tsx groupByDate 이식(순서 보존, 빈 버킷 제외).
+    /// 파싱 실패 항목은 "이전" 버킷으로 폴백(웹은 NaN → '이전' 분기와 동치).
+    static func groupByDate(_ items: [NotificationItem], now: Date = Date()) -> [NotificationDateGroup] {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: now)
+        let yesterdayStart = calendar.date(byAdding: .day, value: -1, to: todayStart) ?? todayStart
+        let weekStart = calendar.date(byAdding: .day, value: -7, to: todayStart) ?? todayStart
+
+        let order = ["오늘", "어제", "이번 주", "이전"]
+        var buckets: [String: [NotificationItem]] = [:]
+
+        for item in items {
+            let date = isoFormatter.date(from: item.createdAt)
+                ?? isoFormatterNoFraction.date(from: item.createdAt)
+            let label: String
+            if let date {
+                if date >= todayStart { label = "오늘" }
+                else if date >= yesterdayStart { label = "어제" }
+                else if date >= weekStart { label = "이번 주" }
+                else { label = "이전" }
+            } else {
+                label = "이전"
+            }
+            buckets[label, default: []].append(item)
+        }
+
+        return order.compactMap { label in
+            guard let group = buckets[label] else { return nil }
+            return NotificationDateGroup(label: label, items: group)
+        }
+    }
+
+    // MARK: - 본문 카피(웹 NotificationItem.tsx actorLabel/buildPlaceSummary 이식)
+
+    /// Row1 행위자 카피. VISIT_DETECTED 는 본인/짝꿍 분기 없이 통일 문구(웹 Phase 10 정책).
+    /// 그 외는 "{닉네임}님이 장소를 저장했어요."(닉네임 미전달 시 "짝꿍" 폴백).
+    static func actorLabel(for item: NotificationItem) -> String {
+        switch item.type {
+        case .VISIT_DETECTED:
+            return "추억이 한 곳 더 쌓였어요"
+        case .MANUAL_PIN, .CHATBOT_PINS:
+            let nickname = item.registeredByNickname ?? "짝꿍"
+            return "\(nickname)님이 장소를 저장했어요."
+        }
+    }
+
+    /// Row2 장소 요약 카피. CHATBOT_PINS 는 wishCount/reelCount 가 모두 채워졌을 때
+    /// "위시 N곳, 발견 M곳" 분리 표기, 누락 시 totalPinCount 기반 기본 요약으로 폴백.
+    /// frontend NotificationItem.tsx buildPlaceSummary 이식.
+    static func placeSummary(for item: NotificationItem) -> String {
+        if item.type == .CHATBOT_PINS,
+           let wish = item.wishCount,
+           let reel = item.reelCount,
+           wish + reel > 0 {
+            var parts: [String] = []
+            if wish > 0 { parts.append("위시 \(wish)곳") }
+            if reel > 0 { parts.append("발견 \(reel)곳") }
+            return parts.joined(separator: ", ")
+        }
+        return item.totalPinCount <= 1
+            ? item.firstPlaceName
+            : "\(item.firstPlaceName) 외 \(item.totalPinCount - 1)곳"
+    }
+
     /// 소수 초(밀리초) 포함 ISO-8601 파서(Jackson 직렬화 대응).
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

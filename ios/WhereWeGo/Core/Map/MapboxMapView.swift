@@ -168,7 +168,8 @@ struct MapboxMapView: UIViewRepresentable {
         private let sourceId = "wwg-pins"
         private let clusterCircleLayerId = "wwg-cluster-circle"
         private let clusterCountLayerId = "wwg-cluster-count"
-        private let pinCircleLayerId = "wwg-pin-circle"
+        // 개별 핀: 태그별 글리프(원/별/하트)를 그리는 SymbolLayer(기존 CircleLayer 대체, C-a).
+        private let pinSymbolLayerId = "wwg-pin-symbol"
 
         init(onEvent: @escaping (MapEvent) -> Void) {
             self.onEvent = onEvent
@@ -196,6 +197,12 @@ struct MapboxMapView: UIViewRepresentable {
                 clusterCircle.circleStrokeWidth = .constant(2)
                 try map.addLayer(clusterCircle)
 
+                // 개별 핀 글리프 이미지 등록(C-a): 태그별 다른 모양(원/별/하트)을 스타일에 추가.
+                // 클러스터 숫자 레이어보다 먼저 등록해 SymbolLayer 가 참조할 수 있게 한다.
+                try map.addImage(PinMarkerImage.reel(), id: PinMarkerImage.reelImageId)
+                try map.addImage(PinMarkerImage.wish(), id: PinMarkerImage.wishImageId)
+                try map.addImage(PinMarkerImage.memory(), id: PinMarkerImage.memoryImageId)
+
                 // 클러스터 숫자(point_count).
                 var clusterCount = SymbolLayer(id: clusterCountLayerId, source: sourceId)
                 clusterCount.filter = Exp(.has) { "point_count" }
@@ -204,14 +211,15 @@ struct MapboxMapView: UIViewRepresentable {
                 clusterCount.textColor = .constant(StyleColor(.white))
                 try map.addLayer(clusterCount)
 
-                // 개별 핀 원(태그별 색) — point_count 없는 feature.
-                var pinCircle = CircleLayer(id: pinCircleLayerId, source: sourceId)
-                pinCircle.filter = Exp(.not) { Exp(.has) { "point_count" } }
-                pinCircle.circleColor = .expression(tagColorExpression())
-                pinCircle.circleRadius = .constant(9)
-                pinCircle.circleStrokeColor = .constant(StyleColor(.white))
-                pinCircle.circleStrokeWidth = .constant(2)
-                try map.addLayer(pinCircle)
+                // 개별 핀(태그별 글리프) — point_count 없는 feature.
+                // 기존 CircleLayer(색만 다른 원)를 SymbolLayer 로 교체: iconImage 를 tag→imageId match 로 선택.
+                var pinSymbol = SymbolLayer(id: pinSymbolLayerId, source: sourceId)
+                pinSymbol.filter = Exp(.not) { Exp(.has) { "point_count" } }
+                pinSymbol.iconImage = .expression(tagImageExpression())
+                pinSymbol.iconAllowOverlap = .constant(true)   // 줌아웃 시 핀이 서로 가려도 모두 표시(원 마커와 동일 가시성).
+                pinSymbol.iconIgnorePlacement = .constant(true)
+                pinSymbol.iconAnchor = .constant(.center)
+                try map.addLayer(pinSymbol)
 
                 clusterInstalled = true
             } catch {
@@ -270,7 +278,7 @@ struct MapboxMapView: UIViewRepresentable {
             guard let mapView else { return }
             let point = recognizer.location(in: mapView)
             let options = RenderedQueryOptions(
-                layerIds: [clusterCircleLayerId, clusterCountLayerId, pinCircleLayerId],
+                layerIds: [clusterCircleLayerId, clusterCountLayerId, pinSymbolLayerId],
                 filter: nil
             )
             mapView.mapboxMap.queryRenderedFeatures(with: point, options: options) { [weak self] result in
@@ -324,17 +332,18 @@ struct MapboxMapView: UIViewRepresentable {
         func gestureManager(_ gestureManager: GestureManager, didEnd gestureType: GestureType, willAnimate: Bool) {}
         func gestureManager(_ gestureManager: GestureManager, didEndAnimatingFor gestureType: GestureType) {}
 
-        /// 태그별 개별 핀 색 표현식(REEL/WISH/MEMORY). frontend MapboxView.tsx 마커 색 대응.
-        private func tagColorExpression() -> Exp {
+        /// 태그별 개별 핀 글리프 이미지 표현식(REEL=원/WISH=별/MEMORY=하트). frontend markers.tsx 모양 대응.
+        /// 반환 문자열은 installClusterLayers 에서 addImage 한 글리프 id 와 일치. default 는 REEL(원).
+        private func tagImageExpression() -> Exp {
             Exp(.match) {
                 Exp(.get) { "tag" }
                 PinTag.REEL.rawValue
-                StyleColor(UIColor(WGColor.pinReel)).rawValue
+                PinMarkerImage.reelImageId
                 PinTag.WISH.rawValue
-                StyleColor(UIColor(WGColor.pinWish)).rawValue
+                PinMarkerImage.wishImageId
                 PinTag.MEMORY.rawValue
-                StyleColor(UIColor(WGColor.pinMemory)).rawValue
-                StyleColor(UIColor(WGColor.cta)).rawValue
+                PinMarkerImage.memoryImageId
+                PinMarkerImage.reelImageId
             }
         }
     }
