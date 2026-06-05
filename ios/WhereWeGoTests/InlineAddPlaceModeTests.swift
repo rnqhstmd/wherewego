@@ -73,7 +73,7 @@ final class InlineAddPlaceModeTests: XCTestCase {
 
     // MARK: - MUST-2: applyAddPinEntry 줌인/seed 배타(권한·줌별)
 
-    func test_enterAddPin_whenZoomBelowMin_andDenied_bumpsZoomOnlyToFallback() {
+    func test_enterAddPin_whenZoomBelowMin_andDenied_bumpsZoomOnlyToFallback() throws {
         // 줌 8(<13) + 권한 거부 → 현재 중심 유지하며 zoom14 로만 bump(웹 동치, FR-11 우선순위 3).
         let vm = makeViewModel(location: StubLocationService(status: .denied))
         // mapCenter/mapZoom 시드(idle).
@@ -81,13 +81,14 @@ final class InlineAddPlaceModeTests: XCTestCase {
 
         vm.enterAddPin()
 
-        let command = vm.cameraCommand
-        XCTAssertEqual(command?.latitude, 37.5446, accuracy: 1e-7, "현재 중심 유지.")
-        XCTAssertEqual(command?.longitude, 127.0557, accuracy: 1e-7)
-        XCTAssertEqual(command?.zoom, MapViewModel.addPinFallbackZoom, "거부 시 zoom14 로만 올림(FR-11).")
+        // accuracy 버전 XCTAssertEqual 은 Double(비옵셔널)을 요구하므로 cameraCommand 를 먼저 unwrap.
+        let command = try XCTUnwrap(vm.cameraCommand)
+        XCTAssertEqual(command.latitude, 37.5446, accuracy: 1e-7, "현재 중심 유지.")
+        XCTAssertEqual(command.longitude, 127.0557, accuracy: 1e-7)
+        XCTAssertEqual(command.zoom, MapViewModel.addPinFallbackZoom, "거부 시 zoom14 로만 올림(FR-11).")
     }
 
-    func test_enterAddPin_whenZoomBelowMin_andNotDetermined_bumpsZoomOnlyToFallback() {
+    func test_enterAddPin_whenZoomBelowMin_andNotDetermined_bumpsZoomOnlyToFallback() throws {
         // 줌 8(<13) + 권한 미결정(Q7) → 권한 요청 후 다이얼로그 대기 없이 즉시 zoom14 bump.
         let location = StubLocationService(status: .notDetermined)
         let vm = makeViewModel(location: location)
@@ -96,8 +97,10 @@ final class InlineAddPlaceModeTests: XCTestCase {
         vm.enterAddPin()
 
         XCTAssertTrue(location.didRequestPermission, "notDetermined 시 권한 요청(Q7).")
-        XCTAssertEqual(vm.cameraCommand?.zoom, MapViewModel.addPinFallbackZoom, "응답 대기 없이 즉시 zoom14(Q7).")
-        XCTAssertEqual(vm.cameraCommand?.latitude, 35.1, accuracy: 1e-7, "현재 중심 유지.")
+        // accuracy 버전 XCTAssertEqual 은 Double(비옵셔널)을 요구하므로 cameraCommand 를 먼저 unwrap.
+        let command = try XCTUnwrap(vm.cameraCommand)
+        XCTAssertEqual(command.zoom, MapViewModel.addPinFallbackZoom, "응답 대기 없이 즉시 zoom14(Q7).")
+        XCTAssertEqual(command.latitude, 35.1, accuracy: 1e-7, "현재 중심 유지.")
     }
 
     func test_enterAddPin_whenZoomAtLeastMin_seedsPinpointWithoutZoomBump() {
@@ -112,6 +115,43 @@ final class InlineAddPlaceModeTests: XCTestCase {
         // seedInitialPinpoint → onMapMoved → 콕찍기 중심 확정(FR-9).
         XCTAssertEqual(vm.addPlaceVM?.inputMode, .pinpoint, "진입 즉시 콕찍기 모드로 seed.")
         XCTAssertEqual(vm.addPlaceVM?.pinpointCenter, Coordinate(latitude: 37.5446, longitude: 127.0557))
+    }
+
+    // MARK: - P8 영역4 후속: speed-dial 진입 모드(콕찍기/검색) 분리
+
+    func test_enterAddPin_searchMode_doesNotSeedPinpoint() {
+        // 검색 모드 진입: 콕찍기 seed/줌인 없이 inputMode 가 .search 유지(십자선 미표시 근거).
+        // 줌≥13(콕찍기였다면 seedInitialPinpoint 가 도는 조건)에서도 검색 모드는 seed 하지 않음을 확인.
+        let vm = makeViewModel(location: StubLocationService(status: .denied))
+        vm.handle(.cameraIdle(centerLat: 37.5, centerLng: 127.0, zoom: 15))
+        vm.cameraCommand = nil
+
+        vm.enterAddPin(mode: .search)
+
+        XCTAssertTrue(vm.isAddingPin, "검색 모드도 인라인 추가 모드는 활성.")
+        XCTAssertEqual(vm.addPlaceVM?.inputMode, .search, "검색 모드 진입 시 .search 유지(콕찍기 seed 없음 → 십자선 미표시).")
+        XCTAssertNil(vm.addPlaceVM?.pinpointCenter, "검색 모드는 콕찍기 중심을 만들지 않는다.")
+        XCTAssertNil(vm.cameraCommand, "검색 모드는 진입 줌인/카메라 이동이 없다.")
+    }
+
+    func test_enterAddPin_defaultMode_isPinpoint() {
+        // 인자 없는 enterAddPin() 은 콕찍기 기본(기존 호출 호환).
+        let vm = makeViewModel(location: StubLocationService(status: .denied))
+        vm.handle(.cameraIdle(centerLat: 37.5, centerLng: 127.0, zoom: 15))
+
+        vm.enterAddPin()
+
+        XCTAssertEqual(vm.addPlaceVM?.inputMode, .pinpoint, "기본 모드는 콕찍기(seed 수행).")
+    }
+
+    func test_enterAddPin_closesAddMenu() {
+        // speed-dial 펼친 상태에서 모드 진입 → 메뉴를 닫는다.
+        let vm = makeViewModel()
+        vm.isAddMenuExpanded = true
+
+        vm.enterAddPin(mode: .search)
+
+        XCTAssertFalse(vm.isAddMenuExpanded, "모드 진입 시 speed-dial 메뉴를 닫는다.")
     }
 
     func test_enterAddPin_whenZoomBelowMin_seoulCityHall_bumpsZoomToFallback() {

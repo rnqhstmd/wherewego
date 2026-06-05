@@ -254,7 +254,8 @@ final class DelayingSleeper: @unchecked Sendable {
     }
 
     func sleep() async {
-        lock.lock(); _count += 1; lock.unlock()
+        // Swift 6: NSLock.lock()/unlock() 은 async 컨텍스트에서 noasync. 동기 스코프 withLock 으로 카운트한다.
+        lock.withLock { _count += 1 }
         if delaySeconds > 0 {
             try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
         }
@@ -313,9 +314,16 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
     let payload: String
     switch kind {
     case .PLACE_CARDS:
-        let cardsJSON = (cards ?? []).map {
-            "{\"kakaoPlaceId\":\($0.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"),\"name\":\"\($0.name)\",\"address\":\($0.address.map { "\"\($0)\"" } ?? "null"),\"latitude\":\($0.latitude.map(String.init) ?? "null"),\"longitude\":\($0.longitude.map(String.init) ?? "null")}"
-        }.joined(separator: ",")
+        // 변수 분리 + 보간으로 타입 추론을 단순화한다(Swift 6: map{...}.joined / String.init 오버로드가
+        //  중첩 보간 안에서 'ambiguous without type annotation' 을 유발 — parts:[String] 명시로 해소).
+        let parts: [String] = (cards ?? []).map { card in
+            let kakao = card.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"
+            let addr = card.address.map { "\"\($0)\"" } ?? "null"
+            let lat = card.latitude.map { "\($0)" } ?? "null"
+            let lng = card.longitude.map { "\($0)" } ?? "null"
+            return "{\"kakaoPlaceId\":\(kakao),\"name\":\"\(card.name)\",\"address\":\(addr),\"latitude\":\(lat),\"longitude\":\(lng)}"
+        }
+        let cardsJSON = parts.joined(separator: ",")
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
         payload = "{\"text\":\"\(text ?? "msg")\"}"

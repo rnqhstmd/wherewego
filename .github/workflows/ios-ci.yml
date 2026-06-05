@@ -1,0 +1,86 @@
+name: iOS CI
+
+# iOS 네이티브(SwiftUI) 빌드·단위테스트 CI.
+#  - 트리거: ios/** 변경 시에만(frontend 변경은 Vercel, backend 변경은 deploy.yml 이 담당 — 경로 분리).
+#  - 러너: GitHub macOS(클라우드) — 로컬 Mac 없이 PR 마다 자동 빌드/테스트(Windows 개발 환경 보완).
+#  - 프로젝트: XcodeGen(project.yml 이 SSOT, .xcodeproj 는 gitignore) → xcodebuild.
+#  - 시크릿 불필요: Mapbox SDK 는 #if canImport(MapboxMaps) 가드로 미설치 시 PlaceholderMapView 폴백(다운로드 토큰 불요),
+#    xcconfig 비밀값은 placeholder 폴백, 시뮬레이터 빌드라 코드사이닝 불요(CODE_SIGNING_ALLOWED=NO).
+#  - KeychainTokenStoreTests 는 CI 에서 제외(-skip-testing): 시뮬레이터 단위테스트가 host app 없이 돌아
+#    keychain entitlement 부재(errSecMissingEntitlement, -34018)로 실패한다. 로컬 Mac 에서는 통과하며,
+#    추후 TEST_HOST(앱 호스트) 설정 시 CI 에서도 포함 가능.
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+
+# 같은 ref 의 이전 실행은 취소(연속 푸시 비용 절감).
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & Unit Test (iOS Simulator)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SCHEME: WhereWeGo
+      # macos-15 러너 기본 시뮬레이터. 부재 시 destination 만 조정하면 됨.
+      DESTINATION: 'platform=iOS Simulator,name=iPhone 16'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Swift 6.0 → Xcode 16+ 필요. 러너 기본이 바뀌어도 안정적으로 최신 stable 선택.
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # XcodeGen(.xcodeproj 생성) + xcbeautify(로그 정리·어노테이션).
+      - name: Install tools
+        run: brew install xcodegen xcbeautify
+
+      - name: Generate Xcode project (XcodeGen)
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: xcodebuild -resolvePackageDependencies -project WhereWeGo.xcodeproj -scheme "$SCHEME"
+
+      - name: Build & test
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project WhereWeGo.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -resultBundlePath TestResults.xcresult \
+            -skip-testing:WhereWeGoTests/KeychainTokenStoreTests \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      # 실패 분석용 결과 번들(있을 때만).
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: ios/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

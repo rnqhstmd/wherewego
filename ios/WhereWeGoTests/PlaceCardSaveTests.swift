@@ -111,6 +111,11 @@ func makePlaceCard(
     longitude: Double?,
     kakaoPlaceId: String? = nil
 ) -> PlaceCard {
-    let json = "{\"kakaoPlaceId\":\(kakaoPlaceId.map { "\"\($0)\"" } ?? "null"),\"name\":\"\(name)\",\"address\":\(address.map { "\"\($0)\"" } ?? "null"),\"latitude\":\(latitude.map(String.init) ?? "null"),\"longitude\":\(longitude.map(String.init) ?? "null")}"
+    // String.init 오버로드가 보간 안에서 ambiguous → 보간 클로저로 명시(Swift 6).
+    let kakaoStr = kakaoPlaceId.map { "\"\($0)\"" } ?? "null"
+    let addrStr = address.map { "\"\($0)\"" } ?? "null"
+    let latStr = latitude.map { "\($0)" } ?? "null"
+    let lngStr = longitude.map { "\($0)" } ?? "null"
+    let json = "{\"kakaoPlaceId\":\(kakaoStr),\"name\":\"\(name)\",\"address\":\(addrStr),\"latitude\":\(latStr),\"longitude\":\(lngStr)}"
     return try! JSONDecoder().decode(PlaceCard.self, from: Data(json.utf8))
 }

@@ -11,7 +11,7 @@ import Foundation
 //  - 낙관적 PATCH/DELETE 와 실패 시 스냅샷 복원(AC-6/7) — B4(PinDetail/Search/Roulette)가 호출.
 //  - 동시 1패널(activeSheet) 상태 — 실제 시트 표시는 B4 가 연결.
 // 비책임(B4): VisitDetectionEngine 오케스트레이션(여기서는 locationService 보유·startUpdating 훅 자리만),
-//            PinBubbleView(핀 상세 말풍선)/RouletteSheet 의 실제 UI·로직.
+//            PinBubbleView(핀 상세 말풍선)/RouletteView(어디갈까 탭)의 실제 UI·로직.
 // P8 영역1: 인라인 핀 추가 모드 상태(isAddingPin/addPlaceVM/mapZoom)와 AddPlaceViewModel 수명을 본 VM 이 소유한다.
 //
 // 지도 제어는 MapRenderer 프로토콜이 아니라 선언적 바인딩(markers + cameraCommand)으로 한다(B2 계약).
@@ -29,9 +29,9 @@ final class MapViewModel: ObservableObject {
 
     /// 동시에 하나만 표시되는 패널(설계 §3·§11).
     /// P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환되어 .addPlace case 제거(AC-11).
+    /// 룰렛은 "어디갈까" 탭(RouletteView)으로 분리되어 .roulette case 제거 — 시트는 .visitMemo 만 남는다.
     enum ActiveSheet: Equatable {
         case none
-        case roulette
         /// 방문 "다녀왔어요" 후 메모 입력 시트(B4 가 트리거).
         case visitMemo(pinId: Int)
     }
@@ -151,6 +151,9 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var isAddingPin = false
     /// 인라인 추가 VM(검색/콕찍기/생성 로직, AddPlaceSheet 에서 이관). 진입 시 생성, 종료 시 nil(작성 중 폐기, BR-1).
     @Published private(set) var addPlaceVM: AddPlaceViewModel?
+    /// ＋ FAB speed-dial 펼침 상태(P8 영역4 후속). ＋ 탭 시 "지도에서 찍기(콕찍기)/검색해서 찾기" 2선택지를 펼친다.
+    /// 모드 진입(enterAddPin) 시 false 로 닫는다. View 가 토글하므로 private(set) 아님.
+    @Published var isAddMenuExpanded = false
     /// cameraIdle 최신 줌(FR-11 진입 판단, MUST-4). idle 전에도 flyTo/applyInitialCamera 명령 줌으로 시드.
     @Published private(set) var mapZoom: Double?
 
@@ -493,18 +496,24 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 인라인 핀 추가 모드 진입/종료(P8 영역1, FR-1~11)
 
-    /// 인라인 추가 모드 진입(FR-1/2, AC-1). ＋ 탭·EmptyMapCard 두 진입점이 호출한다.
-    /// AddPlaceViewModel 생성 → isAddingPin=true → 진입 줌인/seed(applyAddPinEntry).
+    /// 인라인 추가 모드 진입(FR-1/2, AC-1). 지도 FAB speed-dial 의 2선택지·EmptyMapCard 가 호출한다.
+    /// AddPlaceViewModel 생성 → isAddingPin=true. 진입 모드(P8 영역4 후속):
+    ///  - `.pinpoint`(콕찍기, 기본): 진입 줌인 + 현재 중심 초기 seed(applyAddPinEntry) → 십자선으로 위치 지정.
+    ///  - `.search`(검색): 줌인/seed 생략. inputMode 기본값 .search 유지 → 검색바로 위치 지정(선택 시 flyTo).
     /// 이미 활성이면 무시(중복 진입 방어). 룰렛/메모 등 다른 시트와의 배타는 호출부에서 처리(BR-6).
-    func enterAddPin() {
+    func enterAddPin(mode: AddPlaceViewModel.InputMode = .pinpoint) {
         guard !isAddingPin else { return }
+        isAddMenuExpanded = false   // speed-dial 닫고 선택한 모드로 진입.
         // 진입 추적 플래그 초기화(이전 세션 잔여 제거).
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
         addPlaceVM = AddPlaceViewModel(mapViewModel: self)
         isAddingPin = true
-        applyAddPinEntry()
+        // 콕찍기만 진입 줌인/초기 seed. 검색은 사용자가 검색→선택할 때까지 콕찍기 중심을 만들지 않는다(십자선 미표시).
+        if mode == .pinpoint {
+            applyAddPinEntry()
+        }
     }
 
     /// 인라인 추가 모드 종료(FR-8, AC-12). 탭 전환/취소/생성 성공/룰렛 진입 등 모든 종료 경로 공통.
@@ -583,9 +592,16 @@ final class MapViewModel: ObservableObject {
     /// child task 를 동시에 띄워 먼저 끝난 결과(group.next())를 취한 뒤 나머지를 취소한다.
     /// LocationSample 은 저장 프로퍼티가 모두 Double/Double? 이라 암시적 Sendable — 그룹 반환에 안전.
     private func requestOneShotWithTimeout(seconds: Double) async -> LocationSample? {
-        await withTaskGroup(of: LocationSample?.self) { group in
-            group.addTask { @MainActor [weak self] in
-                await self?.locationService.requestOneShot() ?? nil
+        // 위치 요청(@MainActor 격리 locationService 접근)은 별도 @MainActor Task 로 분리한다.
+        // withTaskGroup 의 child 는 'sending' 클로저라 actor 격리 클로저를 직접 담을 수 없으므로
+        // (Swift 6 strict concurrency — main actor-isolated 클로저를 동시 컨텍스트로 보내면 데이터 레이스),
+        // Sendable 한 Task 핸들의 .value 만 await 하여 race 한다. 타임아웃이 먼저면 locationTask 를 취소한다.
+        let locationTask = Task { @MainActor [weak self] in
+            await self?.locationService.requestOneShot() ?? nil
+        }
+        return await withTaskGroup(of: LocationSample?.self) { group in
+            group.addTask {
+                await locationTask.value
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
@@ -593,6 +609,7 @@ final class MapViewModel: ObservableObject {
             }
             let result = await group.next() ?? nil
             group.cancelAll()
+            locationTask.cancel()   // 타임아웃 승리 시 진행 중 위치 요청 중단(불필요한 대기 제거).
             return result
         }
     }
@@ -638,8 +655,13 @@ final class MapViewModel: ObservableObject {
             }
             // 여기부터는 진짜 사용자 드래그 idle.
             userDraggedSinceEntry = true   // MUST-2 — 이후 늦게 도착한 줌인 flyTo 를 스킵하는 가드.
-            // MUST-1 2차 안전망: 검색 선택 직후 좌표는 콕찍기로 덮지 않는다(다음 수동 드래그부터 전환).
-            guard addPlaceVM?.inputMode != .search || addPlaceVM?.selectedPlace == nil else { return }
+            // MUST-1 2차 안전망: 검색 flyTo 좌표 잔여 idle(선택 좌표와 동일)만 콕찍기로 덮지 않고 보존한다.
+            //  다른 좌표로의 실제 수동 드래그는 콕찍기로 전환한다(AC-17 엣지 — 검색 후 드래그 시 전환).
+            //  (selectedPlace 유무만으로 막으면 진짜 드래그도 영구 보존되어 콕찍기 전환이 불가능해진다.)
+            if addPlaceVM?.inputMode == .search, let selected = addPlaceVM?.selectedPlace,
+               abs(lat - selected.latitude) < 1e-6, abs(lng - selected.longitude) < 1e-6 {
+                return
+            }
             addPlaceVM?.onMapMoved(center: Coordinate(latitude: lat, longitude: lng))   // 사용자 드래그(AC-5)
         }
     }

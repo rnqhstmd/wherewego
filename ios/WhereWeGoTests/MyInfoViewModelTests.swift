@@ -113,7 +113,7 @@ final class MyInfoViewModelTests: XCTestCase {
         return MyInfoViewModel(
             authAPI: authAPI,
             groupAPI: MockGroupAPI(result: groupResult),
-            sessionStore: SessionStore(tokens: DummyTokens()),
+            sessionStore: SessionStore(tokens: KeychainTokenStore(baseURL: baseURL, session: session)),
             currentUser: CurrentUser(authAPI: authAPI)
         )
     }

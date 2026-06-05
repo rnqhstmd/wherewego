@@ -84,3 +84,7 @@ og:description
 ## iOS 네이티브 소비 (P4, [PR #91](https://github.com/rnqhstmd/wherewego/pull/91))
 
 iOS 지도 검색이 `GET /api/v1/places/search?q=` 를 `PlaceAPI`(Swift)로 소비. `PlaceItem`(placeName/address?/latitude/longitude) 디코딩 → 검색 결과 목록 → 태그 선택 → [[pin]] 등록. 검색어 인코딩은 값 전용 문자셋(`urlQueryAllowed`에서 `=&+#?` 제외)으로 쿼리 파라미터 인젝션을 방어(보안 감사 HIGH 반영). 백엔드 계약 변경 없음.
+
+## iOS 인라인 장소 추가 (P8 영역1, [PR #97](https://github.com/rnqhstmd/wherewego/pull/97))
+
+P8 영역1(핀 추가 인라인화)이 `PlaceAPI.search`를 풀시트가 아닌 **메인 지도 하단 인라인 카드**(`InlineAddPlaceCard`)의 검색창에서 직접 소비. 검색+콕찍기를 한 흐름으로 통합(토글 없음) — 검색 결과 선택 시 좌표 자동 적용, 지도 콕찍기 시 온디바이스 `CLGeocoder`(`ReverseGeocoder`) 역지오코딩으로 주소 표시. 백엔드 place 검색 계약 무변경. 상세는 [[map]] 아키텍처 "P8 영역1" 참조.
