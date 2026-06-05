@@ -43,6 +43,7 @@ public interface InviteLinkJpaRepository extends JpaRepository<InviteLink, Long>
     /**
      * 토큰 1회용 보장: accepted_at IS NULL 일 때만 원자적으로 수락 시각을 기록한다.
      * 동일 토큰 동시 수락 시 1건만 1 을 반환하고 나머지는 0 → 서비스에서 INVITE_LINK_ALREADY_USED 처리.
+     * clearAutomatically=true 이나 호출부(acceptInviteLink)가 이후 link 엔티티를 재사용하지 않아 detach/lazy 문제 없음.
      */
     @Modifying(clearAutomatically = true)
     @Query("UPDATE InviteLink i SET i.acceptedAt = :now WHERE i.id = :id AND i.acceptedAt IS NULL")

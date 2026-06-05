@@ -12,6 +12,8 @@ import java.util.Optional;
 
 public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Long> {
 
+    // 용도: 최신 활성 그룹 1개 조회용(Pageable limit 1, id DESC). me·onboarding·챗봇이 공유.
+    //   아래 ...OrderByGroupId(group_id ASC, 전체 순회)와 정렬/용도가 다르므로 혼동 주의.
     // GM-1: me·onboarding·UserDeletion·챗봇이 공유하는 쿼리. id DESC 는 BIGSERIAL 단조성으로
     //   joined_at 최신과 동치(FR-6/AC-8 충족) → 정렬 보정 불요, 변경 시 제외 영역 동작이 바뀌므로 무변경 유지.
     @Query("SELECT gm.groupId FROM GroupMember gm "
@@ -26,6 +28,8 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Lon
             + "ORDER BY gm.joinedAt ASC, gm.id ASC")
     List<GroupSummary> findActiveGroupSummariesByUserId(@Param("userId") Long userId);
 
+    // 용도: 활성 그룹 전체 순회용(group_id ASC). UserDeletion 의 다중 비관락 데드락 방지를 위한 결정론적 락 순서.
+    //   위 findActiveGroupIdsByUserId(최신 1개, id DESC)와 정렬/용도가 다르므로 혼동 주의.
     @Query("SELECT gm.groupId FROM GroupMember gm "
             + "WHERE gm.userId = :userId AND gm.leftAt IS NULL "
             + "ORDER BY gm.groupId ASC")

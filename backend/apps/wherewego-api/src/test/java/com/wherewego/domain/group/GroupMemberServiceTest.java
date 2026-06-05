@@ -340,6 +340,8 @@ class GroupMemberServiceTest {
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED);
+            // 정원검사가 토큰 수락보다 앞서므로 정원 초과 시 토큰은 소진되지 않아야 한다.
+            verify(inviteLinkRepository, never()).markAcceptedIfPending(any(), any());
         }
 
         @DisplayName("GM-1: 동일 그룹 재가입(uq_group_members_pair 위반)이면 GROUP_REJOIN_FORBIDDEN 으로 변환된다 (BR-1).")
@@ -399,6 +401,8 @@ class GroupMemberServiceTest {
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
                     .thenReturn(Optional.of(member));
             when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(1L);
+            // GM-1: 탈퇴 후 사용자의 잔여 활성 그룹이 0개라야 unlink 가 호출된다.
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of());
 
             // act
             groupMemberService.leaveGroup(USER_ID, GROUP_ID);
@@ -410,7 +414,7 @@ class GroupMemberServiceTest {
             verify(groupRepository, never()).save(any(Group.class));
             // Phase 11 PR-A (R-2): 탈퇴 시점에 미수락 초대를 일괄 만료한다.
             verify(inviteLinkRepository).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
-            // AC-B6: 탈퇴 시 봇 매핑도 해제되어야 한다 (Phase 2.6 B-4)
+            // AC-B6: 탈퇴 시 봇 매핑도 해제되어야 한다 (Phase 2.6 B-4). GM-1: 잔여 활성 그룹 0개라 unlink.
             verify(botUserMappingService).unlink(USER_ID);
         }
 
@@ -424,6 +428,8 @@ class GroupMemberServiceTest {
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
                     .thenReturn(Optional.of(member));
             when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(0L);
+            // GM-1: 탈퇴 후 사용자의 잔여 활성 그룹이 0개라야 unlink 가 호출된다.
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of());
 
             // act
             groupMemberService.leaveGroup(USER_ID, GROUP_ID);
@@ -453,6 +459,46 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
             // AC-B6: 멤버십 검증 실패 시 봇 매핑 해제도 호출되지 않아야 한다.
             verify(botUserMappingService, never()).unlink(any());
+        }
+
+        @DisplayName("GM-1: 1개 그룹만 탈퇴해도 잔여 활성 그룹이 남아있으면 봇 매핑을 해제하지 않는다.")
+        @Test
+        void leaveGroup_userHasOtherActiveGroups_doesNotUnlinkBot() {
+            // arrange : 탈퇴 후 사용자의 잔여 활성 그룹이 비어있지 않다(다른 그룹 보유).
+            Group group = newGroup("우리커플");
+            GroupMember member = GroupMember.createActive(GROUP_ID, USER_ID, Instant.now().minus(Duration.ofDays(1)));
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(member));
+            when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(1L);
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of(20L));
+
+            // act
+            groupMemberService.leaveGroup(USER_ID, GROUP_ID);
+
+            // assert : 봇 매핑은 group 무관 user 단위라 잔여 그룹에서 챗봇 계속 사용 — unlink 호출 안 됨.
+            assertThat(member.getLeftAt()).isNotNull();
+            verify(botUserMappingService, never()).unlink(USER_ID);
+        }
+
+        @DisplayName("GM-1: 사용자의 마지막 활성 그룹을 탈퇴하면(잔여 0개) 봇 매핑을 해제한다.")
+        @Test
+        void leaveGroup_userLastActiveGroup_unlinksBot() {
+            // arrange : 탈퇴 후 사용자의 잔여 활성 그룹이 0개다.
+            Group group = newGroup("우리커플");
+            GroupMember member = GroupMember.createActive(GROUP_ID, USER_ID, Instant.now().minus(Duration.ofDays(1)));
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(member));
+            when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(1L);
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of());
+
+            // act
+            groupMemberService.leaveGroup(USER_ID, GROUP_ID);
+
+            // assert : 마지막 활성 그룹 탈퇴이므로 user 단위 봇 매핑을 끊는다.
+            assertThat(member.getLeftAt()).isNotNull();
+            verify(botUserMappingService).unlink(USER_ID);
         }
     }
 

@@ -148,6 +148,7 @@ public class GroupMemberService {
             throw e;
         }
         // 정원 도달 시 남은 미수락 초대 일괄 만료 (R-2).
+        // 주의: :127 은 INSERT 전(나 제외), 여기는 INSERT 후(나 포함) 카운트라 값이 1 다르다. 캐싱 금지(정원 도달 판정 깨짐).
         if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
             inviteLinkRepository.expirePendingByGroupId(group.getId(), now);
         }
@@ -203,7 +204,11 @@ public class GroupMemberService {
         }
         // 탈퇴 시점에 미수락 초대 일괄 만료 (R-2): 남은 멤버가 새 초대를 발급해야 한다.
         inviteLinkRepository.expirePendingByGroupId(groupId, now);
-        botUserMappingService.unlink(userId);
+        // GM-1: 봇 매핑은 group 무관 user 단위다. 다중 활성 그룹 사용자가 1개 그룹만 탈퇴하면
+        //   봇 연동을 끊지 않고(잔여 그룹에서 챗봇 계속 사용), 마지막 활성 그룹 탈퇴(잔여 0개)일 때만 unlink.
+        if (groupMemberRepository.listActiveGroupIdsByUserId(userId).isEmpty()) {
+            botUserMappingService.unlink(userId);
+        }
     }
 
     /**
