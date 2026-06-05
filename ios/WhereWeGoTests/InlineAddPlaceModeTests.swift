@@ -73,7 +73,7 @@ final class InlineAddPlaceModeTests: XCTestCase {
 
     // MARK: - MUST-2: applyAddPinEntry 줌인/seed 배타(권한·줌별)
 
-    func test_enterAddPin_whenZoomBelowMin_andDenied_bumpsZoomOnlyToFallback() {
+    func test_enterAddPin_whenZoomBelowMin_andDenied_bumpsZoomOnlyToFallback() throws {
         // 줌 8(<13) + 권한 거부 → 현재 중심 유지하며 zoom14 로만 bump(웹 동치, FR-11 우선순위 3).
         let vm = makeViewModel(location: StubLocationService(status: .denied))
         // mapCenter/mapZoom 시드(idle).
@@ -81,10 +81,11 @@ final class InlineAddPlaceModeTests: XCTestCase {
 
         vm.enterAddPin()
 
-        let command = vm.cameraCommand
-        XCTAssertEqual(command?.latitude, 37.5446, accuracy: 1e-7, "현재 중심 유지.")
-        XCTAssertEqual(command?.longitude, 127.0557, accuracy: 1e-7)
-        XCTAssertEqual(command?.zoom, MapViewModel.addPinFallbackZoom, "거부 시 zoom14 로만 올림(FR-11).")
+        // accuracy 버전 XCTAssertEqual 은 Double(비옵셔널)을 요구하므로 cameraCommand 를 먼저 unwrap.
+        let command = try XCTUnwrap(vm.cameraCommand)
+        XCTAssertEqual(command.latitude, 37.5446, accuracy: 1e-7, "현재 중심 유지.")
+        XCTAssertEqual(command.longitude, 127.0557, accuracy: 1e-7)
+        XCTAssertEqual(command.zoom, MapViewModel.addPinFallbackZoom, "거부 시 zoom14 로만 올림(FR-11).")
     }
 
     func test_enterAddPin_whenZoomBelowMin_andNotDetermined_bumpsZoomOnlyToFallback() {

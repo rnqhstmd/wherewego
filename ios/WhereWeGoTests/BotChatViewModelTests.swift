@@ -254,7 +254,8 @@ final class DelayingSleeper: @unchecked Sendable {
     }
 
     func sleep() async {
-        lock.lock(); _count += 1; lock.unlock()
+        // Swift 6: NSLock.lock()/unlock() 은 async 컨텍스트에서 noasync. 동기 스코프 withLock 으로 카운트한다.
+        lock.withLock { _count += 1 }
         if delaySeconds > 0 {
             try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
         }
@@ -313,8 +314,8 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
     let payload: String
     switch kind {
     case .PLACE_CARDS:
-        let cardsJSON = (cards ?? []).map {
-            "{\"kakaoPlaceId\":\($0.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"),\"name\":\"\($0.name)\",\"address\":\($0.address.map { "\"\($0)\"" } ?? "null"),\"latitude\":\($0.latitude.map(String.init) ?? "null"),\"longitude\":\($0.longitude.map(String.init) ?? "null")}"
+        let cardsJSON = (cards ?? []).map { (card: PlaceCard) -> String in
+            "{\"kakaoPlaceId\":\(card.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"),\"name\":\"\(card.name)\",\"address\":\(card.address.map { "\"\($0)\"" } ?? "null"),\"latitude\":\(card.latitude.map(String.init) ?? "null"),\"longitude\":\(card.longitude.map(String.init) ?? "null")}"
         }.joined(separator: ",")
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
