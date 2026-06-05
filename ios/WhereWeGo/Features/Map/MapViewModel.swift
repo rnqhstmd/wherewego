@@ -592,9 +592,16 @@ final class MapViewModel: ObservableObject {
     /// child task 를 동시에 띄워 먼저 끝난 결과(group.next())를 취한 뒤 나머지를 취소한다.
     /// LocationSample 은 저장 프로퍼티가 모두 Double/Double? 이라 암시적 Sendable — 그룹 반환에 안전.
     private func requestOneShotWithTimeout(seconds: Double) async -> LocationSample? {
-        await withTaskGroup(of: LocationSample?.self) { group in
-            group.addTask { @MainActor [weak self] in
-                await self?.locationService.requestOneShot() ?? nil
+        // 위치 요청(@MainActor 격리 locationService 접근)은 별도 @MainActor Task 로 분리한다.
+        // withTaskGroup 의 child 는 'sending' 클로저라 actor 격리 클로저를 직접 담을 수 없으므로
+        // (Swift 6 strict concurrency — main actor-isolated 클로저를 동시 컨텍스트로 보내면 데이터 레이스),
+        // Sendable 한 Task 핸들의 .value 만 await 하여 race 한다. 타임아웃이 먼저면 locationTask 를 취소한다.
+        let locationTask = Task { @MainActor [weak self] in
+            await self?.locationService.requestOneShot() ?? nil
+        }
+        return await withTaskGroup(of: LocationSample?.self) { group in
+            group.addTask {
+                await locationTask.value
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
@@ -602,6 +609,7 @@ final class MapViewModel: ObservableObject {
             }
             let result = await group.next() ?? nil
             group.cancelAll()
+            locationTask.cancel()   // 타임아웃 승리 시 진행 중 위치 요청 중단(불필요한 대기 제거).
             return result
         }
     }
