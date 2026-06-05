@@ -64,9 +64,9 @@
 
 ### 초대 코드 시스템 (IC) — 링크→코드 전환, GM-2와 통합/직후
 - ✅ **IC-1 백엔드 완료** (PR [#101](https://github.com/rnqhstmd/wherewego/pull/101)): `accepted_at` 1회용→재사용 재설계. slug 재활용, 1코드 정원(10)까지 N명 가입. `accepted_at` 컬럼 제거(V019)+index 재정의, `markAccepted`/`isPending`/`markAcceptedIfPending` 제거. **[Option A] 정원 도달 시 코드 만료 안 함**(count 차단)→by-slug 정원초과 `GROUP_CAPACITY_EXCEEDED` 구분. 중복멤버 `GROUP_ALREADY_MEMBER`(409) 사전가드, `INVITE_LINK_ALREADY_USED` 제거. accept(POST) IP 레이트리밋 추가. `expirePendingByGroupId`는 재발급(BR-3)·탈퇴(BR-5)에만 유지. AC-1~10 그린. (후속: accept rate capacity 배포 전 확인, V019 게이트 쿼리 CI 자동화, 탈퇴→재가입 동시성 테스트 보강)
-- **IC-2 iOS**: 그룹 진입 후 코드 입력 가입 UI + 코드 발급/복사 (인스타 공유→앱→가입 그룹 목록→선택→봇 전송)
-- **IC-3 웹 랜딩**: 초대 링크 클릭 시 랜딩 페이지(코드 표시 + 복사 버튼 + "앱 설치 후 입력" + 앱스토어 다운로드 버튼). by-slug가 정원초과(409)/만료(404) 구분 응답하므로 상태별 안내 가능
-- 의존: ~~IC-1 백엔드 선행~~ ✅ → **IC-2 iOS + IC-3 웹 병행 가능**
+- ✅ **IC-2 iOS 완료** (PR [#102](https://github.com/rnqhstmd/wherewego/pull/102)): 코드 입력 가입 **2단계**(slug 입력→`previewBySlug`(token·그룹명·초대자 획득)→확인화면→`accept(token)`). 에러 8종 **단계무관 errorCode 매핑**(만료/없음=preview 404 통합 "존재하지 않거나 만료된", 정원=preview 409, `GROUP_ALREADY_MEMBER`=실패 아님·안내 후 합류완료). **[결정] URL 앱 전면 제거** — 공유/복사=코드(slug)만 + 시스템 공유시트(설치유도 텍스트, 링크 없음), `/invite/{slug}` 딥링크 소비(`DeepLinkDestination.invite`·MainTabView 시트) 제거(핀/지도 딥링크·Universal Link 자체는 유지). 합류 전 확인화면 추가. 신규 `InvitePreview`/`InviteCodeStep`(상태머신·KST 만료일)/`ActivityShareSheet`. AC-1~21 그린, xcodebuild 테스트 44건. (※ "봇 전송·가입 그룹 목록→선택"은 GM-2 다중그룹 범위)
+- **IC-3 웹 랜딩**(잔여): 초대 링크 클릭 시 랜딩 페이지(코드 표시 + 복사 버튼 + "앱 설치 후 입력" + 앱스토어 다운로드 버튼). by-slug가 정원초과(409)/만료(404) 구분 응답하므로 상태별 안내 가능
+- 의존: ~~IC-1 백엔드 선행~~ ✅ → ~~IC-2 iOS~~ ✅([#102](https://github.com/rnqhstmd/wherewego/pull/102)) → **IC-3 웹 랜딩만 잔여**(독립)
 
 ### GM-3 검증·제출
 - 기존 2인 커플 데이터 무손실 마이그레이션 + 회귀(커플 흐름) + 다중그룹 E2E + Mac DoD-B

@@ -15,3 +15,6 @@
 | 1인 N그룹 (GM-1 이후) | 1인이 여러 그룹에 동시 활성 가능. 이전 MVP의 "1인 1활성 제약"은 V018에서 해제. DB 스키마는 N:M, 그룹당 정원 10 |
 | 연결 해제 (탈퇴) | GroupMember를 soft delete(`left_at` 갱신). 핀은 그룹에 잔류. 탈퇴 시 활성 초대 코드도 만료(BR-5) |
 | 활성 GroupMember | `left_at IS NULL`인 GroupMember 행 |
+| 코드 입력 2단계 가입 (IC-2) | iOS 가입 흐름. slug 입력→`previewBySlug`(token·그룹명·초대자 획득)→확인화면(그룹/초대자 표시)→`accept(token)`. 사용자 입력값은 slug이며 token(UUID)은 노출하지 않음. 이전 단일호출(입력값을 token으로 오용 → 항상 404) 대체 |
+| InvitePreview (IC-2 iOS) | by-slug 프리뷰 응답 DTO(`token`, `groupName`, `inviterNickname?`, `expiresAt?`). iOS가 token을 여기서 획득해 2단계 가입의 1단계 산출로 사용 |
+| 초대 코드 공유 (IC-2) | 앱은 초대 URL 미사용 — 코드(slug)만 복사/시스템 공유시트(`UIActivityViewController`)로 공유(설치유도 텍스트, 링크 없음). 초대 URL 표시·`/invite/{slug}` 딥링크 소비는 IC-2에서 제거(웹 랜딩 IC-3 담당). 핀/지도 Universal Link 자체는 유지 |
