@@ -169,20 +169,20 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
     var detailCount: Int { lock.lock(); defer { lock.unlock() }; return _detailCount }
 
     func list() async throws -> NotificationListResponse {
-        lock.lock(); _listCount += 1; lock.unlock()
+        lock.withLock { _listCount += 1 }
         if listDelayNanos > 0 { try? await Task.sleep(nanoseconds: listDelayNanos) }
         if let listError { throw listError }
         return NotificationListResponse(items: [], unreadCount: unreadCount)
     }
 
     func readAll() async throws -> ReadAllResponse {
-        lock.lock(); _readAllCount += 1; lock.unlock()
+        lock.withLock { _readAllCount += 1 }
         if let readAllError { throw readAllError }
         return ReadAllResponse(updatedCount: unreadCount)
     }
 
     func detail(id: Int) async throws -> NotificationDetail {
-        lock.lock(); _detailCount += 1; lock.unlock()
+        lock.withLock { _detailCount += 1 }
         return NotificationDetail(id: id, type: .MANUAL_PIN, registeredByNickname: nil, createdAt: "", pins: [])
     }
 }
