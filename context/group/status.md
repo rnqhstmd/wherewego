@@ -48,3 +48,29 @@
 - **GM-1 완료**: 1인 다중 활성 그룹 (제약 해제·정원10·목록 API·다중 순회 탈퇴·토큰 동시성) — [#99](https://github.com/rnqhstmd/wherewego/pull/99)
 - **별도 작업(미착수)**: 초대 링크 → **초대 코드 시스템** 전환 (1코드 N명 재사용, 앱 코드 입력 + 랜딩 페이지). `accepted_at` 재설계 + iOS + 웹
 - **장기**: 재가입 허용 정책 검토 (uq_group_members_pair 변경 필요, 별도 PRD)
+
+## 남은 작업 로드맵 (Phase, 2026-06-05)
+
+> 다른 머신(Mac 등)에서 이어 개발 시 이 섹션 참조. (Claude 로컬 메모리는 PC별이라 미공유 — 레포 SSOT로 관리)
+
+### 선결 트랙 (Mac 필요, 기능 개발 아님)
+- **iOS 앱 출시 (DoD-B)**: 빌드·단위테스트·폰트번들·시각 QA·easing·앱스토어 제출 → 게시 후 컷오버(웹 종료 + 봇레이어·쿠키 auth 제거)
+- **GM-1 PR [#99](https://github.com/rnqhstmd/wherewego/pull/99) 머지** → 백엔드 develop 반영 (GM-2 선행)
+
+### GM-2 iOS 다중그룹 (단일 Phase)
+- `ActiveGroup`(단수)→`[Group]`+`currentGroupId` 전역상태 + `GroupAPI.listMyGroups()` + 핀/채팅/알림 currentGroupId 추종
+- 그룹 런처 화면(하단바❌)→선택→MainTabView(하단바✅)+상단 좌측 `‹그룹명`, `OnboardingRouter` 종착=그룹목록(항상 경유), 멤버 N인 목록/초대
+- 선행: GM-1 PR #99 머지 + iOS 출시. **그룹 가입/초대는 아래 IC와 통합 또는 직후 진행**
+
+### 초대 코드 시스템 (IC) — 링크→코드 전환, GM-2와 통합/직후
+- **IC-1 백엔드**: `accepted_at` 1회용→**재사용 재설계**(1코드로 정원까지 N명 가입). 초대 코드 발급/검증 API(`slug` base56 재활용 또는 신규 코드). `markAccepted`/`isPending`/`findActiveBySlug`/`expirePendingByGroupId`/재발급 BR-3 정책 + (필요 시)마이그레이션 재정의
+- **IC-2 iOS**: 그룹 진입 후 코드 입력 가입 UI + 코드 발급/복사 (인스타 공유→앱→가입 그룹 목록→선택→봇 전송)
+- **IC-3 웹 랜딩**: 초대 링크 클릭 시 랜딩 페이지(코드 표시 + 복사 버튼 + "앱 설치 후 입력" + 앱스토어 다운로드 버튼)
+- 의존: IC-1 백엔드 선행 → IC-2 iOS + IC-3 웹 병행
+
+### GM-3 검증·제출
+- 기존 2인 커플 데이터 무손실 마이그레이션 + 회귀(커플 흐름) + 다중그룹 E2E + Mac DoD-B
+
+### 자잘한 잔여
+- PIN_EDITED 웹 알림(파트너 핀 수정 시): 웹 명세만 있고 미구현 (`docs/operations/pin-edited-notification-web-spec.md`)
+- 커플 1:1 채팅 데드코드 정리 (`CoupleChatService`/`/chat/couple`/`COUPLE_MESSAGE`, 보류 중)
