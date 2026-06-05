@@ -314,9 +314,16 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
     let payload: String
     switch kind {
     case .PLACE_CARDS:
-        let cardsJSON = (cards ?? []).map { (card: PlaceCard) -> String in
-            "{\"kakaoPlaceId\":\(card.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"),\"name\":\"\(card.name)\",\"address\":\(card.address.map { "\"\($0)\"" } ?? "null"),\"latitude\":\(card.latitude.map(String.init) ?? "null"),\"longitude\":\(card.longitude.map(String.init) ?? "null")}"
-        }.joined(separator: ",")
+        // 변수 분리 + 보간으로 타입 추론을 단순화한다(Swift 6: map{...}.joined / String.init 오버로드가
+        //  중첩 보간 안에서 'ambiguous without type annotation' 을 유발 — parts:[String] 명시로 해소).
+        let parts: [String] = (cards ?? []).map { card in
+            let kakao = card.kakaoPlaceId.map { "\"\($0)\"" } ?? "null"
+            let addr = card.address.map { "\"\($0)\"" } ?? "null"
+            let lat = card.latitude.map { "\($0)" } ?? "null"
+            let lng = card.longitude.map { "\($0)" } ?? "null"
+            return "{\"kakaoPlaceId\":\(kakao),\"name\":\"\(card.name)\",\"address\":\(addr),\"latitude\":\(lat),\"longitude\":\(lng)}"
+        }
+        let cardsJSON = parts.joined(separator: ",")
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
         payload = "{\"text\":\"\(text ?? "msg")\"}"
