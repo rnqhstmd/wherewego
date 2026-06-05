@@ -87,6 +87,7 @@ public class InstagramLinkHandler implements MessageHandler {
             userId = userIdOpt.get();
         }
 
+        // TODO(GM-2): 그룹 선택 이관 예정. GM-1 전환기=최신 활성 1개 저장(단수 유지, BR-5).
         Optional<Long> groupIdOpt = groupMemberService.findLatestActiveGroupIdByUserId(userId);
         if (groupIdOpt.isEmpty()) {
             return ChatbotV1Dto.SkillResponse.simple("그룹에 먼저 참여해주세요.");

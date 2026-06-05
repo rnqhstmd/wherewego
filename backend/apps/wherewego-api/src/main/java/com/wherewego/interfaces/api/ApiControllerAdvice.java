@@ -155,6 +155,7 @@ public class ApiControllerAdvice {
             return failureResponse(ErrorType.PLC_DUPLICATE_PIN, null);
         }
         // Phase 3 - Group 도메인 DB 제약 위반 매핑
+        // GM-1 이후 dead path(uq_group_members_active_user DROP). 웹 중단 예정이라 유지.
         if (combined.contains("uq_group_members_active_user")) {
             return failureResponse(ErrorType.GROUP_ALREADY_ACTIVE, null);
         }

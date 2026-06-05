@@ -140,6 +140,14 @@ class GroupV1ControllerIntegrationTest {
                 JsonNode.class);
     }
 
+    private ResponseEntity<JsonNode> getMyGroups(String accessToken) {
+        return restTemplate.exchange(
+                "/api/v1/groups",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(accessToken)),
+                JsonNode.class);
+    }
+
     @DisplayName("POST /api/v1/groups - 인증된 사용자의 그룹 생성 요청에 201 과 groupId/name 을 반환한다.")
     @Test
     void createGroup_authenticated_returns201WithGroupId() {
@@ -332,5 +340,82 @@ class GroupV1ControllerIntegrationTest {
         // ObjectMapper 설정에 따라 data 필드가 누락(null Java reference) 또는 NullNode일 수 있다.
         JsonNode dataNode = body.get("data");
         assertThat(dataNode == null || dataNode.isNull()).isTrue();
+    }
+
+    @DisplayName("GM-1(AC-5): GET /api/v1/groups - 활성 그룹이 2개면 200 과 가입 순 배열(길이 2)을 반환한다.")
+    @Test
+    void getMyGroups_multipleGroups_returnsArray() {
+        // arrange : userA 가 두 그룹을 순서대로 생성 (joined_at ASC = 생성 순)
+        Long firstGroupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        Long secondGroupId = createGroup(tokenA, "맛집팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = getMyGroups(tokenA);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("meta").get("result").asText()).isEqualTo("SUCCESS");
+
+        JsonNode data = body.get("data");
+        assertThat(data.isArray()).isTrue();
+        assertThat(data).hasSize(2);
+
+        // 가입 순(joined_at ASC): 첫 그룹 → 두 번째 그룹
+        JsonNode firstItem = data.get(0);
+        assertThat(firstItem.get("groupId").asLong()).isEqualTo(firstGroupId);
+        assertThat(firstItem.get("name").asText()).isEqualTo("여행팀");
+        assertThat(firstItem.get("createdAt").asText()).isNotBlank();
+        assertThat(firstItem.get("memberCount").asLong()).isEqualTo(1L);
+
+        JsonNode secondItem = data.get(1);
+        assertThat(secondItem.get("groupId").asLong()).isEqualTo(secondGroupId);
+        assertThat(secondItem.get("name").asText()).isEqualTo("맛집팀");
+        assertThat(secondItem.get("memberCount").asLong()).isEqualTo(1L);
+    }
+
+    @DisplayName("GM-1(AC-6): GET /api/v1/groups - 활성 그룹이 없으면 200 과 빈 배열을 반환한다.")
+    @Test
+    void getMyGroups_noGroups_returnsEmptyArray() {
+        // act : userB 는 그룹 없음
+        ResponseEntity<JsonNode> response = getMyGroups(tokenB);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("meta").get("result").asText()).isEqualTo("SUCCESS");
+        JsonNode data = body.get("data");
+        assertThat(data.isArray()).isTrue();
+        assertThat(data).isEmpty();
+    }
+
+    @DisplayName("GM-1: GET /api/v1/groups - access_token 쿠키가 없으면 401 을 반환한다.")
+    @Test
+    void getMyGroups_unauthenticated_returns401() {
+        // act
+        ResponseEntity<JsonNode> response = getMyGroups(null);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @DisplayName("GM-1(AC-8): GET /api/v1/groups/me - 활성 그룹이 2개여도 최신(id DESC) 1개만 반환한다 (BR-4 웹 호환 가드).")
+    @Test
+    void getMyActiveGroup_multipleGroups_returnsLatest() {
+        // arrange : userA 가 두 그룹을 순서대로 생성 (두 번째 그룹이 최신 = 더 큰 id)
+        createGroup(tokenA, "여행팀");
+        Long secondGroupId = createGroup(tokenA, "맛집팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = getMyActiveGroup(tokenA);
+
+        // assert : /me 는 최신 그룹(두 번째) 1개만 반환
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("groupId").asLong()).isEqualTo(secondGroupId);
+        assertThat(data.get("name").asText()).isEqualTo("맛집팀");
     }
 }

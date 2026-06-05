@@ -20,4 +20,10 @@ public interface InviteLinkRepository {
      * 재발급 시 BR-3 적용. 반환값은 갱신된 행 수.
      */
     int expirePendingByGroupId(Long groupId, Instant now);
+
+    /**
+     * 토큰 1회용 보장(동시성). accepted_at IS NULL 인 경우에만 수락 시각을 원자적으로 기록한다.
+     * 갱신 행 수를 반환하며, 동시 수락 시 1건만 1, 나머지는 0 을 받는다.
+     */
+    int markAcceptedIfPending(Long id, Instant now);
 }

@@ -12,8 +12,17 @@ public interface GroupMemberRepository {
 
     GroupMember save(GroupMember member);
 
-    /** 활성 그룹 멤버십 존재 여부 (1인 1활성 그룹 제약 사전 검사). */
-    boolean existsActiveByUserId(Long userId);
+    /**
+     * 사용자의 활성 그룹 목록 (GM-1, FR-4/FR-5).
+     * 정렬: joined_at 오름차순(가입 순), 동률 시 id 오름차순. 신규 쿼리라 공유 scope 영향 없음.
+     */
+    List<GroupSummary> listActiveGroupSummariesByUserId(Long userId);
+
+    /**
+     * 활성 그룹 ID 목록. group_id 오름차순(다중 비관락 데드락 방지 결정론적 순서).
+     * UserDeletion 전체 순회 탈퇴에서 사용 (GM-1, FR-7).
+     */
+    List<Long> listActiveGroupIdsByUserId(Long userId);
 
     /** 활성 GroupMember 단건 조회 (권한 검사 / 탈퇴 진입점). */
     Optional<GroupMember> findActiveByGroupIdAndUserId(Long groupId, Long userId);

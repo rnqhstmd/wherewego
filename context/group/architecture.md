@@ -6,13 +6,13 @@
 
 - 엔티티: `Group`, `GroupMember`, `InviteLink`
 - 스키마 관계: User 1 ─ N `GroupMember` N ─ 1 Group (**N:M, 스키마 레벨**)
-- 비즈니스 제약 (MVP): 한 사용자는 동시에 활성 GroupMember 1개만 가질 수 있음
-  - **DB 레벨 강제**: `CREATE UNIQUE INDEX uq_group_members_active_user ON group_members(user_id) WHERE left_at IS NULL`
-  - 서비스 레이어에서도 동시성 보호를 위한 중복 검증 수행
+- 비즈니스 제약: **GM-1 이후 1인 다중 활성 그룹 허용** (이전 MVP는 "1인 1활성"이었으나 V018에서 해제). 그룹당 정원 10인(`MAX_GROUP_MEMBERS=10`)
+  - ~~DB 레벨 1인1활성 강제(`uq_group_members_active_user` partial unique)~~ → **V018에서 제거**. 서비스 사전검사(`existsActiveByUserId`)도 제거
+  - 정원 검사는 `groups` 행 비관락(`findByIdForUpdate`)으로 직렬화. `uq_group_members_pair`(동일 그룹 재가입 차단)는 유지 → `GROUP_REJOIN_FORBIDDEN`
 - 테이블 스키마:
   - `group_members (id, group_id FK, user_id FK, joined_at, left_at, created_at, updated_at)`
-    - `CONSTRAINT uq_group_members_pair UNIQUE (group_id, user_id)`
-    - `UNIQUE INDEX uq_group_members_active_user ON (user_id) WHERE left_at IS NULL`
+    - `CONSTRAINT uq_group_members_pair UNIQUE (group_id, user_id)` (유지 — 동일 그룹 재가입 차단)
+    - ~~`UNIQUE INDEX uq_group_members_active_user ON (user_id) WHERE left_at IS NULL`~~ — **V018에서 제거**(GM-1: 1인 다중 활성 그룹)
   - `invite_links (id, group_id FK, inviter_id FK, token VARCHAR(100) UNIQUE, expires_at, accepted_at, created_at, updated_at)`
     - `accepted_at IS NULL` = 미수락, `NOT NULL` = 수락 완료
     - 재발급 시 기존 미수락 토큰은 서비스 레이어에서 만료 처리 (accepted_at 없이 expires_at 경과로 자연 만료)

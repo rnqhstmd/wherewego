@@ -34,8 +34,10 @@ class UserOnboardingServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Default: no group, no bot mapping
-        lenient().when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(false);
+        // Default: no group, no bot mapping.
+        // GM-1: existsActiveByUserId 포트가 삭제되어 stub 제거. getStatus 는 findLatestActiveGroupIdByUserId
+        //   하나로 존재 여부 + 그룹 ID 를 동시에 얻으므로, 기본값은 그 호출이 empty 를 반환하면 충분하다.
+        lenient().when(groupMemberRepository.findLatestActiveGroupIdByUserId(USER_ID)).thenReturn(Optional.empty());
         lenient().when(botUserMappingRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
     }
 
@@ -55,7 +57,6 @@ class UserOnboardingServiceTest {
     @Test
     void getStatus_soloGroup_returnsMemberCount1() {
         // arrange
-        when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(true);
         when(groupMemberRepository.findLatestActiveGroupIdByUserId(USER_ID)).thenReturn(Optional.of(GROUP_ID));
         when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(1L);
 
@@ -72,7 +73,6 @@ class UserOnboardingServiceTest {
     @Test
     void getStatus_pairedGroupWithBot_returnsAllTrue() {
         // arrange
-        when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(true);
         when(groupMemberRepository.findLatestActiveGroupIdByUserId(USER_ID)).thenReturn(Optional.of(GROUP_ID));
         when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(2L);
         BotUserMapping mapping = BotUserMapping.link("bot-user-key", USER_ID, java.time.Instant.now());
@@ -85,5 +85,21 @@ class UserOnboardingServiceTest {
         assertThat(status.hasActiveGroup()).isTrue();
         assertThat(status.activeGroupMemberCount()).isEqualTo(2L);
         assertThat(status.hasBotMapping()).isTrue();
+    }
+
+    @DisplayName("GM-1: 다중 활성 그룹이어도 hasActiveGroup=true, memberCount 는 최신 활성 그룹(id DESC) 기준이다 (웹 호환 BR-6).")
+    @Test
+    void getStatus_multipleGroups_usesLatestGroupMemberCount() {
+        // arrange : findLatestActiveGroupIdByUserId 가 최신 그룹(GROUP_ID)을 반환하고,
+        //   그 그룹의 멤버수만 countActiveByGroupId 로 조회한다 (다중 그룹이어도 단일 경로 동작 유지).
+        when(groupMemberRepository.findLatestActiveGroupIdByUserId(USER_ID)).thenReturn(Optional.of(GROUP_ID));
+        when(groupMemberRepository.countActiveByGroupId(GROUP_ID)).thenReturn(3L);
+
+        // act
+        OnboardingStatus status = userOnboardingService.getStatus(USER_ID);
+
+        // assert
+        assertThat(status.hasActiveGroup()).isTrue();
+        assertThat(status.activeGroupMemberCount()).isEqualTo(3L);
     }
 }

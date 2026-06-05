@@ -5,13 +5,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.List;
+
 @Tag(name = "Group V1 API", description = "그룹 생성/초대/탈퇴 API 입니다 (Phase 3).")
 public interface GroupV1ApiSpec {
 
     @Operation(
             summary = "그룹 생성",
             description = "로그인 사용자가 새 그룹을 생성하고 첫 활성 멤버가 됩니다 (FR-GRP-1). " +
-                    "1인 1활성 그룹 제약(BR-1)이 적용됩니다."
+                    "GM-1: 1인 다중 활성 그룹을 지원합니다(1인1활성 제약 해제). 동일 그룹 재가입만 GROUP_REJOIN_FORBIDDEN으로 거부됩니다."
     )
     ApiResponse<GroupV1Dto.GroupCreatedResponse> createGroup(
             @Parameter(hidden = true) Long userId,
@@ -62,6 +64,15 @@ public interface GroupV1ApiSpec {
             description = "현재 로그인 사용자의 활성 그룹 정보를 반환합니다. 활성 그룹이 없으면 data 는 null 입니다."
     )
     ApiResponse<GroupV1Dto.ActiveGroupResponse> findMyActiveGroup(
+            @Parameter(hidden = true) Long userId
+    );
+
+    @Operation(
+            summary = "내 그룹 목록 조회",
+            description = "현재 로그인 사용자의 활성 그룹 목록을 가입 순으로 반환합니다 (GM-1). " +
+                    "활성 그룹이 없으면 data 는 빈 배열입니다."
+    )
+    ApiResponse<List<GroupV1Dto.GroupSummaryResponse>> listMyGroups(
             @Parameter(hidden = true) Long userId
     );
 }

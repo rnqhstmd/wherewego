@@ -2,6 +2,7 @@ package com.wherewego.infrastructure.group;
 
 import com.wherewego.domain.group.GroupMember;
 import com.wherewego.domain.group.GroupMemberRepository;
+import com.wherewego.domain.group.GroupSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -29,8 +30,13 @@ public class GroupMemberRepositoryImpl implements GroupMemberRepository {
     }
 
     @Override
-    public boolean existsActiveByUserId(Long userId) {
-        return jpaRepository.existsActiveByUserId(userId);
+    public List<GroupSummary> listActiveGroupSummariesByUserId(Long userId) {
+        return jpaRepository.findActiveGroupSummariesByUserId(userId);
+    }
+
+    @Override
+    public List<Long> listActiveGroupIdsByUserId(Long userId) {
+        return jpaRepository.findActiveGroupIdsByUserIdOrderByGroupId(userId);
     }
 
     @Override

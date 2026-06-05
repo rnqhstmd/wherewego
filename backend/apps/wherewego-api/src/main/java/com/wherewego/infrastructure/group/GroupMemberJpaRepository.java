@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.group;
 
 import com.wherewego.domain.group.GroupMember;
+import com.wherewego.domain.group.GroupSummary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -11,15 +12,24 @@ import java.util.Optional;
 
 public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Long> {
 
+    // GM-1: me·onboarding·UserDeletion·챗봇이 공유하는 쿼리. id DESC 는 BIGSERIAL 단조성으로
+    //   joined_at 최신과 동치(FR-6/AC-8 충족) → 정렬 보정 불요, 변경 시 제외 영역 동작이 바뀌므로 무변경 유지.
     @Query("SELECT gm.groupId FROM GroupMember gm "
             + "WHERE gm.userId = :userId AND gm.leftAt IS NULL "
             + "ORDER BY gm.id DESC")
     List<Long> findActiveGroupIdsByUserId(@Param("userId") Long userId, Pageable pageable);
 
-    @Query("SELECT CASE WHEN COUNT(gm) > 0 THEN true ELSE false END "
-            + "FROM GroupMember gm "
-            + "WHERE gm.userId = :userId AND gm.leftAt IS NULL")
-    boolean existsActiveByUserId(@Param("userId") Long userId);
+    @Query("SELECT new com.wherewego.domain.group.GroupSummary(g.id, g.name, g.createdAt, "
+            + "(SELECT COUNT(m2) FROM GroupMember m2 WHERE m2.groupId = g.id AND m2.leftAt IS NULL)) "
+            + "FROM GroupMember gm JOIN GroupAggregate g ON g.id = gm.groupId "
+            + "WHERE gm.userId = :userId AND gm.leftAt IS NULL AND g.deletedAt IS NULL "
+            + "ORDER BY gm.joinedAt ASC, gm.id ASC")
+    List<GroupSummary> findActiveGroupSummariesByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT gm.groupId FROM GroupMember gm "
+            + "WHERE gm.userId = :userId AND gm.leftAt IS NULL "
+            + "ORDER BY gm.groupId ASC")
+    List<Long> findActiveGroupIdsByUserIdOrderByGroupId(@Param("userId") Long userId);
 
     @Query("SELECT gm FROM GroupMember gm "
             + "WHERE gm.groupId = :gid AND gm.userId = :uid AND gm.leftAt IS NULL")

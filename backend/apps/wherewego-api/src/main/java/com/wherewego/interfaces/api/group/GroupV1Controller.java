@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/groups")
 @RequiredArgsConstructor
@@ -86,5 +88,14 @@ public class GroupV1Controller implements GroupV1ApiSpec {
                 groupMemberService.findMyActiveGroup(userId)
                         .map(GroupV1Dto.ActiveGroupResponse::from)
                         .orElse(null));
+    }
+
+    @GetMapping
+    @Override
+    public ApiResponse<List<GroupV1Dto.GroupSummaryResponse>> listMyGroups(@AuthUser Long userId) {
+        return ApiResponse.success(
+                groupMemberService.listMyGroups(userId).stream()
+                        .map(GroupV1Dto.GroupSummaryResponse::from)
+                        .toList());
     }
 }
