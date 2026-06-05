@@ -122,28 +122,85 @@ class GroupMemberServiceIT {
         assertThat(savedMember.getJoinedAt()).isNotNull();
     }
 
-    @DisplayName("createGroup - 동일 사용자가 활성 그룹을 보유한 상태에서 재호출하면 GROUP_ALREADY_ACTIVE (AC-10/AC-17).")
+    @DisplayName("GM-1: 동일 사용자가 활성 그룹을 보유한 상태에서 재호출해도 두 번째 그룹이 생성된다 (1인 다중 활성 그룹, 사양 변경 — 회귀 아님).")
     @Test
-    void createGroup_doubleAttempt_throwsGroupAlreadyActive() {
+    void createGroup_doubleAttempt_allowsSecondGroup() {
         // arrange
-        groupMemberService.createGroup(userA, "첫 그룹");
+        GroupCreatedResult first = groupMemberService.createGroup(userA, "첫 그룹");
 
-        // act & assert
-        assertThatThrownBy(() -> groupMemberService.createGroup(userA, "두 번째 그룹"))
-                .isInstanceOf(CoreException.class)
-                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
-                        .isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE));
+        // act : GM-1 으로 사전검사가 제거되어 두 번째 그룹도 정상 생성된다.
+        GroupCreatedResult second = groupMemberService.createGroup(userA, "두 번째 그룹");
 
-        // assert : 첫 그룹만 남음. 두 번째 시도는 사전 검증에서 차단되므로 groups 행은 1개만 존재.
+        // assert : 두 그룹 모두 존재
         List<Group> groups = groupJpaRepository.findAll();
-        assertThat(groups).hasSize(1);
-        assertThat(groups.get(0).getName()).isEqualTo("첫 그룹");
+        assertThat(groups).hasSize(2);
+        assertThat(groups).extracting(Group::getName)
+                .containsExactlyInAnyOrder("첫 그룹", "두 번째 그룹");
+        assertThat(second.groupId()).isNotEqualTo(first.groupId());
 
-        // 활성 멤버십 1건만 존재
+        // 활성 멤버십 2건 존재 (각 그룹에 1건씩)
         Integer activeMemberCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM group_members WHERE user_id = ? AND left_at IS NULL",
                 Integer.class, userA);
-        assertThat(activeMemberCount).isEqualTo(1);
+        assertThat(activeMemberCount).isEqualTo(2);
+    }
+
+    @DisplayName("GM-1(QE-2): 다른 그룹에 활성 상태인 사용자가 또 다른 그룹 초대를 수락하면 활성 멤버십이 2건이 된다.")
+    @Test
+    void acceptInviteLink_userAlreadyInAnotherGroup_joinsSecondGroup() {
+        // arrange : 그룹X(userA 생성) + 그룹Y(userC 생성). userB 는 먼저 그룹X 에 합류해 활성 상태.
+        Long userC = userJpaRepository.save(UserModel.create(10000009L, "userC", null)).getId();
+        GroupCreatedResult groupX = groupMemberService.createGroup(userA, "그룹X");
+        InviteLinkIssueResult inviteX = groupMemberService.issueInviteLink(userA, groupX.groupId());
+        groupMemberService.acceptInviteLink(userB, inviteX.token());
+
+        GroupCreatedResult groupY = groupMemberService.createGroup(userC, "그룹Y");
+        InviteLinkIssueResult inviteY = groupMemberService.issueInviteLink(userC, groupY.groupId());
+
+        // act : userB 가 그룹Y 초대도 수락 (GM-1: 1인1활성 제약 해제로 성공)
+        InviteAcceptResult accepted = groupMemberService.acceptInviteLink(userB, inviteY.token());
+
+        // assert : 수락 성공 + userB 활성 멤버십 2건 (그룹X, 그룹Y)
+        assertThat(accepted.groupId()).isEqualTo(groupY.groupId());
+        List<Long> userBGroupIds = jdbcTemplate.queryForList(
+                "SELECT group_id FROM group_members WHERE user_id = ? AND left_at IS NULL ORDER BY group_id",
+                Long.class, userB);
+        assertThat(userBGroupIds).containsExactlyInAnyOrder(groupX.groupId(), groupY.groupId());
+    }
+
+    @DisplayName("GM-1(AC-11): 서로 다른 10명(생성자 1 + 수락 9)이 정원을 채운 그룹에 11번째 사용자가 수락하면 GROUP_CAPACITY_EXCEEDED.")
+    @Test
+    void acceptInviteLink_tenDistinctMembers_eleventhRejected() {
+        // arrange : userA 가 그룹 생성 (멤버 1). 서로 다른 9명을 순차 수락시켜 정원 10 을 채운다.
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "정원그룹");
+        for (int i = 0; i < 9; i++) {
+            Long member = userJpaRepository.save(
+                    UserModel.create(10000100L + i, "member" + i, null)).getId();
+            InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+            groupMemberService.acceptInviteLink(member, invite.token());
+        }
+        // 정원 10 도달 확인
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(10L);
+
+        // 11번째: 신규 사용자(서로 다른 사람)로 수락 시도 — pair 위반이 아니라 정원 초과여야 한다.
+        Long eleventh = userJpaRepository.save(UserModel.create(10000200L, "eleventh", null)).getId();
+        InviteLinkIssueResult lastInvite = groupMemberService.issueInviteLink(userA, group.groupId());
+
+        // act & assert
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(eleventh, lastInvite.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED));
+
+        // assert : 활성 멤버 여전히 10명
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(10L);
+
+        // assert : 정원 초과 거부 시 토큰은 소진되지 않는다(accepted_at IS NULL).
+        //   정원 검사가 markAcceptedIfPending 보다 앞에 위치하므로 거부된 토큰은 재사용 가능 (통합 감사 MEDIUM 반영).
+        Boolean tokenStillPending = jdbcTemplate.queryForObject(
+                "SELECT accepted_at IS NULL FROM invite_links WHERE token = ?",
+                Boolean.class, lastInvite.token());
+        assertThat(tokenStillPending).isTrue();
     }
 
     @DisplayName("issueInviteLink - 동일 그룹에 재발급 시 기존 미수락 토큰의 expires_at 이 만료 시각으로 갱신된다 (AC-5, BR-3).")
@@ -398,43 +455,42 @@ class GroupMemberServiceIT {
             }
         }
 
-        @DisplayName("createGroup - 동일 사용자 5스레드 동시 호출 시 정확히 1건만 성공하고 나머지는 GROUP_ALREADY_ACTIVE (AC-6).")
+        @DisplayName("GM-1: createGroup - 동일 사용자 5스레드 동시 호출 시 다중 그룹 허용으로 5건 모두 성공한다 (사양 변경 — 회귀 아님).")
         @Test
-        void createGroup_concurrent_onlyOneSucceeds() throws InterruptedException {
+        void createGroup_concurrent_allSucceed() throws InterruptedException {
             // arrange : BeforeEach 가 userA 를 사전 시드. 활성 그룹은 없는 상태.
+            //   GM-1 으로 1인1활성 제약(existsActiveByUserId + partial unique index)이 제거되어
+            //   동시 createGroup 5건이 모두 독립 그룹을 생성한다(이전엔 1건만 성공 → 사양 변경).
 
             // act : 5스레드가 동시에 createGroup 호출
             ConcurrentResult result = runConcurrently(5,
                     i -> () -> groupMemberService.createGroup(userA, "g" + i));
 
-            // assert : 정확히 1건 성공
-            assertThat(result.successCount()).isEqualTo(1);
+            // assert : 5건 모두 성공
+            assertThat(result.successCount()).isEqualTo(5);
 
-            // assert : 활성 group_members 1건만 존재
+            // assert : 활성 group_members 5건 존재
             Integer activeMemberCount = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM group_members WHERE user_id = ? AND left_at IS NULL",
                     Integer.class, userA);
-            assertThat(activeMemberCount).isEqualTo(1);
+            assertThat(activeMemberCount).isEqualTo(5);
 
-            // assert : 활성 groups 1건만 존재 (CONSIDER: groups 행 수 검증)
+            // assert : 활성 groups 5건 존재
             Integer activeGroupCount = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM groups WHERE deleted_at IS NULL",
                     Integer.class);
-            assertThat(activeGroupCount).isEqualTo(1);
+            assertThat(activeGroupCount).isEqualTo(5);
 
-            // assert : 나머지 4건은 GROUP_ALREADY_ACTIVE
-            assertThat(result.errorTypes()).hasSize(4);
-            assertThat(result.errorTypes())
-                    .allSatisfy(et -> assertThat(et).isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE));
-
-            // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
+            // assert : 에러 0건, 분류되지 않은 예외 0건
+            assertThat(result.errorTypes()).isEmpty();
             assertThat(result.unexpectedCount()).isZero();
         }
 
         @DisplayName("acceptInviteLink - 서로 다른 5명이 동일 토큰을 동시 수락 시 정확히 1건만 성공, 나머지는 허용 에러 집합 내 (AC-7).")
         @Test
         void acceptInviteLink_concurrent_onlyOneSucceeds() throws InterruptedException {
-            // arrange : userA 가 그룹 생성 + 초대 토큰 발급 (정원 2명, MVP 가정)
+            // arrange : userA 가 그룹 생성 + 초대 토큰 발급. 토큰은 1회용(markAccepted)이라
+            //   정원(GM-1: 10)과 무관하게 동일 토큰 동시 수락은 1건만 성공한다.
             GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
             InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
             String token = invite.token();
@@ -458,11 +514,11 @@ class GroupMemberServiceIT {
             // assert : 나머지 4건 모두 errorTypes 로 분류됨 (race 중 분류 누락 회귀 방지)
             assertThat(result.errorTypes()).hasSize(4);
 
-            // assert : 나머지 에러는 허용 집합 {INVITE_LINK_ALREADY_USED, GROUP_ALREADY_ACTIVE, GROUP_CAPACITY_EXCEEDED} 부분집합 (M3)
+            // assert : GM-1 으로 GROUP_ALREADY_ACTIVE 는 발생 불가 → 허용 집합은
+            //   {INVITE_LINK_ALREADY_USED, GROUP_CAPACITY_EXCEEDED} 부분집합 (M3).
             assertThat(result.errorTypes()).allSatisfy(et ->
                     assertThat(et).isIn(
                             ErrorType.INVITE_LINK_ALREADY_USED,
-                            ErrorType.GROUP_ALREADY_ACTIVE,
                             ErrorType.GROUP_CAPACITY_EXCEEDED));
 
             // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
@@ -490,6 +546,37 @@ class GroupMemberServiceIT {
 
             // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
             assertThat(result.unexpectedCount()).isZero();
+        }
+
+        @DisplayName("GM-1: 동일 그룹 동시 가입 방어 — 이미 활성 멤버가 같은 그룹의 새 토큰을 수락하면 "
+                + "uq_group_members_pair 위반이 GROUP_REJOIN_FORBIDDEN 으로 변환된다 (FK 오분류 없음).")
+        @Test
+        void acceptInviteLink_samePairConflict_throwsRejoinForbidden() throws InterruptedException {
+            // arrange : userA 그룹 생성 + userB 가 합류해 이미 활성 멤버. 이후 userA 가 새 토큰을 발급한다.
+            GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+            InviteLinkIssueResult firstInvite = groupMemberService.issueInviteLink(userA, group.groupId());
+            groupMemberService.acceptInviteLink(userB, firstInvite.token());
+            InviteLinkIssueResult secondInvite = groupMemberService.issueInviteLink(userA, group.groupId());
+
+            // act : 동일 토큰을 userB 2스레드가 동시 수락 — pair 제약이 재가입을 차단한다.
+            //   1건은 INVITE_LINK_ALREADY_USED(토큰 1회성), pair 경로 진입 시 GROUP_REJOIN_FORBIDDEN.
+            ConcurrentResult result = runConcurrently(2,
+                    i -> () -> groupMemberService.acceptInviteLink(userB, secondInvite.token()));
+
+            // assert : 둘 다 실패(이미 활성 멤버이므로 성공 0건), 허용 집합 내 + pair 가 정원으로 오분류되지 않음
+            assertThat(result.successCount()).isZero();
+            assertThat(result.errorTypes()).hasSize(2);
+            assertThat(result.errorTypes()).allSatisfy(et ->
+                    assertThat(et).isIn(
+                            ErrorType.INVITE_LINK_ALREADY_USED,
+                            ErrorType.GROUP_REJOIN_FORBIDDEN));
+            assertThat(result.unexpectedCount()).isZero();
+
+            // assert : userB 활성 멤버십은 여전히 1건(중복 INSERT 차단)
+            Integer userBActive = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM group_members WHERE user_id = ? AND group_id = ? AND left_at IS NULL",
+                    Integer.class, userB, group.groupId());
+            assertThat(userBActive).isEqualTo(1);
         }
     }
 }

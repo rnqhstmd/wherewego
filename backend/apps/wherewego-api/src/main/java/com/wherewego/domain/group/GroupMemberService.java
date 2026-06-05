@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GroupMemberService {
 
-    private static final int MAX_GROUP_MEMBERS = 2;
+    private static final int MAX_GROUP_MEMBERS = 10;
     private static final int SLUG_GENERATION_MAX_RETRIES = 5;
 
     private final GroupMemberRepository groupMemberRepository;
@@ -40,9 +41,11 @@ public class GroupMemberService {
     }
 
     /**
-     * 그룹 생성. 1인 1활성 그룹 제약 (BR-1) 사전 검사 후 생성자(creator)를 최초 활성 멤버로 등록한다.
-     * TOCTOU 경쟁 조건은 group_members partial UNIQUE 제약으로 차단되어
-     * {@link DataIntegrityViolationException} → GROUP_ALREADY_ACTIVE 로 변환한다.
+     * 그룹 생성. 생성자(creator)를 최초 활성 멤버로 등록한다.
+     * <p>GM-1: 1인 다중 활성 그룹 지원으로 1인1활성 제약(BR-1)을 해제했다 — existsActiveByUserId 사전검사 제거.
+     * 새 그룹에 첫 멤버를 INSERT 하므로 group_members 제약 위반(pair/active_user/FK)이 구조적으로 발생 불가하여
+     * try-catch 가 불필요하다. 예외적 위반은 전역 {@link com.wherewego.interfaces.api.ApiControllerAdvice}
+     * 가 INTERNAL_ERROR 로 처리한다.</p>
      */
     @Transactional
     public GroupCreatedResult createGroup(Long userId, String rawName) {
@@ -50,16 +53,8 @@ public class GroupMemberService {
         if (name.isEmpty() || name.length() > 30) {
             throw new CoreException(ErrorType.GROUP_NAME_INVALID);
         }
-        if (groupMemberRepository.existsActiveByUserId(userId)) {
-            throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
-        }
         Group saved = groupRepository.save(Group.create(name));
-        try {
-            groupMemberRepository.save(
-                    GroupMember.createActive(saved.getId(), userId, Instant.now()));
-        } catch (DataIntegrityViolationException e) {
-            throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
-        }
+        groupMemberRepository.save(GroupMember.createActive(saved.getId(), userId, Instant.now()));
         return new GroupCreatedResult(saved.getId(), saved.getName(), saved.getCreatedAt());
     }
 
@@ -103,7 +98,9 @@ public class GroupMemberService {
     /**
      * 초대 링크 수락. 토큰 유효성/만료/중복 사용/자기수락 검사 후
      * 그룹 잠금 → 정원 검사 → 멤버 등록 순으로 처리한다.
-     * partial UNIQUE 충돌은 GROUP_ALREADY_ACTIVE 로 변환한다.
+     * <p>GM-1: 1인 다중 활성 그룹 지원으로 1인1활성 제약 사전검사(existsActiveByUserId)를 제거했다.
+     * 기존 그룹에 INSERT 하므로 createGroup 과 달리 catch 가 필요하며, uq_group_members_pair(동일 그룹 재가입)
+     * 만 {@code GROUP_REJOIN_FORBIDDEN} 으로 변환하고 그 외 위반(FK 등)은 rethrow 한다.</p>
      * 정원 도달 직후 미수락 초대를 일괄 만료하여 R-2(폐기된 초대 잔존) 를 차단한다.
      */
     @Transactional
@@ -125,21 +122,30 @@ public class GroupMemberService {
         if (group.getDeletedAt() != null) {
             throw new CoreException(ErrorType.INVITE_LINK_EXPIRED);
         }
-        if (groupMemberRepository.existsActiveByUserId(userId)) {
-            throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
-        }
+        // 정원 검사. 동일 그룹 동시 수락은 findByIdForUpdate(group 비관락, 위)로 직렬화되므로
+        //   정원 초과(동시 11번째 진입)는 발생하지 않는다 — 락 안에서 count→검사→INSERT 가 순차 보장된다.
         if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
             throw new CoreException(ErrorType.GROUP_CAPACITY_EXCEEDED);
         }
-        link.markAccepted(now);
+        // 토큰 1회용 보장: 조건부 원자적 UPDATE. 동시 수락 시 1건만 1 반환, 나머지 0 → ALREADY_USED.
+        //   락 전 빠른 실패 체크(getAcceptedAt != null, 위)는 유지하되, 동시성은 이 UPDATE 로 직렬화한다.
+        //   동일 TX 내 실행 — 이후 save 실패(rethrow) 시 롤백되어 accepted_at 도 복원된다(토큰 재사용 없음).
+        if (inviteLinkRepository.markAcceptedIfPending(link.getId(), now) == 0) {
+            throw new CoreException(ErrorType.INVITE_LINK_ALREADY_USED);
+        }
         try {
             groupMemberRepository.save(GroupMember.createActive(group.getId(), userId, now));
         } catch (DataIntegrityViolationException e) {
+            // GM-1: acceptInviteLink 는 기존 그룹에 INSERT 하므로 createGroup 과 달리 catch 필요.
+            //   - uq_group_members_pair(동일 그룹 재가입) → GROUP_REJOIN_FORBIDDEN (BR-1).
+            //   - 그 외(FK group_id→groups / user_id→users 위반: 동시 그룹 soft-delete 중 INSERT 등)는
+            //     rethrow → 전역 ApiControllerAdvice 가 INTERNAL_ERROR 처리(REJOIN 오분류 방지).
+            //   uq_group_members_active_user 는 DROP 됐으므로 이 경로에서 발생하지 않음.
             String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
             if (msg.contains("uq_group_members_pair")) {
                 throw new CoreException(ErrorType.GROUP_REJOIN_FORBIDDEN);
             }
-            throw new CoreException(ErrorType.GROUP_ALREADY_ACTIVE);
+            throw e;
         }
         // 정원 도달 시 남은 미수락 초대 일괄 만료 (R-2).
         if (groupMemberRepository.countActiveByGroupId(group.getId()) >= MAX_GROUP_MEMBERS) {
@@ -225,5 +231,13 @@ public class GroupMemberService {
                         group.getCreatedAt(),
                         groupMemberRepository.countActiveByGroupId(group.getId())
                 ));
+    }
+
+    /**
+     * 사용자의 활성 그룹 목록 (GM-1, FR-4/FR-5). 가입 순(joined_at ASC) 정렬, 없으면 빈 리스트.
+     */
+    @Transactional(readOnly = true)
+    public List<GroupSummary> listMyGroups(Long userId) {
+        return groupMemberRepository.listActiveGroupSummariesByUserId(userId);
     }
 }

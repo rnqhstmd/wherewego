@@ -30,6 +30,8 @@ public class UserOnboardingService {
     public OnboardingStatus getStatus(Long userId) {
         // findLatestActiveGroupIdByUserId 만으로 존재 여부 + 그룹 ID 를 동시에 얻는다.
         // (이전엔 existsActiveByUserId 와 findLatestActiveGroupIdByUserId 를 모두 호출하여 DB 왕복이 1회 더 발생했음.)
+        // GM-1: 다중 활성 그룹 환경에서도 hasActiveGroup=존재여부, memberCount=최신(id DESC) 활성 그룹의 멤버수로
+        //       웹 호환을 유지한다(BR-6). 다중 선택은 GM-2 로 이관.
         boolean hasBotMapping = botUserMappingRepository.findByUserId(userId).isPresent();
         return groupMemberRepository.findLatestActiveGroupIdByUserId(userId)
                 .map(groupId -> new OnboardingStatus(

@@ -21,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,8 @@ class GroupMemberServiceTest {
         when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
         when(groupMemberRepository.save(any(GroupMember.class))).thenAnswer(inv -> inv.getArgument(0));
         when(inviteLinkRepository.save(any(InviteLink.class))).thenAnswer(inv -> inv.getArgument(0));
+        // 토큰 1회용 보장 UPDATE: 단건 수락 경로 기본값은 1(수락 성공). LENIENT 라 미사용 케이스는 무시된다.
+        when(inviteLinkRepository.markAcceptedIfPending(any(), any(Instant.class))).thenReturn(1);
         when(slugGenerator.generate()).thenReturn(SLUG);
         // InviteProperties 가 record 라 @InjectMocks 가 자동 주입하지 못한다 (생성자 시그니처 일치 시는 성공).
         // @RequiredArgsConstructor 가 전체 필드 생성자를 만들고 inviteProperties 도 그 자리에 포함되므로,
@@ -100,9 +103,6 @@ class GroupMemberServiceTest {
         @DisplayName("이름이 정상이면 그룹과 GroupMember 를 저장하고 결과를 반환한다 (AC-1).")
         @Test
         void createGroup_validName_savesGroupAndMember() {
-            // arrange
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(false);
-
             // act
             GroupCreatedResult result = groupMemberService.createGroup(USER_ID, "우리커플");
 
@@ -145,32 +145,18 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.GROUP_NAME_INVALID);
         }
 
-        @DisplayName("이미 활성 그룹을 보유 중이면 GROUP_ALREADY_ACTIVE 가 발생한다 (AC-10).")
+        @DisplayName("GM-1: 이미 활성 그룹을 보유 중이어도 사전검사 없이 새 그룹을 생성한다 (1인1활성 제약 해제, 사양 변경).")
         @Test
-        void createGroup_alreadyActive_throws() {
-            // arrange
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(true);
+        void createGroup_alreadyActive_stillSucceeds() {
+            // arrange : GM-1 으로 existsActiveByUserId 사전검사가 제거됨 — 활성 보유 여부와 무관하게 생성 가능.
 
-            // act & assert
-            assertThatThrownBy(() -> groupMemberService.createGroup(USER_ID, "우리커플"))
-                    .isInstanceOf(CoreException.class)
-                    .extracting("errorType")
-                    .isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE);
-        }
+            // act
+            GroupCreatedResult result = groupMemberService.createGroup(USER_ID, "두 번째 그룹");
 
-        @DisplayName("GroupMember INSERT 시 DataIntegrityViolation 이 발생하면 GROUP_ALREADY_ACTIVE 로 변환된다 (AC-17).")
-        @Test
-        void createGroup_dataIntegrityViolation_translatedToAlreadyActive() {
-            // arrange
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(false);
-            when(groupMemberRepository.save(any(GroupMember.class)))
-                    .thenThrow(new DataIntegrityViolationException("partial unique violated"));
-
-            // act & assert
-            assertThatThrownBy(() -> groupMemberService.createGroup(USER_ID, "우리커플"))
-                    .isInstanceOf(CoreException.class)
-                    .extracting("errorType")
-                    .isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE);
+            // assert : 그룹/멤버 저장이 그대로 수행된다.
+            verify(groupRepository).save(any(Group.class));
+            verify(groupMemberRepository).save(any(GroupMember.class));
+            assertThat(result.name()).isEqualTo("두 번째 그룹");
         }
     }
 
@@ -241,14 +227,14 @@ class GroupMemberServiceTest {
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(false);
             when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
+            when(inviteLinkRepository.markAcceptedIfPending(any(), any())).thenReturn(1);
 
             // act
             InviteAcceptResult result = groupMemberService.acceptInviteLink(USER_ID, TOKEN);
 
-            // assert
-            assertThat(link.getAcceptedAt()).isNotNull();
+            // assert : 토큰 1회용은 조건부 원자적 UPDATE(markAcceptedIfPending)로 기록된다.
+            verify(inviteLinkRepository).markAcceptedIfPending(any(), any());
             verify(groupMemberRepository).save(any(GroupMember.class));
             assertThat(result.groupId()).isEqualTo(group.getId());
             assertThat(result.acceptedAt()).isNotNull();
@@ -302,22 +288,25 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.INVITE_LINK_EXPIRED);
         }
 
-        @DisplayName("이미 활성 그룹을 보유 중이면 GROUP_ALREADY_ACTIVE 가 발생한다 (AC-10).")
+        @DisplayName("GM-1: 이미 다른 활성 그룹을 보유 중이어도 사전검사 없이 초대를 수락한다 (1인1활성 제약 해제, 사양 변경).")
         @Test
-        void acceptInviteLink_alreadyActive_throwsAlreadyActive() {
-            // arrange
+        void acceptInviteLink_alreadyActive_stillSucceeds() {
+            // arrange : GM-1 으로 existsActiveByUserId 사전검사가 제거됨 — 활성 보유 여부와 무관하게 수락 가능.
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(true);
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
+            when(inviteLinkRepository.markAcceptedIfPending(any(), any())).thenReturn(1);
 
-            // act & assert
-            assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
-                    .isInstanceOf(CoreException.class)
-                    .extracting("errorType")
-                    .isEqualTo(ErrorType.GROUP_ALREADY_ACTIVE);
+            // act
+            InviteAcceptResult result = groupMemberService.acceptInviteLink(USER_ID, TOKEN);
+
+            // assert : 멤버 저장이 그대로 수행된다. 토큰 수락은 markAcceptedIfPending 로 기록된다.
+            verify(inviteLinkRepository).markAcceptedIfPending(any(), any());
+            verify(groupMemberRepository).save(any(GroupMember.class));
+            assertThat(result.groupId()).isEqualTo(group.getId());
         }
 
         @DisplayName("발급자가 자기 토큰을 수락하면 INVITE_LINK_SELF_ACCEPT 가 발생한다 (AC-15).")
@@ -335,7 +324,7 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.INVITE_LINK_SELF_ACCEPT);
         }
 
-        @DisplayName("정원 2명에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-16).")
+        @DisplayName("GM-1: 정원 10명에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-16).")
         @Test
         void acceptInviteLink_capacityReached_throwsCapacityExceeded() {
             // arrange
@@ -344,14 +333,54 @@ class GroupMemberServiceTest {
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
-            when(groupMemberRepository.existsActiveByUserId(USER_ID)).thenReturn(false);
-            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(2L);
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(10L);
 
             // act & assert
             assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED);
+        }
+
+        @DisplayName("GM-1: 동일 그룹 재가입(uq_group_members_pair 위반)이면 GROUP_REJOIN_FORBIDDEN 으로 변환된다 (BR-1).")
+        @Test
+        void acceptInviteLink_pairConflict_throwsRejoinForbidden() {
+            // arrange : save 가 pair 제약 위반 메시지를 가진 DataIntegrityViolation 을 던진다.
+            Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
+            Group group = newGroup("우리커플");
+            when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
+            when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
+            when(groupMemberRepository.save(any(GroupMember.class)))
+                    .thenThrow(new DataIntegrityViolationException(
+                            "could not execute statement; constraint [uq_group_members_pair]"));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_REJOIN_FORBIDDEN);
+        }
+
+        @DisplayName("GM-1: pair 외 무결성 위반(FK 등)은 변환하지 않고 원본 DataIntegrityViolationException 을 그대로 전파한다 (else rethrow).")
+        @Test
+        void acceptInviteLink_otherIntegrityViolation_rethrown() {
+            // arrange : save 가 pair 미포함 메시지(예: FK 위반)를 가진 DataIntegrityViolation 을 던진다.
+            Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
+            Group group = newGroup("우리커플");
+            DataIntegrityViolationException fkViolation = new DataIntegrityViolationException(
+                    "could not execute statement; foreign key constraint [fk_group_members_group_id]");
+            when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
+            when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(1L);
+            when(groupMemberRepository.save(any(GroupMember.class))).thenThrow(fkViolation);
+
+            // act & assert : CoreException 으로 변환되지 않고 원본 예외가 그대로 전파됨.
+            assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .isSameAs(fkViolation);
         }
     }
 
@@ -480,6 +509,44 @@ class GroupMemberServiceTest {
             assertThat(result).isPresent();
             assertThat(result.get().groupId()).isEqualTo(group.getId());
             assertThat(result.get().name()).isEqualTo("우리커플");
+        }
+    }
+
+    @DisplayName("listMyGroups 호출 시,")
+    @Nested
+    class ListMyGroups {
+
+        @DisplayName("GM-1: 활성 그룹이 없으면 빈 리스트를 반환한다 (포트 위임 검증).")
+        @Test
+        void listMyGroups_noGroups_returnsEmptyList() {
+            // arrange
+            when(groupMemberRepository.listActiveGroupSummariesByUserId(USER_ID))
+                    .thenReturn(List.of());
+
+            // act
+            List<GroupSummary> result = groupMemberService.listMyGroups(USER_ID);
+
+            // assert
+            assertThat(result).isEmpty();
+            verify(groupMemberRepository).listActiveGroupSummariesByUserId(USER_ID);
+        }
+
+        @DisplayName("GM-1: 활성 그룹이 여러 개이면 포트가 반환한 목록을 그대로 위임한다.")
+        @Test
+        void listMyGroups_multipleGroups_delegatesPortResult() {
+            // arrange
+            List<GroupSummary> summaries = List.of(
+                    new GroupSummary(10L, "여행팀", ZonedDateTime.now(), 3L),
+                    new GroupSummary(20L, "맛집팀", ZonedDateTime.now(), 2L));
+            when(groupMemberRepository.listActiveGroupSummariesByUserId(USER_ID))
+                    .thenReturn(summaries);
+
+            // act
+            List<GroupSummary> result = groupMemberService.listMyGroups(USER_ID);
+
+            // assert
+            assertThat(result).hasSize(2);
+            assertThat(result).extracting(GroupSummary::groupId).containsExactly(10L, 20L);
         }
     }
 }

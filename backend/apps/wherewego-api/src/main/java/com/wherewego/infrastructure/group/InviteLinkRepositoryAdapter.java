@@ -35,4 +35,9 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
     public int expirePendingByGroupId(Long groupId, Instant now) {
         return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
     }
+
+    @Override
+    public int markAcceptedIfPending(Long id, Instant now) {
+        return inviteLinkJpaRepository.markAcceptedIfPending(id, now);
+    }
 }

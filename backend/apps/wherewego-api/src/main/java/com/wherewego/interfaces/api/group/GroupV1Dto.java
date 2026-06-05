@@ -2,6 +2,7 @@ package com.wherewego.interfaces.api.group;
 
 import com.wherewego.domain.group.ActiveGroupInfo;
 import com.wherewego.domain.group.GroupCreatedResult;
+import com.wherewego.domain.group.GroupSummary;
 import com.wherewego.domain.group.InviteAcceptResult;
 import com.wherewego.domain.group.InviteLinkIssueResult;
 import com.wherewego.domain.group.InviteLinkPreviewResult;
@@ -82,6 +83,22 @@ public class GroupV1Dto {
                     info.name(),
                     info.createdAt(),
                     info.memberCount()
+            );
+        }
+    }
+
+    public record GroupSummaryResponse(
+            Long groupId,
+            String name,
+            ZonedDateTime createdAt,
+            long memberCount
+    ) {
+        public static GroupSummaryResponse from(GroupSummary summary) {
+            return new GroupSummaryResponse(
+                    summary.groupId(),
+                    summary.name(),
+                    summary.createdAt(),
+                    summary.memberCount()
             );
         }
     }

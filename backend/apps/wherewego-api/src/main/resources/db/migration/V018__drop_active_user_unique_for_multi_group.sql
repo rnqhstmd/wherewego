@@ -1,0 +1,11 @@
+-- ============================================================
+-- V018__drop_active_user_unique_for_multi_group.sql
+-- GM-1: 1인 다중 활성 그룹 지원. uq_group_members_active_user 해제.
+-- 제약 형태: V001:76 CREATE UNIQUE INDEX (CONSTRAINT 아님) → DROP INDEX 정확.
+-- 라이브: DROP INDEX 짧은 ACCESS EXCLUSIVE 락, 데이터 무변형 → additive.
+--         대규모면 DROP INDEX CONCURRENTLY(트랜잭션 밖) 검토.
+-- 롤백(R-4): 다중 활성 행 생성 후 인덱스 재생성은 UNIQUE 위반 실패.
+--   절차: (1) 여분 멤버십 left_at 마킹 → (2) CREATE UNIQUE INDEX 재생성. 적용 전 스냅샷.
+-- 유지: uq_group_members_pair(동일 그룹 재가입 차단) + FK 2개는 건드리지 않음.
+-- ============================================================
+DROP INDEX IF EXISTS uq_group_members_active_user;

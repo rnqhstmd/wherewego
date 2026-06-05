@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.Optional;
+import java.util.List;
 
 /**
  * P2 PR-3: 계정 삭제 오케스트레이션(FR-21~24, AC-10~13).
@@ -49,7 +49,8 @@ public class UserDeletionService {
      * <p>삭제 순서(설계 계정 삭제 1~7):
      * <ol>
      *     <li>활성 사용자 조회 — 없거나 비활성이면 {@code AUTH_USER_DEACTIVATED}.</li>
-     *     <li>활성 그룹만 멱등 순회 leaveGroup — 1인1활성그룹이라 0~1개라 {@code GROUP_NOT_MEMBER} 회피.
+     *     <li>활성 그룹 전체를 group_id 오름차순으로 멱등 순회 leaveGroup (GM-1: 1인 다중 활성 그룹).
+     *         group_id 결정론적 락 순서로 다중 그룹 비관락 데드락을 방지한다.
      *         leaveGroup 이 마지막 1인 그룹 soft delete + 초대 만료 + 봇 매핑 unlink 까지 수행한다.</li>
      *     <li>봇 매핑 unlink — leaveGroup 이 내부에서 unlink 를 수행하므로, 활성 그룹 0개로
      *         leaveGroup 이 안 불린 경우에만 직접 1회 호출한다(멱등 백업).
@@ -68,28 +69,28 @@ public class UserDeletionService {
                 .filter(UserModel::isActive)
                 .orElseThrow(() -> new CoreException(ErrorType.AUTH_USER_DEACTIVATED));
 
-        // 2) 활성 그룹만 멱등 순회 leaveGroup (1인1활성그룹: 0~1개).
+        // 2) 활성 그룹 전체를 group_id 오름차순(결정론적 락 순서)으로 순회 탈퇴 (GM-1: 1인 다중 활성 그룹).
+        //    다중 그룹 leaveGroup 의 findByIdForUpdate 비관락 순서를 모든 TX 에서 동일 고정 → 데드락 방지.
         //    조회-탈퇴 사이 race(동시 그룹 삭제/탈퇴)로 GROUP_NOT_MEMBER 가 throw 되면 deleteAccount 전체가
-        //    롤백되므로, 해당 예외만 흡수하고 계속 진행한다(이미 비활성 처리된 것으로 간주).
-        Optional<Long> activeGroupId = groupMemberRepository.findLatestActiveGroupIdByUserId(userId);
+        //    롤백되므로, 해당 예외만 흡수하고 다음 그룹으로 계속 진행한다(이미 비활성 처리된 것으로 간주).
+        List<Long> activeGroupIds = groupMemberRepository.listActiveGroupIdsByUserId(userId);
         boolean unlinkedViaLeaveGroup = false;
-        if (activeGroupId.isPresent()) {
-            Long groupId = activeGroupId.get();
-            // leaveGroup 호출 전에 "내가 마지막 멤버인지" 판정: 다른 활성 멤버가 없으면(empty) 마지막 멤버이고,
-            // leaveGroup이 그룹을 soft delete 한다. 이 경우 groupId의 커플 방도 함께 정리해야 고아 활성 방을 막는다.
-            // 파트너가 남아 있으면(otherMembers 비어있지 않음) 그룹·커플 방은 파트너가 계속 사용하므로 유지한다.
-            boolean wasLastMember = groupMemberRepository.findOtherActiveMemberIds(groupId, userId).isEmpty();
+        for (Long groupId : activeGroupIds) {
             try {
-                groupMemberService.leaveGroup(userId, groupId);  // 내부에서 unlink 수행
+                groupMemberService.leaveGroup(userId, groupId);  // 내부에서 unlink 수행(user 단위 1개라 멱등)
                 unlinkedViaLeaveGroup = true;
-                // leaveGroup 성공 + 마지막 멤버였으면 그룹이 soft delete 됐으므로 커플 방도 정리한다.
-                if (wasLastMember) {
+                // 마지막 멤버 여부는 leaveGroup 호출 "후" 실제 활성 멤버 수로 정합 판정한다.
+                //   사전 판정(findOtherActiveMemberIds) 시 파트너 동시 탈퇴 race 로 leaveGroup 이 그룹을
+                //   soft delete 했는데도 커플 방이 미정리되어 고아가 될 수 있음(통합 감사 HIGH 반영).
+                //   leaveGroup 의 markLeft 는 countActiveByGroupId 쿼리 전 auto-flush 되므로,
+                //   동일 TX 에서 0 이면 내가 마지막 멤버였고 그룹이 soft delete 된 것 → 커플 방도 정리한다.
+                if (groupMemberRepository.countActiveByGroupId(groupId) == 0) {
                     chatRoomRepository.softDeleteByGroup(groupId);
                 }
             } catch (CoreException e) {
                 if (e.getErrorType() == ErrorType.GROUP_NOT_MEMBER) {
                     // 조회-탈퇴 사이 race(동시 그룹 삭제/탈퇴) — 이미 탈퇴 처리된 것으로 간주하고 계속
-                    log.warn("계정 삭제 중 그룹 탈퇴 race — 이미 비활성 그룹/멤버 (userId={}, groupId={})", userId, groupId);
+                    log.warn("계정 삭제 중 그룹 탈퇴 race — 이미 비활성 (userId={}, groupId={})", userId, groupId);
                 } else {
                     throw e;  // 다른 오류는 전파
                 }
