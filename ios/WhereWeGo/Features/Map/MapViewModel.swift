@@ -11,7 +11,7 @@ import Foundation
 //  - 낙관적 PATCH/DELETE 와 실패 시 스냅샷 복원(AC-6/7) — B4(PinDetail/Search/Roulette)가 호출.
 //  - 동시 1패널(activeSheet) 상태 — 실제 시트 표시는 B4 가 연결.
 // 비책임(B4): VisitDetectionEngine 오케스트레이션(여기서는 locationService 보유·startUpdating 훅 자리만),
-//            PinBubbleView(핀 상세 말풍선)/RouletteSheet 의 실제 UI·로직.
+//            PinBubbleView(핀 상세 말풍선)/RouletteView(어디갈까 탭)의 실제 UI·로직.
 // P8 영역1: 인라인 핀 추가 모드 상태(isAddingPin/addPlaceVM/mapZoom)와 AddPlaceViewModel 수명을 본 VM 이 소유한다.
 //
 // 지도 제어는 MapRenderer 프로토콜이 아니라 선언적 바인딩(markers + cameraCommand)으로 한다(B2 계약).
@@ -29,9 +29,9 @@ final class MapViewModel: ObservableObject {
 
     /// 동시에 하나만 표시되는 패널(설계 §3·§11).
     /// P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환되어 .addPlace case 제거(AC-11).
+    /// 룰렛은 "어디갈까" 탭(RouletteView)으로 분리되어 .roulette case 제거 — 시트는 .visitMemo 만 남는다.
     enum ActiveSheet: Equatable {
         case none
-        case roulette
         /// 방문 "다녀왔어요" 후 메모 입력 시트(B4 가 트리거).
         case visitMemo(pinId: Int)
     }

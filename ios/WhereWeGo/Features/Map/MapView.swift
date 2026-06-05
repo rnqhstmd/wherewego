@@ -1,10 +1,11 @@
 import SwiftUI
 
 // 지도 메인 화면(설계 §3·§7·§11, FR-2/6/7/8). 온보딩 종착 → 지도 진입(GroupsView 대체).
-// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 상단 태그필터 + 플로팅 버튼(룰렛 우상단·내위치/＋추가 우하단).
+// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 좌하단 [!]범례·[▽]필터 + 플로팅 버튼(내위치/＋추가 우하단).
+//  룰렛은 "어디갈까" 탭(RouletteView)으로 분리됨 — 우상단 🎲 시트 제거(지도=보기, 어디갈까=추천 멘탈모델 분리).
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
-// 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1), 룰렛(RouletteSheet)은 activeSheet 시트로 연결한다.
+// 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1)로 표시한다.
 // P7: 하단 액션바(검색/여기에추가/룰렛 3버튼) 제거 → 룰렛/내위치 플로팅 버튼.
 // P8 영역1: ＋ 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin → CrosshairOverlay + InlineAddPlaceCard).
 // P8 영역4 후속: ＋ 진입점을 탭바 센터에서 지도 우하단 speed-dial(addPinSpeedDial)로 이전. 탭바는 4탭 순수 네비게이션.
@@ -16,6 +17,27 @@ struct MapView: View {
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
     private static let inlineCardBottomPadding: CGFloat = 88
+
+    /// 좌하단 태그 컨트롤(범례/필터) 팝업 상호배타 상태(웹 정합). 동시 표시 금지 + 바깥 탭 닫힘 공유.
+    @State private var activeCornerPopup: CornerPopup = .none
+
+    private enum CornerPopup { case none, legend, filter }
+
+    /// 범례 팝업 토글 바인딩(열면 다른 팝업은 닫힘).
+    private var legendPopupBinding: Binding<Bool> {
+        Binding(
+            get: { activeCornerPopup == .legend },
+            set: { activeCornerPopup = $0 ? .legend : .none }
+        )
+    }
+
+    /// 필터 팝업 토글 바인딩(열면 다른 팝업은 닫힘).
+    private var filterPopupBinding: Binding<Bool> {
+        Binding(
+            get: { activeCornerPopup == .filter },
+            set: { activeCornerPopup = $0 ? .filter : .none }
+        )
+    }
 
     /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
     /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
@@ -103,9 +125,10 @@ struct MapView: View {
             viewModel.startVisitDetection()
             viewModel.startPolling()
         }
-        // 화면 이탈 시 폴링 정리(누수/중복 방지, BR-7).
+        // 화면 이탈 시 폴링 정리(누수/중복 방지, BR-7) + 좌하단 팝업 닫기(탭 이동 후 잔여 표시 방지).
         .onDisappear {
             viewModel.stopPolling()
+            activeCornerPopup = .none
         }
         // scenePhase 전환 처리(설계 §4 + BR-7 폴링 정리/재개).
         .onChange(of: scenePhase) { _, phase in
@@ -136,10 +159,6 @@ struct MapView: View {
         // 핀 상세(정보창): 마커 탭 → selectedPinId → 말풍선 오버레이(MapContainerView, 설계 §6 D-1, #96).
         // 시트(.sheet) 대신 메인 지도 ZStack 오버레이로 표시 — 표시조건 D-4(selectedPin != nil && activeSheet == .none)는 MapContainerView 에서 파생.
         // 장소 추가는 시트가 아닌 인라인 오버레이(isAddingPin)로 전환됨(#97) — AddPlaceSheet/.sheet(item:selectedPinBinding) 제거.
-        // 룰렛 시트(activeSheet=.roulette, FR-20~24).
-        .sheet(isPresented: rouletteSheetBinding) {
-            RouletteSheet(mapViewModel: viewModel, locationService: viewModel.locationService)
-        }
         // 방문 메모 시트(activeSheet=.visitMemo, FR-29/30, AC-15).
         // onDismiss: 시트가 완전히 닫힌 뒤 보류된 pendingDetailPinId 를 selectedPinId 로 소비한다.
         // (finish() 단일 사이클의 시트→말풍선 전환 경쟁 회피 — selectedPinId 세팅이 말풍선 오버레이를 연다.)
@@ -158,16 +177,6 @@ struct MapView: View {
     }
 
     // MARK: - activeSheet → 시트 표시 바인딩
-
-    /// .roulette 표시 바인딩. 닫힘 시 activeSheet=.none.
-    private var rouletteSheetBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.activeSheet == .roulette },
-            set: { isPresented in
-                if !isPresented, viewModel.activeSheet == .roulette { viewModel.activeSheet = .none }
-            }
-        )
-    }
 
     /// .visitMemo(pinId) → 핀 투영 바인딩. 닫힘 시 activeSheet=.none.
     private var visitMemoSheetBinding: Binding<PinSummary?> {
@@ -251,35 +260,25 @@ struct MapView: View {
                     .transition(.opacity)
             }
 
-            // 상단 태그 필터 + (핀 0개 시) 빈 상태 카드.
-            VStack(spacing: 0) {
-                TagFilterBar(activeFilters: $viewModel.activeFilters)
-                    .background(
-                        WGColor.bg.opacity(0.92)
-                            .clipShape(Capsule())
-                    )
-                    .padding(.top, 8)
+            // 좌하단 태그 컨트롤(범례/필터) 팝업 열림 중 바깥 탭 흡수 → 닫힘. 딤 없이 투명 레이어.
+            //  컨트롤(룰렛/내위치/speed-dial/클러스터)보다 아래 레이어 → 버튼은 정상 탭되고 빈 곳 탭만 닫힌다.
+            if activeCornerPopup != .none {
+                Color.clear
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { activeCornerPopup = .none }
+            }
 
-                Spacer(minLength: 0)
-
-                // 핀 0개(loaded) → 빈 상태 카드(FR-8). 첫 장소는 검색으로 찾도록 검색 모드로 진입.
-                if viewModel.pins.isEmpty {
+            // 핀 0개(loaded) → 빈 상태 카드(FR-8, 화면 중앙). 첫 장소는 검색 모드로 진입.
+            //  상단 태그 필터 칩(구 TagFilterBar)은 좌하단 [!]범례·[▽]필터 버튼으로 이전됨(웹 정합) — 상단 칩 제거.
+            if viewModel.pins.isEmpty {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
                     EmptyMapCard(onAddPin: { viewModel.enterAddPin(mode: .search) })
                     Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
-
-            // 룰렛: 지도 우상단 플로팅 원형 버튼(태그필터 바 아래, FR-6).
-            VStack {
-                HStack {
-                    Spacer()
-                    rouletteButton
-                }
-                .padding(.top, 60)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
 
             // 우하단 플로팅 컨트롤 세로 스택: 내 위치(위, 보조) + 장소 추가 ＋ speed-dial(아래, 주 액션).
             //  룰렛(우상단)과 분리(ZStack alignment). ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
@@ -303,27 +302,28 @@ struct MapView: View {
                 .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
             .padding(.horizontal, 16)
+
+            // 좌하단 태그 컨트롤 클러스터(웹 MapClient bottom/left 이식). [!]마커 범례 + [▽]필터.
+            //  speed-dial(우하단)과 같은 bottom 라인에 좌측 배치(대칭). 팝업은 버튼 위로 떠 상호배타(activeCornerPopup).
+            //  팝업이 다른 오버레이 위로 뜨도록 zIndex 상향.
+            VStack {
+                Spacer()
+                HStack(spacing: 8) {
+                    TagLegendButton(isOpen: legendPopupBinding)
+                    TagFilterButton(
+                        activeFilters: $viewModel.activeFilters,
+                        isOpen: filterPopupBinding
+                    )
+                    Spacer(minLength: 0)
+                }
+                .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
+            }
+            .padding(.horizontal, 16)
+            .zIndex(1)
         }
     }
 
     // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
-
-    /// 룰렛 진입 플로팅 원형 버튼(FR-6). 우상단. stale 재조회는 RouletteViewModel.spin() 내부 await 가 단일 보장점.
-    private var rouletteButton: some View {
-        Button {
-            // BR-6 — 인라인 추가 모드 중 룰렛 진입 요청 시 추가 모드를 먼저 종료(작성 중 위치 폐기).
-            viewModel.exitAddPin()
-            viewModel.activeSheet = .roulette
-        } label: {
-            Image(systemName: "dice")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(WGColor.cta)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(WGColor.panel))
-                .shadow(color: WGColor.shadow, radius: 8, y: 3)
-        }
-        .accessibilityLabel("가볼까 룰렛")
-    }
 
     /// 내 위치 플로팅 버튼(FR-7). 우하단. one-shot 현재 위치로 지도 카메라 이동.
     private var myLocationButton: some View {
