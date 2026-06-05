@@ -124,6 +124,15 @@ class GroupV1ControllerIntegrationTest {
                 JsonNode.class);
     }
 
+    private ResponseEntity<JsonNode> previewBySlug(String slug) {
+        // 공개 엔드포인트 — 인증 헤더 없이 호출한다.
+        return restTemplate.exchange(
+                "/api/v1/groups/invite-links/by-slug/" + slug,
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(null)),
+                JsonNode.class);
+    }
+
     private ResponseEntity<JsonNode> leaveGroup(String accessToken, Long groupId) {
         return restTemplate.exchange(
                 "/api/v1/groups/" + groupId + "/members/me",
@@ -262,6 +271,74 @@ class GroupV1ControllerIntegrationTest {
         // DB : 활성 멤버 2 명
         long activeCount = groupMemberJpaRepository.countActiveByGroupId(groupId);
         assertThat(activeCount).isEqualTo(2L);
+    }
+
+    @DisplayName("IC-1(AC-7): POST /api/v1/groups/invite-links/{token}/accept - 응답이 {groupId, acceptedAt} 구조를 유지한다 (BC 회귀가드).")
+    @Test
+    void acceptInviteLink_responseStructure_unchanged() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+
+        // act
+        ResponseEntity<JsonNode> response = acceptInviteLink(tokenB, inviteToken);
+
+        // assert : 200 + data 에 groupId/acceptedAt 만 존재(IC-1 내부 재설계 후에도 계약 불변)
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.has("groupId")).isTrue();
+        assertThat(data.has("acceptedAt")).isTrue();
+        assertThat(data.get("groupId").asLong()).isEqualTo(groupId);
+        assertThat(data.get("acceptedAt").asText()).isNotBlank();
+    }
+
+    @DisplayName("IC-1(AC-6): GET /api/v1/groups/invite-links/by-slug/{slug} - 유효 코드이지만 정원(10) 도달이면 409 GROUP_CAPACITY_EXCEEDED 를 반환한다.")
+    @Test
+    void previewBySlug_capacityReached_returns409() {
+        // arrange : userA 생성(1명) + 코드 발급. 동일 코드를 재사용해 정원 10 을 채운다.
+        ResponseEntity<JsonNode> created = createGroup(tokenA, "정원그룹");
+        Long groupId = created.getBody().get("data").get("groupId").asLong();
+        JsonNode inviteData = issueInviteLink(tokenA, groupId).getBody().get("data");
+        String token = inviteData.get("token").asText();
+        String slug = inviteData.get("slug").asText();
+
+        // 서로 다른 9명을 동일 코드로 가입시켜 정원 10 도달
+        for (int i = 0; i < 9; i++) {
+            UserModel member = userJpaRepository.save(
+                    UserModel.create(20000100L + i, "member" + i, null));
+            String memberToken = jwtTokenProvider.issueAccessToken(member.getId());
+            acceptInviteLink(memberToken, token);
+        }
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(10L);
+
+        // act : 정원 도달 후 by-slug 미리보기
+        ResponseEntity<JsonNode> response = previewBySlug(slug);
+
+        // assert : 만료(404)가 아니라 정원초과(409 GROUP_CAPACITY_EXCEEDED) 구분 응답
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("GROUP_CAPACITY_EXCEEDED");
+    }
+
+    @DisplayName("IC-1: GET /api/v1/groups/invite-links/by-slug/{slug} - 유효 코드(정원 미도달)이면 200 과 그룹명/초대자/만료시각을 반환한다.")
+    @Test
+    void previewBySlug_valid_returns200() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String slug = issueInviteLink(tokenA, groupId).getBody().get("data").get("slug").asText();
+
+        // act
+        ResponseEntity<JsonNode> response = previewBySlug(slug);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("groupName").asText()).isEqualTo("여행팀");
+        assertThat(data.get("inviterNickname").asText()).isNotBlank();
+        assertThat(data.get("expiresAt").asText()).isNotBlank();
     }
 
     @DisplayName("POST /api/v1/groups/invite-links/{token}/accept - 본인이 발급한 토큰을 본인이 수락하면 400 INVITE_LINK_SELF_ACCEPT 를 반환한다 (AC-15).")

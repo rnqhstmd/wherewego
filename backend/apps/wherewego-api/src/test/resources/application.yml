@@ -75,6 +75,16 @@ bot:
 mapbox:
   token: test-mapbox-token
 
+# 초대 링크 레이트리밋: 컨트롤러 IT 가 동일 IP(127.0.0.1)에서 by-slug(GET)+accept(POST) 를
+# 한 클래스 내 누적 호출(InviteLinkRateLimiter 는 싱글톤이라 @BeforeEach 로 리셋되지 않음)하므로,
+# 정상 흐름 테스트가 레이트리밋에 걸리지 않도록 capacity 를 충분히 상향한다.
+# 레이트리밋 동작 자체는 InviteLinkRateLimitFilterIT 가 @DynamicPropertySource 로 capacity 를 낮춰 검증한다.
+# (운영 기본값 30 은 application.yml 에서 유지.)
+app:
+  invite:
+    rate-limit:
+      capacity: 1000
+
 wherewego:
   s3:
     bucket: test-bucket

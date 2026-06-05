@@ -41,7 +41,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * GroupMemberService 통합 테스트. 실제 PostgreSQL Testcontainer + JPA 매핑 + DB 제약 동작 검증.
  *
  * <p>Phase 3 group 도메인의 DB 제약(partial UNIQUE), 단일 트랜잭션 동작,
- * 미수락 초대 토큰 일괄 만료(BR-3, BR-6), 마지막 멤버 탈퇴 시 그룹 soft delete + 토큰 만료(AC-12)를 검증한다.</p>
+ * 활성 초대 토큰 일괄 만료(BR-3, BR-6), 마지막 멤버 탈퇴 시 그룹 soft delete + 토큰 만료(AC-12)를 검증한다.</p>
+ * <p>IC-1: 1회용 소진(accepted_at) 제거 → 코드는 TTL 동안 정원 한도 내 재사용(FR-1).
+ * 정원 도달은 만료가 아닌 가입 차단이라 코드는 TTL 까지 유지(Option A)되며, by-slug 가 정원초과를 구분한다(D4).</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -195,12 +197,12 @@ class GroupMemberServiceIT {
         // assert : 활성 멤버 여전히 10명
         assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(10L);
 
-        // assert : 정원 초과 거부 시 토큰은 소진되지 않는다(accepted_at IS NULL).
-        //   정원 검사가 markAcceptedIfPending 보다 앞에 위치하므로 거부된 토큰은 재사용 가능 (통합 감사 MEDIUM 반영).
-        Boolean tokenStillPending = jdbcTemplate.queryForObject(
-                "SELECT accepted_at IS NULL FROM invite_links WHERE token = ?",
+        // assert : IC-1(Option A) — 정원 초과 거부 시에도 코드는 만료되지 않고 TTL(expires_at 미래)을 유지한다.
+        //   정원 도달은 만료가 아니라 가입 차단이므로 by-slug 가 코드를 찾아 정원초과를 구분할 수 있다(D4).
+        Boolean tokenStillActive = jdbcTemplate.queryForObject(
+                "SELECT expires_at > now() FROM invite_links WHERE token = ?",
                 Boolean.class, lastInvite.token());
-        assertThat(tokenStillPending).isTrue();
+        assertThat(tokenStillActive).isTrue();
     }
 
     @DisplayName("issueInviteLink - 동일 그룹에 재발급 시 기존 미수락 토큰의 expires_at 이 만료 시각으로 갱신된다 (AC-5, BR-3).")
@@ -220,11 +222,10 @@ class GroupMemberServiceIT {
 
         // 첫 토큰의 expires_at 은 두 번째 발급 시점 직전(now) 으로 갱신되어 즉시 만료
         Map<String, Object> firstRow = jdbcTemplate.queryForMap(
-                "SELECT token, expires_at, accepted_at FROM invite_links WHERE token = ?",
+                "SELECT token, expires_at FROM invite_links WHERE token = ?",
                 first.token());
         Instant firstExpiresAt = ((Timestamp) firstRow.get("expires_at")).toInstant();
         assertThat(firstExpiresAt).isBeforeOrEqualTo(beforeSecond.plusSeconds(2));
-        assertThat(firstRow.get("accepted_at")).isNull();
 
         // 두 번째 토큰의 expires_at 은 미래(24h 후)
         Map<String, Object> secondRow = jdbcTemplate.queryForMap(
@@ -234,31 +235,138 @@ class GroupMemberServiceIT {
         assertThat(secondExpiresAt).isAfter(beforeSecond.plusSeconds(60));
     }
 
-    @DisplayName("acceptInviteLink - 수락 시 group_members 활성 행이 추가되고 invite_links.accepted_at 이 기록된다 (AC-6).")
+    @DisplayName("IC-1(AC-1): 동일 코드를 서로 다른 2명이 각각 수락하면 둘 다 활성 멤버가 되고 코드는 TTL 까지 유지된다.")
     @Test
-    void acceptInviteLink_addsActiveMemberAndStampsAcceptedAt() {
-        // arrange
+    void acceptInviteLink_sameTokenTwoUsers_bothJoinAndCodeStaysActive() {
+        // arrange : userA 생성 + 1개 코드 발급. userC 추가 시드.
+        Long userC = userJpaRepository.save(UserModel.create(10000009L, "userC", null)).getId();
         GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
         InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
 
-        // act
-        InviteAcceptResult accepted = groupMemberService.acceptInviteLink(userB, invite.token());
+        // act : 동일 코드를 userB, userC 가 각각 수락
+        InviteAcceptResult acceptedB = groupMemberService.acceptInviteLink(userB, invite.token());
+        InviteAcceptResult acceptedC = groupMemberService.acceptInviteLink(userC, invite.token());
 
-        // assert : 그룹 ID 일치
-        assertThat(accepted.groupId()).isEqualTo(group.groupId());
+        // assert : 둘 다 같은 그룹에 가입
+        assertThat(acceptedB.groupId()).isEqualTo(group.groupId());
+        assertThat(acceptedC.groupId()).isEqualTo(group.groupId());
 
-        // assert : group_members 2행 (둘 다 활성)
+        // assert : group_members 3행 (생성자 + 2명, 모두 활성)
         List<GroupMember> members = groupMemberJpaRepository.findAll();
-        assertThat(members).hasSize(2);
+        assertThat(members).hasSize(3);
         assertThat(members).allSatisfy(m -> assertThat(m.getLeftAt()).isNull());
         assertThat(members).extracting(GroupMember::getUserId)
-                .containsExactlyInAnyOrder(userA, userB);
+                .containsExactlyInAnyOrder(userA, userB, userC);
 
-        // assert : invite_links.accepted_at 기록
-        Map<String, Object> linkRow = jdbcTemplate.queryForMap(
-                "SELECT accepted_at FROM invite_links WHERE token = ?",
+        // assert : IC-1 — 두 명이 사용해도 코드는 소진되지 않고 TTL(expires_at 미래)을 유지한다.
+        Boolean codeStillActive = jdbcTemplate.queryForObject(
+                "SELECT expires_at > now() FROM invite_links WHERE token = ?",
+                Boolean.class, invite.token());
+        assertThat(codeStillActive).isTrue();
+    }
+
+    @DisplayName("IC-1(AC-2): 정원 9명에서 1명이 수락하면 정원 10 도달 + 코드는 만료되지 않고 TTL 유지 + 이후 동일 코드 수락은 GROUP_CAPACITY_EXCEEDED.")
+    @Test
+    void acceptInviteLink_capacityReached_codeStaysActiveAndBlocksFurther() {
+        // arrange : userA 생성(1명) + 8명 수락 → 9명. 동일 코드 1개를 끝까지 재사용한다.
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "정원그룹");
+        InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+        for (int i = 0; i < 8; i++) {
+            Long member = userJpaRepository.save(
+                    UserModel.create(10000300L + i, "m" + i, null)).getId();
+            groupMemberService.acceptInviteLink(member, invite.token());
+        }
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(9L);
+
+        // act : 9 → 10 (마지막 1자리)을 동일 코드로 채운다.
+        Long ninth = userJpaRepository.save(UserModel.create(10000400L, "ninth", null)).getId();
+        groupMemberService.acceptInviteLink(ninth, invite.token());
+
+        // assert : (a) 정원 10 도달
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(10L);
+
+        // assert : (b) IC-1(Option A) — 정원 도달 후에도 코드는 만료되지 않고 TTL(expires_at 미래)을 유지한다.
+        Boolean codeStillActive = jdbcTemplate.queryForObject(
+                "SELECT expires_at > now() FROM invite_links WHERE token = ?",
+                Boolean.class, invite.token());
+        assertThat(codeStillActive).isTrue();
+
+        // assert : (c) 이후 동일 코드 수락은 GROUP_CAPACITY_EXCEEDED (만료 EXPIRED 가 아니라 정원 초과로 구분).
+        Long eleventh = userJpaRepository.save(UserModel.create(10000401L, "eleventh", null)).getId();
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(eleventh, invite.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED));
+    }
+
+    @DisplayName("IC-1(AC-3): 재발급 후 구 코드로 수락하면 INVITE_LINK_EXPIRED (BR-3 단일 활성 코드).")
+    @Test
+    void acceptInviteLink_oldTokenAfterReissue_throwsExpired() {
+        // arrange : 첫 코드 발급 후 같은 그룹에 재발급 → 구 코드 즉시 만료.
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        InviteLinkIssueResult oldInvite = groupMemberService.issueInviteLink(userA, group.groupId());
+        groupMemberService.issueInviteLink(userA, group.groupId());
+
+        // act & assert : 구 코드 수락 시도 → 만료
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(userB, oldInvite.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.INVITE_LINK_EXPIRED));
+    }
+
+    @DisplayName("IC-1(AC-4): 이미 활성 멤버가 코드를 수락하면 GROUP_ALREADY_MEMBER 이고 멤버 수는 불변이다.")
+    @Test
+    void acceptInviteLink_alreadyMember_throwsAlreadyMemberAndCountUnchanged() {
+        // arrange : userB 가 먼저 합류해 활성 멤버. userA 가 새 코드를 발급한다.
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        InviteLinkIssueResult first = groupMemberService.issueInviteLink(userA, group.groupId());
+        groupMemberService.acceptInviteLink(userB, first.token());
+        long before = groupMemberJpaRepository.countActiveByGroupId(group.groupId());
+        InviteLinkIssueResult second = groupMemberService.issueInviteLink(userA, group.groupId());
+
+        // act & assert : 이미 멤버인 userB 가 재수락
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(userB, second.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.GROUP_ALREADY_MEMBER));
+
+        // assert : 멤버 수 불변
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(before);
+    }
+
+    @DisplayName("IC-1(AC-5): TTL 만료 코드를 수락하면 INVITE_LINK_EXPIRED.")
+    @Test
+    void acceptInviteLink_expiredTtl_throwsExpired() {
+        // arrange : 코드 발급 후 expires_at 을 과거로 직접 갱신해 TTL 만료를 재현.
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+        jdbcTemplate.update(
+                "UPDATE invite_links SET expires_at = now() - interval '1 hour' WHERE token = ?",
                 invite.token());
-        assertThat(linkRow.get("accepted_at")).isNotNull();
+
+        // act & assert
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(userB, invite.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.INVITE_LINK_EXPIRED));
+    }
+
+    @DisplayName("IC-1(AC-10): 탈퇴 시 활성 코드가 만료되어 이후 동일 코드 수락은 INVITE_LINK_EXPIRED.")
+    @Test
+    void acceptInviteLink_afterLeaveExpiresCode_throwsExpired() {
+        // arrange : userA, userB 2명 그룹. userA 가 코드를 발급한 뒤 userA 가 탈퇴(BR-5: 활성 코드 만료).
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        InviteLinkIssueResult firstInvite = groupMemberService.issueInviteLink(userA, group.groupId());
+        groupMemberService.acceptInviteLink(userB, firstInvite.token());
+        InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+        groupMemberService.leaveGroup(userA, group.groupId());
+
+        // act & assert : 탈퇴로 만료된 코드를 신규 사용자가 수락 시도 → 만료
+        Long userC = userJpaRepository.save(UserModel.create(10000009L, "userC", null)).getId();
+        assertThatThrownBy(() -> groupMemberService.acceptInviteLink(userC, invite.token()))
+                .isInstanceOf(CoreException.class)
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.INVITE_LINK_EXPIRED));
     }
 
     @DisplayName("acceptInviteLink - soft delete 된 그룹의 토큰 수락 시 INVITE_LINK_EXPIRED (AC-9, BR-7).")
@@ -305,12 +413,11 @@ class GroupMemberServiceIT {
                 group.groupId(), userA);
         assertThat(memberRow.get("left_at")).isNotNull();
 
-        // assert : 미수락 토큰이 만료 처리 (expires_at <= now & accepted_at IS NULL)
+        // assert : 활성 토큰이 만료 처리 (expires_at <= now)
         Map<String, Object> linkRow = jdbcTemplate.queryForMap(
-                "SELECT expires_at, accepted_at FROM invite_links WHERE token = ?",
+                "SELECT expires_at FROM invite_links WHERE token = ?",
                 invite.token());
         Instant linkExpiresAt = ((Timestamp) linkRow.get("expires_at")).toInstant();
-        assertThat(linkRow.get("accepted_at")).isNull();
         assertThat(linkExpiresAt).isBeforeOrEqualTo(beforeLeave.plusSeconds(2));
     }
 
@@ -486,11 +593,11 @@ class GroupMemberServiceIT {
             assertThat(result.unexpectedCount()).isZero();
         }
 
-        @DisplayName("acceptInviteLink - 서로 다른 5명이 동일 토큰을 동시 수락 시 정확히 1건만 성공, 나머지는 허용 에러 집합 내 (AC-7).")
+        @DisplayName("IC-1(AC-1): 서로 다른 5명이 동일 토큰을 동시 수락 시 정원(10) 여유로 5건 모두 성공한다 (기대 반전 — 1회용 소진 제거).")
         @Test
-        void acceptInviteLink_concurrent_onlyOneSucceeds() throws InterruptedException {
-            // arrange : userA 가 그룹 생성 + 초대 토큰 발급. 토큰은 1회용(markAccepted)이라
-            //   정원(GM-1: 10)과 무관하게 동일 토큰 동시 수락은 1건만 성공한다.
+        void acceptInviteLink_concurrentWithinCapacity_allSucceed() throws InterruptedException {
+            // arrange : userA 가 그룹 생성(1명) + 1개 코드 발급. IC-1 으로 코드는 재사용 가능하고
+            //   정원 10 에 여유가 있어 서로 다른 5명 동시 수락이 전부 성공한다(이전엔 1회용이라 1건만).
             GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
             InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
             String token = invite.token();
@@ -508,21 +615,51 @@ class GroupMemberServiceIT {
             ConcurrentResult result = runConcurrently(5,
                     i -> () -> groupMemberService.acceptInviteLink(users[i], token));
 
-            // assert : 정확히 1건 성공
+            // assert : 5건 모두 성공 (정원 여유)
+            assertThat(result.successCount()).isEqualTo(5);
+            assertThat(result.errorTypes()).isEmpty();
+            assertThat(result.unexpectedCount()).isZero();
+
+            // assert : 활성 멤버 6명(생성자 + 5명)
+            assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(6L);
+        }
+
+        @DisplayName("IC-1(AC-8): 정원 9 세팅 후 서로 다른 10명이 마지막 1자리를 동일 토큰으로 동시 수락 → 정확히 1건만 성공, 나머지 9건 GROUP_CAPACITY_EXCEEDED.")
+        @Test
+        void acceptInviteLink_concurrentLastSeat_onlyOneSucceeds() throws InterruptedException {
+            // arrange : userA 생성(1명) + 8명 수락 → 정원 9. 동일 코드 1개를 재사용한다.
+            GroupCreatedResult group = groupMemberService.createGroup(userA, "정원그룹");
+            InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, group.groupId());
+            for (int i = 0; i < 8; i++) {
+                Long member = userJpaRepository.save(
+                        UserModel.create(10000500L + i, "seed" + i, null)).getId();
+                groupMemberService.acceptInviteLink(member, invite.token());
+            }
+            assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(9L);
+            String token = invite.token();
+
+            // 마지막 1자리를 노리는 서로 다른 10명 사전 생성
+            Long[] contenders = new Long[10];
+            for (int i = 0; i < 10; i++) {
+                contenders[i] = userJpaRepository.save(
+                        UserModel.create(10000600L + i, "race" + i, null)).getId();
+            }
+
+            // act : 10명이 동시에 동일 토큰으로 마지막 자리 수락
+            ConcurrentResult result = runConcurrently(10,
+                    i -> () -> groupMemberService.acceptInviteLink(contenders[i], token));
+
+            // assert : 정확히 1건만 성공 (group 비관락 직렬화로 정원 초과 INSERT 차단, BR-4)
             assertThat(result.successCount()).isEqualTo(1);
 
-            // assert : 나머지 4건 모두 errorTypes 로 분류됨 (race 중 분류 누락 회귀 방지)
-            assertThat(result.errorTypes()).hasSize(4);
-
-            // assert : GM-1 으로 GROUP_ALREADY_ACTIVE 는 발생 불가 → 허용 집합은
-            //   {INVITE_LINK_ALREADY_USED, GROUP_CAPACITY_EXCEEDED} 부분집합 (M3).
+            // assert : 나머지 9건 모두 GROUP_CAPACITY_EXCEEDED (서로 다른 사람이라 pair/already_member 아님)
+            assertThat(result.errorTypes()).hasSize(9);
             assertThat(result.errorTypes()).allSatisfy(et ->
-                    assertThat(et).isIn(
-                            ErrorType.INVITE_LINK_ALREADY_USED,
-                            ErrorType.GROUP_CAPACITY_EXCEEDED));
-
-            // assert : 분류되지 않은 예외 0건 (hasSize(4) 강건성 보강)
+                    assertThat(et).isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED));
             assertThat(result.unexpectedCount()).isZero();
+
+            // assert : 활성 멤버 정확히 10명
+            assertThat(groupMemberJpaRepository.countActiveByGroupId(group.groupId())).isEqualTo(10L);
         }
 
         @DisplayName("leaveGroup - 동일 사용자 5스레드 동시 호출 시 정확히 1건만 성공하고 나머지는 GROUP_NOT_MEMBER (AC-8).")
@@ -558,8 +695,9 @@ class GroupMemberServiceIT {
             groupMemberService.acceptInviteLink(userB, firstInvite.token());
             InviteLinkIssueResult secondInvite = groupMemberService.issueInviteLink(userA, group.groupId());
 
-            // act : 동일 토큰을 userB 2스레드가 동시 수락 — pair 제약이 재가입을 차단한다.
-            //   1건은 INVITE_LINK_ALREADY_USED(토큰 1회성), pair 경로 진입 시 GROUP_REJOIN_FORBIDDEN.
+            // act : 동일 토큰을 userB 2스레드가 동시 수락 — 이미 활성 멤버라 가입은 차단된다.
+            //   IC-1: 사전 가드(findActiveByGroupIdAndUserId)가 GROUP_ALREADY_MEMBER 로 차단하고,
+            //   race 로 가드를 통과한 동시 INSERT 는 uq_group_members_pair 위반 → GROUP_REJOIN_FORBIDDEN.
             ConcurrentResult result = runConcurrently(2,
                     i -> () -> groupMemberService.acceptInviteLink(userB, secondInvite.token()));
 
@@ -568,7 +706,7 @@ class GroupMemberServiceIT {
             assertThat(result.errorTypes()).hasSize(2);
             assertThat(result.errorTypes()).allSatisfy(et ->
                     assertThat(et).isIn(
-                            ErrorType.INVITE_LINK_ALREADY_USED,
+                            ErrorType.GROUP_ALREADY_MEMBER,
                             ErrorType.GROUP_REJOIN_FORBIDDEN));
             assertThat(result.unexpectedCount()).isZero();
 

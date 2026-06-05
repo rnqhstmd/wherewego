@@ -16,8 +16,8 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
 
     @Override
     public InviteLink save(InviteLink link) {
-        // saveAndFlush로 통일하여 acceptInviteLink markAccepted → groupMember INSERT 순서에서
-        // dirty UPDATE flush 시점을 동일 트랜잭션 내에서 명확히 한다 (PR #7 리뷰 반영).
+        // saveAndFlush로 통일하여 INSERT flush 시점을 동일 트랜잭션 내에서 명확히 한다 (PR #7 리뷰 반영).
+        // IC-1: 정원 검사는 group 비관락 안에서 group_members count 로 직렬화하므로 INSERT 가 정원 정합 단위다.
         return inviteLinkJpaRepository.saveAndFlush(link);
     }
 
@@ -34,10 +34,5 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
     @Override
     public int expirePendingByGroupId(Long groupId, Instant now) {
         return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
-    }
-
-    @Override
-    public int markAcceptedIfPending(Long id, Instant now) {
-        return inviteLinkJpaRepository.markAcceptedIfPending(id, now);
     }
 }
