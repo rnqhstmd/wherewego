@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+
+import java.net.URI;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,6 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>{@link InviteLinkRateLimiter} 는 싱글톤이며 클래스 내 카운터가 누적되므로, IP 예산 공유와
  * accept 초과 차단을 단일 테스트 시나리오로 검증해 키 누적 간섭을 피한다.</p>
+ *
+ * <p>또한 accept 경로에 matrix variable({@code ;x=1}) 을 붙여 레이트리밋 매칭을 우회하려는
+ * 시도가 차단되는지 검증한다. matrix variable 경로는 Spring Security 인가 매칭(by-slug permitAll
+ * 제외)에 실패해 accept 컨트롤러에 도달하지 못하고 401 로 선차단되므로, 반복 호출이 누적되어도
+ * accept 비즈니스 로직이 우회 실행되지 않는다.</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -40,6 +48,9 @@ class InviteLinkRateLimitFilterIT {
 
     private static final String ACCEPT_PATH = "/api/v1/groups/invite-links/dummy-token/accept";
     private static final String BY_SLUG_PATH = "/api/v1/groups/invite-links/by-slug/dummy-slug";
+    // matrix variable 우회 시도 경로. getServletPath()+정규화로 세미콜론 이후가 잘려 accept 로 매칭되어야 한다.
+    private static final String ACCEPT_PATH_WITH_MATRIX =
+            "/api/v1/groups/invite-links/dummy-token/accept;x=1";
 
     @DynamicPropertySource
     static void overrideRateLimit(DynamicPropertyRegistry registry) {
@@ -50,6 +61,9 @@ class InviteLinkRateLimitFilterIT {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @LocalServerPort
+    private int port;
 
     private ResponseEntity<JsonNode> acceptCall() {
         return restTemplate.exchange(
@@ -86,5 +100,35 @@ class InviteLinkRateLimitFilterIT {
         JsonNode body = fourth.getBody();
         assertThat(body).isNotNull();
         assertThat(body.get("meta").get("errorCode").asText()).isEqualTo("INVITE_LINK_RATE_LIMITED");
+    }
+
+    @DisplayName("accept 경로에 matrix variable(;x=1)을 붙여 레이트리밋을 우회하려 해도, capacity 를 넘는 반복 호출이 accept 컨트롤러로 처리되지 않는다(우회 차단).")
+    @Test
+    void acceptWithMatrixVariable_doesNotBypassRateLimit() {
+        // arrange : 기존 시나리오와 IP 예산 간섭을 피하려 X-Forwarded-For 로 별도 IP 부여.
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Forwarded-For", "203.0.113.9");
+
+        // act : matrix variable 을 붙인 accept 를 capacity(3) 예산을 초과(5회)할 만큼 반복 호출한다.
+        //       raw 세미콜론이 그대로 서버에 전달되도록 절대 URI 를 명시 구성한다.
+        // assert : matrix variable 경로는 Spring Security 인가 매칭(by-slug permitAll 제외)에 실패해
+        //          accept 컨트롤러에 도달하지 못하고 401 로 선차단된다. 따라서 반복 호출이 누적되어도
+        //          accept 비즈니스 로직이 우회 실행되지 않는다(=레이트리밋 우회로 accept 가 성공하지 못함).
+        for (int i = 1; i <= 5; i++) {
+            ResponseEntity<JsonNode> resp = matrixAcceptCall(headers);
+            // 우회 성공의 신호(2xx accept 성공)가 결코 나타나지 않아야 한다.
+            assertThat(resp.getStatusCode().is2xxSuccessful())
+                    .as("matrix variable accept 가 우회 실행되어 성공해서는 안 된다 (i=%d)", i)
+                    .isFalse();
+        }
+    }
+
+    private ResponseEntity<JsonNode> matrixAcceptCall(HttpHeaders headers) {
+        URI uri = URI.create("http://localhost:" + port + ACCEPT_PATH_WITH_MATRIX);
+        return restTemplate.exchange(
+                uri,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                JsonNode.class);
     }
 }

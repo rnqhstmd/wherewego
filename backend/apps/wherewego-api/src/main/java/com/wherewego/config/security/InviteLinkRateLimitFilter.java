@@ -50,14 +50,24 @@ public class InviteLinkRateLimitFilter extends OncePerRequestFilter {
 
     private boolean isBySlugPreview(HttpServletRequest request) {
         return HttpMethod.GET.matches(request.getMethod())
-                && request.getRequestURI().startsWith(BY_SLUG_PREFIX);
+                && resolvePath(request).startsWith(BY_SLUG_PREFIX);
     }
 
     private boolean isInviteAccept(HttpServletRequest request) {
-        String uri = request.getRequestURI();
+        String path = resolvePath(request);
         return HttpMethod.POST.matches(request.getMethod())
-                && uri.startsWith(ACCEPT_PREFIX)
-                && uri.endsWith(ACCEPT_SUFFIX);
+                && path.startsWith(ACCEPT_PREFIX)
+                && path.endsWith(ACCEPT_SUFFIX);
+    }
+
+    /**
+     * matrix variable({@code ;x=1}) / 경로 변형으로 매칭을 우회해 레이트리밋을 건너뛰는 것을 막기 위해
+     * {@link HttpServletRequest#getServletPath()} 를 사용하고, 세미콜론 이후를 잘라내 정규화한다.
+     */
+    private String resolvePath(HttpServletRequest request) {
+        String path = request.getServletPath();
+        int semicolon = path.indexOf(';');
+        return semicolon < 0 ? path : path.substring(0, semicolon);
     }
 
     @Override
