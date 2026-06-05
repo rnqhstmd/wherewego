@@ -52,8 +52,7 @@ public class UserDeletionService {
      *     <li>활성 그룹 전체를 group_id 오름차순으로 멱등 순회 leaveGroup (GM-1: 1인 다중 활성 그룹).
      *         group_id 결정론적 락 순서로 다중 그룹 비관락 데드락을 방지한다.
      *         leaveGroup 이 마지막 1인 그룹 soft delete + 초대 만료 + 봇 매핑 unlink 까지 수행한다.</li>
-     *     <li>봇 매핑 unlink — leaveGroup 이 내부에서 unlink 를 수행하므로, 활성 그룹 0개로
-     *         leaveGroup 이 안 불린 경우에만 직접 1회 호출한다(멱등 백업).
+     *     <li>봇 매핑 unlink — 계정 삭제는 전체 탈퇴라 순회 후 무조건 1회 직접 호출(멱등).
      *         MANDATORY 전파라 현재 트랜잭션에 합류한다.</li>
      *     <li>chat_message sender_user_id NULL 처리 + 본인 소유 봇 방 soft delete.</li>
      *     <li>디바이스 토큰 soft delete.</li>
@@ -74,16 +73,15 @@ public class UserDeletionService {
         //    조회-탈퇴 사이 race(동시 그룹 삭제/탈퇴)로 GROUP_NOT_MEMBER 가 throw 되면 deleteAccount 전체가
         //    롤백되므로, 해당 예외만 흡수하고 다음 그룹으로 계속 진행한다(이미 비활성 처리된 것으로 간주).
         List<Long> activeGroupIds = groupMemberRepository.listActiveGroupIdsByUserId(userId);
-        boolean unlinkedViaLeaveGroup = false;
         for (Long groupId : activeGroupIds) {
             try {
-                groupMemberService.leaveGroup(userId, groupId);  // 내부에서 unlink 수행(user 단위 1개라 멱등)
-                unlinkedViaLeaveGroup = true;
+                groupMemberService.leaveGroup(userId, groupId);  // leaveGroup 은 잔여 활성 그룹 0개일 때만 내부 unlink
                 // 마지막 멤버 여부는 leaveGroup 호출 "후" 실제 활성 멤버 수로 정합 판정한다.
                 //   사전 판정(findOtherActiveMemberIds) 시 파트너 동시 탈퇴 race 로 leaveGroup 이 그룹을
                 //   soft delete 했는데도 커플 방이 미정리되어 고아가 될 수 있음(통합 감사 HIGH 반영).
                 //   leaveGroup 의 markLeft 는 countActiveByGroupId 쿼리 전 auto-flush 되므로,
                 //   동일 TX 에서 0 이면 내가 마지막 멤버였고 그룹이 soft delete 된 것 → 커플 방도 정리한다.
+                // 그룹 자체 soft delete 는 leaveGroup(마지막 멤버 분기) 책임이고, 여기선 chat_room 만 추가 정리한다.
                 if (groupMemberRepository.countActiveByGroupId(groupId) == 0) {
                     chatRoomRepository.softDeleteByGroup(groupId);
                 }
@@ -97,11 +95,10 @@ public class UserDeletionService {
             }
         }
 
-        // 3) leaveGroup 이 호출 안 됐거나(활성 그룹 0개) race 로 throw 돼 내부 unlink 가 수행되지 않은 경우
-        //    직접 unlink 한다(멱등 백업, MANDATORY 전파라 현재 트랜잭션 합류).
-        if (!unlinkedViaLeaveGroup) {
-            botUserMappingService.unlink(userId);
-        }
+        // 3) 봇 매핑 unlink — 계정 삭제는 전체 탈퇴이므로 항상 user 단위로 끊는다.
+        //    leaveGroup 의 조건부 unlink(잔여 0개일 때만)·순회 중 race 와 무관하게 보장하기 위해
+        //    무조건 1회 호출한다(unlink=deleteByUserId 멱등).
+        botUserMappingService.unlink(userId);
 
         // 4) 채팅 정리: 본인 발신 메시지 sender NULL 처리 + 본인 소유 봇 방 soft delete.
         chatMessageRepository.nullifySenderByUserId(userId);
