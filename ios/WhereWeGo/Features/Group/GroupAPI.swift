@@ -16,11 +16,21 @@ struct InviteLink: Decodable {
     let token: String
     let slug: String?
     let shareUrl: String?
+    // expiresAt 기본값 nil — mock 의 멤버와이즈 호출(token:slug:shareUrl:) 호환 유지(FR-18).
+    var expiresAt: String? = nil
 }
 
 /// 초대 수락 응답.
 struct InviteAccept: Decodable {
     let groupId: Int
+}
+
+/// slug 프리뷰 응답(token 획득). 사용자는 slug 입력, token 은 여기서만 획득(BR-1).
+struct InvitePreview: Decodable, Equatable {
+    let token: String
+    let groupName: String
+    let inviterNickname: String?
+    let expiresAt: String?
 }
 
 // MARK: - GroupAPI
@@ -49,6 +59,17 @@ final class GroupAPI: GroupAPIProtocol {
             if error.code == "HTTP_200" || error.code == "NO_CONTENT" { return nil }
             throw error                                          // errorCode 있는 FAIL, 4xx/5xx 등 진짜 에러
         }
+    }
+
+    /// GET /groups/invite-links/by-slug/{slug} — slug 로 프리뷰(token 획득, FR-3).
+    // 백엔드는 만료/없음/그룹삭제를 모두 404 INVITE_LINK_NOT_FOUND 로 통합, 정원 도달 시 409 GROUP_CAPACITY_EXCEEDED.
+    func previewBySlug(slug: String) async throws -> InvitePreview {
+        // slug 는 path segment 이므로 percent-encoding. 실패 시 원본 fallback.
+        let encoded = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
+        return try await client.request(
+            "/groups/invite-links/by-slug/\(encoded)",
+            type: InvitePreview.self
+        )
     }
 
     /// POST /groups/invite-links/{token}/accept

@@ -9,6 +9,9 @@ struct WelcomeWizardView: View {
     let onJoin: () -> Void
     let onFinish: () -> Void
 
+    /// 시스템 공유시트 표시 여부(공유하기 버튼, AC-20).
+    @State private var isSharePresented = false
+
     init(
         groupAPI: GroupAPIProtocol,
         initialGroup: ActiveGroup? = nil,
@@ -144,39 +147,61 @@ struct WelcomeWizardView: View {
         .frame(minHeight: 400)
     }
 
-    // MARK: - 스텝2: 초대 링크
+    // MARK: - 스텝2: 초대 코드
 
     private var step2Invite: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("짝꿍에게 링크를 보내요")
+            Text("짝꿍에게 코드를 보내요")
                 .font(WGFont.emo(26))
                 .tracking(-1)   // 웹: letterSpacing:-1 (AC-7)
                 .foregroundStyle(WGColor.ink)
 
-            Text("이 링크를 받은 사람이 합류하면 함께 지도를 만들 수 있어요.")
+            Text("이 코드를 받은 사람이 합류하면 함께 지도를 만들 수 있어요.")
                 .font(WGFont.sans(14))
                 .foregroundStyle(WGColor.inkSoft)
                 .padding(.top, 10)
 
-            // 링크 박스.
+            // 코드 박스.
             linkBox
                 .padding(.top, 32)
 
             Spacer(minLength: 40)
 
             VStack(spacing: 10) {
-                Button {
-                    viewModel.copyLink { UIPasteboard.general.string = $0 }
-                } label: {
-                    Text(viewModel.copied ? "복사됨" : "링크 복사")
-                        .font(WGFont.sans(15))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canCopy ? WGColor.cta : WGColor.inkFaint)
-                        .foregroundStyle(WGColor.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                HStack(spacing: 10) {
+                    Button {
+                        viewModel.copyCode { UIPasteboard.general.string = $0 }
+                        // 복사됨 표시를 2초 후 원복(AC-19).
+                        Task {
+                            try? await Task.sleep(for: .seconds(2))
+                            viewModel.copied = false
+                        }
+                    } label: {
+                        Text(viewModel.copied ? "복사됨" : "코드 복사")
+                            .font(WGFont.sans(15))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(canShare ? WGColor.cta : WGColor.inkFaint)
+                            .foregroundStyle(WGColor.panel)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .disabled(!canShare)
+
+                    Button {
+                        isSharePresented = true
+                    } label: {
+                        Text("공유하기")
+                            .font(WGFont.sans(15))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .foregroundStyle(WGColor.ink)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(WGColor.hairline, lineWidth: 1)
+                            )
+                    }
+                    .disabled(!canShare)
                 }
-                .disabled(!canCopy)
 
                 Button(action: onFinish) {
                     Text("다음 단계")
@@ -198,32 +223,40 @@ struct WelcomeWizardView: View {
                 }
                 .padding(.top, 4)
             }
+            .sheet(isPresented: $isSharePresented) {
+                ActivityShareSheet(items: [viewModel.shareMessage].compactMap { $0 })
+            }
         }
         .frame(minHeight: 400)
     }
 
-    private var canCopy: Bool {
-        !viewModel.isLoading && (viewModel.shareText?.isEmpty == false)
+    /// 코드 복사/공유 가능 여부(로딩 아님 + slug 보유).
+    private var canShare: Bool {
+        !viewModel.isLoading && (viewModel.slug?.isEmpty == false)
     }
 
     private var linkBox: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 8) {
             if viewModel.isLoading {
-                Text("초대 링크를 만들고 있어요...")
+                Text("초대 코드를 만들고 있어요...")
                     .font(WGFont.sans(13))
                     .foregroundStyle(WGColor.inkFaint)
             } else if let message = viewModel.errorMessage {
                 Text(message)
                     .font(WGFont.sans(13))
                     .foregroundStyle(WGColor.cta)
-            } else if let text = viewModel.shareText {
-                Text(text)
+            } else if let code = viewModel.slug {
+                Text(code)
                     .font(WGFont.mono(13))
                     .foregroundStyle(WGColor.ink)
-                    .lineLimit(3)
+                    .lineLimit(1)
                     .truncationMode(.middle)
+                if let expires = viewModel.expiresLabel {
+                    Text(expires)
+                        .font(WGFont.sans(11))
+                        .foregroundStyle(WGColor.inkFaint)
+                }
             }
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         .padding(EdgeInsets(top: 18, leading: 22, bottom: 18, trailing: 22))

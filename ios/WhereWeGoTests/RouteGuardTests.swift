@@ -235,6 +235,10 @@ private final class MockGroupAPI: GroupAPIProtocol, @unchecked Sendable {
         }
     }
 
+    func previewBySlug(slug: String) async throws -> InvitePreview {
+        InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil)
+    }
+
     func acceptInvite(token: String) async throws -> InviteAccept {
         InviteAccept(groupId: 0)
     }

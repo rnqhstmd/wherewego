@@ -12,9 +12,22 @@ final class WelcomeWizardViewModel: ObservableObject {
 
     @Published private(set) var step: Step = .loading
     @Published private(set) var isLoading = false
-    @Published private(set) var shareText: String?
+    /// 공유할 초대 코드(slug). URL 미사용 — slug 코드만 공유(FR-14).
+    @Published private(set) var slug: String?
+    /// 초대 코드 만료 시각(ISO8601). 표시는 expiresLabel 로 파생(FR-18).
+    @Published private(set) var expiresAt: String?
     @Published private(set) var errorMessage: String?
     @Published var copied = false
+
+    /// 시스템 공유시트에 전달할 안내 문구(slug 코드 포함, URL 없음, FR-16/Q1).
+    var shareMessage: String? {
+        slug.map { "\($0)\n우리 그룹에 초대할게요! WhereWeGo 앱 받고 이 코드를 입력하세요." }
+    }
+
+    /// 만료일 안내 라벨(예: "코드 유효기간: 6월 6일까지"). 미파싱 시 nil(FR-18).
+    var expiresLabel: String? {
+        expiresAt.flatMap(InviteDateFormatter.untilMonthDay).map { "코드 유효기간: \($0)" }
+    }
 
     private let groupAPI: GroupAPIProtocol
     /// 라우터가 이미 조회한 활성 그룹(중복 조회 제거). 라우터 전달이 없으면 nil → start 에서 재조회.
@@ -74,8 +87,14 @@ final class WelcomeWizardViewModel: ObservableObject {
             }
             activeGroup = group
             let link = try await groupAPI.issueInviteLink(groupId: group.groupId)
-            // shareUrl 우선, 없으면 token 폴백.
-            shareText = link.shareUrl ?? link.token
+            // slug 코드 기반 공유(FR-14). slug 부재면 공유 불가 → 에러(FR-17/AC-21).
+            guard let issuedSlug = link.slug else {
+                errorMessage = "초대 링크를 만들지 못했어요"
+                isLoading = false
+                return
+            }
+            slug = issuedSlug
+            expiresAt = link.expiresAt
             isLoading = false
         } catch {
             errorMessage = "초대 링크를 만들지 못했어요"
@@ -83,10 +102,10 @@ final class WelcomeWizardViewModel: ObservableObject {
         }
     }
 
-    /// 표시된 초대 텍스트를 클립보드로 복사.
-    func copyLink(pasteboardSetter: (String) -> Void) {
-        guard let text = shareText, !text.isEmpty else { return }
-        pasteboardSetter(text)
+    /// 표시된 초대 코드(slug)를 클립보드로 복사(FR-15).
+    func copyCode(pasteboardSetter: (String) -> Void) {
+        guard let code = slug, !code.isEmpty else { return }
+        pasteboardSetter(code)
         copied = true
     }
 }

@@ -401,6 +401,7 @@ final class StubBotGroupAPI: GroupAPIProtocol, @unchecked Sendable {
         return group
     }
 
+    func previewBySlug(slug: String) async throws -> InvitePreview { InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil) }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
     func leaveGroup(groupId: Int) async throws {}

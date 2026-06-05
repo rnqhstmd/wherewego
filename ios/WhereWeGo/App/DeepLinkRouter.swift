@@ -7,16 +7,14 @@ import Foundation
 //      - COUPLE_MESSAGE → .chat (커플챗 제거 후 채팅 탭으로 재매핑 — 하위호환 폴백, FR-28)
 //      - PIN_SAVED   → .map      (roomId/pinId 없음 — 특정 핀 상세 아님, 지도/핀 목록으로)
 //  (b) Universal Link:
-//      - /invite/{slug} → .invite(slug)
 //      - ?pinId=N       → .pin(pinId)
 // 매핑 실패 시 false(파싱 실패) — handlePush 는 unknown type 무시, handleUniversalLink 는 false 반환.
-// 소비: MainTabView 가 pending 을 읽어 탭 전환(.pin/.map → 지도+flyTo, .invite → 그룹 합류). 소비 후 nil.
+// 소비: MainTabView 가 pending 을 읽어 탭 전환(.pin/.map → 지도+flyTo). 소비 후 nil.
 
 /// 딥링크 이동 대상(설계 §9). MainTabView 가 destination 별로 탭 전환/네비게이션.
 enum DeepLinkDestination: Equatable {
     case chat
     case pin(pinId: Int)
-    case invite(slug: String)
     case map
 }
 
@@ -48,7 +46,6 @@ final class DeepLinkRouter: ObservableObject {
     }
 
     /// Universal Link URL → destination 파싱 후 pending 세팅.
-    /// - `/invite/{slug}` → .invite(slug)
     /// - `?pinId=N` → .pin(pinId) (정수 파싱 성공 시)
     /// - 그 외(인식 불가) → false(파싱 실패, pending 미변경).
     /// - Returns: 처리 가능한 링크면 true, 아니면 false.
@@ -79,19 +76,10 @@ final class DeepLinkRouter: ObservableObject {
         }
     }
 
-    /// Universal Link URL → destination(순수). path `/invite/{slug}` 우선, 그다음 query `pinId`.
+    /// Universal Link URL → destination(순수). query `pinId` 만 처리.
     static func destination(forUniversalLink url: URL) -> DeepLinkDestination? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
-        }
-        // /invite/{slug} — path 세그먼트에서 "invite" 다음 비어있지 않은 값.
-        let segments = components.path.split(separator: "/").map(String.init)
-        if let inviteIndex = segments.firstIndex(of: "invite"),
-           inviteIndex + 1 < segments.count {
-            let slug = segments[inviteIndex + 1]
-            if !slug.isEmpty {
-                return .invite(slug: slug)
-            }
         }
         // ?pinId=N — 양의 정수만 유효(음수/0/비정수는 무시: pending 미변경).
         if let pinIdValue = components.queryItems?.first(where: { $0.name == "pinId" })?.value,

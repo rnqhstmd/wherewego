@@ -10,7 +10,7 @@ import SwiftUI
 //    speed-dial 2선택지(✋ 콕찍기 / 🔍 검색) → mapViewModel.enterAddPin(mode:) → 메인 지도 인라인 오버레이(시트 제거).
 //    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1).
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil.
-//      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
+//      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo)
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
 //      읽음 처리(readAll)는 알림 탭 진입 시 NotificationInboxView.load() 에서만 발생한다.
 //
@@ -34,8 +34,6 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selection: MainTab = .map
-    /// .invite 딥링크 시 표시할 초대 슬러그(시트 트리거). nil 이면 미표시.
-    @State private var inviteSlug: String?
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -165,17 +163,6 @@ struct MainTabView: View {
                 Task { await notificationInboxViewModel.onForeground() }
             }
         }
-        // 초대 코드 합류 시트(.invite 딥링크). 합류/취소 시 닫힘.
-        .sheet(item: inviteSlugBinding) { slug in
-            NavigationStack {
-                InviteCodeView(
-                    groupAPI: dependencies.groupAPI,
-                    prefill: slug.value,
-                    onJoined: { inviteSlug = nil },
-                    onCancel: { inviteSlug = nil }
-                )
-            }
-        }
     }
 
     // MARK: - 딥링크 소비(설계 §3)
@@ -193,18 +180,8 @@ struct MainTabView: View {
             // 진입 시점엔 이미 load 가 진행되므로 best-effort). 설계 §3.
             selection = .map
             mapViewModel.flyTo(pinId: pinId)
-        case .invite(let slug):
-            inviteSlug = slug
         }
         deepLinkRouter.pending = nil
-    }
-
-    /// inviteSlug(String?) → 시트 item 바인딩(Identifiable 래핑).
-    private var inviteSlugBinding: Binding<InviteSlug?> {
-        Binding(
-            get: { inviteSlug.map(InviteSlug.init) },
-            set: { newValue in inviteSlug = newValue?.value }
-        )
     }
 }
 
@@ -215,15 +192,5 @@ private extension View {
         safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: FloatingTabBar.Metrics.contentFootprint)
         }
-    }
-}
-
-/// .sheet(item:) 용 Identifiable 래퍼(String 자체는 Identifiable 아님).
-private struct InviteSlug: Identifiable {
-    let value: String
-    var id: String { value }
-
-    init(_ value: String) {
-        self.value = value
     }
 }

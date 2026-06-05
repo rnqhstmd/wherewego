@@ -233,6 +233,7 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     init(group: ActiveGroup?) { self.group = group }
 
     func myActiveGroup() async throws -> ActiveGroup? { group }
+    func previewBySlug(slug: String) async throws -> InvitePreview { InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil) }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
     func leaveGroup(groupId: Int) async throws {}

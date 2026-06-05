@@ -36,7 +36,6 @@ final class DeepLinkRouterTests: XCTestCase {
         let allReachable: [DeepLinkDestination] = [
             .chat,
             .pin(pinId: 1),
-            .invite(slug: "s"),
             .map
         ]
         let labels = allReachable.map { String(describing: $0) }
@@ -90,9 +89,10 @@ final class DeepLinkRouterTests: XCTestCase {
 
     // MARK: - Universal Link 파싱(순수 매핑)
 
-    func test_universalLink_invite_parsesSlug() {
+    func test_universalLink_invite_returnsNil() {
+        // /invite/{slug} 딥링크 소비 제거(FR-7/AC-16) — invite 경로는 더 이상 파싱하지 않는다(nil).
         let url = URL(string: "https://wherewego.app/invite/abc123")!
-        XCTAssertEqual(DeepLinkRouter.destination(forUniversalLink: url), .invite(slug: "abc123"))
+        XCTAssertNil(DeepLinkRouter.destination(forUniversalLink: url))
     }
 
     func test_universalLink_pinIdQuery_parsesPin() {
@@ -100,10 +100,10 @@ final class DeepLinkRouterTests: XCTestCase {
         XCTAssertEqual(DeepLinkRouter.destination(forUniversalLink: url), .pin(pinId: 42))
     }
 
-    func test_universalLink_invitePreferredOverPinId() {
-        // path /invite/{slug} 가 query pinId 보다 우선.
+    func test_universalLink_invitePathWithPinId_parsesPin() {
+        // invite 우선순위 제거(FR-7/AC-16) — invite 경로여도 query pinId 가 있으면 .pin 으로 해석.
         let url = URL(string: "https://wherewego.app/invite/xyz?pinId=9")!
-        XCTAssertEqual(DeepLinkRouter.destination(forUniversalLink: url), .invite(slug: "xyz"))
+        XCTAssertEqual(DeepLinkRouter.destination(forUniversalLink: url), .pin(pinId: 9))
     }
 
     func test_universalLink_unrecognized_returnsNil() {
@@ -123,11 +123,12 @@ final class DeepLinkRouterTests: XCTestCase {
 
     // MARK: - handleUniversalLink → pending + 반환값
 
-    func test_handleUniversalLink_validInvite_returnsTrueAndSetsPending() {
+    func test_handleUniversalLink_invitePath_returnsFalseAndNoPending() {
+        // /invite/{slug} 딥링크 소비 제거(FR-7/AC-16) — invite URL 은 더 이상 처리하지 않는다(false, pending 미변경).
         let router = DeepLinkRouter()
         let url = URL(string: "https://wherewego.app/invite/slug-1")!
-        XCTAssertTrue(router.handleUniversalLink(url))
-        XCTAssertEqual(router.pending, .invite(slug: "slug-1"))
+        XCTAssertFalse(router.handleUniversalLink(url))
+        XCTAssertNil(router.pending)
     }
 
     func test_handleUniversalLink_invalid_returnsFalseAndNoPending() {
