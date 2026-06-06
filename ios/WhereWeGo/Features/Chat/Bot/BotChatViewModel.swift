@@ -56,6 +56,8 @@ final class BotChatViewModel: ObservableObject {
     private var isLoading = false
     /// 전송 후 결과 폴링 루프(중복 생성 방지·이탈 취소, FR-9). nil 이면 미실행.
     private var pollingTask: Task<Void, Never>?
+    /// 낙관적(전송 즉시 표시) 사용자 메시지의 임시 음수 id. 서버 실제 id(양수)와 구분 + 재조회 시 정리.
+    private var nextOptimisticId: Int = -1
 
     init(
         chatAPI: ChatAPIProtocol,
@@ -115,7 +117,8 @@ final class BotChatViewModel: ObservableObject {
         let ascending = response.messages.reversed()
         var rebuilt: [ChatFrame] = []
         var ids: Set<Int> = []
-        for frame in ascending where !ids.contains(frame.messageId) {
+        // 서버가 보관하는 PROCESSING 플레이스홀더는 표시하지 않는다("..."은 전송 중에만 클라이언트가 띄움).
+        for frame in ascending where frame.kind != .PROCESSING && !ids.contains(frame.messageId) {
             ids.insert(frame.messageId)
             rebuilt.append(frame)
         }
@@ -154,12 +157,17 @@ final class BotChatViewModel: ObservableObject {
         // BR-3/AC-4: 2000자 가드. 초과면 전송하지 않는다(입력바 카운터가 비활성 안내).
         guard text.count <= Self.messageMaxLength else { return }
         draft = ""
+        // 낙관적 표시: 내 메시지를 전송 즉시 화면에 올린다(서버 왕복 지연 제거). 실패 시 롤백.
+        let optimisticId = nextOptimisticId
+        nextOptimisticId -= 1
+        appendOptimisticUserText(messageId: optimisticId, text: text)
         guard let response = try? await chatAPI.sendBotMessage(text: text) else {
-            // 전송 실패 시 입력 복원(사용자가 재시도).
+            // 전송 실패 시 낙관적 메시지 롤백 + 입력 복원(사용자가 재시도).
+            removeFrame(messageId: optimisticId)
             draft = text
             return
         }
-        // 봇 방 응답은 PROCESSING 플레이스홀더 messageId. 즉시 버블 추가 후 결과 폴링 시작.
+        // 봇 방 응답은 PROCESSING 플레이스홀더 messageId. 즉시 "..." 버블 추가 후 결과 폴링 시작.
         appendProcessing(messageId: response.messageId)
         startPollingIfNeeded()
     }
@@ -254,8 +262,11 @@ final class BotChatViewModel: ObservableObject {
     /// 같은 turn 의 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT)가 들어오면 가장 오래된 PROCESSING 을 교체한다(AC-2 정합).
     func reconcileLatest() async {
         guard let response = try? await chatAPI.botMessages(cursor: nil, limit: Self.pageLimit) else { return }
+        // 서버에 실제 사용자 메시지가 반영됐으므로 낙관적(음수 id) 임시 메시지는 정리한다(중복 방지).
+        removeOptimisticUserFrames()
         let ascending = response.messages.reversed()
-        for frame in ascending where !knownIds.contains(frame.messageId) {
+        // 서버 PROCESSING 플레이스홀더는 무시("..."은 클라이언트가 전송 중에만 표시).
+        for frame in ascending where frame.kind != .PROCESSING && !knownIds.contains(frame.messageId) {
             switch frame.kind {
             case .PLACE_CARDS, .SYSTEM, .MEMO_PROMPT:
                 removeOldestProcessing()
@@ -278,6 +289,37 @@ final class BotChatViewModel: ObservableObject {
         knownIds.insert(messageId)
         pendingProcessingIds.append(messageId)
         messages.append(frame)
+    }
+
+    /// 낙관적 사용자 텍스트 메시지 추가(전송 즉시 표시, 임시 음수 id).
+    private func appendOptimisticUserText(messageId: Int, text: String) {
+        guard let frame = Self.makeUserTextFrame(messageId: messageId, text: text) else { return }
+        knownIds.insert(messageId)
+        messages.append(frame)
+    }
+
+    /// 특정 id 프레임 제거(낙관적 롤백 등).
+    private func removeFrame(messageId: Int) {
+        messages.removeAll { $0.messageId == messageId }
+        knownIds.remove(messageId)
+    }
+
+    /// 낙관적(음수 id) 사용자 메시지 일괄 제거(서버 실제 메시지로 대체될 때).
+    private func removeOptimisticUserFrames() {
+        let optimisticIds = messages.filter { $0.messageId < 0 }.map { $0.messageId }
+        guard !optimisticIds.isEmpty else { return }
+        messages.removeAll { $0.messageId < 0 }
+        for id in optimisticIds { knownIds.remove(id) }
+    }
+
+    /// 낙관적 사용자 TEXT ChatFrame 생성(JSONSerialization 으로 text 안전 이스케이프).
+    private static func makeUserTextFrame(messageId: Int, text: String) -> ChatFrame? {
+        let object: [String: Any] = [
+            "messageId": messageId, "roomId": 0, "senderType": "USER",
+            "kind": "TEXT", "payload": ["text": text], "createdAt": ""
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+        return try? JSONDecoder().decode(ChatFrame.self, from: data)
     }
 
     /// 결과 프레임 append(dedup + 표시). knownIds 갱신.

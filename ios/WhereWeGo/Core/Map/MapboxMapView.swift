@@ -198,7 +198,7 @@ struct MapboxMapView: UIViewRepresentable {
                 var clusterCircle = CircleLayer(id: clusterCircleLayerId, source: sourceId)
                 clusterCircle.filter = Exp(.has) { "point_count" }
                 clusterCircle.circleColor = .constant(StyleColor(UIColor(WGColor.cta)))
-                clusterCircle.circleRadius = .constant(32)   // PRD FR-5 rust 32px
+                clusterCircle.circleRadius = .constant(16)   // 웹 createClusterElement 32px(지름) 패리티 → radius 16
                 clusterCircle.circleStrokeColor = .constant(StyleColor(.white))
                 clusterCircle.circleStrokeWidth = .constant(2)
                 try map.addLayer(clusterCircle)
@@ -254,8 +254,11 @@ struct MapboxMapView: UIViewRepresentable {
         /// 카메라 flyTo 애니메이션(durationMs 반영).
         func fly(to target: CameraTarget) {
             guard let mapView else { return }
+            // focusYFraction(>0.5) → padding.top 으로 center(핀)를 화면 아래로 내린다(사진 펼침 시 핀 가림 방지).
+            let topPad = max(0, 2 * target.focusYFraction - 1) * mapView.bounds.height
             let cameraOptions = CameraOptions(
                 center: CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude),
+                padding: UIEdgeInsets(top: topPad, left: 0, bottom: 0, right: 0),
                 zoom: target.zoom
             )
             mapView.camera.fly(to: cameraOptions, duration: Double(target.durationMs) / 1000.0)
@@ -385,9 +388,12 @@ final class MapboxMapRenderer: MapRenderer {
 
     func flyTo(_ target: CameraTarget) {
         guard let mapView else { return }
+        // focusYFraction(>0.5) → padding.top 으로 center(핀)를 화면 아래로 내린다(사진 펼침 시 핀 가림 방지).
+        let topPad = max(0, 2 * target.focusYFraction - 1) * mapView.bounds.height
         mapView.camera.fly(
             to: CameraOptions(
                 center: CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude),
+                padding: UIEdgeInsets(top: topPad, left: 0, bottom: 0, right: 0),
                 zoom: target.zoom
             ),
             duration: Double(target.durationMs) / 1000.0

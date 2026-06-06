@@ -32,9 +32,22 @@ struct BotChatView: View {
 
             inputBar
         }
-        .background(WGColor.bg)
-        .navigationTitle("어디가지 봇")
+        // 배경은 상위 화면(MainTabView.chatScreen)의 .regularMaterial 글라스가 담당 — 여기선 불투명 칠 안 함(지도 비침).
         .navigationBarTitleDisplayMode(.inline)
+        // 감성 헤더: 세리프(emo) 타이틀 + 부드러운 부제 — "봇" 보다 함께 정하는 대화 느낌.
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 1) {
+                    Text("어디가지 봇")
+                        .font(WGFont.emo(18))
+                        .tracking(-0.5)
+                        .foregroundStyle(WGColor.ink)
+                    Text("릴스를 보내면 갈 곳을 찾아드려요")
+                        .font(WGFont.sans(10.5))
+                        .foregroundStyle(WGColor.inkFaint)
+                }
+            }
+        }
         .task {
             await viewModel.appear()
         }
@@ -126,10 +139,11 @@ struct BotChatView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
+        // 입력박스 좌우 여백을 하단 플로팅 탭바(좌우 20)와 맞춰 정렬한다.
+        .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 8)
-        .background(WGColor.bg)
+        // 입력 도크도 글라스 위에 — 불투명 칠 대신 상단 hairline 으로만 구분(상위 .regularMaterial 비침).
         .overlay(alignment: .top) {
             Rectangle().fill(WGColor.hairline).frame(height: 1)
         }

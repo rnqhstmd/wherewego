@@ -63,14 +63,22 @@ final class RouteGuardTests: XCTestCase {
     // MARK: - resolveGroupRoute (그룹 조회 결과)
 
     func test_groupRoute_nilGroup_returnsGroupStart() {
-        // 그룹 없음 → groupStart
-        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: nil), .groupStart)
+        // 그룹 없음 → groupStart (welcomeSeen 무관)
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: nil, welcomeSeen: false), .groupStart)
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: nil, welcomeSeen: true), .groupStart)
     }
 
-    func test_groupRoute_hasGroup_returnsWelcome() {
-        // AC-21/AC-19: 그룹 있음 → welcome(위저드 자동스킵)
+    func test_groupRoute_hasGroup_notSeen_returnsWelcome() {
+        // AC-21/AC-19: 그룹 있음 + 위저드 미노출 → welcome(가입 직후 1회, 스텝1 자동스킵)
         let group = ActiveGroup(groupId: 1, name: "팀", memberCount: 2)
-        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: group), .welcome)
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: group, welcomeSeen: false), .welcome)
+    }
+
+    func test_groupRoute_hasGroup_seen_returnsGroups() {
+        // 회귀 방지: 그룹 있음 + 위저드 노출 완료 → groups(메인 탭/지도).
+        // 매 콜드런치마다 초대 위저드가 다시 뜨던 버그를 방지(웹 page.tsx: 그룹 있음 → /map 패리티).
+        let group = ActiveGroup(groupId: 1, name: "팀", memberCount: 2)
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: group, welcomeSeen: true), .groups)
     }
 
     // MARK: - resolveFinishRoute (위저드 완료)
@@ -133,25 +141,42 @@ final class RouteGuardTests: XCTestCase {
 
         // When 그룹 조회 후 분기 결정
         let group = try await mock.myActiveGroup()
-        let route = OnboardingRouter.resolveGroupRoute(group: group)
+        let route = OnboardingRouter.resolveGroupRoute(group: group, welcomeSeen: OnboardingFlags.welcomeSeen)
 
         // Then groupStart
         XCTAssertEqual(route, .groupStart)
     }
 
-    func test_groupStage_mockReturnsGroup_routesToWelcome() async throws {
-        // AC-19/AC-21: 그룹 단계 + 그룹 있음 목 → welcome
+    func test_groupStage_mockReturnsGroup_firstTime_routesToWelcome() async throws {
+        // AC-19/AC-21: 그룹 단계 + 그룹 있음 + 위저드 미노출 → welcome(가입 직후 1회)
         OnboardingFlags.locationAsked = true
         OnboardingFlags.nicknameSet = true
+        // welcomeSeen 기본 false (setUp 에서 도메인 초기화)
         let existing = ActiveGroup(groupId: 9, name: "여행팀", memberCount: 4)
         let mock = MockGroupAPI(result: .success(existing))
 
         // When
         let group = try await mock.myActiveGroup()
-        let route = OnboardingRouter.resolveGroupRoute(group: group)
+        let route = OnboardingRouter.resolveGroupRoute(group: group, welcomeSeen: OnboardingFlags.welcomeSeen)
 
         // Then welcome(스텝1 자동스킵)
         XCTAssertEqual(route, .welcome)
+    }
+
+    func test_groupStage_mockReturnsGroup_returningUser_routesToGroups() async throws {
+        // 회귀 방지: 재방문(그룹 있음 + welcomeSeen) → groups(메인 탭). 매 실행 위저드 재노출 버그 방지.
+        OnboardingFlags.locationAsked = true
+        OnboardingFlags.nicknameSet = true
+        OnboardingFlags.welcomeSeen = true
+        let existing = ActiveGroup(groupId: 9, name: "여행팀", memberCount: 4)
+        let mock = MockGroupAPI(result: .success(existing))
+
+        // When
+        let group = try await mock.myActiveGroup()
+        let route = OnboardingRouter.resolveGroupRoute(group: group, welcomeSeen: OnboardingFlags.welcomeSeen)
+
+        // Then groups(위저드 스킵)
+        XCTAssertEqual(route, .groups)
     }
 
     func test_groupStage_mock401_propagatesError_routeUnchanged() async {

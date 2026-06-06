@@ -30,6 +30,9 @@ struct CameraTarget {
     let zoom: Double
     /// 애니메이션 지속(ms). 기본 700ms.
     var durationMs: Int = 700
+    /// 화면에서 center 좌표가 보일 세로 위치(0=상단, 0.5=중앙, 1=하단). 기본 중앙.
+    /// 사진 펼침 시 핀을 아래(>0.5)로 내려 말풍선이 그 위로 자랄 공간을 만든다(핀 가림 방지).
+    var focusYFraction: Double = 0.5
 }
 
 /// 지도에서 올라오는 사용자 상호작용 이벤트. ViewModel 이 소비.

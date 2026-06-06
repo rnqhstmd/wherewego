@@ -87,54 +87,47 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        // 루트 = 지도(상시 홈). 채팅·어디갈까는 지도 위 .sheet 팝업으로 띄운다(TabView 제거).
-        //  MapView 가 자체 하단 패딩(FloatingTabBar.Metrics.contentFootprint)으로 바 footprint 를 회피하므로
-        //  별도 reserveFloatingTabBarSpace 는 불필요하다(룰렛/채팅은 시트라 바 footprint 와 무관).
-        MapView(viewModel: mapViewModel)
-        .tint(WGColor.cta)
-        // 채팅 시트(.chat 선택 시) — 지도 위 팝업. NavigationStack 으로 타이틀("어디가지 봇") 표시.
-        //  dismiss(스와이프/닫기) 시 바인딩 set 이 selection=.map 으로 되돌린다.
-        .sheet(isPresented: chatSheetBinding) {
-            NavigationStack {
-                BotChatView(viewModel: botViewModel)
+        // 내비 위계 구분(Option 1):
+        //  - 하단 탭(지도·봇·어디갈까) = "내가 있는 곳"(destination). 봇·어디갈까는 시트가 아니라 지도 위
+        //    풀스크린 인플레이스 콘텐츠로 띄운다(불투명 배경·자체 헤더). 손잡이/스와이프 닫기 없음, 탭바는 항상
+        //    유지(선택 하이라이트). 전환은 시트 슬라이드업과 구분되는 빠른 크로스페이드.
+        //  - 상단 버튼(그룹·알림·내정보) = "잠깐 열고 닫는" 유틸리티 → 지금처럼 .sheet 로 띄운다.
+        //  지도는 항상 마운트(Mapbox 인스턴스/카메라 유지) — 풀스크린 탭이 그 위를 불투명으로 덮는다.
+        ZStack(alignment: .bottom) {
+            // 지도(상시 홈) + 지도 탭에서만 상단 TopBar 오버레이.
+            MapView(viewModel: mapViewModel)
+                .overlay(alignment: .top) {
+                    if selection == .map {
+                        TopBar(
+                            groupName: groupContext.activeGroupName,
+                            hasUnread: notificationInboxViewModel.unreadCount > 0,
+                            onTapGroupChip: { showGroupSwitcher = true },
+                            onTapNotification: { showNotifications = true },
+                            onTapMyInfo: { showMyInfo = true }
+                        )
+                    }
+                }
+
+            // 봇 채팅 / 어디갈까(룰렛) — 풀스크린 인플레이스 탭(지도 위 불투명 오버레이, 자체 헤더).
+            if selection == .chat {
+                chatScreen
+                    .transition(.opacity)
+                    .zIndex(1)
+            } else if selection == .roulette {
+                rouletteScreen
+                    .transition(.opacity)
+                    .zIndex(1)
             }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(.regularMaterial)
-        }
-        // 룰렛("어디갈까") 시트(.roulette 선택 시) — 지도 위 팝업. 시트엔 자체 타이틀이 없으므로
-        //  NavigationStack title "어디갈까"(.inline)로 표기. "지도에서 보기"는 시트 닫고 지도로(selection=.map).
-        //  자동 추첨은 .onChange(of: selection) 에서 .roulette 진입 시 spin() 한다(아래 onChange).
-        .sheet(isPresented: rouletteSheetBinding) {
-            NavigationStack {
-                RouletteView(
-                    viewModel: rouletteViewModel,
-                    onShowOnMap: { selection = .map }
-                )
-                .navigationTitle("어디갈까")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        // 상단 TopBar 오버레이(FR-2): 좌 그룹 칩 / 우 🔔·👤. 상단 safe area 안에 배치(지도 chrome 과 충돌 회피).
-        .overlay(alignment: .top) {
-            TopBar(
-                groupName: groupContext.activeGroupName,
-                hasUnread: notificationInboxViewModel.unreadCount > 0,
-                onTapGroupChip: { showGroupSwitcher = true },
-                onTapNotification: { showNotifications = true },
-                onTapMyInfo: { showMyInfo = true }
-            )
-        }
-        // 둥근 플로팅 필 바(3탭 순수 네비게이션). 지도 루트 위 .overlay 로 얹는다.
-        //  지도 콘텐츠(우하단 컨트롤 등)는 MapView 가 자체 하단 패딩으로 바 footprint 를 회피한다.
-        //  채팅·룰렛은 시트라 바 위로 떠 footprint 와 무관(시트 dismiss 시 selection=.map 으로 바 선택 복귀).
-        .overlay(alignment: .bottom) {
+
+            // 플로팅 필 바(3탭) — 항상 표시. 풀스크린 콘텐츠 위에 떠 탭 전환·선택 하이라이트 유지.
+            //  키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
             FloatingTabBar(selection: $selection)
-                // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
                 .ignoresSafeArea(.keyboard, edges: .bottom)
+                .zIndex(2)
         }
+        .tint(WGColor.cta)
+        // 탭 전환은 시트 슬라이드업이 아닌 빠른 크로스페이드(인플레이스 탭 느낌, 상단 시트와 구분).
+        .animation(.easeInOut(duration: 0.22), value: selection)
         // 그룹 전환 시트(FR-4): 진입 시 listMyGroups(BR-6). 선택 → switchActiveGroup(전환 동기화).
         .sheet(isPresented: $showGroupSwitcher) {
             GroupSwitcherSheet(
@@ -216,22 +209,34 @@ struct MainTabView: View {
         }
     }
 
-    // MARK: - 시트 표시 바인딩(selection → 채팅·룰렛 시트)
+    // MARK: - 풀스크린 탭 콘텐츠(봇·어디갈까) — 시트가 아닌 지도 위 인플레이스 오버레이(Option 1)
 
-    /// 채팅 시트 표시 바인딩(selection==.chat). dismiss(스와이프/닫기) 시 set(false)가 selection=.map 으로 되돌린다.
-    private var chatSheetBinding: Binding<Bool> {
-        Binding(
-            get: { selection == .chat },
-            set: { if !$0 { selection = .map } }
-        )
+    /// 봇 채팅 풀스크린 화면. 불투명 배경으로 지도를 덮고, 하단 플로팅 탭바 footprint 만큼 여백을 둬
+    ///  입력바가 탭바에 가리지 않게 한다. 자체 NavigationStack 헤더("어디가지 봇").
+    private var chatScreen: some View {
+        NavigationStack {
+            BotChatView(viewModel: botViewModel)
+        }
+        .background(.ultraThinMaterial)   // iOS 글라스(과감) — 지도가 또렷이 비치는 얇은 글라스 패널
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: FloatingTabBar.Metrics.contentFootprint)
+        }
     }
 
-    /// 룰렛("어디갈까") 시트 표시 바인딩(selection==.roulette). dismiss 시 selection=.map.
-    private var rouletteSheetBinding: Binding<Bool> {
-        Binding(
-            get: { selection == .roulette },
-            set: { if !$0 { selection = .map } }
-        )
+    /// 어디갈까(룰렛) 풀스크린 화면. "지도에서 보기" → 지도 탭 전환(selection=.map). 자동 추첨은 onChange(selection).
+    private var rouletteScreen: some View {
+        NavigationStack {
+            RouletteView(
+                viewModel: rouletteViewModel,
+                onShowOnMap: { selection = .map }
+            )
+            .navigationTitle("어디갈까")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .background(.ultraThinMaterial)   // iOS 글라스(과감) — 지도가 또렷이 비치는 얇은 글라스 패널
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: FloatingTabBar.Metrics.contentFootprint)
+        }
     }
 
     // MARK: - 활성 그룹 전환 동기화(FR-5, BR-4)

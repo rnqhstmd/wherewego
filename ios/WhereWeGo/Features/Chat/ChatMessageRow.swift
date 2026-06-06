@@ -31,7 +31,12 @@ struct ChatMessageRow: View {
         case .MEMO_PROMPT:
             memoPromptBubble
         case .SYSTEM:
-            systemCaption
+            // 봇이 보내는 SYSTEM(안내·결과)은 좌측 봇 말풍선으로 — 가운데 캡션은 진짜 시스템 알림(senderType==SYSTEM)만.
+            if frame.senderType == .SYSTEM {
+                systemCaption
+            } else {
+                textBubble
+            }
         }
     }
 

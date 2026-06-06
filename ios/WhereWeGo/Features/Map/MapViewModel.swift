@@ -38,10 +38,24 @@ final class MapViewModel: ObservableObject {
 
     /// 미허용/거부 시 초기 카메라(서울시청, 웹 동일). zoom3 전국 뷰.
     static let seoulCityHall = CameraTarget(latitude: 37.5, longitude: 127.0, zoom: 3)
+
+    // 그룹 전환 시 줌아웃 목적지(우리나라 전체). 전환을 "그룹이 바뀌었다"는 애니메이션으로 표현.
+    static let koreaOverviewLat: Double = 36.2
+    static let koreaOverviewLng: Double = 127.9
+    static let koreaOverviewZoom: Double = 6.4
     /// 위치 허용 시 현재 위치 줌 레벨.
     static let currentLocationZoom: Double = 15
     /// 핀 1개 선택 flyTo 시 줌 레벨.
-    static let pinFocusZoom: Double = 15
+    static let pinFocusZoom: Double = 14
+
+    // flyTo 지속시간(ms) — 현재↔목표 줌·거리 차에 비례. 고정 700ms 는 먼 핀(큰 줌인+장거리)을
+    // 너무 빠르게 주파해 어지러웠다(사용자 피드백). 가까우면 스냅(min), 멀면 영화적으로 느리게(max).
+    static let flyDurationMinMs: Double = 700
+    static let flyDurationMaxMs: Double = 2400         // 먼 핀(지구 반대편/큰 줌인)은 충분히 느리게(영화적)
+    static let flyDurationBaseMs: Double = 650
+    static let flyDurationPerZoomMs: Double = 150      // 줌 레벨 차 1당 가산(줌인 폭 클수록 느리게)
+    static let flyDurationPerDegreeMs: Double = 16     // 위/경도 차(도)당 가산(상한 60도)
+    static let flyDurationDefaultMs: Int = 1100        // 현재 카메라 미상 시 중간값
     /// 개별 마커 탭 시 "이미 충분히 가까움" 판정 좌표 임계(#3). 중심-핀 위경도 차가 이 값 미만이고 줌도 충분하면 flyTo 생략.
     static let tappedMarkerNearDelta: Double = 0.0015
 
@@ -306,18 +320,20 @@ final class MapViewModel: ObservableObject {
     func switchTo(groupId: Int) async -> Bool {
         // 진행 중 인라인 추가 모드는 그룹 컨텍스트가 바뀌므로 종료(작성 중 위치 폐기, BR-1 정합).
         exitAddPin()
-        // 이전 그룹의 핀/선택상태 즉시 폐기(FR-5 — 전환 전 데이터 폐기).
+        // 전환 애니메이션(요청): 지도(Mapbox) 재생성 없이 우리나라로 부드럽게 줌아웃 → "그룹이 바뀌었다"를 시각 표현.
+        //  loadState 는 .loaded 유지(스피너로 지도를 가리지 않음 = 리로드 느낌 제거). 핀만 교체한다.
+        flyTo(lat: Self.koreaOverviewLat, lng: Self.koreaOverviewLng, zoom: Self.koreaOverviewZoom)
+        // 이전 그룹의 핀/선택상태 즉시 폐기(FR-5 — 전환 전 데이터 폐기). 마커가 사라지며 줌아웃.
         pins = []
         selectedPinId = nil
         selectedPinScreenPoint = nil
         lastFetchedAt = nil
         self.groupId = groupId
-        loadState = .loading
         do {
+            // 새 그룹 핀만 갈아끼운다(지도 인스턴스 유지). 우리나라 줌아웃 상태에서 새 핀이 펼쳐 보인다.
             pins = try await pinAPI.list(groupId: groupId)
             lastFetchedAt = now()
             loadState = .loaded
-            await applyInitialCamera()
             return true
         } catch {
             loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
@@ -434,7 +450,7 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 카메라(B2 계약: cameraCommand 설정 → MapContainerView 가 소비 후 nil)
 
-    /// 특정 핀으로 카메라 이동(zoom15).
+    /// 특정 핀으로 카메라 이동(pinFocusZoom).
     func flyTo(pinId: Int) {
         guard let pin = pins.first(where: { $0.id == pinId }) else { return }
         flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
@@ -445,6 +461,8 @@ final class MapViewModel: ObservableObject {
     /// mapCenter/mapZoom 미확보(플레이스홀더/초기)면 판정 불가 → 항상 flyTo(말풍선 정렬 보장).
     private func flyToTappedMarkerIfNeeded(pinId: Int) {
         guard let pin = pins.first(where: { $0.id == pinId }) else { return }
+        // 이미 더 확대돼 있으면(클러스터 확대 후 등) 줌아웃하지 않는다 — 현재 줌과 포커스 줌 중 큰 값으로 이동.
+        let targetZoom = max(mapZoom ?? Self.pinFocusZoom, Self.pinFocusZoom)
         if let center = mapCenter, let zoom = mapZoom {
             // 중심에서 핀까지 좌표 차(약 0.0015° ≒ 도심 150m 내외) 미만이고 줌이 포커스 줌 -1 이상이면 충분히 가까움.
             let near = abs(center.latitude - pin.latitude) < Self.tappedMarkerNearDelta
@@ -452,18 +470,37 @@ final class MapViewModel: ObservableObject {
             let zoomedEnough = zoom >= Self.pinFocusZoom - 1
             if near && zoomedEnough { return }
         }
-        flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
+        flyTo(lat: pin.latitude, lng: pin.longitude, zoom: targetZoom)
     }
 
     /// 임의 좌표로 카메라 이동.
     /// 인라인 추가 모드 중에는 이 flyTo 로 발생할 cameraIdle 을 프로그래매틱으로 표시(MUST-1)하고
     /// mapZoom 을 명령 줌으로 즉시 시드(MUST-4)한다 → 검색 결과 보존 + FR-11 평가 정합.
-    func flyTo(lat: Double, lng: Double, zoom: Double = MapViewModel.pinFocusZoom) {
+    func flyTo(lat: Double, lng: Double, zoom: Double = MapViewModel.pinFocusZoom, focusYFraction: Double = 0.5) {
         if isAddingPin {
             pendingProgrammaticIdle += 1
             mapZoom = zoom
         }
-        cameraCommand = CameraTarget(latitude: lat, longitude: lng, zoom: zoom)
+        cameraCommand = CameraTarget(
+            latitude: lat, longitude: lng, zoom: zoom,
+            durationMs: flyDurationMs(toLat: lat, toLng: lng, toZoom: zoom),
+            focusYFraction: focusYFraction
+        )
+    }
+
+    /// flyTo 지속시간(ms)을 현재 카메라와 목표의 줌·거리 차에 비례해 계산한다(먼 핀 줌인이 너무 빠른 문제 보정).
+    /// 가까운 이동은 스냅(≈min), 먼 이동은 영화적으로 느리게(≈max) — 그 사이 보간.
+    private func flyDurationMs(toLat: Double, toLng: Double, toZoom: Double) -> Int {
+        guard let fromZoom = mapZoom, let fromCenter = mapCenter else {
+            return Self.flyDurationDefaultMs   // 현재 카메라 미상 → 중간값
+        }
+        let zoomDelta = abs(toZoom - fromZoom)
+        // 위/경도 차의 최대값(도). 정밀 거리 대신 큰 팬 감지용.
+        let degDelta = max(abs(toLat - fromCenter.latitude), abs(toLng - fromCenter.longitude))
+        let raw = Self.flyDurationBaseMs
+            + zoomDelta * Self.flyDurationPerZoomMs
+            + min(degDelta, 60) * Self.flyDurationPerDegreeMs
+        return Int(min(max(raw, Self.flyDurationMinMs), Self.flyDurationMaxMs))
     }
 
     /// 다수 마커가 모두 보이도록 카메라 맞춤(FR-26). 2개 이상일 때만 fitBounds, 1개면 단일 flyTo.

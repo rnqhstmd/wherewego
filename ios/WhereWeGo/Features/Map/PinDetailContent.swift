@@ -55,6 +55,8 @@ struct PinDetailContent: View {
     // 말풍선 안 사진 제자리 펼침(웹 photoExpanded 동치). MEMORY + 사진일 때만 토글.
     @State private var photoExpanded = false
 
+
+
     private let memoLimit = 500
     private let placeNameLimit = 100
 
@@ -164,65 +166,71 @@ struct PinDetailContent: View {
         return (thumb, full)
     }
 
-    /// 메모 텍스트(우상단 코너 썸네일) 또는 펼친 1:1 사진. 탭으로 메모↔사진 전환.
-    /// #4 — 웹 SpeechBubblePopup 의 height FLIP + 크로스페이드처럼 부드럽게: 높이/투명도 동시 전환(easeInOut).
-    ///  .opacity 만으로는 두 자식의 본질 높이 차에서 컷이 생기므로, ZStack 으로 겹쳐 두고 활성 자식만 보이게 해
-    ///  컨테이너 높이가 활성 자식 높이로 자연 보간되게 한다(animation(value:) 가 프레임/opacity 를 함께 보간).
+    /// 메모(+우상단 코너 썸네일) 또는 펼친 1:1 사진. 탭으로 메모↔사진 전환.
+    /// 잔상 제거: 두 장 겹침 크로스페이드(ghost)도, matchedGeometry 모핑(아래 텍스트 뒤로 깔림)도 쓰지 않는다.
+    ///  if/else 로 한쪽만 렌더 + .clipped() 로 영역에 가둔다. 높이 전환(탭 핸들러 withAnimation)이 영역을 키우면
+    ///  사진이 그 안에서 드러나고(reveal), 컨테이너 높이는 PinBubbleView 의 TailAnchorLayout 이 부드럽게 보간한다.
     @ViewBuilder
     private func memoOrPhotoArea(_ live: PinSummary) -> some View {
         let photo = photoURLs(live)
         ZStack(alignment: .topTrailing) {
-            // 펼친 사진 — 비활성 시 높이 0·투명으로 접어 컨테이너 높이가 메모 높이를 따른다.
-            if let photo {
+            if photoExpanded, let photo {
                 expandedPhoto(thumb: photo.thumb, full: photo.full)
-                    .opacity(photoExpanded ? 1 : 0)
-                    .frame(maxHeight: photoExpanded ? .infinity : 0)
-                    .clipped()
-                    .allowsHitTesting(photoExpanded)
+                    .transition(.identity)
+            } else {
+                memoText(live, hasThumb: photo != nil)
+                    .transition(.identity)
+                if let photo {
+                    cornerThumb(photo.thumb)
+                        .transition(.identity)
+                }
             }
-            // 메모(+코너 썸네일) — 사진 펼침 시 투명으로 접는다.
-            memoWithThumbnail(live, thumb: photo?.thumb)
-                .opacity(photoExpanded ? 0 : 1)
-                .frame(maxHeight: photoExpanded ? 0 : .infinity)
-                .clipped()
-                .allowsHitTesting(!photoExpanded)
         }
-        // 높이·투명도 동시 전환(easeInOut) — 메모↔사진 펼침이 뚝뚝 끊기지 않게 부드럽게(#4).
-        .animation(.easeInOut(duration: 0.32), value: photoExpanded)
+        // 펼침/접힘 중 사진이 아래 텍스트(장소·주소) 위로 새지 않게 영역에 클립(잔상 제거).
+        // 높이 전환은 탭 핸들러 withAnimation 이 구동 → 영역이 자라며 사진이 드러난다(reveal).
+        .clipped()
     }
 
-    /// 메모 본문 + (사진 있으면) 우상단 코너 36pt 썸네일. 메모는 trailing 44 로 썸네일과 겹침 회피.
+    /// 메모 본문. 사진 있으면 코너 썸네일(36pt)과 겹치지 않게 우측 패딩(웹 paddingRight 44) 확보.
     @ViewBuilder
-    private func memoWithThumbnail(_ live: PinSummary, thumb: URL?) -> some View {
+    private func memoText(_ live: PinSummary, hasThumb: Bool) -> some View {
         let hasMemo = (live.memo?.isEmpty == false)
-        ZStack(alignment: .topTrailing) {
-            Text(hasMemo ? (live.memo ?? "") : "메모가 없어요")
-                .font(WGFont.sans(14))
-                .foregroundStyle(hasMemo ? WGColor.ink : WGColor.inkFaint)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // 코너 썸네일(36pt)과 첫 줄이 겹치지 않게 우측 패딩 확보(웹 paddingRight 44).
-                .padding(.trailing, thumb != nil ? 44 : 0)
+        Text(hasMemo ? (live.memo ?? "") : "메모가 없어요")
+            .font(WGFont.sans(14))
+            .foregroundStyle(hasMemo ? WGColor.ink : WGColor.inkFaint)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, hasThumb ? 44 : 0)
+    }
 
-            if let thumb {
-                Button {
-                    photoExpanded = true
-                } label: {
-                    AsyncImage(url: thumb) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            // 로딩/실패는 단순 페이드(스피너 없이) — 빈 타일.
-                            WGColor.mapBlock
-                        }
-                    }
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
+    /// 우상단 코너 36pt 썸네일(탭 시 사진 펼침). 펼친 사진과 hero 모핑으로 연결된다.
+    private func cornerThumb(_ thumb: URL) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.38)) { photoExpanded = true }
+            panMapForPhoto(expanded: true)
+        } label: {
+            AsyncImage(url: thumb) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    // 로딩/실패는 단순 페이드(스피너 없이) — 빈 타일.
+                    WGColor.mapBlock
                 }
-                .buttonStyle(.plain)
             }
+            .frame(width: 36, height: 36)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
         }
+        .buttonStyle(.plain)
+    }
+
+    /// 사진 펼침/접힘 시 지도를 팬해 핀을 보이게 한다.
+    /// 펼침: 핀을 화면 아래(72%)로 내려 말풍선이 그 위로 자랄 공간을 확보(핀 가림 방지). 접힘: 다시 중앙.
+    /// 줌은 현재 줌 유지(없으면 pinFocusZoom). 말풍선 앵커는 cameraMoved 추적으로 자동으로 따라온다.
+    private func panMapForPhoto(expanded: Bool) {
+        let p = currentPin ?? pin
+        let zoom = mapViewModel.mapZoom ?? MapViewModel.pinFocusZoom
+        mapViewModel.flyTo(lat: p.latitude, lng: p.longitude, zoom: zoom, focusYFraction: expanded ? 0.72 : 0.5)
     }
 
     /// 펼친 1:1 정사각 사진(탭 시 메모로 복귀). 웹 PinPhotoInline 의 blur-up 이식:
@@ -230,7 +238,8 @@ struct PinDetailContent: View {
     /// 원본 GET 은 펼침 시(photoExpanded)에만 시작 — 비펼침 상태(높이 0)에서 불필요한 다운로드를 피한다.
     private func expandedPhoto(thumb: URL, full: URL) -> some View {
         Button {
-            photoExpanded = false
+            withAnimation(.easeInOut(duration: 0.38)) { photoExpanded = false }
+            panMapForPhoto(expanded: false)
         } label: {
             ZStack {
                 // blur-up placeholder — 캐시된 썸네일. scale 1.08 로 blur 가장자리 투명 노출 방지(웹 동치).

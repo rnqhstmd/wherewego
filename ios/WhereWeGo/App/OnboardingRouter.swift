@@ -3,8 +3,10 @@ import SwiftUI
 // 온보딩 라우트 가드 상태머신(설계 §10, FR-10/15, BR-5/6, Q2).
 // phase=.authenticated 일 때 RootView 가 표시. 단계 전이는 이 Router 가 중앙 관리한다.
 //
-// 흐름(Q2): Location → Nickname → GroupStart(또는 그룹있음) → WelcomeWizard(2스텝)
-//          → 완료 직후 notifAsked==false면 Notification 1회 → Groups.
+// 흐름(Q2): Location → Nickname → GroupStart → WelcomeWizard(2스텝)
+//          → 완료 직후 notifAsked==false면 Notification 1회 → Groups(메인 탭).
+// 재방문(그룹 보유 + welcomeSeen==true): 위저드를 건너뛰고 곧장 Groups 로 직행한다.
+// (웹 page.tsx 루트 분기 패리티: 그룹 있음 → /map, 위저드는 가입 직후 1회만.)
 struct OnboardingRouter: View {
     enum Route: Hashable {
         case location
@@ -37,9 +39,13 @@ struct OnboardingRouter: View {
         return nil
     }
 
-    /// 그룹 조회 결과 → 라우트. nil → groupStart, 있음 → welcome(위저드 자동스킵).
-    static func resolveGroupRoute(group: ActiveGroup?) -> Route {
-        group == nil ? .groupStart : .welcome
+    /// 그룹 조회 결과 → 라우트(웹 page.tsx 루트 분기 패리티).
+    /// - nil: groupStart(그룹 만들기/합류)
+    /// - 있음 + welcomeSeen==false: welcome(가입 직후 1회 위저드, 스텝1 자동스킵)
+    /// - 있음 + welcomeSeen==true: groups(메인 탭/지도) — 재방문자는 위저드를 다시 보지 않음
+    static func resolveGroupRoute(group: ActiveGroup?, welcomeSeen: Bool) -> Route {
+        if group == nil { return .groupStart }
+        return welcomeSeen ? .groups : .welcome
     }
 
     /// 위저드 완료/스킵(Q2): notifAsked==false면 알림 1회, 아니면 Groups(AC-17).
@@ -163,9 +169,14 @@ struct OnboardingRouter: View {
     private func resolveGroupRoute() async {
         do {
             let group = try await dependencies.groupAPI.myActiveGroup()
-            if Self.resolveGroupRoute(group: group) == .groupStart {
+            switch Self.resolveGroupRoute(group: group, welcomeSeen: OnboardingFlags.welcomeSeen) {
+            case .groupStart:
                 route = .groupStart
-            } else {
+            case .groups:
+                // 재방문(그룹 보유 + 위저드 1회 노출 완료) → 메인 탭으로 직행(웹 /map 패리티).
+                route = .groups
+            default:
+                // .welcome — afterGroupResolved 가 welcomeSeen 마킹 + route 전환.
                 afterGroupResolved(group)
             }
         } catch let apiError as APIError where apiError.status == 401 {
@@ -182,6 +193,9 @@ struct OnboardingRouter: View {
     /// 그룹 확보(생성/합류/기존) 후 → 위저드. 위저드 내부에서 자동스킵(AC-19).
     /// 조회로 확보한 그룹을 전달하여 위저드의 중복 조회를 제거(전달 없으면 위저드가 재조회).
     private func afterGroupResolved(_ group: ActiveGroup? = nil) {
+        // 위저드 진입 = 1회 노출 마킹(웹 onboarding-welcome-seen 패리티).
+        // 이후 재방문(그룹 보유)은 resolveGroupRoute 가 Groups 로 직행시킨다.
+        OnboardingFlags.welcomeSeen = true
         resolvedGroup = group
         path.removeAll()
         route = .welcome

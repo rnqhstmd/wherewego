@@ -18,10 +18,6 @@ struct PinBubbleView: View {
     @ObservedObject var mapViewModel: MapViewModel
     @StateObject private var detailVM: PinDetailViewModel
 
-    /// 측정한 말풍선 전체 높이(본체+꼬리). 측정 전에는 추정치로 위치를 잡고 onPreferenceChange 로 보정(1프레임 깜빡임 최소화).
-    /// 초기값 220 = PreferenceKey 측정 전 1프레임 추정치(헤더+태그+메모 2줄 기준 평균 높이). 측정 후 보정되며 점프 폭은 DoD-B 시각 확인.
-    @State private var bubbleHeight: CGFloat = 220
-
     /// 공유 카드 모달 표시(웹 PinShareSheet 동치). 모달은 말풍선 ScrollView clip 밖에서 전체화면 중앙에 떠야 하므로
     /// PinDetailContent 가 아닌 이 ZStack 최상위에 둔다(PinDetailContent 는 onRequestShare 콜백만 발사).
     @State private var showShareCard = false
@@ -34,8 +30,9 @@ struct PinBubbleView: View {
     /// 꼬리 크기(웹 svg 22x12 동치). 본체 하단 중앙에서 아래로 향한다.
     private let tailWidth: CGFloat = 22
     private let tailHeight: CGFloat = 12
-    /// 꼬리 끝과 마커 사이 간격(웹 calc(-100% - 16px) 의 16px 동치). 픽셀 정밀 일치는 DoD-B(Mac) 미세조정.
-    private let markerGap: CGFloat = 16
+    /// 꼬리 끝 y 오프셋(anchor 기준, tip = anchor.y - markerGap). 너무 작으면(음수) 말풍선이 마커를 덮어 가린다.
+    /// 마커가 보이도록 작은 양수 간격을 둬 꼬리 끝이 마커 바로 위에 오게 한다(시각 확인으로 미세조정).
+    private let markerGap: CGFloat = 4
 
     init(pin: PinSummary, anchor: ScreenPoint, mapViewModel: MapViewModel) {
         self.pin = pin
@@ -51,13 +48,12 @@ struct PinBubbleView: View {
             // 전체화면 투명 배경탭은 제거됐다(#4) — 말풍선 열린 채로 지도 드래그/줌이 가능하게 한다.
             // 닫기는 빈 지도 탭(MapEvent.mapTapped → MapViewModel selectedPinId nil)으로 처리한다.
 
-            // 말풍선 본체+꼬리만 마커 위로 앵커. `.position` 은 뷰 중심을 좌표에 놓으므로
-            // 꼬리 끝(VStack 맨 아래)이 마커(anchor.y) 근처에 오도록 중심 y 를 위로 보정한다.
-            bubble
-                .position(
-                    x: anchor.x,
-                    y: anchor.y - bubbleHeight / 2 - markerGap
-                )
+            // 말풍선 본체+꼬리만 마커 위로 앵커. 꼬리 끝(bottom-center)을 마커 위 markerGap 지점에 고정하고
+            // 콘텐츠는 위로 자라게 한다. 커스텀 Layout 이 같은 패스에서 자식 높이를 읽어 배치하므로,
+            // 사진 펼침/접힘으로 높이가 애니메이션돼도 꼬리가 마커에서 떨어지지 않는다(측정 지연 제거).
+            TailAnchorLayout(tip: CGPoint(x: anchor.x, y: anchor.y - markerGap)) {
+                bubble
+            }
 
             // 공유 카드 모달(웹 PinShareSheet 동치) — 전체화면 중앙. ZStack 최상위라 말풍선 ScrollView clip·.position
             // 영향을 받지 않고 화면 중앙에 뜬다(backdrop 바깥 탭으로 닫힘).
@@ -101,15 +97,6 @@ struct PinBubbleView: View {
         )
         .shadow(color: WGColor.shadowMd, radius: 16, y: 6)
         .fixedSize(horizontal: false, vertical: true)
-        // 말풍선 전체 높이 측정 → 중심 y 보정(꼬리 끝이 마커를 향하도록). 측정 전 1프레임은 추정치(220) 사용.
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(key: BubbleHeightKey.self, value: geo.size.height)
-            }
-        )
-        .onPreferenceChange(BubbleHeightKey.self) { height in
-            if height > 0 { bubbleHeight = height }
-        }
     }
 
     // MARK: - 닫기
@@ -121,13 +108,40 @@ struct PinBubbleView: View {
     }
 }
 
-// MARK: - 말풍선 높이 측정 PreferenceKey
+// MARK: - 말풍선 꼬리 앵커 레이아웃
 
-/// 말풍선(본체+꼬리) 전체 높이를 상위로 전달해 `.position` 중심 y 보정에 사용(꼬리 끝 = 마커 방향).
-private struct BubbleHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+/// 말풍선 꼬리 끝(bottom-center)을 마커 지점(tip)에 고정하고 콘텐츠는 위로 자라게 하는 레이아웃.
+/// 기존 `.position(center = anchor.y - 측정높이/2)` 방식은 높이를 GeometryReader+PreferenceKey 로
+/// 비동기 측정해 1프레임 지연이 있었고, 사진 펼침/접힘처럼 높이가 크게 바뀔 때 꼬리가 마커에서
+/// 잠깐 떨어지거나 겹치는 현상이 있었다. 커스텀 Layout 은 같은 레이아웃 패스에서 자식 크기를 읽어
+/// 배치하므로 지연이 없고, 높이가 애니메이션돼도 꼬리가 항상 마커에 붙은 채 부드럽게 위로 자란다.
+private struct TailAnchorLayout: Layout {
+    /// 꼬리 끝이 향할 화면 좌표(마커 위 markerGap 지점).
+    var tip: CGPoint
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        // 오버레이로 부모가 제안한 영역(전체 화면)을 그대로 차지.
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    /// 화면 상단 여백(상태바/노치). 사진 펼침처럼 말풍선이 커져 위로 넘칠 때 이 선에서 멈춰 화면 이탈을 막는다.
+    private static let topInset: CGFloat = 64
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let bubble = subviews.first else { return }
+        let size = bubble.sizeThatFits(.unspecified)
+        // 기본: bottom-center(꼬리 끝)를 tip 에 고정 → 콘텐츠가 커지면 위로 자란다.
+        var bottomY = bounds.minY + tip.y
+        // 위로 자라다 상단을 넘으면(사진 펼침 등) 화면 안에 머물도록 아래로 민다(꼬리는 떨어지나 화면 이탈 방지).
+        let minTop = bounds.minY + Self.topInset
+        if bottomY - size.height < minTop {
+            bottomY = minTop + size.height
+        }
+        bubble.place(
+            at: CGPoint(x: bounds.minX + tip.x, y: bottomY),
+            anchor: .bottom,
+            proposal: ProposedViewSize(size)
+        )
     }
 }
 
