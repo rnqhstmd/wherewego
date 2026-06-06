@@ -13,6 +13,10 @@ protocol AppleAuthServicing: Sendable {
 protocol GroupAPIProtocol: Sendable {
     /// 활성 그룹 없으면 nil, 401 throw(MUST#1).
     func myActiveGroup() async throws -> ActiveGroup?
+    /// 내 소속 그룹 목록(GET /groups, FR-6). 그룹 전환 시트 진입 시 호출. 0개면 빈 배열.
+    func listMyGroups() async throws -> [GroupSummary]
+    /// 그룹 생성(POST /groups, body {name}). 생성자가 첫 멤버가 된다(FR-18).
+    func createGroup(name: String) async throws -> GroupCreated
     /// slug 로 초대 프리뷰 조회(token 획득, FR-1).
     func previewBySlug(slug: String) async throws -> InvitePreview
     func acceptInvite(token: String) async throws -> InviteAccept

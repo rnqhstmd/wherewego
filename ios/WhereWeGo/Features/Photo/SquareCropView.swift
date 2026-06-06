@@ -37,6 +37,12 @@ struct SquareCropView: View {
                 Color.black.ignoresSafeArea()
 
                 imageLayer(cropSide: cropSide, effectiveScale: effectiveScale, effectiveOffset: effectiveOffset)
+                    // 레이아웃 크기를 화면으로 고정한다. 이미지 base 프레임이 화면보다 크면(가로 사진 등) ZStack 이
+                    // 화면보다 커져, trailing 정렬된 상단 "확인" 버튼이 화면 오른쪽 밖으로 밀려 안 보이던 버그를 막는다.
+                    // (시각적 오버플로는 .clipped 로 화면에 가둔다 — 크롭 계산은 scale/offset 수치만 쓰므로 영향 없음.)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+                    .contentShape(Rectangle())
                     .gesture(magnification)
                     .gesture(drag)
 
@@ -87,13 +93,14 @@ struct SquareCropView: View {
     // MARK: - 상하단 컨트롤
 
     private func controls(geo: GeometryProxy, cropSide: CGFloat) -> some View {
-        VStack {
+        VStack(spacing: 0) {
+            // 상단 바: 좌 취소(텍스트) / 우 확인(채운 주황 알약 — 어떤 사진·줌에서도 또렷이 보이고 찾기 쉽게).
             HStack {
                 Button(action: onCancel) {
                     Text("취소")
-                        .font(WGFont.sans(15))
+                        .font(WGFont.sans(16))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                 }
                 Spacer()
@@ -101,20 +108,35 @@ struct SquareCropView: View {
                     onCropped(makeCroppedImage(cropSide: cropSide))
                 } label: {
                     Text("확인")
-                        .font(WGFont.sans(15))
-                        .foregroundStyle(WGColor.cta)
-                        .padding(.horizontal, 16)
+                        .font(WGFont.sans(16))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
                         .padding(.vertical, 10)
+                        .background(Capsule().fill(WGColor.cta))
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
+            .background(
+                // 상단 스크림 — 밝은 사진을 확대해도 버튼이 항상 또렷하게.
+                LinearGradient(
+                    colors: [Color.black.opacity(0.5), Color.black.opacity(0)],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            )
 
             Spacer()
 
             Text("드래그·핀치로 영역을 맞춰 주세요")
                 .font(WGFont.sans(13))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(Color.black.opacity(0.4)))
                 .padding(.bottom, 28)
         }
     }

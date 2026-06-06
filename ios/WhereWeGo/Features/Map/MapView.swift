@@ -1,8 +1,8 @@
 import SwiftUI
 
 // 지도 메인 화면(설계 §3·§7·§11, FR-2/6/7/8). 온보딩 종착 → 지도 진입(GroupsView 대체).
-// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 좌하단 [!]범례·[▽]필터 + 플로팅 버튼(내위치/＋추가 우하단).
-//  룰렛은 "어디갈까" 탭(RouletteView)으로 분리됨 — 우상단 🎲 시트 제거(지도=보기, 어디갈까=추천 멘탈모델 분리).
+// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 좌하단 [!]범례·[▽]필터 + 플로팅 버튼(내위치·＋추가 우하단).
+//  룰렛("어디갈까")은 지도 위 시트가 아니라 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 지도 화면에서 🎲 버튼·룰렛 시트는 제거.
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
 // 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1)로 표시한다.
@@ -12,7 +12,9 @@ import SwiftUI
 //   ＋ 탭 → 2선택지(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색) → enterAddPin(mode:). 모드별 UI 분리:
 //   십자선은 콕찍기 모드(inputMode==.pinpoint)만, 검색바는 검색 모드(.search)만 노출.
 struct MapView: View {
-    @StateObject private var viewModel: MapViewModel
+    /// 지도 메인 VM(MainTabView 소유 — 탭 전환에도 핀/카메라 상태 유지). MapView 는 관찰만 한다(@ObservedObject).
+    ///  수명 소유는 MainTabView 의 @StateObject 이므로 여기서 @StateObject 로 이중 소유하면 안 된다(소유권 정정).
+    @ObservedObject private var viewModel: MapViewModel
     @Environment(\.scenePhase) private var scenePhase
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
@@ -39,10 +41,11 @@ struct MapView: View {
         )
     }
 
-    /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
-    /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
+    /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 flyTo 결과 유지를 위해 VM 공유).
+    /// @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다(여기선 @ObservedObject 로 관찰만).
+    /// 룰렛("어디갈까")은 하단 탭으로 편입돼(룰렛 탭화) 지도에서 시트·VM 주입이 제거됐다.
     init(viewModel: MapViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+        _viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -117,11 +120,17 @@ struct MapView: View {
         .animation(.easeOut(duration: 0.2), value: viewModel.visitInfoMessage)
         // QE-1 — 십자선/하단 카드 등장·퇴장 전환(opacity + slide).
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
+        // 사진 업로드만 실패(BR-6) — 핀은 저장됐으나 사진만 실패한 경우 인라인 모드 종료 후 안내 토스트로 노출.
+        // addPlaceVM 은 종료(exitAddPin) 직전 performCreate 가 photoWarning 을 세팅하므로, 종료 전 마지막 값을 흡수한다.
+        .onChange(of: viewModel.addPlaceVM?.photoWarning) { _, message in
+            if let message { viewModel.visitInfoMessage = message }
+        }
         .navigationBarBackButtonHidden(true)
         .task {
-            if case .idle = viewModel.loadState {
-                await viewModel.load()
-            }
+            // 활성 그룹 해석 + 초기 핀 로드는 MainTabView 가 GroupContext.bootstrap() 결과를 주입해 주도한다
+            //  (이중 myActiveGroup resolve 제거 — 칩과 지도가 항상 동일 그룹). 여기선 자체 load() 를 호출하지 않는다.
+            //  단, 자식 task 가 부모보다 먼저 실행돼 아직 .idle 인 race 에서도, 주입 로드가 곧 .loading 으로
+            //  전환하므로 중복 호출은 없다. 에러 후 재시도는 errorOverlay "다시 시도"(load()) 가 담당한다.
             viewModel.startVisitDetection()
             viewModel.startPolling()
         }
@@ -173,7 +182,13 @@ struct MapView: View {
             }
         }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
+                // 글래스 통일: 콘텐츠 높이에 맞춘 medium detent + 드래그 인디케이터 + 글래스 배경(OS 기본 전체화면 방지).
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(24)
+                .presentationBackground(.regularMaterial)
         }
+        // 룰렛("어디갈까")은 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 지도 위 시트·자동 추첨 onChange 는 MainTabView 로 이전.
     }
 
     // MARK: - activeSheet → 시트 표시 바인딩
@@ -280,8 +295,10 @@ struct MapView: View {
                 .padding(.horizontal, 16)
             }
 
+            // 룰렛("어디갈까")은 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 우상단 🎲 트리거 VStack 은 제거. 우상단은 비워둔다.
+
             // 우하단 플로팅 컨트롤 세로 스택: 내 위치(위, 보조) + 장소 추가 ＋ speed-dial(아래, 주 액션).
-            //  룰렛(우상단)과 분리(ZStack alignment). ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
+            //  ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
             //  주 액션(＋, 56 주황)을 thumb-reach 코너 최하단에 두고, 보조(내위치, 48 흰)를 그 위에 둔다.
             //  ＋ 탭 → speed-dial 펼침(✋ 지도에서 찍기 / 🔍 검색해서 찾기). 인라인 추가 모드(isAddingPin) 중엔
             //  하단 InlineAddPlaceCard 가 떠 있으므로 speed-dial 전체를 숨긴다(중복 방지).
@@ -293,7 +310,9 @@ struct MapView: View {
                         myLocationButton
                         if !viewModel.isAddingPin {
                             addPinSpeedDial
-                                .transition(.scale.combined(with: .opacity))   // QE-1 등장·퇴장
+                                // B-1 — 모드 진입 시 speed-dial 소멸과 InlineAddPlaceCard 등장(.move(edge:.bottom))의
+                                //  이중 전환 출렁임을 줄이려 소멸/등장을 .opacity 로 단순화(scale 점프 제거).
+                                .transition(.opacity)
                         }
                     }
                 }
@@ -323,7 +342,7 @@ struct MapView: View {
         }
     }
 
-    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
+    // MARK: - 플로팅 버튼(내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
 
     /// 내 위치 플로팅 버튼(FR-7). 우하단. one-shot 현재 위치로 지도 카메라 이동.
     private var myLocationButton: some View {
@@ -344,6 +363,8 @@ struct MapView: View {
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
+                // 메인 ＋ FAB(56)와 중심축을 맞춘다 — 48 원을 56 폭 레인 가운데(우하단 컬럼 정렬 어긋남 해소).
+                .frame(width: 56)
         }
         .accessibilityLabel("내 위치")
     }
@@ -381,6 +402,8 @@ struct MapView: View {
                 .frame(width: 56, height: 56)
                 .background(Circle().fill(WGColor.cta))
                 .rotationEffect(.degrees(viewModel.isAddMenuExpanded ? 45 : 0))
+                // B-1 — ＋ → ✕ 회전은 spring(.snappy)로 탄력 있게(선형 easeOut 대비 경쾌함).
+                .animation(.snappy, value: viewModel.isAddMenuExpanded)
                 .shadow(color: WGColor.shadowMd, radius: 10, y: 4)
         }
         .accessibilityLabel(viewModel.isAddMenuExpanded ? "추가 메뉴 닫기" : "장소 추가")
@@ -409,10 +432,14 @@ struct MapView: View {
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(WGColor.cta))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                    // ＋ FAB(56)·내위치와 동일 56 레인 가운데 정렬(중심축 일치).
+                    .frame(width: 56)
             }
         }
         .accessibilityLabel(accessibility)
-        .transition(.move(edge: .trailing).combined(with: .opacity))
+        // B-1 — speed-dial 은 세로로 펼쳐지므로 선택지 등장·퇴장도 세로축에 맞춘다.
+        //  하단에서 솟아오르듯 bottomTrailing 앵커 scale + opacity(가로 .move(edge:.trailing) 축 불일치 제거).
+        .transition(.scale(scale: 0.8, anchor: .bottomTrailing).combined(with: .opacity))
     }
 }
 

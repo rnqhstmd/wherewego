@@ -3,51 +3,34 @@ import SwiftUI
 // 위치 기반 룰렛 화면(설계 §5, FR-20~24, AC-10/11).
 // frontend/src/app/map/_components/RouletteResultContent.tsx + RouletteSpinContent.tsx 이식.
 //
-// 구 RouletteSheet(지도 우상단 🎲 → 시트)에서 "어디갈까" 탭 전체 화면으로 승격(네이밍/멘탈모델 정리):
-//  - "지도" 탭 = 전체 핀 보기·관리, "어디갈까" 탭 = 위치기반 무작위 1곳 추천(둘은 레벨이 다른 별개 기능).
-//  - 진입(탭 선택) 즉시 자동 추첨 — MainTabView 가 selection==.discover 전이 시 spin() 트리거.
-//  - "지도에서 보기" → showOnMap()(flyTo+정보창) 후 onShowOnMap 콜백으로 지도 탭 전환(시트 dismiss 대체).
+// 룰렛("어디갈까")은 지도 위 시트가 아니라 하단 3번째 탭으로 편입됐다(룰렛 탭화):
+//  - MainTabView 의 .roulette 탭 → NavigationStack { RouletteView } (navigationTitle "어디갈까" .inline).
+//  - 탭 진입(selection==.roulette)할 때마다 자동 추첨(MainTabView 가 spin() 트리거).
+//  - "지도에서 보기" → showOnMap()(flyTo+정보창) 후 onShowOnMap 콜백으로 지도 탭 전환(selection=.map).
 //  - VM 수명은 MainTabView 가 @StateObject 로 보유(탭 전환에도 결과 유지, mapViewModel 공유).
+//
+// 본 파일 구성:
+//  - RouletteView: 토글/상태별 본문(자체 타이틀/네비게이션 미보유 — 탭의 NavigationStack 이 타이틀 부여).
 //
 // 상태별 표시:
 //  - .idle/.spinning: 안내 + 진행 스피너.
 //  - .result: 거리 강조 헤더 + 장소 카드(태그/장소명/주소/메모) + "지도에서 보기"/"다시".
 //  - .exhausted: "추첨할 핀이 없어요"(AC-10).
 //  - .locationError: 위치 권한 안내.
-//  MEMORY 포함 토글(기본 OFF) → 추첨 풀 확장(AC-11).
+//  추첨 풀 = REEL/WISH ∩ 화면 필터(웹 정합 — MEMORY 제외, 토글 UI 없음).
+
 struct RouletteView: View {
     @ObservedObject var viewModel: RouletteViewModel
-    /// "지도에서 보기" → 지도 탭 전환(MainTabView selection=.map). showOnMap() 직후 호출.
+    /// "지도에서 보기" → 지도 탭으로 전환(MainTabView selection=.map). showOnMap() 직후 호출.
     let onShowOnMap: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
-            memoToggle
             content
             Spacer(minLength: 0)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WGColor.bg)
-        .navigationTitle("어디갈까")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    // MARK: - MEMORY 포함 토글(FR-23, AC-11)
-
-    private var memoToggle: some View {
-        Toggle(isOn: $viewModel.includeMemory) {
-            HStack(spacing: 6) {
-                Circle().fill(WGColor.pinMemory).frame(width: 8, height: 8)
-                Text("추억 핀도 포함")
-                    .font(WGFont.sans(14))
-                    .foregroundStyle(WGColor.ink)
-            }
-        }
-        .tint(WGColor.cta)
-        .onChange(of: viewModel.includeMemory) { _, _ in
-            Task { await viewModel.spin() }
-        }
     }
 
     @ViewBuilder
@@ -115,7 +98,7 @@ struct RouletteView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    // 결과 핀으로 카메라 이동 + 정보창(selectedPinId) 후 지도 탭으로 전환(AC-11).
+                    // 결과 핀으로 카메라 이동 + 정보창(selectedPinId) 후 지도 탭으로 전환(AC-11, 룰렛 탭화 — selection=.map).
                     viewModel.showOnMap()
                     onShowOnMap()
                 } label: {
@@ -150,7 +133,7 @@ struct RouletteView: View {
     private var exhaustedView: some View {
         messageView(
             title: "추첨할 핀이 없어요",
-            subtitle: "가까운 곳에 릴스/위시 핀이 없어요. 핀을 추가하거나 추억 핀을 포함해 보세요.",
+            subtitle: "가까운 곳에 발견/위시 핀이 없어요. 핀을 추가해 보세요.",
             retryTitle: "다시 추첨"
         )
     }

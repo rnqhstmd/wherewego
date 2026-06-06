@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // ＋ 통합 장소 추가 ViewModel(설계 §4, FR-12~16, AC-8/AC-9).
 // SearchPinViewModel(검색→선택→태그→create)과 콕찍기(중앙좌표→create)를 하나로 흡수한다.
@@ -26,7 +27,40 @@ final class AddPlaceViewModel: ObservableObject {
         case pinpoint
     }
 
+    /// 인라인 추가 진행 단계(웹 MapClient 패널 흐름 정합).
+    ///  - locate: 위치 확정 단계(검색바+결과 또는 콕찍기 십자선+주소). 위치를 정한 뒤 form 으로 전이.
+    ///  - form: 메모·태그 폼(웹 MemoTagPanelContent) — 태그/장소명/메모/사진/릴스 입력 후 저장.
+    enum Step {
+        case locate
+        case form
+    }
+
     // MARK: - 게시 상태
+
+    /// 현재 단계(위치 확정 ↔ 메모·태그 폼). 검색 결과 선택/콕찍기 완료 시 .form 으로 전이.
+    @Published private(set) var step: Step = .locate
+
+    // MARK: - 메모·태그 폼 입력(웹 MemoTagPanelContent 정합)
+
+    /// 폼에서 선택한 태그(필수). 미선택 시 저장 비활성. 비-MEMORY 전환 시 보관 사진 폐기.
+    @Published var selectedTag: PinTag? {
+        didSet {
+            // 비-MEMORY 태그로 변경 시 보관 사진 폐기 — 비-MEMORY 핀 업로드(PIN_PHOTO_NOT_MEMORY) 방지(웹 정합).
+            if selectedTag != .MEMORY { pendingPhoto = nil }
+        }
+    }
+    /// 장소 이름(검색 진입도 편집 가능, 웹 정합). 폼 진입 시 selectedPlace/좌표로 시드.
+    @Published var formPlaceName: String = ""
+    /// 메모(선택, 최대 500자).
+    @Published var memo: String = ""
+    /// 릴스(인스타그램) 링크(선택). https:// 미시작 시 urlError.
+    @Published var instagramUrl: String = "" {
+        didSet { urlError = Self.validateUrl(instagramUrl) }
+    }
+    /// 릴스 링크 형식 오류 메시지(https:// 미시작). nil 이면 정상.
+    @Published private(set) var urlError: String?
+    /// MEMORY 핀 신규 등록 2-step 보관 사진(크롭·압축 완료 후 발급된 pinId 로 업로드).
+    @Published var pendingPhoto: UIImage?
 
     /// 검색창 입력값. 콕찍기 전환 시 ""(AC-8).
     @Published var query: String = ""
@@ -51,9 +85,16 @@ final class AddPlaceViewModel: ObservableObject {
     @Published var errorMessage: String?
     /// 생성 성공 시 true → View 가 시트를 닫는다.
     @Published private(set) var didCreate = false
+    /// 핀은 저장됐으나 사진 업로드만 실패한 경우 안내 메시지(BR-6). MapView 가 토스트로 노출.
+    @Published var photoWarning: String?
 
     /// 콕찍기 모드에서 추적 중인 메인 지도 중심 좌표(확정 시 7자리 반올림 후 create). 초기 nil.
     private(set) var pinpointCenter: Coordinate?
+
+    /// 진입 모드(콕찍기 vs 검색, 작업 B-2). enterAddPin(mode:)에서 전달.
+    /// 검색으로 진입했으면 지도 드래그(onMapMoved)가 콕찍기로 전환되지 않게 가드한다(검색 결과/선택 유지).
+    /// 웹은 검색/콕찍기가 완전 별개 패널이라 이 전환 자체가 없다.
+    let entryMode: InputMode
 
     // MARK: - 의존성
 
@@ -65,10 +106,12 @@ final class AddPlaceViewModel: ObservableObject {
 
     init(
         mapViewModel: MapViewModel,
+        entryMode: InputMode = .pinpoint,
         reverseGeocoder: ReverseGeocoder = ReverseGeocoder(),
         debouncer: Debouncer = Debouncer()
     ) {
         self.mapViewModel = mapViewModel
+        self.entryMode = entryMode
         self.reverseGeocoder = reverseGeocoder
         self.debouncer = debouncer
     }
@@ -97,6 +140,7 @@ final class AddPlaceViewModel: ObservableObject {
 
     /// 검색 결과 1개 선택(FR-13) → selectedPlace 채움 + 메인 지도 flyTo(View 가 cameraCommand 소비).
     /// 콕찍기 상태(pinpointCenter/resolvedAddress)는 초기화한다(검색 좌표가 입력의 단일 출처).
+    /// 웹 정합: 결과 탭 → 곧바로 메모·태그 폼 단계로 전이(MemoTagPanelContent).
     func selectResult(_ place: PlaceItem) {
         errorMessage = nil
         inputMode = .search
@@ -104,13 +148,63 @@ final class AddPlaceViewModel: ObservableObject {
         pinpointCenter = nil
         resolvedAddress = nil
         isResolvingAddress = false   // 검색 선택은 주소 즉시 확보 — 역지오 진행 표시 해제.
+        proceedToForm()
+    }
+
+    // MARK: - 단계 전이(위치 확정 ↔ 메모·태그 폼)
+
+    /// 위치 확정(검색 선택 / 콕찍기 완료) → 메모·태그 폼 단계로 전이(웹 MemoTagPanelContent).
+    /// 장소 이름은 검색=장소명, 콕찍기=주소/좌표로 시드하고 사용자가 편집할 수 있다.
+    func proceedToForm() {
+        formPlaceName = seedPlaceName
+        step = .form
+    }
+
+    /// 메모·태그 폼에서 "취소" → 위치 확정 단계로 복귀(웹은 패널 닫힘이나, iOS 인라인은 단계 뒤로).
+    /// 폼 입력값을 초기화해 재진입 시 잔여를 제거한다.
+    func backToLocate() {
+        step = .locate
+        selectedTag = nil
+        memo = ""
+        instagramUrl = ""
+        urlError = nil
+        pendingPhoto = nil
+        errorMessage = nil
+    }
+
+    /// 폼 진입 시 장소 이름 시드값. 검색=장소명, 콕찍기=역지오 주소(없으면 좌표 문자열).
+    private var seedPlaceName: String {
+        switch inputMode {
+        case .search:
+            return selectedPlace?.placeName ?? ""
+        case .pinpoint:
+            if let address = resolvedAddress, !address.isEmpty { return address }
+            guard let center = pinpointCenter else { return "" }
+            let lat = MapViewModel.roundCoordinate(center.latitude)
+            let lng = MapViewModel.roundCoordinate(center.longitude)
+            return String(format: "%.7f, %.7f", lat, lng)
+        }
+    }
+
+    /// 릴스 링크 형식 검증(웹 정합). 빈 값은 정상(nil), https:// 미시작 시 오류 메시지.
+    private static func validateUrl(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if !trimmed.hasPrefix("https://") { return "올바른 URL 형식이 아닙니다" }
+        return nil
     }
 
     // MARK: - 콕찍기(FR-14, AC-8)
 
     /// 메인 지도 드래그(cameraIdle) → 콕찍기 전환. query 비움 + .pinpoint + 중심 추적 + 디바운스 역지오 트리거.
     /// 역지오는 ReverseGeocoder 결과, 실패 시 coordinateFallback(AC-9)로 resolvedAddress 를 채운다.
+    ///
+    /// 작업 B-2 가드: 검색으로 진입(entryMode==.search)했으면 지도 드래그를 무시한다.
+    ///  검색 모드 진입 후 지도만 움직여도 검색이 콕찍기로 날아가던 버그 차단(검색 결과/선택 유지).
+    ///  콕찍기로 진입(entryMode==.pinpoint)한 경우만 드래그가 좌표를 갱신한다.
+    ///  (콕찍기 진입의 초기 seed/줌인 idle 도 .pinpoint 경로라 정상 통과한다.)
     func onMapMoved(center: Coordinate) {
+        guard entryMode == .pinpoint else { return }   // B-2 — 검색 진입 시 드래그로 콕찍기 전환 안 함.
         guard !isCreating else { return }   // 등록 진행 중 지도 드래그로 인한 상태 불일치 방지(Gemini MEDIUM).
         query = ""                  // AC-8 — 콕찍기 시작 시 검색어 초기화.
         inputMode = .pinpoint
@@ -146,18 +240,18 @@ final class AddPlaceViewModel: ObservableObject {
 
     // MARK: - 확정(FR-15)
 
-    /// 선택 장소(검색) 또는 콕찍기 중심으로 핀 생성(Q6a — 취소 가능 Task 래핑, AC-19).
-    /// 호출부(InlineAddPlaceCard "여기 등록")는 비-async 로 호출하고, 내부에서 createTask 로 실행한다.
-    /// 모드 종료(exitAddPin→cancelPendingWork)가 createTask 를 취소하면 appendPin/flyTo/didCreate 직전 가드로 차단.
-    /// 검색: selectedPlace 의 좌표/주소 사용. 콕찍기: roundCoordinate 7자리 center + resolvedAddress.
-    func createPin(tag: PinTag) {
+    /// 메모·태그 폼 "저장"(웹 MemoTagPanelContent.handleSave). 폼 입력(태그/장소명/메모/사진/릴스)으로 핀 생성.
+    /// 호출부(InlineAddPlaceCard 폼)는 비-async 로 호출하고, 내부에서 createTask 로 실행한다(Q6a, AC-19).
+    /// MEMORY + 보관 사진이 있으면 생성 후 발급된 pinId 로 2-step 업로드(웹 정합, BR-6 — 업로드 실패는 핀 생성 무효화 안 함).
+    func submit() {
+        guard let tag = selectedTag else { return }
         createTask?.cancel()
         createTask = Task { [weak self] in
             await self?.performCreate(tag: tag)
         }
     }
 
-    /// 핀 생성 실제 본체(createPin 의 Task 내부에서 실행). validatePinInput 재사용(BR-4 장소명 ≤200자·좌표 범위).
+    /// 핀 생성 실제 본체(submit 의 Task 내부에서 실행). validatePinInput 재사용(BR-4 장소명 ≤200자·좌표 범위).
     /// appendPin/flyTo/didCreate 직전에 Task.isCancelled 가드 — 취소(모드 종료)된 생성이 지도/상태를 건드리지 않게 한다.
     private func performCreate(tag: PinTag) async {
         // weak mapViewModel 해제 시 무음 종료 대신 사용자 피드백(cross-review #3) — 확정 동선이므로 안내 노출.
@@ -188,10 +282,26 @@ final class AddPlaceViewModel: ObservableObject {
         isCreating = true
         defer { isCreating = false }
         do {
-            let created = try await mapViewModel.pinAPI.create(groupId: groupId, request: request)
+            var created = try await mapViewModel.pinAPI.create(groupId: groupId, request: request)
             // 생성 응답 도착 전에 모드가 종료(취소)됐으면 지도/상태를 건드리지 않는다(Q6a, AC-19).
             guard !Task.isCancelled else { return }
+            // 2-step(웹 정합) — MEMORY 핀 + 보관 사진이 있으면 발급된 pinId 로 업로드.
+            //  업로드 실패는 핀 생성을 무효화하지 않는다(BR-6) — 핀은 그대로 반영하고 안내만 노출한다.
+            if tag == .MEMORY, let photo = pendingPhoto,
+               let jpegData = ImageCropper.resizeAndCompress(photo) {
+                if let uploaded = try? await mapViewModel.pinAPI.uploadPhoto(
+                    groupId: created.groupId, pinId: created.id, imageData: jpegData
+                ) {
+                    created = uploaded
+                } else {
+                    photoWarning = "핀은 저장됐지만 사진 업로드에 실패했어요. 수정에서 다시 시도할 수 있어요."
+                }
+                guard !Task.isCancelled else { return }
+            }
             mapViewModel.appendPin(created)
+            // #3 — 생성 직후 상세 말풍선 자동 표시. selectedPinId 세팅 후 flyTo 의 카메라 이동이
+            //  cameraMoved 로 말풍선 화면좌표를 운반해 말풍선이 자동으로 뜬다(G1 — 프로그래밍 선택은 카메라 이동이 운반자).
+            mapViewModel.selectedPinId = created.id
             mapViewModel.flyTo(lat: created.latitude, lng: created.longitude, zoom: MapViewModel.pinFocusZoom)
             didCreate = true
             // 견고화(review LOW) — 생성 성공 즉시 인라인 모드 종료. didCreate 설정과 같은 @MainActor 런루프에서 직접 종료해
@@ -251,15 +361,16 @@ final class AddPlaceViewModel: ObservableObject {
         }
     }
 
-    /// "여기 등록" 활성 여부. 검색=선택 장소 존재, 콕찍기=중심 좌표 확보 + 생성 중 아님.
-    var canConfirm: Bool {
-        guard !isCreating else { return false }
-        switch inputMode {
-        case .search:
-            return selectedPlace != nil
-        case .pinpoint:
-            return pinpointCenter != nil
-        }
+    /// 콕찍기 "완료"(위치 확정) 활성 여부. 중심 좌표를 확보했는지(웹 AddPinPickerContent — center 있을 때만).
+    var canProceed: Bool {
+        pinpointCenter != nil
+    }
+
+    /// 메모·태그 폼 "저장" 활성 여부(웹 canSubmit 정합). 태그 선택 + 장소명 비어있지 않음 + URL 유효 + 생성 중 아님.
+    var canSubmit: Bool {
+        guard !isCreating, urlError == nil, selectedTag != nil else { return false }
+        let trimmedName = formPlaceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !(trimmedName.isEmpty && seedPlaceName.isEmpty)
     }
 
     // MARK: - 초기 카메라 seed(＋진입 FR-9)
@@ -279,33 +390,36 @@ final class AddPlaceViewModel: ObservableObject {
 
     // MARK: - Private 헬퍼
 
-    /// 현재 입력 방식에 맞는 생성 요청(콕찍기 좌표는 7자리 반올림). 입력 미정 시 nil.
+    /// 폼 입력(장소명/메모/릴스) + 위치(검색 좌표 또는 콕찍기 7자리 중심)로 생성 요청을 만든다.
+    /// 장소명은 폼 편집값 우선(빈 값이면 시드값으로 폴백). 콕찍기 좌표는 7자리 반올림. 입력 미정 시 nil.
     private func buildRequest(tag: PinTag) -> CreatePinRequest? {
+        let trimmedName = formPlaceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let placeName = trimmedName.isEmpty ? seedPlaceName : trimmedName
+        let trimmedMemo = memo.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUrl = instagramUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         switch inputMode {
         case .search:
             guard let place = selectedPlace else { return nil }
             return CreatePinRequest(
-                placeName: place.placeName,
+                placeName: placeName,
                 address: place.address,
                 latitude: place.latitude,
                 longitude: place.longitude,
-                instagramUrl: nil,
-                memo: nil,
+                instagramUrl: trimmedUrl.isEmpty ? nil : trimmedUrl,
+                memo: trimmedMemo.isEmpty ? nil : trimmedMemo,
                 tag: tag
             )
         case .pinpoint:
             guard let center = pinpointCenter else { return nil }
             let lat = MapViewModel.roundCoordinate(center.latitude)
             let lng = MapViewModel.roundCoordinate(center.longitude)
-            // 콕찍기 장소명: 역지오 주소 우선, 미해소 시 좌표 문자열로 폴백(별도 장소명 입력 없음, 설계 §4 카드 구성).
-            let placeName = resolvedAddress ?? String(format: "%.7f, %.7f", lat, lng)
             return CreatePinRequest(
                 placeName: placeName,
                 address: resolvedAddress,
                 latitude: lat,
                 longitude: lng,
-                instagramUrl: nil,
-                memo: nil,
+                instagramUrl: trimmedUrl.isEmpty ? nil : trimmedUrl,
+                memo: trimmedMemo.isEmpty ? nil : trimmedMemo,
                 tag: tag
             )
         }

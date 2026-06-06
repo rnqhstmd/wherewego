@@ -53,9 +53,11 @@ struct VisitMemoSheet: View {
                 }
                 .padding(20)
             }
-            .background(WGColor.bg)
+            // 글래스 통일: 불투명 WGColor.bg 배경 제거 — 시트의 .presentationBackground(.regularMaterial)이 비치도록.
+            .scrollContentBackground(.hidden)
             .navigationTitle("다녀온 흔적")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .interactiveDismissDisabled(isSaving)
         }
     }

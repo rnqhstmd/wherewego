@@ -39,6 +39,9 @@ enum MapEvent {
     case markerTapped(pinId: Int, screenPoint: ScreenPoint?)
     /// 클러스터 탭(포함 pinId 목록, FR-5 Should).
     case clusterTapped([Int])
+    /// 빈 지도(마커/클러스터에 안 맞은) 탭. 선택핀 말풍선이 열려 있으면 선택 해제로 닫는다(#4).
+    /// PinBubbleView 전체화면 배경탭 제거 대체 — 말풍선 열린 채로 지도 드래그/줌을 허용한다.
+    case mapTapped
     /// 카메라 이동이 멈춘 시점의 중심 좌표 + 줌(크로스헤어/방문감지 좌표 추적 + FR-11 인라인 줌인 판단).
     case cameraIdle(centerLat: Double, centerLng: Double, zoom: Double)
     /// 선택핀 추적 중 카메라 변화로 갱신된 선택핀 화면좌표(QE-1 게이팅: 추적 좌표 있을 때만 방출).

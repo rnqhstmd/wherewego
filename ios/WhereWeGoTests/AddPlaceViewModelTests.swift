@@ -58,6 +58,34 @@ final class AddPlaceViewModelTests: XCTestCase {
         XCTAssertEqual(vm.inputMode, .pinpoint)
     }
 
+    // MARK: - B-2: 검색 진입 시 지도 드래그가 콕찍기로 전환되지 않음(검색 결과/선택 유지)
+
+    func test_onMapMoved_whenEnteredViaSearch_ignoresDrag_keepsSearchState() {
+        // 검색으로 진입(entryMode==.search)했으면 지도 드래그(onMapMoved)는 무시 — 검색 모드/검색어/결과 유지.
+        // (검색 모드 진입 후 지도만 움직여도 검색이 콕찍기로 날아가던 버그 차단, 작업 B-2.)
+        let vm = makeViewModel(entryMode: .search)
+        vm.query = "성수동 카페"
+        XCTAssertEqual(vm.inputMode, .search)
+
+        // When 지도 드래그(cameraIdle).
+        vm.onMapMoved(center: Coordinate(latitude: 37.5446, longitude: 127.0557))
+
+        // Then 검색 상태 그대로 — 콕찍기 전환 없음.
+        XCTAssertEqual(vm.inputMode, .search, "검색 진입 시 드래그가 콕찍기로 전환되면 안 된다(B-2).")
+        XCTAssertEqual(vm.query, "성수동 카페", "검색어 유지.")
+        XCTAssertNil(vm.pinpointCenter, "콕찍기 중심을 추적하지 않아야 한다.")
+    }
+
+    func test_onMapMoved_whenEnteredViaPinpoint_updatesCenter() {
+        // 콕찍기로 진입(entryMode==.pinpoint, 기본)했으면 드래그가 좌표를 갱신한다(기존 동작 보존).
+        let vm = makeViewModel(entryMode: .pinpoint)
+
+        vm.onMapMoved(center: Coordinate(latitude: 35.1, longitude: 129.0))
+
+        XCTAssertEqual(vm.inputMode, .pinpoint)
+        XCTAssertEqual(vm.pinpointCenter, Coordinate(latitude: 35.1, longitude: 129.0))
+    }
+
     func test_onMapMoved_doesNotTriggerGeocodeSynchronously() {
         // 보관만 하는 스케줄러 → 역지오 work 가 즉시 실행되지 않으므로 resolvedAddress 는 동기 시점에 nil.
         // (디바운스 발화는 DoD-B 통합/실디바이스 검증 영역. 본 테스트는 onMapMoved 동기 계약만 본다.)
@@ -97,11 +125,15 @@ final class AddPlaceViewModelTests: XCTestCase {
     /// 콕찍기 디바운스 work 를 보관만 하는(실행 안 하는) 스케줄러를 주입한 AddPlaceViewModel.
     /// → onMapMoved 의 동기 상태만 부작용 없이 검증 가능(CLGeocoder 비호출).
     /// mapViewModel 미지정 시 기본 stub 으로 구성(초기 카메라 테스트는 mapCenter 조작 위해 직접 주입).
-    private func makeViewModel(mapViewModel: MapViewModel? = nil) -> AddPlaceViewModel {
+    private func makeViewModel(
+        mapViewModel: MapViewModel? = nil,
+        entryMode: AddPlaceViewModel.InputMode = .pinpoint
+    ) -> AddPlaceViewModel {
         // scheduler 가 work 를 무시(보관/실행 안 함) → 디바운스 발화 차단.
         let inertDebouncer = Debouncer(interval: 0.3, scheduler: { _, _ in })
         return AddPlaceViewModel(
             mapViewModel: mapViewModel ?? makeMapViewModel(),
+            entryMode: entryMode,
             reverseGeocoder: ReverseGeocoder(),
             debouncer: inertDebouncer
         )
@@ -145,6 +177,8 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     private let group: ActiveGroup?
     init(group: ActiveGroup?) { self.group = group }
     func myActiveGroup() async throws -> ActiveGroup? { group }
+    func listMyGroups() async throws -> [GroupSummary] { [] }
+    func createGroup(name: String) async throws -> GroupCreated { GroupCreated(groupId: 0, name: name) }
     func previewBySlug(slug: String) async throws -> InvitePreview { InvitePreview(token: "stub", groupName: "stub", inviterNickname: nil, expiresAt: nil) }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }

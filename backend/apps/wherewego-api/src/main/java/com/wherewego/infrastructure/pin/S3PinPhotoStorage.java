@@ -2,6 +2,7 @@ package com.wherewego.infrastructure.pin;
 
 import com.sksamuel.scrimage.ImmutableImage;
 import com.sksamuel.scrimage.webp.WebpWriter;
+import com.sksamuel.scrimage.nio.JpegWriter;
 import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.pin.PinPhotoStorage;
 import com.wherewego.support.error.CoreException;
@@ -47,7 +48,8 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
     private static final int THUMBNAIL_MAX = 256;
 
     private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
-    private static final String THUMBNAIL_CONTENT_TYPE = "image/webp";
+    /** JPEG 폴백 썸네일 품질(0~100). WebP 인코딩 실패 시에만 사용. */
+    private static final int JPEG_FALLBACK_QUALITY = 82;
 
     private final S3Client s3Client;
     private final S3Properties props;
@@ -57,10 +59,9 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
         // ① 픽셀 상한 선확인 (decompression bomb 방지: 헤더 차원 → full 디코딩) + 디코딩 공유
         ImmutableImage image = decodeWithDimensionGuard(imageBytes);
 
-        // ② UUID 키 생성 (원본/썸네일 동일 uuid 공유)
+        // ② UUID 키 생성 (원본/썸네일 동일 uuid 공유). 썸네일 키 확장자는 인코딩 포맷(webp/jpg) 확정 후 결정.
         String uuid = UUID.randomUUID().toString();
         String photoKey = String.format("pins/%d/%d/%s.jpg", groupId, pinId, uuid);
-        String thumbnailKey = String.format("pins/%d/%d/%s_thumb.webp", groupId, pinId, uuid);
 
         // ④ 원본 put (실패 시 SdkException → STORAGE_FAILED)
         try {
@@ -77,25 +78,33 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
             throw new CoreException(ErrorType.PIN_PHOTO_STORAGE_FAILED);
         }
 
-        // ⑤ 원자성: 원본 성공 후 썸네일 인코딩/put 실패 시 원본 정리 후 재throw
+        // ⑤ 썸네일 인코딩: WebP 우선, 실패 시 JPEG 폴백.
+        //    로컬 macOS 등에서 scrimage 번들 cwebp 네이티브 실행이 격리/권한으로 막히면 WebP 인코딩이 실패하는데,
+        //    그때 업로드 전체를 실패시키지 않고 순수 자바 JPEG 인코딩으로 대체한다(운영 Linux 에선 WebP 정상).
+        EncodedThumbnail thumb;
         try {
-            byte[] thumbnailBytes = encodeThumbnail(image);
+            thumb = encodeThumbnailWithFallback(image);
+        } catch (RuntimeException e) {
+            // WebP·JPEG 모두 실패(디코딩 불가 등) — 이미 올라간 원본 정리 후 재throw.
+            deleteObjectQuietly(photoKey);
+            throw e;
+        }
+        String thumbnailKey = String.format("pins/%d/%d/%s_thumb.%s", groupId, pinId, uuid, thumb.extension());
+
+        // ⑥ 원자성(BR-5/AC-8): 원본 성공 후 썸네일 put 실패 시 원본 정리 후 재throw.
+        try {
             s3Client.putObject(
                     PutObjectRequest.builder()
                             .bucket(props.bucket())
                             .key(thumbnailKey)
-                            .contentType(THUMBNAIL_CONTENT_TYPE)
+                            .contentType(thumb.contentType())
                             .cacheControl(CACHE_CONTROL)
                             .build(),
-                    RequestBody.fromBytes(thumbnailBytes));
+                    RequestBody.fromBytes(thumb.bytes()));
         } catch (SdkException e) {
             log.warn("S3 썸네일 putObject 실패 (key={}), 원본 정리", thumbnailKey, e);
             deleteObjectQuietly(photoKey);
             throw new CoreException(ErrorType.PIN_PHOTO_STORAGE_FAILED);
-        } catch (RuntimeException e) {
-            // 썸네일 인코딩(WebP) 실패 등 — 이미 올라간 원본 정리 후 재throw
-            deleteObjectQuietly(photoKey);
-            throw e;
         }
 
         return new StoredPhoto(photoKey, thumbnailKey);
@@ -149,13 +158,28 @@ public class S3PinPhotoStorage implements PinPhotoStorage {
         return image;
     }
 
-    /** 장변 {@value #THUMBNAIL_MAX}px 박스에 맞춰 비율 유지 후 WebP 인코딩. */
-    private byte[] encodeThumbnail(ImmutableImage image) {
+    /** 인코딩된 썸네일(바이트 + content-type + 키 확장자). WebP 우선, 실패 시 JPEG. */
+    private record EncodedThumbnail(byte[] bytes, String contentType, String extension) {}
+
+    /**
+     * 장변 {@value #THUMBNAIL_MAX}px 박스로 축소 후 인코딩한다. WebP(번들 cwebp 네이티브) 우선,
+     * 네이티브 실행 실패(로컬 macOS 격리/권한 등) 시 순수 자바 JPEG 로 폴백한다.
+     * 둘 다 실패하면(이미지 디코딩 불가 등) IllegalStateException — store() 가 원본을 정리한다.
+     */
+    private EncodedThumbnail encodeThumbnailWithFallback(ImmutableImage image) {
+        ImmutableImage scaled = image.max(THUMBNAIL_MAX, THUMBNAIL_MAX);
         try {
-            return image.max(THUMBNAIL_MAX, THUMBNAIL_MAX).bytes(WebpWriter.DEFAULT);
-        } catch (IOException e) {
-            // WebP 네이티브 인코딩 실패 — 원본은 store() 의 catch(RuntimeException) 에서 정리된다.
-            throw new IllegalStateException("WebP thumbnail encoding failed", e);
+            return new EncodedThumbnail(scaled.bytes(WebpWriter.DEFAULT), "image/webp", "webp");
+        } catch (Exception webpError) {
+            // WebP 네이티브(cwebp) 실행/인코딩 실패 — 순수 자바 JPEG 로 폴백.
+            log.warn("WebP 썸네일 인코딩 실패 — JPEG 폴백 (로컬 네이티브 cwebp 실행 불가 가능)", webpError);
+            try {
+                return new EncodedThumbnail(
+                        scaled.bytes(JpegWriter.compression(JPEG_FALLBACK_QUALITY)),
+                        "image/jpeg", "jpg");
+            } catch (IOException jpegError) {
+                throw new IllegalStateException("thumbnail encoding failed (webp + jpeg)", jpegError);
+            }
         }
     }
 

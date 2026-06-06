@@ -89,6 +89,20 @@ final class BotChatViewModel: ObservableObject {
         cancelPolling()
     }
 
+    /// 활성 그룹 전환 시 방/이력 재로드(FR-5). 상단 그룹 칩 전환에서 호출.
+    /// 봇 방은 userId 기반 토픽이라 groupId 파라미터가 없지만, 전환 시 표시 이력/진행 중 폴링을 폐기하고
+    /// 최신 페이지를 다시 로드해 이전 그룹 컨텍스트 잔여를 정리한다(전환 후 새 컨텍스트 진입).
+    func switchGroup() async {
+        cancelPolling()
+        // 표시 상태/추적 집합 폐기(전환 전 데이터 폐기, FR-5). load() 가 최신 페이지로 재구성한다.
+        messages = []
+        knownIds = []
+        pendingProcessingIds = []
+        nextCursor = nil
+        hasMore = false
+        await load()
+    }
+
     // MARK: - 로드(FR-2)
 
     /// 최신 메시지 1페이지 로드(cursor=nil). id DESC 응답을 오름차순으로 뒤집어 표시.

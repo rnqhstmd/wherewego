@@ -1,25 +1,25 @@
 import SwiftUI
 
-// 둥근 플로팅 필 바(설계 §1, FR-1~4).
+// 둥근 플로팅 필 바(설계 §1, FR-1).
 //  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
 //    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
-//  - 5칸 = 5탭 버튼(지도·어디갈까·채팅·알림·내정보). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
-//    지도=전체 핀 보기, 어디갈까=위치기반 룰렛 추천(구 지도 우상단 🎲 시트에서 탭으로 승격).
+//  - 3칸 = 3탭 버튼(지도·채팅·어디갈까, 그룹 종속). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
+//    알림·내정보는 하단 탭에서 제거되고 상단 TopBar(🔔·👤)로 이전됐다(내비 셸 재구성, FR-1/2).
+//    미읽음 배지도 TopBar 의 🔔 로 이동했다(hasUnread 파라미터 제거).
+//    지도=전체 핀 보기·관리. 어디갈까(룰렛)는 지도 위 시트가 아니라 하단 3번째 탭으로 편입됐다(룰렛 탭화).
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
-//  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
-//  - 버전 분기(FR-4): iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 필(WGColor.panel) 폴백.
+//  - 배경(클러스터 A): iOS 17+ 전부 글래스 캡슐(.regularMaterial + hairline 보더 + 그림자)로 통일.
+//    기존 iOS26+/17~25 버전 분기는 제거 — 전 버전에서 동일한 글래스 플로팅 룩(glassCapsule).
 //  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
-//    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리. 기존 센터 ＋는 selection 불변이라
-//    채팅/알림/내정보 탭에서 누르면 (안 보이는 지도에만 작용해) 무반응이 되는 비대칭이 있었다.
+//    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리.
 
 /// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). 장소 추가(＋)는 지도 화면 FAB 이므로 탭 미포함.
-/// .map=지도(전체 핀 보기·관리) / .discover=어디갈까(위치기반 룰렛 추천) — 둘은 레벨이 다른 별개 기능이라 탭 분리.
+/// 내비 셸 재구성(FR-1): 하단 탭은 그룹 종속 3개(.map/.chat/.roulette). 알림·내정보는 상단 TopBar 시트로 이전돼 탭 미포함.
+/// .map=지도(전체 핀 보기·관리). .roulette=어디갈까(룰렛) — 지도 위 시트에서 하단 3번째 탭으로 편입됐다(룰렛 탭화).
 enum MainTab: Hashable, CaseIterable {
     case map
-    case discover
     case chat
-    case notification
-    case myInfo
+    case roulette
 }
 
 struct FloatingTabBar: View {
@@ -35,28 +35,25 @@ struct FloatingTabBar: View {
     }
 
     @Binding private var selection: MainTab
-    private let hasUnread: Bool
 
-    init(selection: Binding<MainTab>, hasUnread: Bool) {
+    init(selection: Binding<MainTab>) {
         self._selection = selection
-        self.hasUnread = hasUnread
     }
 
     var body: some View {
         HStack(spacing: 0) {
             tabButton(.map, outline: "map", fill: "map.fill", label: "지도")
-            tabButton(.discover, outline: "dice", fill: "dice.fill", label: "어디갈까")
             tabButton(.chat,
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
                       label: "채팅")
-            tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
-            tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")
+            tabButton(.roulette, outline: "dice", fill: "dice.fill", label: "어디갈까")
         }
         .padding(.horizontal, 8)
         .frame(height: Metrics.barHeight)
-        .modifier(FloatingBarBackground())
-        .padding(.horizontal, 24)
+        .liquidGlassCapsule()   // iOS26 진짜 Liquid Glass(.glassEffect), 미만은 .regularMaterial 캡슐 fallback
+        // 3탭(지도·채팅·어디갈까)이라 2탭(48)보다 좌우 여백을 줄여 3버튼이 적정 폭으로 균등 분배되게 한다.
+        .padding(.horizontal, 20)
         .padding(.bottom, Metrics.bottomGap)
     }
 
@@ -66,66 +63,28 @@ struct FloatingTabBar: View {
     private func tabButton(_ tab: MainTab,
                            outline: String,
                            fill: String,
-                           label: String,
-                           showUnread: Bool = false) -> some View {
+                           label: String) -> some View {
         let isSelected = selection == tab
         Button {
             selection = tab
         } label: {
             Image(systemName: isSelected ? fill : outline)
-                .font(.system(size: 22, weight: .regular))
+                // 선택 강조 보강: 색 + 굵기 + 약한 scale 로 명확히(iOS 네이티브 탭바 느낌).
+                .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
                 .foregroundColor(isSelected ? WGColor.cta : WGColor.inkSoft)
+                .scaleEffect(isSelected ? 1.08 : 1.0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // 미읽음 점(FR-22): 아이콘 우상단 작은 빨간 점. 건수 미표시.
-                .overlay(alignment: .topTrailing) {
-                    if showUnread {
-                        Circle()
-                            .fill(WGColor.pinNew)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 10, y: -6)
+                // 선택 탭 pill 하이라이트: 아이콘 뒤 은은한 cta 틴트 캡슐(선택 강조의 핵심).
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(WGColor.cta.opacity(0.12))
+                            .frame(width: 56, height: 36)
                     }
                 }
         }
+        .animation(.easeOut(duration: 0.15), value: isSelected)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-}
-
-// MARK: - 배경(버전 분기, FR-4)
-
-/// 바 배경: iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 흰색 필 폴백.
-/// glass/solid 를 별도 메서드로 분리(설계 §1, FR-5/AC-5/BR-5) — iOS26 경로가 폴백과 시각적으로 달라야 한다.
-private struct FloatingBarBackground: ViewModifier {
-    // @ViewBuilder 명시(cross-review RISK): glass/solid 분기가 서로 다른 구체 View 타입을 반환하므로,
-    //  if/#available 를 _ConditionalContent 로 묶어 some View 불투명 타입 충돌을 원천 차단한다.
-    //  (ViewModifier.body 는 기본 @ViewBuilder 이나, 분기 타입 상이를 고려해 의도를 명시.)
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            glassBackground(content)   // iOS26 전용 경로(반투명)
-        } else {
-            solidBackground(content)   // 17~25 폴백(BR-5: 반투명화 금지)
-        }
-    }
-
-    @available(iOS 26.0, *)
-    private func glassBackground(_ content: Content) -> some View {
-        // TODO(DoD-B): Xcode 26 SDK에서 .glassEffect 계열 정확 파라미터로 교체. iOS 26.5 시뮬 '불투명 흰 캡슐'은 이 분기가 폴백과 동일했던 탓 → 반투명 분리.
-        content
-            .background(
-                Capsule()
-                    .fill(.ultraThinMaterial)   // AC-5: 폴백(solid panel)과 다른 반투명 머티리얼
-                    .shadow(color: WGColor.shadowMd, radius: 12, x: 0, y: 4)
-            )
-    }
-
-    private func solidBackground(_ content: Content) -> some View {
-        // 폴백(17~25): 솔리드 흰 필 + 그림자(P7 의도 보존, BR-5 — 반투명화 금지).
-        content
-            .background(
-                Capsule()
-                    .fill(WGColor.panel)
-                    .shadow(color: WGColor.shadowMd, radius: 12, x: 0, y: 4)
-            )
     }
 }

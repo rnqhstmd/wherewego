@@ -42,6 +42,8 @@ final class MapViewModel: ObservableObject {
     static let currentLocationZoom: Double = 15
     /// 핀 1개 선택 flyTo 시 줌 레벨.
     static let pinFocusZoom: Double = 15
+    /// 개별 마커 탭 시 "이미 충분히 가까움" 판정 좌표 임계(#3). 중심-핀 위경도 차가 이 값 미만이고 줌도 충분하면 flyTo 생략.
+    static let tappedMarkerNearDelta: Double = 0.0015
 
     // MARK: - 인라인 핀 추가 진입 줌(FR-11, AC-16). 웹 MapClient.tsx:1043-1066 동치.
 
@@ -251,24 +253,75 @@ final class MapViewModel: ObservableObject {
 
     /// 활성 그룹 → 핀 목록 로드. 실패 시 loadState=.error(재시도 가능, QE-2).
     /// 초기 카메라는 위치 권한 상태에 따라 결정(granted=현재위치 zoom15, 미허용=서울시청 zoom3, FR-2).
+    ///
+    /// 활성 그룹 해석(myActiveGroup)은 GroupContext.bootstrap() 이 단일 소스로 수행하므로,
+    /// MainTabView 가 그 결과(groupId)를 load(groupId:) 로 주입한다(이중 resolve 제거). 직접 호출되는 경우(에러
+    /// 오버레이 "다시 시도")는 외부 주입 경로가 없으므로 여기서 myActiveGroup 으로 자체 resolve 한다(폴백).
     func load() async {
         loadState = .loading
         do {
             guard let group = try await groupAPI.myActiveGroup() else {
                 // 활성 그룹 없음 — 핀 없는 상태로 로드 완료(EmptyMapCard 분기는 핀 0개로 처리).
-                groupId = nil
-                pins = []
-                loadState = .loaded
-                await applyInitialCamera()
+                await loadEmpty()
                 return
             }
-            groupId = group.groupId
-            pins = try await pinAPI.list(groupId: group.groupId)
+            await load(groupId: group.groupId)
+        } catch {
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 외부 주입 groupId 로 초기 핀 목록 로드(이중 resolve 제거 — GroupContext.bootstrap 결과 주입).
+    /// load() 와 동일하게 list → 캐시 시각 → 초기 카메라 흐름을 보존한다. 활성 그룹 nil 진입은 loadEmpty().
+    func load(groupId: Int) async {
+        loadState = .loading
+        do {
+            self.groupId = groupId
+            pins = try await pinAPI.list(groupId: groupId)
             lastFetchedAt = now()
             loadState = .loaded
             await applyInitialCamera()
         } catch {
             loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 활성 그룹 없음(BR-2) — 핀 없는 상태로 로드 완료. 빈 지도(EmptyMapCard 핀 0개 분기) + 초기 카메라만.
+    func loadEmpty() async {
+        groupId = nil
+        pins = []
+        lastFetchedAt = nil
+        loadState = .loaded
+        await applyInitialCamera()
+    }
+
+    /// 외부 주입 groupId 로 핀 목록을 (재)로드(FR-7, 그룹 전환). load() 가 myActiveGroup 으로 자동 resolve 하는 것과 달리
+    /// 상단 그룹 칩 전환에서 특정 그룹으로 직접 전환할 때 호출한다.
+    /// 전환 전 기존 핀/선택상태를 폐기(FR-5)하고 해당 groupId 로 list 한다. 폴링·캐시 시각도 새 그룹 기준으로 리셋한다.
+    /// (초기 카메라는 load() 와 동일하게 위치 권한 기준으로 다시 맞춘다.)
+    ///
+    /// 반환값은 재로드 성공 여부 — 실패(서버 403/네트워크) 시 false 를 반환해 호출부(MainTabView)가
+    /// 활성 그룹 칩을 이전 값으로 롤백할 수 있게 한다(FR-5). 내부적으론 실패 시 loadState=.error 도 세팅한다.
+    @discardableResult
+    func switchTo(groupId: Int) async -> Bool {
+        // 진행 중 인라인 추가 모드는 그룹 컨텍스트가 바뀌므로 종료(작성 중 위치 폐기, BR-1 정합).
+        exitAddPin()
+        // 이전 그룹의 핀/선택상태 즉시 폐기(FR-5 — 전환 전 데이터 폐기).
+        pins = []
+        selectedPinId = nil
+        selectedPinScreenPoint = nil
+        lastFetchedAt = nil
+        self.groupId = groupId
+        loadState = .loading
+        do {
+            pins = try await pinAPI.list(groupId: groupId)
+            lastFetchedAt = now()
+            loadState = .loaded
+            await applyInitialCamera()
+            return true
+        } catch {
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+            return false
         }
     }
 
@@ -387,6 +440,21 @@ final class MapViewModel: ObservableObject {
         flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
     }
 
+    /// 개별 마커 탭 시 그 핀으로 flyTo(#3). 단, 이미 중심에 가깝고 줌도 충분하면 생략해 과한 점프를 막는다.
+    /// 근접 판정은 현재 중심(mapCenter)과 핀의 좌표 차가 임계 미만이고, 현재 줌(mapZoom)이 포커스 줌 근처 이상일 때.
+    /// mapCenter/mapZoom 미확보(플레이스홀더/초기)면 판정 불가 → 항상 flyTo(말풍선 정렬 보장).
+    private func flyToTappedMarkerIfNeeded(pinId: Int) {
+        guard let pin = pins.first(where: { $0.id == pinId }) else { return }
+        if let center = mapCenter, let zoom = mapZoom {
+            // 중심에서 핀까지 좌표 차(약 0.0015° ≒ 도심 150m 내외) 미만이고 줌이 포커스 줌 -1 이상이면 충분히 가까움.
+            let near = abs(center.latitude - pin.latitude) < Self.tappedMarkerNearDelta
+                && abs(center.longitude - pin.longitude) < Self.tappedMarkerNearDelta
+            let zoomedEnough = zoom >= Self.pinFocusZoom - 1
+            if near && zoomedEnough { return }
+        }
+        flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
+    }
+
     /// 임의 좌표로 카메라 이동.
     /// 인라인 추가 모드 중에는 이 flyTo 로 발생할 cameraIdle 을 프로그래매틱으로 표시(MUST-1)하고
     /// mapZoom 을 명령 줌으로 즉시 시드(MUST-4)한다 → 검색 결과 보존 + FR-11 평가 정합.
@@ -486,6 +554,8 @@ final class MapViewModel: ObservableObject {
         do {
             let created = try await pinAPI.create(groupId: groupId, request: request)
             appendPin(created)
+            // #3 — 생성 직후 상세 말풍선 자동 표시. flyTo 카메라 이동이 cameraMoved 로 말풍선 화면좌표를 운반(G1).
+            selectedPinId = created.id
             lastFetchedAt = now()
             flyTo(lat: created.latitude, lng: created.longitude, zoom: Self.pinFocusZoom)
         } catch let error as APIError where error.code == "GROUP_NOT_MEMBER" {
@@ -508,7 +578,7 @@ final class MapViewModel: ObservableObject {
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
-        addPlaceVM = AddPlaceViewModel(mapViewModel: self)
+        addPlaceVM = AddPlaceViewModel(mapViewModel: self, entryMode: mode)   // B-2 — 진입 모드 보존(검색 진입 시 드래그 가드).
         isAddingPin = true
         // 콕찍기만 진입 줌인/초기 seed. 검색은 사용자가 검색→선택할 때까지 콕찍기 중심을 만들지 않는다(십자선 미표시).
         if mode == .pinpoint {
@@ -628,6 +698,10 @@ final class MapViewModel: ObservableObject {
             selectedPinId = pinId
             // 탭 즉시 화면좌표 세팅(지연 0, MUST-ADDRESS②). 화면밖이면 숨김(AC-14) — 이후 추적이 재표시.
             setSelectedPinScreenPoint(visibleOrNil(screenPoint))
+            // #3 — 개별 마커 탭 시 그 핀으로 카메라 이동(중심 정렬 + 핀 포커스 줌). 줌아웃/오프센터에서
+            //  말풍선만 뜨고 지도가 안 움직이던 문제 해소. 클러스터 탭(.clusterTapped)은 기존 확대 유지.
+            //  이미 충분히 가깝고(중심 근접) 줌도 충분하면 과한 점프를 피해 flyTo 를 생략한다.
+            flyToTappedMarkerIfNeeded(pinId: pinId)
         case let .cameraMoved(screenPoint):
             // 선택핀 추적 갱신(MUST-ADDRESS③). distinct + 화면밖 nil(GeoMath.isPointVisible) → 그 자식 뷰만 무효화.
             // 선택 해제 상태(selectedPinId nil)의 잔여 방출은 무시(게이팅 b 방어).
@@ -638,6 +712,12 @@ final class MapViewModel: ObservableObject {
             guard !isAddingPin else { return }
             // 클러스터 탭(FR-5) → 포함 핀들이 모두 보이도록 fitBounds(FR-26).
             handleClusterTapped(pinIds)
+        case .mapTapped:
+            // 빈 지도 탭(#4) — 선택핀 말풍선이 열려 있으면 선택 해제로 닫는다(PinBubbleView 배경탭 제거 대체).
+            // 인라인 추가 모드 중에는 무시(콕찍기/검색 진행 상태 보존).
+            guard !isAddingPin, selectedPinId != nil else { return }
+            selectedPinId = nil
+            clearSelectedPinScreenPoint()
         case .cameraIdle(let lat, let lng, let zoom):
             // 항상 최신 중심/줌 보유(기존 방문감지 입력 + MUST-4).
             mapCenter = Coordinate(latitude: lat, longitude: lng)

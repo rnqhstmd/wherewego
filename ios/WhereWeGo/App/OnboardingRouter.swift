@@ -72,7 +72,11 @@ struct OnboardingRouter: View {
                             onCancel: { path.removeLast() }
                         )
                     case .groupCreate:
-                        GroupCreateView()
+                        GroupCreateView(
+                            groupAPI: dependencies.groupAPI,
+                            onCreated: { afterGroupResolved() },
+                            onCancel: { path.removeLast() }
+                        )
                     }
                 }
         }

@@ -31,7 +31,8 @@ final class RouletteViewModel: ObservableObject {
     // MARK: - 게시 상태
 
     @Published private(set) var state: State = .idle
-    /// MEMORY 포함 토글(기본 OFF, FR-23). ON 시 추첨 풀에 MEMORY 추가.
+    /// MEMORY 포함 여부. 웹 정합으로 토글 UI 는 제거됨 — 항상 false(추첨 풀 = REEL/WISH).
+    /// 속성 자체는 유지한다(웹도 includeMemory state 를 보존하며, 추첨 로직/테스트가 참조).
     @Published var includeMemory: Bool = false
 
     /// 결과의 거리 라벨("여기서 800m" / "여기서 3.2km", 웹 RouletteResultContent 동치).

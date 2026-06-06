@@ -4,8 +4,9 @@ import SwiftUI
 // frontend/src/components/ui/SpeechBubblePopup.tsx(말풍선+꼬리) 시각 동치.
 //
 // 구조(.position 적용 단위 분리):
-//  - 전체화면 투명 배경탭(BR-3 isPhotoBusy 가드): ZStack 전체에 깔린다. `.position` 영향 안 받음(바깥 탭 = 닫기).
 //  - 말풍선 본체+꼬리(bubble): 그 자체에만 `.position` 적용 → 마커 위로 띄우고 꼬리 끝이 마커를 향하게 한다.
+//  - 전체화면 투명 배경탭은 제거됐다(#4): 말풍선이 지도 제스처(드래그/줌)를 가로막지 않게 한다.
+//    닫기는 빈 지도 탭(MapEvent.mapTapped → MapViewModel selectedPinId nil)으로 처리한다.
 // 앵커: BubbleOverlay 가 마커 화면점(anchor)을 넘기고, 여기서 말풍선 전체 높이 h 를 측정(PreferenceKey)해
 //  중심 y 를 `anchor.y - h/2 - markerGap` 으로 보정한다(웹 translate(-50%, calc(-100% - 16px)) 동치 — 본체가 마커 위, 꼬리 끝이 마커 방향).
 // 상태: detailVM(@StateObject) 가 사진 업로드/삭제 진행을 보유 — 배경탭 닫기 가드(BR-3)와 PinDetailContent 가 공유.
@@ -21,7 +22,12 @@ struct PinBubbleView: View {
     /// 초기값 220 = PreferenceKey 측정 전 1프레임 추정치(헤더+태그+메모 2줄 기준 평균 높이). 측정 후 보정되며 점프 폭은 DoD-B 시각 확인.
     @State private var bubbleHeight: CGFloat = 220
 
-    /// 말풍선 최대 폭(웹 SpeechBubblePopup 동치, compact). 초과 콘텐츠는 내부 ScrollView(FR-9).
+    /// 공유 카드 모달 표시(웹 PinShareSheet 동치). 모달은 말풍선 ScrollView clip 밖에서 전체화면 중앙에 떠야 하므로
+    /// PinDetailContent 가 아닌 이 ZStack 최상위에 둔다(PinDetailContent 는 onRequestShare 콜백만 발사).
+    @State private var showShareCard = false
+
+    /// 말풍선 최대 폭(웹 SpeechBubblePopup 동치). 하단 날짜·작성자 행이 한 줄에 들어가도록 웹 일반(296)에 가깝게 280.
+    /// (웹: 일반 296 / compact 240 — iOS 는 날짜 "2026.05.20" 전체 표시 확보 위해 280). 초과 콘텐츠는 내부 ScrollView(FR-9).
     private let maxBubbleWidth: CGFloat = 280
     /// 말풍선 본체 최대 높이(FR-9). 초과 시 내부 ScrollView 스크롤. 값(480)은 DoD-B(Mac) 미세조정 여지.
     private let maxBubbleHeight: CGFloat = 480
@@ -42,17 +48,8 @@ struct PinBubbleView: View {
 
     var body: some View {
         ZStack {
-            // 전체화면 투명 배경탭(BR-3): 바깥 탭 시 닫기. 단, 진행 중이면 닫기 무시(silent 실패 방지, N2).
-            //  - isPhotoBusy: 사진 업로드/삭제 중.
-            //  - isMutating: 태그/메모/장소명 저장·삭제(DELETE 응답 대기) 중 — 닫히면 결과/실패 inlineError 를 놓친다.
-            // ZStack 전체에 깔려 `.position` 영향을 받지 않는다 — 말풍선 본체와 적용 단위 분리(AC-2).
-            Color.clear
-                .contentShape(Rectangle())
-                .ignoresSafeArea()
-                .onTapGesture {
-                    guard !detailVM.isPhotoBusy, !detailVM.isMutating else { return }
-                    closeBubble()
-                }
+            // 전체화면 투명 배경탭은 제거됐다(#4) — 말풍선 열린 채로 지도 드래그/줌이 가능하게 한다.
+            // 닫기는 빈 지도 탭(MapEvent.mapTapped → MapViewModel selectedPinId nil)으로 처리한다.
 
             // 말풍선 본체+꼬리만 마커 위로 앵커. `.position` 은 뷰 중심을 좌표에 놓으므로
             // 꼬리 끝(VStack 맨 아래)이 마커(anchor.y) 근처에 오도록 중심 y 를 위로 보정한다.
@@ -61,6 +58,12 @@ struct PinBubbleView: View {
                     x: anchor.x,
                     y: anchor.y - bubbleHeight / 2 - markerGap
                 )
+
+            // 공유 카드 모달(웹 PinShareSheet 동치) — 전체화면 중앙. ZStack 최상위라 말풍선 ScrollView clip·.position
+            // 영향을 받지 않고 화면 중앙에 뜬다(backdrop 바깥 탭으로 닫힘).
+            if showShareCard {
+                PinShareCardSheet(pin: pin) { showShareCard = false }
+            }
         }
     }
 
@@ -74,7 +77,8 @@ struct PinBubbleView: View {
                     pin: pin,
                     mapViewModel: mapViewModel,
                     detailVM: detailVM,
-                    onRequestClose: closeBubble
+                    onRequestClose: closeBubble,
+                    onRequestShare: { showShareCard = true }
                 )
             }
             // 본체: 흰 카드 + 라운드 + 그림자(웹 SpeechBubblePopup 컨테이너 동치). 외곽 테두리는 본체+꼬리 합쳐 BubbleShape 가 그린다(N1).
