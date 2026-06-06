@@ -251,24 +251,75 @@ final class MapViewModel: ObservableObject {
 
     /// 활성 그룹 → 핀 목록 로드. 실패 시 loadState=.error(재시도 가능, QE-2).
     /// 초기 카메라는 위치 권한 상태에 따라 결정(granted=현재위치 zoom15, 미허용=서울시청 zoom3, FR-2).
+    ///
+    /// 활성 그룹 해석(myActiveGroup)은 GroupContext.bootstrap() 이 단일 소스로 수행하므로,
+    /// MainTabView 가 그 결과(groupId)를 load(groupId:) 로 주입한다(이중 resolve 제거). 직접 호출되는 경우(에러
+    /// 오버레이 "다시 시도")는 외부 주입 경로가 없으므로 여기서 myActiveGroup 으로 자체 resolve 한다(폴백).
     func load() async {
         loadState = .loading
         do {
             guard let group = try await groupAPI.myActiveGroup() else {
                 // 활성 그룹 없음 — 핀 없는 상태로 로드 완료(EmptyMapCard 분기는 핀 0개로 처리).
-                groupId = nil
-                pins = []
-                loadState = .loaded
-                await applyInitialCamera()
+                await loadEmpty()
                 return
             }
-            groupId = group.groupId
-            pins = try await pinAPI.list(groupId: group.groupId)
+            await load(groupId: group.groupId)
+        } catch {
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 외부 주입 groupId 로 초기 핀 목록 로드(이중 resolve 제거 — GroupContext.bootstrap 결과 주입).
+    /// load() 와 동일하게 list → 캐시 시각 → 초기 카메라 흐름을 보존한다. 활성 그룹 nil 진입은 loadEmpty().
+    func load(groupId: Int) async {
+        loadState = .loading
+        do {
+            self.groupId = groupId
+            pins = try await pinAPI.list(groupId: groupId)
             lastFetchedAt = now()
             loadState = .loaded
             await applyInitialCamera()
         } catch {
             loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 활성 그룹 없음(BR-2) — 핀 없는 상태로 로드 완료. 빈 지도(EmptyMapCard 핀 0개 분기) + 초기 카메라만.
+    func loadEmpty() async {
+        groupId = nil
+        pins = []
+        lastFetchedAt = nil
+        loadState = .loaded
+        await applyInitialCamera()
+    }
+
+    /// 외부 주입 groupId 로 핀 목록을 (재)로드(FR-7, 그룹 전환). load() 가 myActiveGroup 으로 자동 resolve 하는 것과 달리
+    /// 상단 그룹 칩 전환에서 특정 그룹으로 직접 전환할 때 호출한다.
+    /// 전환 전 기존 핀/선택상태를 폐기(FR-5)하고 해당 groupId 로 list 한다. 폴링·캐시 시각도 새 그룹 기준으로 리셋한다.
+    /// (초기 카메라는 load() 와 동일하게 위치 권한 기준으로 다시 맞춘다.)
+    ///
+    /// 반환값은 재로드 성공 여부 — 실패(서버 403/네트워크) 시 false 를 반환해 호출부(MainTabView)가
+    /// 활성 그룹 칩을 이전 값으로 롤백할 수 있게 한다(FR-5). 내부적으론 실패 시 loadState=.error 도 세팅한다.
+    @discardableResult
+    func switchTo(groupId: Int) async -> Bool {
+        // 진행 중 인라인 추가 모드는 그룹 컨텍스트가 바뀌므로 종료(작성 중 위치 폐기, BR-1 정합).
+        exitAddPin()
+        // 이전 그룹의 핀/선택상태 즉시 폐기(FR-5 — 전환 전 데이터 폐기).
+        pins = []
+        selectedPinId = nil
+        selectedPinScreenPoint = nil
+        lastFetchedAt = nil
+        self.groupId = groupId
+        loadState = .loading
+        do {
+            pins = try await pinAPI.list(groupId: groupId)
+            lastFetchedAt = now()
+            loadState = .loaded
+            await applyInitialCamera()
+            return true
+        } catch {
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+            return false
         }
     }
 

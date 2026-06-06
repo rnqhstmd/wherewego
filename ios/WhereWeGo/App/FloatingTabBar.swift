@@ -1,25 +1,24 @@
 import SwiftUI
 
-// 둥근 플로팅 필 바(설계 §1, FR-1~4).
+// 둥근 플로팅 필 바(설계 §1, FR-1).
 //  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
 //    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
-//  - 4칸 = 4탭 버튼(지도·채팅·알림·내정보). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
+//  - 2칸 = 2탭 버튼(지도·채팅, 그룹 종속). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
+//    알림·내정보는 하단 탭에서 제거되고 상단 TopBar(🔔·👤)로 이전됐다(내비 셸 재구성, FR-1/2).
+//    미읽음 배지도 TopBar 의 🔔 로 이동했다(hasUnread 파라미터 제거).
 //    지도=전체 핀 보기·관리(+ 우상단 🎲 룰렛 시트). 어디갈까(룰렛)는 독립 탭에서 지도 위 시트로 환원(웹 정합).
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
-//  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
 //  - 배경(클러스터 A): iOS 17+ 전부 글래스 캡슐(.regularMaterial + hairline 보더 + 그림자)로 통일.
 //    기존 iOS26+/17~25 버전 분기는 제거 — 전 버전에서 동일한 글래스 플로팅 룩(glassCapsule).
 //  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
-//    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리. 기존 센터 ＋는 selection 불변이라
-//    채팅/알림/내정보 탭에서 누르면 (안 보이는 지도에만 작용해) 무반응이 되는 비대칭이 있었다.
+//    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리.
 
 /// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). 장소 추가(＋)는 지도 화면 FAB 이므로 탭 미포함.
+/// 내비 셸 재구성(FR-1): 하단 탭은 그룹 종속 2개(.map/.chat)만. 알림·내정보는 상단 TopBar 시트로 이전돼 탭 미포함.
 /// .map=지도(전체 핀 보기·관리). 어디갈까(룰렛)는 독립 탭에서 지도 위 시트로 환원돼(웹 정합) 탭 미포함.
 enum MainTab: Hashable, CaseIterable {
     case map
     case chat
-    case notification
-    case myInfo
 }
 
 struct FloatingTabBar: View {
@@ -35,11 +34,9 @@ struct FloatingTabBar: View {
     }
 
     @Binding private var selection: MainTab
-    private let hasUnread: Bool
 
-    init(selection: Binding<MainTab>, hasUnread: Bool) {
+    init(selection: Binding<MainTab>) {
         self._selection = selection
-        self.hasUnread = hasUnread
     }
 
     var body: some View {
@@ -49,13 +46,12 @@ struct FloatingTabBar: View {
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
                       label: "채팅")
-            tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
-            tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")
         }
         .padding(.horizontal, 8)
         .frame(height: Metrics.barHeight)
-        .glassCapsule()   // 글래스 통일: 전 버전 .regularMaterial 캡슐 + hairline 보더 + 그림자(떠 보임)
-        .padding(.horizontal, 24)
+        .liquidGlassCapsule()   // iOS26 진짜 Liquid Glass(.glassEffect), 미만은 .regularMaterial 캡슐 fallback
+        // 2탭으로 축소돼 폭이 넓으면 버튼 간격이 과해지므로 좌우 여백을 늘려 바 폭을 적정히 좁힌다.
+        .padding(.horizontal, 48)
         .padding(.bottom, Metrics.bottomGap)
     }
 
@@ -65,8 +61,7 @@ struct FloatingTabBar: View {
     private func tabButton(_ tab: MainTab,
                            outline: String,
                            fill: String,
-                           label: String,
-                           showUnread: Bool = false) -> some View {
+                           label: String) -> some View {
         let isSelected = selection == tab
         Button {
             selection = tab
@@ -83,15 +78,6 @@ struct FloatingTabBar: View {
                         Capsule()
                             .fill(WGColor.cta.opacity(0.12))
                             .frame(width: 56, height: 36)
-                    }
-                }
-                // 미읽음 점(FR-22): 아이콘 우상단 작은 빨간 점. 건수 미표시.
-                .overlay(alignment: .topTrailing) {
-                    if showUnread {
-                        Circle()
-                            .fill(WGColor.pinNew)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 10, y: -6)
                     }
                 }
         }

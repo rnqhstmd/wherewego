@@ -516,6 +516,8 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
         group
     }
 
+    func listMyGroups() async throws -> [GroupSummary] { [] }
+
     func createGroup(name: String) async throws -> GroupCreated {
         GroupCreated(groupId: 0, name: name)
     }

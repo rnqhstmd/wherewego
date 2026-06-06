@@ -12,13 +12,16 @@ import SwiftUI
 //   ＋ 탭 → 2선택지(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색) → enterAddPin(mode:). 모드별 UI 분리:
 //   십자선은 콕찍기 모드(inputMode==.pinpoint)만, 검색바는 검색 모드(.search)만 노출.
 struct MapView: View {
-    @StateObject private var viewModel: MapViewModel
+    /// 지도 메인 VM(MainTabView 소유 — 탭 전환에도 핀/카메라 상태 유지). MapView 는 관찰만 한다(@ObservedObject).
+    ///  수명 소유는 MainTabView 의 @StateObject 이므로 여기서 @StateObject 로 이중 소유하면 안 된다(소유권 정정).
+    @ObservedObject private var viewModel: MapViewModel
     /// 룰렛("어디갈까") VM(MainTabView 소유 — 탭 전환에도 결과 유지). 우상단 🎲 → 룰렛 시트 콘텐츠가 관찰.
     @ObservedObject private var rouletteViewModel: RouletteViewModel
     @Environment(\.scenePhase) private var scenePhase
 
     /// 룰렛 시트 표시 여부(우상단 🎲 트리거). 표시 시 spin() 자동 호출(구 어디갈까 탭 진입 동치).
-    @State private var isRoulettePresented = false
+    /// 그룹 전환 시 닫을 수 있도록 MainTabView 가 소유하고 Binding 으로 주입한다(BR-4 — 열려 있으면 닫고 전환).
+    @Binding private var isRoulettePresented: Bool
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
     private static let inlineCardBottomPadding: CGFloat = 88
@@ -46,9 +49,11 @@ struct MapView: View {
 
     /// 외부에서 생성·소유한 MapViewModel/RouletteViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 flyTo·룰렛 결과 유지를 위해 VM 공유).
     /// 두 VM 모두 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다(여기선 @ObservedObject 로 관찰만).
-    init(viewModel: MapViewModel, rouletteViewModel: RouletteViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    /// isRoulettePresented 는 MainTabView 가 소유하는 룰렛 시트 표시 상태(그룹 전환 시 외부에서 닫기 위함, BR-4).
+    init(viewModel: MapViewModel, rouletteViewModel: RouletteViewModel, isRoulettePresented: Binding<Bool>) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
         _rouletteViewModel = ObservedObject(wrappedValue: rouletteViewModel)
+        _isRoulettePresented = isRoulettePresented
     }
 
     var body: some View {
@@ -123,11 +128,17 @@ struct MapView: View {
         .animation(.easeOut(duration: 0.2), value: viewModel.visitInfoMessage)
         // QE-1 — 십자선/하단 카드 등장·퇴장 전환(opacity + slide).
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
+        // 사진 업로드만 실패(BR-6) — 핀은 저장됐으나 사진만 실패한 경우 인라인 모드 종료 후 안내 토스트로 노출.
+        // addPlaceVM 은 종료(exitAddPin) 직전 performCreate 가 photoWarning 을 세팅하므로, 종료 전 마지막 값을 흡수한다.
+        .onChange(of: viewModel.addPlaceVM?.photoWarning) { _, message in
+            if let message { viewModel.visitInfoMessage = message }
+        }
         .navigationBarBackButtonHidden(true)
         .task {
-            if case .idle = viewModel.loadState {
-                await viewModel.load()
-            }
+            // 활성 그룹 해석 + 초기 핀 로드는 MainTabView 가 GroupContext.bootstrap() 결과를 주입해 주도한다
+            //  (이중 myActiveGroup resolve 제거 — 칩과 지도가 항상 동일 그룹). 여기선 자체 load() 를 호출하지 않는다.
+            //  단, 자식 task 가 부모보다 먼저 실행돼 아직 .idle 인 race 에서도, 주입 로드가 곧 .loading 으로
+            //  전환하므로 중복 호출은 없다. 에러 후 재시도는 errorOverlay "다시 시도"(load()) 가 담당한다.
             viewModel.startVisitDetection()
             viewModel.startPolling()
         }
@@ -383,6 +394,8 @@ struct MapView: View {
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
+                // 우하단 컬럼(내위치/＋ FAB)과 동일 56 레인 중심축 — 모든 플로팅 원형이 한 축에 정렬.
+                .frame(width: 56)
         }
         .accessibilityLabel("어디갈까")
     }
@@ -406,6 +419,8 @@ struct MapView: View {
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
+                // 메인 ＋ FAB(56)와 중심축을 맞춘다 — 48 원을 56 폭 레인 가운데(우하단 컬럼 정렬 어긋남 해소).
+                .frame(width: 56)
         }
         .accessibilityLabel("내 위치")
     }
@@ -473,6 +488,8 @@ struct MapView: View {
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(WGColor.cta))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                    // ＋ FAB(56)·내위치와 동일 56 레인 가운데 정렬(중심축 일치).
+                    .frame(width: 56)
             }
         }
         .accessibilityLabel(accessibility)
