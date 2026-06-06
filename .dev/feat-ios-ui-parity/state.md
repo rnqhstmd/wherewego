@@ -1,6 +1,6 @@
 ```yaml
-phase: setup
-status: in_progress
+phase: complete
+status: completed
 branch: feat/ios-ui-parity
 base: feat/ios-ui-parity
 project-type: ios-swift-xcodegen
@@ -20,7 +20,8 @@ phases:
   setup: completed
   requirements: completed
   implement: completed
-  complete: in_progress
+  complete: completed
+last-known-head: ea9a926
   complete: pending
 execution-log:
   - phase: setup

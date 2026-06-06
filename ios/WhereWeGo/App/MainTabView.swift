@@ -1,17 +1,20 @@
 import SwiftUI
 
 // 메인 탭 화면(설계 §1·§2·§11 + 내비 셸 재구성 FR-1~9). 온보딩 종착.
-//  - 하단 FloatingTabBar: 그룹 종속 2탭(지도·채팅)만. 알림·내정보는 상단 TopBar 시트로 이전됐다(FR-1/2, BR-5).
-//  - 상단 TopBar(지도·채팅 위 오버레이): 좌측 그룹 전환 칩 / 우측 🔔 알림·👤 내정보.
+//  - 루트 = 지도(MapView) 상시 홈. 채팅·어디갈까는 풀스크린 탭이 아니라 지도 위 .sheet 팝업으로 띄운다(TabView 제거).
+//      TopBar 가 콘텐츠 상단을 가려 흰 화면처럼 보이던 문제 해소 — 시트 뒤로 지도가 보인다.
+//  - 하단 FloatingTabBar: 그룹 종속 3탭(지도·채팅·어디갈까). selection 으로 시트 표시를 제어한다.
+//      · .map → 시트 없음(지도). .chat → 채팅 시트. .roulette → 룰렛 시트. 시트 dismiss(스와이프/닫기) 시 selection=.map.
+//  - 상단 TopBar(지도 위 오버레이): 좌측 그룹 전환 칩 / 우측 🔔 알림·👤 내정보.
 //      · 그룹 칩 탭 → GroupSwitcherSheet(목록 + 전환). 알림/내정보 탭 → 각각 .sheet.
-//  - 활성 그룹 컨텍스트(GroupContext): 본 뷰가 @StateObject 로 소유. 전환 시 지도 재로드 + 채팅 방 전환 + 룰렛 닫기(FR-5/BR-4).
-//  - 지도=전체 핀 보기/관리. 룰렛("어디갈까")은 지도 위 시트(우상단 🎲) — 시트 표시 상태(isRoulettePresented)를
-//      본 뷰가 소유해 그룹 전환 시 닫을 수 있게 한다(BR-4). VM 수명은 본 뷰가 @StateObject 로 보유.
+//  - 활성 그룹 컨텍스트(GroupContext): 본 뷰가 @StateObject 로 소유. 전환 시 지도 재로드 + 채팅 방 전환 + 룰렛 재추첨(FR-5/BR-4).
+//  - 지도=전체 핀 보기/관리. 룰렛("어디갈까")은 지도 위 시트(.roulette 진입 시 자동 추첨), 그룹 전환 시 룰렛 시트 떠 있으면 새 풀로 재추첨.
+//      VM 수명은 본 뷰가 @StateObject 로 보유(시트 토글에도 결과 유지).
 //  - 봇 채팅 수신은 STOMP 제거 후 전송 직후 폴링 + scenePhase 재조회 + APNs 푸시로 대체(채팅 이벤트 전환).
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil. (.chat/.pin/.map 만 — 알림 딥링크 없음.)
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
 //      읽음 처리(readAll)는 알림 시트 진입 시 NotificationInboxView.load() 에서만 발생한다.
-// ViewModel 수명은 본 뷰가 @StateObject 로 보유(탭 전환·시트 토글에도 유지 — QE-1 map/bot VM 수명 보존).
+// ViewModel 수명은 본 뷰가 @StateObject 로 보유(시트 토글에도 유지 — QE-1 map/bot VM 수명 보존).
 struct MainTabView: View {
 
     private let dependencies: AppDependencies
@@ -33,8 +36,6 @@ struct MainTabView: View {
 
     @State private var selection: MainTab = .map
 
-    /// 룰렛 시트 표시 상태(MapView 우상단 🎲 트리거). 본 뷰가 소유해 그룹 전환 시 닫을 수 있게 한다(BR-4).
-    @State private var isRoulettePresented = false
     /// 상단 TopBar 시트 표시 상태(BR-5 — 알림·내정보·그룹 전환 모두 시트 진입).
     @State private var showGroupSwitcher = false
     @State private var showNotifications = false
@@ -86,31 +87,36 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        TabView(selection: $selection) {
-            // 지도 탭 — 전체 핀 보기/관리. 외부 주입 VM 공유(딥링크 flyTo 대상).
-            //  룰렛("어디갈까") 시트 표시 상태(isRoulettePresented)도 본 뷰가 소유해 주입한다(그룹 전환 시 닫기, BR-4).
-            MapView(
-                viewModel: mapViewModel,
-                rouletteViewModel: rouletteViewModel,
-                isRoulettePresented: $isRoulettePresented
-            )
-            // iOS 26 새 Liquid Glass 탭바는 TabView 레벨 .toolbar(.hidden) 만으로는 확실히 숨겨지지 않아
-            // 커스텀 FloatingTabBar 와 2중으로 보였다. 각 탭 콘텐츠 루트에서 직접 숨겨야 네이티브 바가 사라진다.
-            .toolbar(.hidden, for: .tabBar)
-            .tag(MainTab.map)
-
-            // 채팅(봇 방) 탭. navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
+        // 루트 = 지도(상시 홈). 채팅·어디갈까는 지도 위 .sheet 팝업으로 띄운다(TabView 제거).
+        //  MapView 가 자체 하단 패딩(FloatingTabBar.Metrics.contentFootprint)으로 바 footprint 를 회피하므로
+        //  별도 reserveFloatingTabBarSpace 는 불필요하다(룰렛/채팅은 시트라 바 footprint 와 무관).
+        MapView(viewModel: mapViewModel)
+        .tint(WGColor.cta)
+        // 채팅 시트(.chat 선택 시) — 지도 위 팝업. NavigationStack 으로 타이틀("어디가지 봇") 표시.
+        //  dismiss(스와이프/닫기) 시 바인딩 set 이 selection=.map 으로 되돌린다.
+        .sheet(isPresented: chatSheetBinding) {
             NavigationStack {
                 BotChatView(viewModel: botViewModel)
             }
-            .reserveFloatingTabBarSpace()   // 탭 콘텐츠가 바 footprint 회피(TabView는 safe area 전파 안 함 — PR리뷰)
-            .toolbar(.hidden, for: .tabBar)
-            .tag(MainTab.chat)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.regularMaterial)
         }
-        // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(내비 셸 재구성 2탭).
-        // iOS 26 새 Liquid Glass 탭바는 이 TabView 레벨 적용만으로는 잔존(커스텀 바와 2중)하므로 각 탭 콘텐츠에도 동일 적용했다(위).
-        .toolbar(.hidden, for: .tabBar)
-        .tint(WGColor.cta)
+        // 룰렛("어디갈까") 시트(.roulette 선택 시) — 지도 위 팝업. 시트엔 자체 타이틀이 없으므로
+        //  NavigationStack title "어디갈까"(.inline)로 표기. "지도에서 보기"는 시트 닫고 지도로(selection=.map).
+        //  자동 추첨은 .onChange(of: selection) 에서 .roulette 진입 시 spin() 한다(아래 onChange).
+        .sheet(isPresented: rouletteSheetBinding) {
+            NavigationStack {
+                RouletteView(
+                    viewModel: rouletteViewModel,
+                    onShowOnMap: { selection = .map }
+                )
+                .navigationTitle("어디갈까")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         // 상단 TopBar 오버레이(FR-2): 좌 그룹 칩 / 우 🔔·👤. 상단 safe area 안에 배치(지도 chrome 과 충돌 회피).
         .overlay(alignment: .top) {
             TopBar(
@@ -121,14 +127,12 @@ struct MainTabView: View {
                 onTapMyInfo: { showMyInfo = true }
             )
         }
-        // 바 부착(설계 §2 개정 / PR리뷰): TabView 에 직접 .safeAreaInset 을 걸면 그 safe area 가 개별 탭
-        //  자식 뷰로 전파되지 않는 SwiftUI 한계가 있다(콘텐츠가 바 뒤로 가림). 따라서 각 탭이
-        //  .reserveFloatingTabBarSpace() 로 자체 footprint 를 확보하고, 바는 .overlay 로 얹는다.
-        // 둥근 플로팅 필 바(2탭 순수 네비게이션). 미읽음 배지는 상단 TopBar 🔔 로 이전돼 바에는 없다.
+        // 둥근 플로팅 필 바(3탭 순수 네비게이션). 지도 루트 위 .overlay 로 얹는다.
+        //  지도 콘텐츠(우하단 컨트롤 등)는 MapView 가 자체 하단 패딩으로 바 footprint 를 회피한다.
+        //  채팅·룰렛은 시트라 바 위로 떠 footprint 와 무관(시트 dismiss 시 selection=.map 으로 바 선택 복귀).
         .overlay(alignment: .bottom) {
             FloatingTabBar(selection: $selection)
                 // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
-                //  TabView 전체에 걸면 채팅 입력바의 SwiftUI 키보드 회피까지 억제되어 입력바가 키보드에 가려진다.
                 .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         // 그룹 전환 시트(FR-4): 진입 시 listMyGroups(BR-6). 선택 → switchActiveGroup(전환 동기화).
@@ -194,11 +198,15 @@ struct MainTabView: View {
         .onChange(of: deepLinkRouter.pending) { _, _ in
             consumePending()
         }
-        // 탭 전환(selection 변경) 시 인라인 추가 모드 종료(BR-1/AC-12). 지도 탭에서 ＋ FAB 로 추가 모드에
-        //  들어간 뒤 다른 탭으로 이동하면 작성 중 상태를 정리한다.
-        .onChange(of: selection) { _, _ in
+        // selection 변경(채팅/룰렛 시트 토글 포함) 시 인라인 추가 모드 종료(BR-1/AC-12). 지도에서 ＋ FAB 로 추가 모드에
+        //  들어간 뒤 채팅/룰렛 시트로 이동하면 작성 중 상태를 정리한다.
+        //  어디갈까(룰렛) 시트 진입(selection==.roulette) 시마다 자동 추첨(시트 표시 = spin()).
+        .onChange(of: selection) { _, newSelection in
             mapViewModel.exitAddPin()
             mapViewModel.isAddMenuExpanded = false
+            if newSelection == .roulette {
+                Task { await rouletteViewModel.spin() }
+            }
         }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 시트 진입에서만).
         .onChange(of: scenePhase) { _, phase in
@@ -208,9 +216,27 @@ struct MainTabView: View {
         }
     }
 
+    // MARK: - 시트 표시 바인딩(selection → 채팅·룰렛 시트)
+
+    /// 채팅 시트 표시 바인딩(selection==.chat). dismiss(스와이프/닫기) 시 set(false)가 selection=.map 으로 되돌린다.
+    private var chatSheetBinding: Binding<Bool> {
+        Binding(
+            get: { selection == .chat },
+            set: { if !$0 { selection = .map } }
+        )
+    }
+
+    /// 룰렛("어디갈까") 시트 표시 바인딩(selection==.roulette). dismiss 시 selection=.map.
+    private var rouletteSheetBinding: Binding<Bool> {
+        Binding(
+            get: { selection == .roulette },
+            set: { if !$0 { selection = .map } }
+        )
+    }
+
     // MARK: - 활성 그룹 전환 동기화(FR-5, BR-4)
 
-    /// 그룹 전환: 활성 그룹 갱신 + 지도 재로드 + 채팅 방 전환 + 열린 룰렛 닫기.
+    /// 그룹 전환: 활성 그룹 갱신 + 지도 재로드 + 채팅 방 전환 + (어디갈까 시트 떠 있으면) 새 풀로 룰렛 재추첨.
     /// 동일 그룹 재선택은 재로드 없이 즉시 반환(불필요한 폐기/재조회 방지).
     ///
     /// 지도 재로드 실패(서버 403/네트워크) 시 GroupContext(칩)를 이전 그룹으로 롤백한다(FR-5 — 칩/지도 정합).
@@ -221,8 +247,6 @@ struct MainTabView: View {
         // 전환 전 활성 그룹 보관(재로드 실패 시 칩 롤백용).
         let previousGroupId = groupContext.activeGroupId
         let previousGroupName = groupContext.activeGroupName
-        // BR-4 — 룰렛이 열려 있으면 닫고 전환(전환 후 새 풀 기준으로 다시 추첨).
-        isRoulettePresented = false
         groupContext.setActiveGroup(group)
         Task {
             // 지도/채팅 재로드는 독립 — 병렬 실행(전환 전 데이터 폐기, FR-5/7).
@@ -232,6 +256,10 @@ struct MainTabView: View {
             // 지도 실패 시 칩을 이전 그룹으로 롤백(칩/지도 정합 유지).
             if !succeeded {
                 groupContext.rollbackActiveGroup(toId: previousGroupId, name: previousGroupName)
+            }
+            // BR-4 — 어디갈까 시트가 떠 있으면(selection==.roulette) 전환된 새 풀 기준으로 다시 추첨한다.
+            if selection == .roulette {
+                await rouletteViewModel.spin()
             }
         }
     }
@@ -253,15 +281,5 @@ struct MainTabView: View {
             mapViewModel.flyTo(pinId: pinId)
         }
         deepLinkRouter.pending = nil
-    }
-}
-
-private extension View {
-    /// 하단 플로팅 탭바 footprint 만큼 콘텐츠 하단 safe area 를 확보한다(설계 §2 개정 / PR리뷰).
-    ///  TabView 는 safe area 를 자식 탭으로 전파하지 않으므로, 각 탭이 직접 적용해야 콘텐츠가 바를 회피한다.
-    func reserveFloatingTabBarSpace() -> some View {
-        safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: FloatingTabBar.Metrics.contentFootprint)
-        }
     }
 }

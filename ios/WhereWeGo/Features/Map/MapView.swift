@@ -1,8 +1,8 @@
 import SwiftUI
 
 // 지도 메인 화면(설계 §3·§7·§11, FR-2/6/7/8). 온보딩 종착 → 지도 진입(GroupsView 대체).
-// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 좌하단 [!]범례·[▽]필터 + 플로팅 버튼(룰렛 우상단 / 내위치·＋추가 우하단).
-//  룰렛("어디갈까")은 독립 탭에서 지도 위 시트로 환원(웹 정합) — 우상단 🎲 버튼 → .sheet(RouletteView), 표시 시 spin() 자동.
+// frontend/src/app/map/MapClient.tsx 레이아웃 이식: 지도 배경 + 좌하단 [!]범례·[▽]필터 + 플로팅 버튼(내위치·＋추가 우하단).
+//  룰렛("어디갈까")은 지도 위 시트가 아니라 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 지도 화면에서 🎲 버튼·룰렛 시트는 제거.
 //
 // 지도 배경은 MapContainerView(선언적 바인딩 markers + cameraCommand + onEvent)로 그린다.
 // 핀 상세는 말풍선 오버레이(MapContainerView, 설계 §6 D-1)로 표시한다.
@@ -15,13 +15,7 @@ struct MapView: View {
     /// 지도 메인 VM(MainTabView 소유 — 탭 전환에도 핀/카메라 상태 유지). MapView 는 관찰만 한다(@ObservedObject).
     ///  수명 소유는 MainTabView 의 @StateObject 이므로 여기서 @StateObject 로 이중 소유하면 안 된다(소유권 정정).
     @ObservedObject private var viewModel: MapViewModel
-    /// 룰렛("어디갈까") VM(MainTabView 소유 — 탭 전환에도 결과 유지). 우상단 🎲 → 룰렛 시트 콘텐츠가 관찰.
-    @ObservedObject private var rouletteViewModel: RouletteViewModel
     @Environment(\.scenePhase) private var scenePhase
-
-    /// 룰렛 시트 표시 여부(우상단 🎲 트리거). 표시 시 spin() 자동 호출(구 어디갈까 탭 진입 동치).
-    /// 그룹 전환 시 닫을 수 있도록 MainTabView 가 소유하고 Binding 으로 주입한다(BR-4 — 열려 있으면 닫고 전환).
-    @Binding private var isRoulettePresented: Bool
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
     private static let inlineCardBottomPadding: CGFloat = 88
@@ -47,13 +41,11 @@ struct MapView: View {
         )
     }
 
-    /// 외부에서 생성·소유한 MapViewModel/RouletteViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 flyTo·룰렛 결과 유지를 위해 VM 공유).
-    /// 두 VM 모두 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다(여기선 @ObservedObject 로 관찰만).
-    /// isRoulettePresented 는 MainTabView 가 소유하는 룰렛 시트 표시 상태(그룹 전환 시 외부에서 닫기 위함, BR-4).
-    init(viewModel: MapViewModel, rouletteViewModel: RouletteViewModel, isRoulettePresented: Binding<Bool>) {
+    /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 flyTo 결과 유지를 위해 VM 공유).
+    /// @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다(여기선 @ObservedObject 로 관찰만).
+    /// 룰렛("어디갈까")은 하단 탭으로 편입돼(룰렛 탭화) 지도에서 시트·VM 주입이 제거됐다.
+    init(viewModel: MapViewModel) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
-        _rouletteViewModel = ObservedObject(wrappedValue: rouletteViewModel)
-        _isRoulettePresented = isRoulettePresented
     }
 
     var body: some View {
@@ -196,27 +188,7 @@ struct MapView: View {
                 .presentationCornerRadius(24)
                 .presentationBackground(.regularMaterial)
         }
-        // 룰렛("어디갈까") 시트(작업 D — 독립 탭에서 지도 위 시트로 환원, 웹 MapClient activeSheet==="roulette" 정합).
-        //  우상단 🎲 버튼 → isRoulettePresented. 표시 시 spin() 자동 호출(구 어디갈까 탭 진입 동치).
-        //  "지도에서 보기"는 시트를 닫아 지도를 드러낸다(showOnMap 이 flyTo+정보창 후 dismiss).
-        .sheet(isPresented: $isRoulettePresented) {
-            RouletteSheetContent(
-                viewModel: rouletteViewModel,
-                onShowOnMap: { isRoulettePresented = false },
-                onClose: { isRoulettePresented = false }
-            )
-            // 글래스 통일(클러스터 A): VisitMemoSheet 와 동일한 medium detent + 드래그 인디케이터 + 글래스 배경.
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(24)
-            .presentationBackground(.regularMaterial)
-        }
-        // 룰렛 시트 표시 즉시 자동 추첨(GPS one-shot → 반경 10km 무작위 1곳). 매 표시마다 새로 돌린다(구 어디갈까 탭 진입 동치).
-        .onChange(of: isRoulettePresented) { _, presented in
-            if presented {
-                Task { await rouletteViewModel.spin() }
-            }
-        }
+        // 룰렛("어디갈까")은 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 지도 위 시트·자동 추첨 onChange 는 MainTabView 로 이전.
     }
 
     // MARK: - activeSheet → 시트 표시 바인딩
@@ -323,20 +295,10 @@ struct MapView: View {
                 .padding(.horizontal, 16)
             }
 
-            // 우상단 룰렛("어디갈까") 트리거(작업 D — 독립 탭에서 지도 위 시트로 환원). 🎲 탭 → 룰렛 시트 표시.
-            //  우하단 ＋/내위치, 좌하단 범례/필터와 코너 분리(ZStack alignment) — 컨트롤 간 조화.
-            VStack {
-                HStack {
-                    Spacer()
-                    rouletteButton
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            // 룰렛("어디갈까")은 하단 3번째 탭으로 편입됐다(룰렛 탭화) — 우상단 🎲 트리거 VStack 은 제거. 우상단은 비워둔다.
 
             // 우하단 플로팅 컨트롤 세로 스택: 내 위치(위, 보조) + 장소 추가 ＋ speed-dial(아래, 주 액션).
-            //  룰렛(우상단)과 분리(ZStack alignment). ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
+            //  ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
             //  주 액션(＋, 56 주황)을 thumb-reach 코너 최하단에 두고, 보조(내위치, 48 흰)를 그 위에 둔다.
             //  ＋ 탭 → speed-dial 펼침(✋ 지도에서 찍기 / 🔍 검색해서 찾기). 인라인 추가 모드(isAddingPin) 중엔
             //  하단 InlineAddPlaceCard 가 떠 있으므로 speed-dial 전체를 숨긴다(중복 방지).
@@ -380,25 +342,7 @@ struct MapView: View {
         }
     }
 
-    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
-
-    /// 룰렛("어디갈까") 트리거 플로팅 버튼(작업 D, 우상단). 🎲 탭 → 룰렛 시트 표시(표시 시 spin() 자동).
-    ///  내 위치 버튼(48 흰 원형)과 같은 형태 톤 — 아이콘만 🎲(주사위). 지도 위 보조 컨트롤로 조화.
-    private var rouletteButton: some View {
-        Button {
-            isRoulettePresented = true
-        } label: {
-            Image(systemName: "dice.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(WGColor.cta)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(WGColor.panel))
-                .shadow(color: WGColor.shadow, radius: 8, y: 3)
-                // 우하단 컬럼(내위치/＋ FAB)과 동일 56 레인 중심축 — 모든 플로팅 원형이 한 축에 정렬.
-                .frame(width: 56)
-        }
-        .accessibilityLabel("어디갈까")
-    }
+    // MARK: - 플로팅 버튼(내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
 
     /// 내 위치 플로팅 버튼(FR-7). 우하단. one-shot 현재 위치로 지도 카메라 이동.
     private var myLocationButton: some View {

@@ -3,10 +3,10 @@ import SwiftUI
 // 둥근 플로팅 필 바(설계 §1, FR-1).
 //  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
 //    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
-//  - 2칸 = 2탭 버튼(지도·채팅, 그룹 종속). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
+//  - 3칸 = 3탭 버튼(지도·채팅·어디갈까, 그룹 종속). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
 //    알림·내정보는 하단 탭에서 제거되고 상단 TopBar(🔔·👤)로 이전됐다(내비 셸 재구성, FR-1/2).
 //    미읽음 배지도 TopBar 의 🔔 로 이동했다(hasUnread 파라미터 제거).
-//    지도=전체 핀 보기·관리(+ 우상단 🎲 룰렛 시트). 어디갈까(룰렛)는 독립 탭에서 지도 위 시트로 환원(웹 정합).
+//    지도=전체 핀 보기·관리. 어디갈까(룰렛)는 지도 위 시트가 아니라 하단 3번째 탭으로 편입됐다(룰렛 탭화).
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
 //  - 배경(클러스터 A): iOS 17+ 전부 글래스 캡슐(.regularMaterial + hairline 보더 + 그림자)로 통일.
 //    기존 iOS26+/17~25 버전 분기는 제거 — 전 버전에서 동일한 글래스 플로팅 룩(glassCapsule).
@@ -14,11 +14,12 @@ import SwiftUI
 //    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리.
 
 /// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). 장소 추가(＋)는 지도 화면 FAB 이므로 탭 미포함.
-/// 내비 셸 재구성(FR-1): 하단 탭은 그룹 종속 2개(.map/.chat)만. 알림·내정보는 상단 TopBar 시트로 이전돼 탭 미포함.
-/// .map=지도(전체 핀 보기·관리). 어디갈까(룰렛)는 독립 탭에서 지도 위 시트로 환원돼(웹 정합) 탭 미포함.
+/// 내비 셸 재구성(FR-1): 하단 탭은 그룹 종속 3개(.map/.chat/.roulette). 알림·내정보는 상단 TopBar 시트로 이전돼 탭 미포함.
+/// .map=지도(전체 핀 보기·관리). .roulette=어디갈까(룰렛) — 지도 위 시트에서 하단 3번째 탭으로 편입됐다(룰렛 탭화).
 enum MainTab: Hashable, CaseIterable {
     case map
     case chat
+    case roulette
 }
 
 struct FloatingTabBar: View {
@@ -46,12 +47,13 @@ struct FloatingTabBar: View {
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
                       label: "채팅")
+            tabButton(.roulette, outline: "dice", fill: "dice.fill", label: "어디갈까")
         }
         .padding(.horizontal, 8)
         .frame(height: Metrics.barHeight)
         .liquidGlassCapsule()   // iOS26 진짜 Liquid Glass(.glassEffect), 미만은 .regularMaterial 캡슐 fallback
-        // 2탭으로 축소돼 폭이 넓으면 버튼 간격이 과해지므로 좌우 여백을 늘려 바 폭을 적정히 좁힌다.
-        .padding(.horizontal, 48)
+        // 3탭(지도·채팅·어디갈까)이라 2탭(48)보다 좌우 여백을 줄여 3버튼이 적정 폭으로 균등 분배되게 한다.
+        .padding(.horizontal, 20)
         .padding(.bottom, Metrics.bottomGap)
     }
 

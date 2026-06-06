@@ -123,3 +123,76 @@ enum PinMarkerImage {
         }
     }
 }
+
+// MARK: - 인라인 태그 글리프(SwiftUI) — 말풍선 장소 행·범례 등 텍스트 옆 작은 글리프
+//
+// 웹 frontend/src/components/ui/PinDot.tsx(ReelGlyph/WishGlyph/MemoryGlyph)의 SwiftUI 대응물.
+// 지도 마커(흰 테두리 포함 UIImage)는 PinMarkerImage 를 쓰고, 흰 카드/배경 위 인라인 표식은 이 뷰를 쓴다
+// (흰 바탕에선 흰 테두리가 무의미하므로 색 채움만). 모양/비율은 PinMarkerImage 의 star/heart 와 동일.
+
+/// 태그별 글리프: 발견(REEL)=원 / 위시(WISH)=별(1.2배) / 추억(MEMORY)=하트. 색 채움 전용(인라인용).
+struct PinTagGlyph: View {
+    let tag: PinTag
+    var size: CGFloat = 10
+
+    var body: some View {
+        switch tag {
+        case .REEL:
+            Circle()
+                .fill(WGColor.pinReel)
+                .frame(width: size, height: size)
+        case .WISH:
+            // 웹 getMarkerVariant: WISH 는 1.2배.
+            PinStarShape()
+                .fill(WGColor.pinWish)
+                .frame(width: size * 1.2, height: size * 1.2)
+        case .MEMORY:
+            PinHeartShape()
+                .fill(WGColor.pinMemory)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+/// 5각 별(PinMarkerImage.star 와 동일 비율: 외곽/내부 반지름 0.39, 위쪽 -90°에서 36°씩).
+struct PinStarShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let outer = min(rect.width, rect.height) / 2
+        let inner = outer * 0.39
+        var path = Path()
+        for i in 0..<10 {
+            let radius = (i % 2 == 0) ? outer : inner
+            let angle = -CGFloat.pi / 2 + CGFloat(i) * (.pi / 5)
+            let point = CGPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
+            )
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 하트(PinMarkerImage.heart 와 동일: 웹 markers.tsx MemoryGlyph 24x24 path 정규화).
+struct PinHeartShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scale = min(rect.width, rect.height) / 24.0
+        let tx = rect.minX
+        let ty = rect.minY
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: tx + x * scale, y: ty + y * scale)
+        }
+        var path = Path()
+        path.move(to: p(12, 21.35))
+        path.addCurve(to: p(2, 8.5), control1: p(7, 17), control2: p(2, 12.28))
+        path.addCurve(to: p(7.5, 3), control1: p(2, 5.42), control2: p(4.42, 3))
+        path.addCurve(to: p(12, 5.09), control1: p(9.24, 3), control2: p(10.91, 3.81))
+        path.addCurve(to: p(16.5, 3), control1: p(13.09, 3.81), control2: p(14.76, 3))
+        path.addCurve(to: p(22, 8.5), control1: p(19.58, 3), control2: p(22, 5.42))
+        path.addCurve(to: p(12, 21.35), control1: p(22, 12.28), control2: p(17, 17))
+        path.closeSubpath()
+        return path
+    }
+}

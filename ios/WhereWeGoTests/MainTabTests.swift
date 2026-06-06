@@ -7,11 +7,11 @@ import CoreLocation
 //
 // FloatingTabBar/MainTabView/MapView 는 SwiftUI View 라 body/@State 상호작용을 직접 구동할 수 없다.
 // 대신 검증 가능한 두 축으로 나눠 단언한다:
-//  - AC-1: MainTab.allCases 순서·개수(CaseIterable 정적 보장). 내비 셸 재구성으로 하단 탭은 지도·채팅 2개만(알림·내정보는 상단 TopBar 로 이전). ＋·룰렛은 탭이 아니라 미포함.
+//  - AC-1: MainTab.allCases 순서·개수(CaseIterable 정적 보장). 내비 셸 재구성으로 하단 탭은 지도·채팅·어디갈까 3개(알림·내정보는 상단 TopBar 로 이전). ＋ 는 탭이 아니라 미포함.
 //  - AC-2: 장소 추가(＋) 액션의 탭 독립성 — ＋ 는 지도 화면 speed-dial(MapView.addPinSpeedDial)의 enterAddPin(mode:) 으로,
 //          탭 selection 과 분리돼 있다(MainTab 에 plus 케이스 부재). FAB 액션이 selection 을 바꾸지 않음을
 //          클로저 모델로 검증한다.
-//          (내비 셸 재구성: FloatingTabBar 는 2탭(지도·채팅)만 받고 ＋ 미보유. 알림·내정보는 상단 TopBar 시트, 룰렛은 지도 위 시트.)
+//          (내비 셸 재구성: FloatingTabBar 는 3탭(지도·채팅·어디갈까)만 받고 ＋ 미보유. 알림·내정보는 상단 TopBar 시트.)
 //          (SwiftUI 버튼 탭 자체를 구동하는 뷰 상호작용 테스트는 DoD-B(Mac/Xcode) 이연 — 본 테스트는 로직/구조 검증.)
 @MainActor
 final class MainTabTests: XCTestCase {
@@ -19,9 +19,9 @@ final class MainTabTests: XCTestCase {
     // MARK: - AC-1: MainTab 열거형(순서·개수)
 
     func test_mainTab_allCases_orderAndCount() {
-        // FR-1(내비 셸 재구성): 하단 탭 = 지도·채팅 2개. 알림·내정보는 상단 TopBar 시트로 이전, ＋·룰렛은 미포함.
-        XCTAssertEqual(MainTab.allCases, [.map, .chat])
-        XCTAssertEqual(MainTab.allCases.count, 2)
+        // FR-1(내비 셸 재구성) + 룰렛 탭화: 하단 탭 = 지도·채팅·어디갈까 3개. 알림·내정보는 상단 TopBar 시트로 이전, ＋ 는 미포함.
+        XCTAssertEqual(MainTab.allCases, [.map, .chat, .roulette])
+        XCTAssertEqual(MainTab.allCases.count, 3)
     }
 
     func test_mainTab_doesNotContainNotificationOrMyInfo() {
@@ -31,9 +31,9 @@ final class MainTabTests: XCTestCase {
         XCTAssertFalse(labels.contains("myInfo"))
     }
 
-    func test_mainTab_isCaseIterableWithExactTwo() {
-        // 개수 회귀 방지: 탭 식별자는 정확히 2개(지도·채팅). 알림·내정보·＋·룰렛은 탭이 아니라 미포함.
-        XCTAssertEqual(Set(MainTab.allCases).count, 2)
+    func test_mainTab_isCaseIterableWithExactThree() {
+        // 개수 회귀 방지: 탭 식별자는 정확히 3개(지도·채팅·어디갈까). 알림·내정보·＋ 는 탭이 아니라 미포함.
+        XCTAssertEqual(Set(MainTab.allCases).count, 3)
     }
 
     // MARK: - AC-2: 장소 추가(＋) 액션의 탭 독립성

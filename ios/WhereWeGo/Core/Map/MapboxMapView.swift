@@ -12,7 +12,8 @@ import SwiftUI
 // #if 실구현은 "작성 완료, 컴파일 검증은 token 발급 후"(DoD-B). frontend MapboxView.tsx 1:1 이식 목표.
 
 #if canImport(MapboxMaps)
-import MapboxMaps
+// logo·attributionButton 의 visibility 는 Mapbox ToS상 @_spi(Restricted) 라, 숨기려면 spi import 가 필요하다(#44).
+@_spi(Restricted) import MapboxMaps
 import CoreLocation
 
 // `MapView` 이름이 WhereWeGo 의 SwiftUI MapView(struct, Features/Map)와 충돌하므로
@@ -46,6 +47,11 @@ struct MapboxMapView: UIViewRepresentable {
         )
         let mapView = MBMapView(frame: .zero, mapInitOptions: initOptions)
         mapView.ornaments.options.scaleBar.visibility = .hidden
+        // 하단 바 뒤로 삐져나오던 Mapbox 기본 장식 제거(#44): 로고·attribution(ⓘ)·나침반 숨김.
+        // ⚠️ ToS: 운영 배포 시 다른 곳(앱 정보/설정 화면)에 Mapbox 출처 표기를 반드시 둘 것.
+        mapView.ornaments.options.logo.visibility = .hidden
+        mapView.ornaments.options.attributionButton.visibility = .hidden
+        mapView.ornaments.options.compass.visibility = .hidden
         context.coordinator.mapView = mapView
 
         // 스타일 로드 후 클러스터 소스/레이어 구성(FR-5). supercluster 동치(radius 60 / maxZoom 16 / minPoints 2).
@@ -282,7 +288,12 @@ struct MapboxMapView: UIViewRepresentable {
                 filter: nil
             )
             mapView.mapboxMap.queryRenderedFeatures(with: point, options: options) { [weak self] result in
-                guard let self, case let .success(features) = result, let first = features.first else { return }
+                guard let self else { return }
+                // 마커/클러스터에 안 맞은(빈 지도) 탭 → mapTapped 방출(#4 — 선택핀 말풍선 닫기).
+                guard case let .success(features) = result, let first = features.first else {
+                    self.onEvent(.mapTapped)
+                    return
+                }
                 let feature = first.queriedFeature.feature
                 let props = feature.properties
                 if let pointCountValue = props?["point_count"], case .number = pointCountValue {
@@ -293,6 +304,9 @@ struct MapboxMapView: UIViewRepresentable {
                     // feature geometry(마커 중심) 우선, 실패 시 탭 지점(point) 폴백.
                     let screenPoint = self.markerScreenPoint(feature: feature) ?? ScreenPoint(x: Double(point.x), y: Double(point.y))
                     self.onEvent(.markerTapped(pinId: Int(pinId), screenPoint: screenPoint))
+                } else {
+                    // pinId/point_count 없는 feature(다른 레이어 등) → 빈 지도 탭으로 간주.
+                    self.onEvent(.mapTapped)
                 }
             }
         }

@@ -42,6 +42,8 @@ final class MapViewModel: ObservableObject {
     static let currentLocationZoom: Double = 15
     /// 핀 1개 선택 flyTo 시 줌 레벨.
     static let pinFocusZoom: Double = 15
+    /// 개별 마커 탭 시 "이미 충분히 가까움" 판정 좌표 임계(#3). 중심-핀 위경도 차가 이 값 미만이고 줌도 충분하면 flyTo 생략.
+    static let tappedMarkerNearDelta: Double = 0.0015
 
     // MARK: - 인라인 핀 추가 진입 줌(FR-11, AC-16). 웹 MapClient.tsx:1043-1066 동치.
 
@@ -438,6 +440,21 @@ final class MapViewModel: ObservableObject {
         flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
     }
 
+    /// 개별 마커 탭 시 그 핀으로 flyTo(#3). 단, 이미 중심에 가깝고 줌도 충분하면 생략해 과한 점프를 막는다.
+    /// 근접 판정은 현재 중심(mapCenter)과 핀의 좌표 차가 임계 미만이고, 현재 줌(mapZoom)이 포커스 줌 근처 이상일 때.
+    /// mapCenter/mapZoom 미확보(플레이스홀더/초기)면 판정 불가 → 항상 flyTo(말풍선 정렬 보장).
+    private func flyToTappedMarkerIfNeeded(pinId: Int) {
+        guard let pin = pins.first(where: { $0.id == pinId }) else { return }
+        if let center = mapCenter, let zoom = mapZoom {
+            // 중심에서 핀까지 좌표 차(약 0.0015° ≒ 도심 150m 내외) 미만이고 줌이 포커스 줌 -1 이상이면 충분히 가까움.
+            let near = abs(center.latitude - pin.latitude) < Self.tappedMarkerNearDelta
+                && abs(center.longitude - pin.longitude) < Self.tappedMarkerNearDelta
+            let zoomedEnough = zoom >= Self.pinFocusZoom - 1
+            if near && zoomedEnough { return }
+        }
+        flyTo(lat: pin.latitude, lng: pin.longitude, zoom: Self.pinFocusZoom)
+    }
+
     /// 임의 좌표로 카메라 이동.
     /// 인라인 추가 모드 중에는 이 flyTo 로 발생할 cameraIdle 을 프로그래매틱으로 표시(MUST-1)하고
     /// mapZoom 을 명령 줌으로 즉시 시드(MUST-4)한다 → 검색 결과 보존 + FR-11 평가 정합.
@@ -537,6 +554,8 @@ final class MapViewModel: ObservableObject {
         do {
             let created = try await pinAPI.create(groupId: groupId, request: request)
             appendPin(created)
+            // #3 — 생성 직후 상세 말풍선 자동 표시. flyTo 카메라 이동이 cameraMoved 로 말풍선 화면좌표를 운반(G1).
+            selectedPinId = created.id
             lastFetchedAt = now()
             flyTo(lat: created.latitude, lng: created.longitude, zoom: Self.pinFocusZoom)
         } catch let error as APIError where error.code == "GROUP_NOT_MEMBER" {
@@ -679,6 +698,10 @@ final class MapViewModel: ObservableObject {
             selectedPinId = pinId
             // 탭 즉시 화면좌표 세팅(지연 0, MUST-ADDRESS②). 화면밖이면 숨김(AC-14) — 이후 추적이 재표시.
             setSelectedPinScreenPoint(visibleOrNil(screenPoint))
+            // #3 — 개별 마커 탭 시 그 핀으로 카메라 이동(중심 정렬 + 핀 포커스 줌). 줌아웃/오프센터에서
+            //  말풍선만 뜨고 지도가 안 움직이던 문제 해소. 클러스터 탭(.clusterTapped)은 기존 확대 유지.
+            //  이미 충분히 가깝고(중심 근접) 줌도 충분하면 과한 점프를 피해 flyTo 를 생략한다.
+            flyToTappedMarkerIfNeeded(pinId: pinId)
         case let .cameraMoved(screenPoint):
             // 선택핀 추적 갱신(MUST-ADDRESS③). distinct + 화면밖 nil(GeoMath.isPointVisible) → 그 자식 뷰만 무효화.
             // 선택 해제 상태(selectedPinId nil)의 잔여 방출은 무시(게이팅 b 방어).
@@ -689,6 +712,12 @@ final class MapViewModel: ObservableObject {
             guard !isAddingPin else { return }
             // 클러스터 탭(FR-5) → 포함 핀들이 모두 보이도록 fitBounds(FR-26).
             handleClusterTapped(pinIds)
+        case .mapTapped:
+            // 빈 지도 탭(#4) — 선택핀 말풍선이 열려 있으면 선택 해제로 닫는다(PinBubbleView 배경탭 제거 대체).
+            // 인라인 추가 모드 중에는 무시(콕찍기/검색 진행 상태 보존).
+            guard !isAddingPin, selectedPinId != nil else { return }
+            selectedPinId = nil
+            clearSelectedPinScreenPoint()
         case .cameraIdle(let lat, let lng, let zoom):
             // 항상 최신 중심/줌 보유(기존 방문감지 입력 + MUST-4).
             mapCenter = Coordinate(latitude: lat, longitude: lng)

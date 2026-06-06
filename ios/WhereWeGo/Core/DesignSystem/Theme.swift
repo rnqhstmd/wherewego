@@ -87,6 +87,43 @@ extension View {
     }
 }
 
+// MARK: - 진짜 Liquid Glass(iOS 26+) modifier — Stage 1 셸 전환
+//
+// iOS 26 의 .glassEffect API 로 밝은 지도 위에서 굴절하는 진짜 글래스를 적용한다.
+// deployment target 17 이라 #available(iOS 26.0, *) 분기로 감싸고, 미만은 기존 Material fallback.
+// iOS 26 글래스 API 시그니처가 환경마다 다를 수 있어 최소 안전형(.regular.interactive())부터 적용한다.
+
+extension View {
+    /// 캡슐형 진짜 글래스(BottomActionBar 컨테이너 등). iOS26+ = .glassEffect, 미만 = glassCapsule fallback.
+    @ViewBuilder
+    func liquidGlassCapsule() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .capsule)
+                // .glassEffect 자체는 그림자가 없어, 밝은 크림/지도 배경 위에선 경계가 사라져 "글라스 미적용"처럼 평평하게 보인다.
+                // fallback(glassCapsule)과 동일하게 소프트 섀도우를 더해 떠 있는 글라스 알약으로 분명히 읽히게 한다(웹 floating 톤).
+                .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
+        } else {
+            self.glassCapsule()
+        }
+    }
+
+    /// 원형 진짜 글래스(위치/그룹/프로필 등 원형 플로팅 버튼용). iOS26+ = .glassEffect(circle), 미만 = Material 원형 fallback.
+    @ViewBuilder
+    func liquidGlassRound() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .circle)
+                .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
+        } else {
+            self
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().stroke(WGColor.hairline, lineWidth: 1))
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+        }
+    }
+}
+
 /// 시트·카드 상단의 공통 드래그 핸들(36x4, inkFaint, Capsule). 바텀시트임을 시각적으로 표시한다.
 struct DragHandle: View {
     var body: some View {
