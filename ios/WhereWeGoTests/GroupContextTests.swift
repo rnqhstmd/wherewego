@@ -88,7 +88,7 @@ final class GroupContextTests: XCTestCase {
 
     // MARK: - enter/switch/backToList 전이
 
-    func test_enterGroup_setsCurrentAndPersistsLast_andTriggersChange() async {
+    func test_enterGroup_setsCurrentAndPersistsLast_withoutOnGroupChanged() async {
         var changedTo: [Int] = []
         let api = StubGroupListAPI(groups: [makeSummary(1, "여행팀")])
         let context = GroupContext(groupAPI: api, store: store, onGroupChanged: { changedTo.append($0) })
@@ -97,7 +97,7 @@ final class GroupContextTests: XCTestCase {
 
         XCTAssertEqual(context.currentGroupId, 1)
         XCTAssertEqual(store.object(forKey: "lastGroupId") as? Int, 1, "enterGroup 은 lastGroupId 를 persist 해야 한다(AC-3)")
-        XCTAssertEqual(changedTo, [1], "enterGroup 은 onGroupChanged(지도 재로드)를 트리거해야 한다")
+        XCTAssertEqual(changedTo, [], "enterGroup(레벨0→1)은 onGroupChanged 를 부르지 않는다 — MapView 마운트 시 .task 가 load(groupId:)로 로드(이중 로드·카메라 충돌 방지)")
     }
 
     func test_switchGroup_changesCurrent_andTriggersChange() async {
@@ -110,7 +110,7 @@ final class GroupContextTests: XCTestCase {
 
         XCTAssertEqual(context.currentGroupId, 2)
         XCTAssertEqual(store.object(forKey: "lastGroupId") as? Int, 2)
-        XCTAssertEqual(changedTo, [1, 2])
+        XCTAssertEqual(changedTo, [2], "enterGroup(레벨0→1)은 onGroupChanged 미호출, switchGroup(레벨1 전환)만 트리거")
     }
 
     func test_switchGroup_sameGroup_isNoOp() async {
@@ -122,7 +122,7 @@ final class GroupContextTests: XCTestCase {
         context.switchGroup(1)   // 동일 그룹 → no-op(불필요 재로드 방지)
 
         XCTAssertEqual(context.currentGroupId, 1)
-        XCTAssertEqual(changeCount, 1, "동일 그룹 switch 는 onGroupChanged 를 다시 트리거하지 않는다")
+        XCTAssertEqual(changeCount, 0, "enterGroup 은 onGroupChanged 미호출 + 동일 그룹 switch 도 no-op → 총 0회")
     }
 
     func test_backToList_clearsCurrent_butKeepsLast() async {

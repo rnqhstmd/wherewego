@@ -76,17 +76,21 @@ final class GroupContext: ObservableObject {
 
     // MARK: - 진입/전환(설계 §1)
 
-    /// 그룹 목록(레벨0)에서 그룹 선택 → 레벨1 진입. lastGroupId 저장 + 지도 재로드 트리거.
+    /// 그룹 목록(레벨0)에서 그룹 선택 → 레벨1 진입. lastGroupId 저장.
+    /// 레벨0→레벨1 전이라 MapView 가 새로 마운트되며 그 `.task` 가 `load(groupId: currentGroupId)` 로 핀을 로드한다.
+    /// 여기서 onGroupChanged(switchTo)를 또 호출하면 .task load 와 **이중 로드 + 카메라 충돌**이 되므로 호출하지 않는다.
     func enterGroup(_ id: Int) {
         currentGroupId = id
         lastGroupId = id
-        onGroupChanged(id)
     }
 
-    /// 그룹 지도(레벨1)에서 다른 그룹으로 전환. enterGroup 과 동치(현재 그룹 갱신 + 지도 재로드).
+    /// 그룹 지도(레벨1)에서 다른 그룹으로 전환. MapView 가 유지되어 `.task` 가 재실행되지 않으므로,
+    /// onGroupChanged(switchTo)로 **명시 재로드**해야 핀이 새 그룹으로 바뀐다.
     func switchGroup(_ id: Int) {
         guard id != currentGroupId else { return }   // 동일 그룹 재선택은 no-op(불필요 재로드 방지)
-        enterGroup(id)
+        currentGroupId = id
+        lastGroupId = id
+        onGroupChanged(id)
     }
 
     /// 그룹 지도(레벨1) → 그룹 목록(레벨0). lastGroupId 는 유지(탭 복귀 시 그 그룹 직행 보장, AC-3/AC-4).

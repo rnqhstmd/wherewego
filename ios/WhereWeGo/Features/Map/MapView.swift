@@ -12,7 +12,10 @@ import SwiftUI
 //   ＋ 탭 → 2선택지(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색) → enterAddPin(mode:). 모드별 UI 분리:
 //   십자선은 콕찍기 모드(inputMode==.pinpoint)만, 검색바는 검색 모드(.search)만 노출.
 struct MapView: View {
-    @StateObject private var viewModel: MapViewModel
+    /// 지도 VM. MainTabView 가 @StateObject 로 소유·주입하므로 여기선 @ObservedObject(주입 VM 정석).
+    ///  2레벨 조건부 렌더(목록↔지도)로 MapView 가 마운트/언마운트돼도 주입된 동일 인스턴스를 관찰해야
+    ///  딥링크 flyTo·그룹 전환 switchTo 가 같은 VM 에 일관 적용된다(@StateObject 면 주입값 무시·상태 손실).
+    @ObservedObject private var viewModel: MapViewModel
     /// 그룹 컨텍스트(IA 재설계 §1·§5). 상단 그룹 오버레이(그룹명·전환·뒤로) 표시·전환에 사용.
     @ObservedObject private var groupContext: GroupContext
     /// 어디가지(룰렛) VM(IA 재설계 §5). 좌하단 어디가지 FAB → 룰렛 시트가 재사용(MainTabView 소유, 탭 전환에도 결과 유지).
@@ -58,7 +61,7 @@ struct MapView: View {
         groupContext: GroupContext,
         rouletteViewModel: RouletteViewModel
     ) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+        _viewModel = ObservedObject(wrappedValue: viewModel)
         _groupContext = ObservedObject(wrappedValue: groupContext)
         _rouletteViewModel = ObservedObject(wrappedValue: rouletteViewModel)
     }
@@ -146,8 +149,11 @@ struct MapView: View {
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
         .navigationBarBackButtonHidden(true)
         .task {
-            if case .idle = viewModel.loadState {
-                await viewModel.load()
+            // 진입 시 현재 그룹(currentGroupId)의 핀을 로드한다(IA 재설계 §3). load()(myActiveGroup 단수 resolve)는
+            //  다중그룹에서 currentGroupId 와 어긋날 수 있으므로 그룹 id 를 명시해 로드한다. MapView 는 레벨1
+            //  (currentGroupId != nil)에서만 렌더되지만 방어적으로 옵셔널 바인딩한다.
+            if case .idle = viewModel.loadState, let groupId = groupContext.currentGroupId {
+                await viewModel.load(groupId: groupId)
             }
             viewModel.startVisitDetection()
             viewModel.startPolling()
@@ -279,7 +285,12 @@ struct MapView: View {
                 .foregroundStyle(WGColor.ink)
                 .multilineTextAlignment(.center)
             Button {
-                Task { await viewModel.load() }
+                Task {
+                    // 재시도도 현재 그룹 기준으로 로드(load() 의 myActiveGroup 폴백이 잘못된 그룹을 부르지 않게).
+                    if let groupId = groupContext.currentGroupId {
+                        await viewModel.load(groupId: groupId)
+                    }
+                }
             } label: {
                 Text("다시 시도")
                     .font(WGFont.sans(14))
