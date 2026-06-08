@@ -186,6 +186,8 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
 
     func myActiveGroup() async throws -> ActiveGroup? { group }
 
+    func listMyGroups() async throws -> [GroupSummary] { [] }
+
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
 
     func issueInviteLink(groupId: Int) async throws -> InviteLink {
