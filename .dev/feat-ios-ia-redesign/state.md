@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/ios-ia-redesign
 base: develop
@@ -11,21 +11,25 @@ flags: (none — NORMAL)
 mode: normal
 intent-source: user-selection
 started: 2026-06-08
-current-step: "complete — 커밋(PR은 묶음 진행 확인 후)"
-parent-context: "IA 재설계 묶음. 이번=내비 골격(GM-2 iOS) 완료. 후속(같은 브랜치): 필터상단·맵최적화(C)/DM UI #105(D 또는 별도)/알림내정보(D)/IC-2."
+current-step: "골격 완료 — PR #106. Mac 점검 후 같은 브랜치에 C/DM/D/IC-2 누적 예정"
+commit: 9b70fa1
+pr: https://github.com/rnqhstmd/wherewego/pull/106
+parent-context: "IA 재설계 묶음 브랜치 feat/ios-ia-redesign. 내비 골격(GM-2 iOS) ✅PR #106. 후속: C(필터상단·맵최적화)/DM UI #105/알림내정보·그룹관리(D)/IC-2 — 같은 브랜치 누적, 단계별 PR/Mac 점검."
 phases:
   setup: completed
   requirements: completed
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
 execution-log:
   - phase: implement
     agent: coder
-    result: "신규 GroupContext/GroupListView/GroupContextTests + 수정 7(MainTabView 5→4탭·2레벨, FloatingTabBar, MapView 오버레이+FAB, GroupAPI listMyGroups 등) + 테스트 mock 12 정합"
+    result: "신규 GroupContext/GroupListView/GroupContextTests + 수정 7 + 테스트 mock 12. 커밋 9b70fa1"
   - phase: review
-    result: "직접 검토(agent 미반환). listMyGroups 체인·.discover 제거·GroupSummary Identifiable·GroupContext 로직 정합. CERTAIN 0. iOS 컴파일은 Mac DoD-B"
+    result: "직접 검토 CERTAIN 0. 시그니처/enum/로직 정합"
+  - phase: complete
+    result: "인수검증 ACCEPT(AC-1~8). 커밋 9b70fa1, PR #106(base develop). Mac DoD-B 잔존"
 notes:
-  - "iOS Mac 빌드/시뮬/단위테스트(GroupContextTests) = DoD-B 잔존(Windows 불가)"
-  - "묶음 PR: 골격은 커밋만, PR은 후속 단계 누적 후(사용자 확인)"
+  - "iOS Mac 빌드/시뮬/단위테스트(GroupContextTests) = DoD-B 잔존 — 사용자 Mac 점검"
+  - "묶음: 골격 PR #106 점검 통과 후 C/DM/D/IC-2 같은 브랜치 이어감"
