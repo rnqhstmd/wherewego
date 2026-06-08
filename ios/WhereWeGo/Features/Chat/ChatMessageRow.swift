@@ -11,9 +11,9 @@ import SwiftUI
 // 순수 프레젠테이션 뷰. ViewModel 비참조 — 데이터(ChatFrame)+콜백(onSavePlaceCards)만 파라미터로 받는다.
 struct ChatMessageRow: View {
     let frame: ChatFrame
-    /// PLACE_CARDS 저장 콜백. (선택된 카드, 출처 messageId) → 상위(ViewModel)가 핀 저장 처리.
-    /// PLACE_CARDS 가 아닌 메시지에는 사용되지 않는다.
-    var onSavePlaceCards: (([PlaceCard], Int) -> Void)?
+    /// PLACE_CARDS 저장 콜백(위저드 제출). (전체 카드, 체크된 카드 id=WISH, 공통 메모, 출처 릴스 URL) → 상위(ViewModel)가 핀 저장 처리.
+    /// 좌표 있는 카드 전부가 저장 대상이며 체크 여부는 tag(WISH/REEL)만 결정한다(BR-2). PLACE_CARDS 가 아닌 메시지에는 미사용.
+    var onSavePlaceCards: ((_ cards: [PlaceCard], _ wishIDs: Set<String>, _ memo: String?, _ sourceInstagramUrl: String?) -> Void)?
 
     var body: some View {
         switch frame.kind {
@@ -23,9 +23,12 @@ struct ChatMessageRow: View {
             ProcessingDots()
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .PLACE_CARDS:
+            let cards = frame.placeCards ?? []
             PlaceCardsBubble(
-                cards: frame.placeCards ?? [],
-                onSave: { selected in onSavePlaceCards?(selected, frame.messageId) }
+                cards: cards,
+                onSave: { wishIDs, memo in
+                    onSavePlaceCards?(cards, wishIDs, memo, frame.sourceInstagramUrl)
+                }
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         case .MEMO_PROMPT:

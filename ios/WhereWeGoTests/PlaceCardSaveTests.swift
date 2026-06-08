@@ -1,66 +1,103 @@
 import XCTest
 @testable import WhereWeGo
 
-// 카드 → 핀 저장 테스트(설계 §5, FR-5/AC-3).
-// - 좌표 있는 카드 저장 성공(tag=.REEL, groupId=활성그룹).
-// - 409(PLC_DUPLICATE_PIN) → saveInfoMessage 흡수(에러 미전파).
-// - 좌표 없는 카드 스킵 + 안내.
+// 카드 → 핀 저장 위저드 테스트(FR-I5, BR-1/2/3, AC-5/6/8/9/14).
+// - 좌표 있는 카드 전부 저장(체크=WISH/미체크=REEL), 메모/instagramUrl 공통 기록.
+// - 409(PLC_DUPLICATE_PIN) → 흡수(결과 목록 제외, duplicateCount 집계).
+// - 좌표 없는 카드 스킵(BR-1).
 //
-// Stub(StubChatAPI/StubBotPinAPI/StubBotGroupAPI/StubChatRealtime)·makeFrame·makeCurrentUser 는
+// Stub(StubChatAPI/StubBotPinAPI/StubBotGroupAPI)·makeFrame·makeCurrentUser 는
 // BotChatViewModelTests.swift 의 공유 정의를 재사용한다(동일 테스트 타깃).
 @MainActor
 final class PlaceCardSaveTests: XCTestCase {
 
-    // MARK: - 저장 성공
+    // MARK: - 저장 성공(체크=WISH/미체크=REEL, AC-5/8)
 
-    func test_savePlaceCards_success_callsCreateWithReelTagAndGroupId() async {
+    func test_savePlaceCards_success_savesWishAndReelWithUrlAndMemo() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
         let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 7, name: "팀", memberCount: 2))
 
-        let cards = [makePlaceCard(name: "성수동 카페", latitude: 37.5, longitude: 127.05)]
-        await vm.savePlaceCards(cards, from: 100)
+        let wishCard = makePlaceCard(name: "성수동 카페", latitude: 37.5, longitude: 127.05)
+        let reelCard = makePlaceCard(name: "발견 식당", latitude: 37.6, longitude: 127.06)
+        let url = "https://instagram.com/reel/abc"
+        await vm.savePlaceCards(
+            cards: [wishCard, reelCard],
+            wishIDs: [wishCard.id],
+            memo: "데이트 코스",
+            sourceInstagramUrl: url
+        )
 
-        XCTAssertEqual(pinAPI.createRequests.count, 1)
-        let request = pinAPI.createRequests.first
-        XCTAssertEqual(request?.placeName, "성수동 카페")
-        XCTAssertEqual(request?.latitude, 37.5)
-        XCTAssertEqual(request?.longitude, 127.05)
-        XCTAssertEqual(request?.tag, .REEL)
-        XCTAssertNil(request?.instagramUrl)
-        // 성공 안내(에러 아님).
-        XCTAssertNotNil(vm.saveInfoMessage)
+        // 좌표 있는 2건 모두 저장.
+        XCTAssertEqual(pinAPI.createRequests.count, 2)
+        let wishReq = pinAPI.createRequests.first { $0.placeName == "성수동 카페" }
+        let reelReq = pinAPI.createRequests.first { $0.placeName == "발견 식당" }
+        XCTAssertEqual(wishReq?.tag, .WISH)
+        XCTAssertEqual(reelReq?.tag, .REEL)
+        // 메모/instagramUrl 공통 기록(BR-3/AC-8).
+        XCTAssertEqual(wishReq?.memo, "데이트 코스")
+        XCTAssertEqual(reelReq?.memo, "데이트 코스")
+        XCTAssertEqual(wishReq?.instagramUrl, url)
+        XCTAssertEqual(reelReq?.instagramUrl, url)
+
+        // 결과 카드(FR-I8): 위시 1·발견 1, 출처 URL 노출 가능.
+        let result = vm.saveResult
+        XCTAssertEqual(result?.wishNames, ["성수동 카페"])
+        XCTAssertEqual(result?.reelNames, ["발견 식당"])
+        XCTAssertEqual(result?.duplicateCount, 0)
+        XCTAssertEqual(result?.sourceInstagramUrl, url)
     }
 
-    // MARK: - 409 흡수(AC-3)
+    // MARK: - 메모 없이 저장(건너뛰기, AC-7)
 
-    func test_savePlaceCards_duplicate409_absorbedAsInfo() async {
+    func test_savePlaceCards_noMemo_savesNilMemo() async {
+        let pinAPI = StubBotPinAPI()
+        pinAPI.createResult = .success(makePinSummary(id: 1))
+        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
+
+        let card = makePlaceCard(name: "장소", latitude: 37.5, longitude: 127.0)
+        await vm.savePlaceCards(cards: [card], wishIDs: [], memo: nil, sourceInstagramUrl: nil)
+
+        XCTAssertEqual(pinAPI.createRequests.count, 1)
+        XCTAssertNil(pinAPI.createRequests.first?.memo)
+        XCTAssertNil(pinAPI.createRequests.first?.instagramUrl)
+        XCTAssertEqual(vm.saveResult?.reelNames, ["장소"])
+    }
+
+    // MARK: - 409 흡수(AC-14)
+
+    func test_savePlaceCards_duplicate409_absorbedNotInList() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .failure(APIError(code: "PLC_DUPLICATE_PIN", status: 409, message: "duplicate"))
         let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
 
-        let cards = [makePlaceCard(name: "중복 장소", latitude: 37.5, longitude: 127.0)]
-        // throw 하지 않아야 한다(흡수). saveInfoMessage 로 안내.
-        await vm.savePlaceCards(cards, from: 100)
+        let card = makePlaceCard(name: "중복 장소", latitude: 37.5, longitude: 127.0)
+        // throw 하지 않아야 한다(흡수).
+        await vm.savePlaceCards(cards: [card], wishIDs: [card.id], memo: nil, sourceInstagramUrl: "https://insta/reel/x")
 
         XCTAssertEqual(pinAPI.createRequests.count, 1)
-        XCTAssertEqual(vm.saveInfoMessage, "이미 저장된 장소예요")
+        // 결과 목록에는 미포함(N+M=0), duplicateCount=1(AC-9/14).
+        XCTAssertEqual(vm.saveResult?.wishNames, [])
+        XCTAssertEqual(vm.saveResult?.reelNames, [])
+        XCTAssertEqual(vm.saveResult?.duplicateCount, 1)
+        // 저장 성공 핀 0개 → 출처 URL 미노출(BR-7).
+        XCTAssertNil(vm.saveResult?.sourceInstagramUrl)
     }
 
-    // MARK: - 좌표 없는 카드 스킵
+    // MARK: - 좌표 없는 카드 스킵(BR-1)
 
     func test_savePlaceCards_noCoordinate_skipped() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
         let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
 
-        let cards = [makePlaceCard(name: "좌표 없음", latitude: nil, longitude: nil)]
-        await vm.savePlaceCards(cards, from: 100)
+        let card = makePlaceCard(name: "좌표 없음", latitude: nil, longitude: nil)
+        await vm.savePlaceCards(cards: [card], wishIDs: [card.id], memo: nil, sourceInstagramUrl: nil)
 
-        // create 미호출(스킵), 안내 표시.
+        // create 미호출(스킵).
         XCTAssertTrue(pinAPI.createRequests.isEmpty)
-        XCTAssertNotNil(vm.saveInfoMessage)
-        XCTAssertTrue(vm.saveInfoMessage?.contains("좌표") ?? false)
+        XCTAssertEqual(vm.saveResult?.wishNames, [])
+        XCTAssertEqual(vm.saveResult?.reelNames, [])
     }
 
     func test_savePlaceCards_mixed_savesOnlyCoordinated() async {
@@ -72,11 +109,29 @@ final class PlaceCardSaveTests: XCTestCase {
             makePlaceCard(name: "좌표 있음", latitude: 37.5, longitude: 127.0),
             makePlaceCard(name: "좌표 없음", latitude: nil, longitude: nil)
         ]
-        await vm.savePlaceCards(cards, from: 100)
+        await vm.savePlaceCards(cards: cards, wishIDs: [], memo: nil, sourceInstagramUrl: nil)
 
         // 좌표 있는 1건만 create.
         XCTAssertEqual(pinAPI.createRequests.count, 1)
         XCTAssertEqual(pinAPI.createRequests.first?.placeName, "좌표 있음")
+        XCTAssertEqual(vm.saveResult?.reelNames, ["좌표 있음"])
+    }
+
+    // MARK: - "보러가기" 딥링크(FR-I10/I15)
+
+    func test_showOnMap_setsReelFocusPending() async {
+        let router = DeepLinkRouter()
+        let vm = BotChatViewModel(
+            chatAPI: StubChatAPI(),
+            pinAPI: StubBotPinAPI(),
+            groupAPI: StubBotGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            currentUser: makeCurrentUser(),
+            deepLinkRouter: router
+        )
+
+        vm.showOnMap(instagramUrl: "https://instagram.com/reel/abc")
+
+        XCTAssertEqual(router.pending, .reelFocus(instagramUrl: "https://instagram.com/reel/abc"))
     }
 
     // MARK: - 헬퍼
@@ -86,7 +141,8 @@ final class PlaceCardSaveTests: XCTestCase {
             chatAPI: StubChatAPI(),
             pinAPI: pinAPI,
             groupAPI: StubBotGroupAPI(group: group),
-            currentUser: makeCurrentUser()
+            currentUser: makeCurrentUser(),
+            deepLinkRouter: DeepLinkRouter()
         )
     }
 

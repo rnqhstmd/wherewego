@@ -125,7 +125,7 @@ public class BotChatProcessor {
             return appender.appendBotSystem(roomId, MSG_NO_PLACE);
         }
 
-        PlaceCardsPayload payload = payloadBuilder.build(hits);
+        PlaceCardsPayload payload = payloadBuilder.build(hits, url);
         return appender.appendBotPlaceCards(roomId, payload);
     }
 

@@ -25,17 +25,18 @@ public class BotPlaceCardsPayloadBuilder {
     /**
      * 장소 후보 리스트를 앱용 PLACE_CARDS payload로 변환한다.
      *
-     * @param hits Gemini 추출 + 카카오 Local 검색으로 확정된 장소 후보. null이면 빈 리스트로 처리.
-     * @return 직렬화 대상 payload. {@code hits}가 비어 있으면 빈 {@code cards} 리스트를 가진 payload.
+     * @param hits                Gemini 추출 + 카카오 Local 검색으로 확정된 장소 후보. null이면 빈 리스트로 처리.
+     * @param sourceInstagramUrl  추출 출처 인스타 릴스 URL. 저장 시 각 핀의 instagramUrl로 기록된다(앱 위저드 "보러가기").
+     * @return 직렬화 대상 payload. {@code hits}가 비어 있으면 빈 {@code cards} 리스트를 가진 payload(출처 URL은 유지).
      */
-    public PlaceCardsPayload build(List<PlaceSearchHit> hits) {
+    public PlaceCardsPayload build(List<PlaceSearchHit> hits, String sourceInstagramUrl) {
         if (hits == null || hits.isEmpty()) {
-            return new PlaceCardsPayload(List.of());
+            return new PlaceCardsPayload(List.of(), sourceInstagramUrl);
         }
         List<PlaceCard> cards = hits.stream()
                 .map(BotPlaceCardsPayloadBuilder::toCard)
                 .toList();
-        return new PlaceCardsPayload(cards);
+        return new PlaceCardsPayload(cards, sourceInstagramUrl);
     }
 
     private static PlaceCard toCard(PlaceSearchHit hit) {
@@ -51,9 +52,10 @@ public class BotPlaceCardsPayloadBuilder {
     /**
      * PLACE_CARDS payload 루트. {@code chat_message.payload_json}/STOMP 프레임 payload로 직렬화된다.
      *
-     * @param cards 추출된 장소 카드 목록
+     * @param cards              추출된 장소 카드 목록
+     * @param sourceInstagramUrl 추출 출처 인스타 릴스 URL(앱 저장 시 핀 instagramUrl 기록·"보러가기"). 없으면 null.
      */
-    public record PlaceCardsPayload(List<PlaceCard> cards) { }
+    public record PlaceCardsPayload(List<PlaceCard> cards, String sourceInstagramUrl) { }
 
     /**
      * 앱 장소 카드 1건. {@link PlaceSearchHit}의 가용 필드를 앱 스키마로 매핑한다.

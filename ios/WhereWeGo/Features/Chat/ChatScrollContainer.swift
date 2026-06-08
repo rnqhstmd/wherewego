@@ -14,8 +14,8 @@ struct ChatScrollContainer: View {
     let emptyText: String
     /// 상단 도달 시 과거 메시지 추가 로드(FR-2). 더 없으면 상위에서 no-op 처리.
     var onLoadMore: () -> Void = {}
-    /// PLACE_CARDS 저장 콜백(ChatMessageRow → 상위 ViewModel 위임).
-    var onSavePlaceCards: (([PlaceCard], Int) -> Void)?
+    /// PLACE_CARDS 저장 콜백(ChatMessageRow → 상위 ViewModel 위임). (전체 카드, 체크된 카드 id=WISH, 공통 메모, 출처 릴스 URL).
+    var onSavePlaceCards: ((_ cards: [PlaceCard], _ wishIDs: Set<String>, _ memo: String?, _ sourceInstagramUrl: String?) -> Void)?
 
     /// 하단 자동 스크롤 앵커 식별자.
     private let bottomAnchor = "chat-bottom-anchor"

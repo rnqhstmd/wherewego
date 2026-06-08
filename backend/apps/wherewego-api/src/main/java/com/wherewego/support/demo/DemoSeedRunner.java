@@ -141,7 +141,7 @@ public class DemoSeedRunner implements ApplicationRunner {
         PlaceCardsPayload payload = placeCardsPayloadBuilder.build(List.of(
                 new PlaceSearchHit("11111111", "성수 어니언", "서울 성동구 아차산로9길 8", 37.5443, 127.0557),
                 new PlaceSearchHit("22222222", "블루보틀 성수", "서울 성동구 아차산로 7", 37.5450, 127.0561)
-        ));
+        ), DEMO_REEL_URL);
         chatMessageAppender.appendBotPlaceCards(roomId, payload);
     }
 

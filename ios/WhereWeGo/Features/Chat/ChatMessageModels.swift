@@ -46,8 +46,10 @@ struct PlaceCard: Decodable, Identifiable, Equatable {
 }
 
 /// 백엔드 BotPlaceCardsPayloadBuilder.PlaceCardsPayload 와 1:1 (PLACE_CARDS payload 루트).
+/// sourceInstagramUrl: 추출 출처 릴스 URL(저장 시 핀 instagramUrl 기록·"보러가기"). 구버전 백엔드 응답 호환 위해 옵셔널(BR-7).
 struct PlaceCardsPayload: Decodable {
     let cards: [PlaceCard]
+    let sourceInstagramUrl: String?
 }
 
 // MARK: - ChatFrame
@@ -63,6 +65,8 @@ struct ChatFrame: Decodable, Identifiable, Equatable {
     let createdAt: String
     /// PLACE_CARDS 일 때만 채워진다(그 외 nil).
     let placeCards: [PlaceCard]?
+    /// PLACE_CARDS payload 루트의 출처 릴스 URL(저장 시 핀 instagramUrl·"보러가기"). 그 외 kind 는 nil. 구버전 응답에서도 nil(BR-7).
+    let sourceInstagramUrl: String?
     /// TEXT/SYSTEM/MEMO_PROMPT 의 payload.text(그 외 nil).
     let text: String?
 
@@ -88,13 +92,16 @@ struct ChatFrame: Decodable, Identifiable, Equatable {
         case .PLACE_CARDS:
             let payload = try? container.decode(PlaceCardsPayload.self, forKey: .payload)
             self.placeCards = payload?.cards
+            self.sourceInstagramUrl = payload?.sourceInstagramUrl
             self.text = nil
         case .TEXT, .SYSTEM, .MEMO_PROMPT:
             self.placeCards = nil
+            self.sourceInstagramUrl = nil
             let payload = try? container.nestedContainer(keyedBy: PayloadKeys.self, forKey: .payload)
             self.text = try? payload?.decodeIfPresent(String.self, forKey: .text)
         case .PROCESSING:
             self.placeCards = nil
+            self.sourceInstagramUrl = nil
             self.text = nil
         }
     }
