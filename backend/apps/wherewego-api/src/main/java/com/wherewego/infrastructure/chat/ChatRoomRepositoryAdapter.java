@@ -21,8 +21,9 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
     }
 
     @Override
-    public Optional<ChatRoom> findActiveBotRoom(Long ownerUserId) {
-        return chatRoomJpa.findFirstByOwnerUserIdAndTypeAndDeletedAtIsNull(ownerUserId, ChatRoomType.BOT);
+    public Optional<ChatRoom> findActiveBotRoom(Long ownerUserId, Long groupId) {
+        return chatRoomJpa.findFirstByOwnerUserIdAndGroupIdAndTypeAndDeletedAtIsNull(
+                ownerUserId, groupId, ChatRoomType.BOT);
     }
 
     @Override

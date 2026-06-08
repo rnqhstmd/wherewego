@@ -12,7 +12,8 @@ import java.util.Optional;
 
 public interface ChatRoomJpaRepository extends JpaRepository<ChatRoom, Long> {
 
-    Optional<ChatRoom> findFirstByOwnerUserIdAndTypeAndDeletedAtIsNull(Long ownerUserId, ChatRoomType type);
+    Optional<ChatRoom> findFirstByOwnerUserIdAndGroupIdAndTypeAndDeletedAtIsNull(
+            Long ownerUserId, Long groupId, ChatRoomType type);
 
     Optional<ChatRoom> findFirstByGroupIdAndTypeAndDeletedAtIsNull(Long groupId, ChatRoomType type);
 

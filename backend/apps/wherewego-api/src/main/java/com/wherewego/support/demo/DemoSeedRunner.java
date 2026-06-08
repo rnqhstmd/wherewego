@@ -97,7 +97,7 @@ public class DemoSeedRunner implements ApplicationRunner {
         groupMemberRepository.save(GroupMember.createActive(group.getId(), demoUser1.getId(), now));
         groupMemberRepository.save(GroupMember.createActive(group.getId(), demoUser2.getId(), now));
 
-        seedBotRoom(demoUser1.getId());
+        seedBotRoom(demoUser1.getId(), group.getId());
         seedCoupleRoom(group.getId(), demoUser1.getId(), demoUser2.getId());
         seedPins(group.getId(), demoUser1.getId(), demoUser2.getId());
 
@@ -127,12 +127,12 @@ public class DemoSeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 봇 방(유저별) 대화 3건: 릴스 URL(USER TEXT) → 처리중(BOT PROCESSING) → 장소 카드(BOT PLACE_CARDS).
+     * 봇 방(GM-2: owner+group 별) 대화 3건: 릴스 URL(USER TEXT) → 처리중(BOT PROCESSING) → 장소 카드(BOT PLACE_CARDS).
      * PLACE_CARDS 는 {@link BotPlaceCardsPayloadBuilder} 로 운영과 동일한 payload 스키마를 생성한다.
      */
-    private void seedBotRoom(Long ownerUserId) {
-        ChatRoom botRoom = chatRoomRepository.findActiveBotRoom(ownerUserId)
-                .orElseGet(() -> chatRoomRepository.save(ChatRoom.createBotRoom(ownerUserId)));
+    private void seedBotRoom(Long ownerUserId, Long groupId) {
+        ChatRoom botRoom = chatRoomRepository.findActiveBotRoom(ownerUserId, groupId)
+                .orElseGet(() -> chatRoomRepository.save(ChatRoom.createBotRoom(ownerUserId, groupId)));
         Long roomId = botRoom.getId();
 
         chatMessageAppender.appendUserText(roomId, ownerUserId, DEMO_REEL_URL);
