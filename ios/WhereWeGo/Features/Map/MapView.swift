@@ -78,8 +78,12 @@ struct MapView: View {
             // 상단 그룹 오버레이(IA 재설계 §5, FR-4/AC-5): 그룹명 + 그룹 전환 + 뒤로(→목록) + ⋯(그룹관리 진입점).
             //  레벨1(그룹 진입 상태)에서만 표시. 인라인 추가 모드 중엔 검색바/카드와 겹치지 않게 숨긴다.
             if !viewModel.isAddingPin {
-                VStack {
+                VStack(spacing: 10) {
                     groupTopOverlay
+                    // 필터/범례 상단 이동(C단계 D-1, FR-C1): 그룹 행 아래 2번째 행 우측. 로드 완료 시만(핀 컨텍스트 존재).
+                    if case .loaded = viewModel.loadState {
+                        mapFilterRow
+                    }
                     Spacer()
                 }
             }
@@ -363,19 +367,12 @@ struct MapView: View {
             }
             .padding(.horizontal, 16)
 
-            // 좌하단 컨트롤 클러스터(웹 MapClient bottom/left 이식). 어디가지 FAB(위) + [!]범례·[▽]필터(아래).
-            //  어디가지 FAB(IA 재설계 §5): 룰렛 탭 제거 후 접근 경로 보존 — 좌하단 FAB → 룰렛 시트(rouletteViewModel 재사용).
-            //  speed-dial(우하단)과 같은 bottom 라인에 좌측 배치(대칭). 팝업은 버튼 위로 떠 상호배타(activeCornerPopup).
-            //  필터/범례 상단 이동·맵 로딩 최적화는 C단계(이번 비범위) — 현 위치 유지.
-            VStack(alignment: .leading, spacing: 12) {
+            // 좌하단 어디가지(룰렛) FAB(IA 재설계 §5). C단계(D-1): 필터/범례는 상단(mapFilterRow)으로 이전 → 좌하단은 어디가지 FAB 단독.
+            //  speed-dial(우하단)과 같은 bottom 라인에 좌측 배치(대칭).
+            VStack {
                 Spacer()
-                rouletteFAB
-                HStack(spacing: 8) {
-                    TagLegendButton(isOpen: legendPopupBinding)
-                    TagFilterButton(
-                        activeFilters: $viewModel.activeFilters,
-                        isOpen: filterPopupBinding
-                    )
+                HStack {
+                    rouletteFAB
                     Spacer(minLength: 0)
                 }
                 .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
@@ -383,6 +380,23 @@ struct MapView: View {
             .padding(.horizontal, 16)
             .zIndex(1)
         }
+    }
+
+    // MARK: - 상단 필터/범례 행(C단계 D-1, FR-C1/C2)
+
+    /// 지도 상단 필터/범례 행(C단계 D-1, FR-C1/C2). 우측 정렬 [!]범례·[▽]필터.
+    ///  좌하단(어디가지 FAB)과 자리 충돌 해소 위해 상단 이동. 팝업은 아래로 펼쳐진다(TagFilterBar D-2).
+    ///  legendPopupBinding/filterPopupBinding 으로 상호배타(범례·필터 동시표시 금지)는 그대로 유지.
+    private var mapFilterRow: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            TagLegendButton(isOpen: legendPopupBinding)
+            TagFilterButton(
+                activeFilters: $viewModel.activeFilters,
+                isOpen: filterPopupBinding
+            )
+        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - 상단 그룹 오버레이(IA 재설계 §5, FR-4/AC-5)
