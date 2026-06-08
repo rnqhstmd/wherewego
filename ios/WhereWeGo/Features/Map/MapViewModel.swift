@@ -109,6 +109,8 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var pins: [PinSummary] = []
     /// 표시 태그 필터(FR-6). 기본 전체 ON.
     @Published var activeFilters: Set<PinTag> = [.REEL, .WISH, .MEMORY]
+    /// 릴스 포커스 필터(FR-I11/I14). non-nil 이면 해당 instagramUrl 핀만 표시(영속 — 배너 ✕로만 해제, BR-4).
+    @Published private(set) var focusedInstagramUrl: String?
     /// 선택된 핀(마커 탭). 정보창(말풍선 오버레이) 연결은 MapContainerView.
     @Published var selectedPinId: Int?
     /// 선택핀의 현재 화면좌표(말풍선 .position 앵커). markerTapped 가 즉시 세팅(지연 0, MUST-ADDRESS②),
@@ -169,9 +171,13 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 파생 값
 
-    /// activeFilters 로 필터링한 표시 핀(FR-6/AC-4).
+    /// activeFilters(태그) + focusedInstagramUrl(릴스 포커스) 로 필터링한 표시 핀(FR-6/AC-4, FR-I11).
+    /// 릴스 포커스 활성 시 해당 instagramUrl 핀만 추가로 한정한다(영속 필터, BR-4).
     var visiblePins: [PinSummary] {
-        pins.filter { activeFilters.contains($0.tag) }
+        pins.filter {
+            activeFilters.contains($0.tag)
+                && (focusedInstagramUrl == nil || $0.instagramUrl == focusedInstagramUrl)
+        }
     }
 
     /// visiblePins → 지도 마커(선언적 바인딩, MapContainerView 입력).
@@ -406,6 +412,27 @@ final class MapViewModel: ObservableObject {
         } else {
             fitBoundsCommand = markers
         }
+    }
+
+    // MARK: - 릴스 포커스(FR-I11/I12/I14)
+
+    /// 릴스 instagramUrl 기반 핀 필터 + fitBounds(FR-I11/I12). 봇 결과 카드 [지도에서 보기 →] → MainTabView 가 호출.
+    /// 방금 저장한 핀이 로컬 캐시에 없을 수 있으므로 최신 핀을 append-only 재조회(stale 무관)한 뒤 해당 URL 핀을 맞춘다.
+    /// 핀 0개면 fitBounds 는 no-op(필터만 활성 — 배너는 표시되되 빈 지도).
+    func focusReel(instagramUrl: String) async {
+        focusedInstagramUrl = instagramUrl
+        // 방금 저장한 핀 반영(캐시 stale 여부와 무관하게 1회 강제 재조회).
+        await reloadPinsAppendOnly()
+        let targets = pins
+            .filter { $0.instagramUrl == instagramUrl }
+            .map { MapMarker(id: $0.id, latitude: $0.latitude, longitude: $0.longitude, tag: $0.tag) }
+        guard !targets.isEmpty else { return }
+        fitBounds(markers: targets)
+    }
+
+    /// 릴스 포커스 해제(FR-I13/BR-4). 지도 배너 ✕로만 호출된다(탭 전환·재진입으로는 해제 안 함).
+    func clearReelFocus() {
+        focusedInstagramUrl = nil
     }
 
     // MARK: - 캐시·폴링(FR-24/BR-7)

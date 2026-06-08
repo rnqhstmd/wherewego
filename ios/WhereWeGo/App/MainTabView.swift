@@ -58,7 +58,8 @@ struct MainTabView: View {
                 chatAPI: dependencies.chatAPI,
                 pinAPI: dependencies.pinAPI,
                 groupAPI: dependencies.groupAPI,
-                currentUser: dependencies.currentUser
+                currentUser: dependencies.currentUser,
+                deepLinkRouter: dependencies.deepLinkRouter
             )
         )
         _notificationInboxViewModel = StateObject(
@@ -139,6 +140,13 @@ struct MainTabView: View {
             //  바에만 적용 → 바는 고정(키보드 뒤), 채팅 입력바는 키보드 위로 정상 회피.
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
+        // 릴스 포커스 배너(FR-I13): 지도 탭 + focusedInstagramUrl 활성 시 상단 오버레이. ✕(전체 보기) → clearReelFocus(BR-4).
+        .overlay(alignment: .top) {
+            if selection == .map, mapViewModel.focusedInstagramUrl != nil {
+                reelFocusBanner
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: mapViewModel.focusedInstagramUrl)
         // 딥링크 소비(설계 §3) + 알림 배지 최초 갱신(설계 §14). 진입 시 보류분 1회 + 배지 1회.
         .task {
             consumePending()
@@ -178,6 +186,41 @@ struct MainTabView: View {
         }
     }
 
+    // MARK: - 릴스 포커스 배너(FR-I13)
+
+    /// "🎬 이 릴스에서 저장한 N곳 · 전체 보기 ✕" 배너. N=visiblePins.count(릴스 포커스 적용된 표시 핀 수).
+    /// 탭 시 clearReelFocus(필터 해제 + 배너 닫힘, BR-4). TopBar 영역과 겹치지 않도록 상단 safe area 아래 배치.
+    private var reelFocusBanner: some View {
+        HStack(spacing: 8) {
+            Text("🎬 이 릴스에서 저장한 \(mapViewModel.visiblePins.count)곳")
+                .font(WGFont.sans(13))
+                .fontWeight(.semibold)
+                .foregroundStyle(WGColor.ink)
+            Spacer(minLength: 0)
+            Button {
+                mapViewModel.clearReelFocus()
+            } label: {
+                HStack(spacing: 4) {
+                    Text("전체 보기")
+                        .font(WGFont.sans(13))
+                        .foregroundStyle(WGColor.cta)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(WGColor.inkSoft)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(WGColor.hairline, lineWidth: 1))
+        .shadow(color: WGColor.shadowMd, radius: 10, y: 3)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
     // MARK: - 딥링크 소비(설계 §3)
 
     /// pending destination 을 읽어 탭 전환/네비게이션 후 nil 로 리셋(1회 소비).
@@ -193,6 +236,10 @@ struct MainTabView: View {
             // 진입 시점엔 이미 load 가 진행되므로 best-effort). 설계 §3.
             selection = .map
             mapViewModel.flyTo(pinId: pinId)
+        case .reelFocus(let url):
+            // 봇 저장 결과 "보러가기"(FR-I16): 지도 탭 전환 + 해당 릴스 핀 필터/fitBounds(방금 저장 핀 재조회 포함).
+            selection = .map
+            Task { await mapViewModel.focusReel(instagramUrl: url) }
         case .invite(let slug):
             inviteSlug = slug
         }

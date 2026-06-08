@@ -9,7 +9,8 @@ import Foundation
 //  - 로드(FR-2): botMessages(cursor:nil,limit:20) → id DESC 응답을 오름차순(오래된→최신)으로 유지.
 //  - 전송(FR-3/BR-3/AC-4): 2000자 가드 후 sendBotMessage → 응답 messageId 로 PROCESSING 버블 추가(FIFO) + 폴링 시작.
 //  - 결과 반영(AC-2): reconcileLatest 가 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT) 병합 시 가장 오래된 PROCESSING 교체. dedup=knownIds.
-//  - 카드 저장(FR-5/AC-3): 좌표 있는 카드만 pinAPI.create(tag:.REEL). 409(PLC_DUPLICATE_PIN) 흡수.
+//  - 카드 저장(FR-I5/BR-2): 좌표 있는 카드 전부 pinAPI.create(체크=WISH/미체크=REEL) + 공통 메모 + 출처 instagramUrl. 409 흡수.
+//    저장 완료 시 saveResult(결과 카드) 발행 + sourceInstagramUrl 있으면 "보러가기"(.reelFocus 딥링크).
 //
 // FR-6/BR-6/AC-20: 사용자는 릴스 URL 텍스트만 전송한다(클라이언트는 텍스트 송수신만).
 @MainActor
@@ -30,8 +31,10 @@ final class BotChatViewModel: ObservableObject {
     @Published private(set) var messages: [ChatFrame] = []
     /// 입력 초안(입력바 바인딩). 전송 성공 시 초기화.
     @Published var draft: String = ""
-    /// 카드 저장 안내/409 흡수 토스트(에러 아님). nil 이면 미표시.
+    /// 카드 저장 안내/409 흡수 토스트(에러 아님). nil 이면 미표시. (그룹 미확보/일반 에러 등 결과 카드로 표현하기 어려운 안내)
     @Published var saveInfoMessage: String?
+    /// 위저드 저장 완료 결과(FR-I8). 채팅 하단 결과 카드로 렌더. nil 이면 미표시.
+    @Published var saveResult: ReelSaveResult?
 
     // MARK: - 의존성
 
@@ -39,6 +42,8 @@ final class BotChatViewModel: ObservableObject {
     private let pinAPI: PinAPIProtocol
     private let groupAPI: GroupAPIProtocol
     private let currentUser: CurrentUser
+    /// 딥링크 라우터(I5/I8). "보러가기" → .reelFocus(instagramUrl) 발행으로 지도 탭 전환·릴스 포커스를 트리거.
+    private let deepLinkRouter: DeepLinkRouter
     /// 폴링 간격 대기(테스트 주입). 실제는 Task.sleep, 테스트는 즉시/제어로 결정성 확보.
     private let sleeper: @Sendable (Double) async -> Void
 
@@ -62,6 +67,7 @@ final class BotChatViewModel: ObservableObject {
         pinAPI: PinAPIProtocol,
         groupAPI: GroupAPIProtocol,
         currentUser: CurrentUser,
+        deepLinkRouter: DeepLinkRouter,
         sleeper: @escaping @Sendable (Double) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
@@ -70,6 +76,7 @@ final class BotChatViewModel: ObservableObject {
         self.pinAPI = pinAPI
         self.groupAPI = groupAPI
         self.currentUser = currentUser
+        self.deepLinkRouter = deepLinkRouter
         self.sleeper = sleeper
     }
 
@@ -181,44 +188,57 @@ final class BotChatViewModel: ObservableObject {
         pollingTask = nil
     }
 
-    // MARK: - 카드 저장(FR-5/AC-3)
+    // MARK: - 카드 저장(FR-I5, BR-1/2/3, AC-5/6/8/9/14)
 
-    /// 선택된 PLACE_CARDS 를 핀으로 저장(tag=.REEL, groupId=활성그룹).
-    /// - 좌표(lat/lng) 없는 카드는 스킵 + 안내(설계 §5 — 핀 저장 불가).
-    /// - 409(PLC_DUPLICATE_PIN)는 에러로 전파하지 않고 saveInfoMessage 로 흡수("이미 저장된 장소예요", AC-3).
-    func savePlaceCards(_ selected: [PlaceCard], from messageId: Int) async {
-        guard !selected.isEmpty else { return }
+    /// 위저드 제출 → PLACE_CARDS 를 핀으로 저장(groupId=활성그룹). 좌표 있는 카드 전부 저장(BR-2).
+    /// - 체크된(wishIDs 포함) 카드는 tag=.WISH, 미체크 카드(좌표 있는 것)는 tag=.REEL(FR-I5/BR-2).
+    /// - 메모는 있으면 저장되는 모든 핀에 동일 적용(BR-3). 각 핀의 instagramUrl 에 sourceInstagramUrl 기록(BR-7: nil 이면 미기록).
+    /// - 좌표(lat/lng) 없는 카드는 스킵(BR-1).
+    /// - 409(PLC_DUPLICATE_PIN)는 에러로 전파하지 않고 흡수(중복 카운트, AC-14). 그 외 에러는 안내 후 중단.
+    /// - 저장 완료 시 saveResult(결과 카드) 발행(FR-I8). 위시/발견 신규 저장명, 중복 수, 메모, 출처 URL.
+    func savePlaceCards(
+        cards: [PlaceCard],
+        wishIDs: Set<String>,
+        memo: String?,
+        sourceInstagramUrl: String?
+    ) async {
+        guard !cards.isEmpty else { return }
         // try? 가 throwing+ActiveGroup? 을 ActiveGroup? 로 평탄화 → guard let 후 group 은 비옵셔널.
         guard let group = try? await groupAPI.myActiveGroup() else {
             saveInfoMessage = "활성 그룹을 찾지 못했어요. 잠시 후 다시 시도해 주세요."
             return
         }
         let groupId = group.groupId
+        let normalizedMemo = (memo?.isEmpty == false) ? memo : nil
 
-        var savedCount = 0
+        var wishNames: [String] = []
+        var reelNames: [String] = []
         var duplicateCount = 0
-        var skippedNoCoordinate = 0
 
-        for card in selected {
-            // 좌표 없는 카드는 핀 저장 불가 — 스킵(설계 §5).
+        for card in cards {
+            // 좌표 없는 카드는 핀 저장 불가 — 스킵(BR-1).
             guard let latitude = card.latitude, let longitude = card.longitude else {
-                skippedNoCoordinate += 1
                 continue
             }
+            let tag: PinTag = wishIDs.contains(card.id) ? .WISH : .REEL
             let request = CreatePinRequest(
                 placeName: card.name,
                 address: card.address,
                 latitude: latitude,
                 longitude: longitude,
-                instagramUrl: nil,
-                memo: nil,
-                tag: .REEL
+                instagramUrl: sourceInstagramUrl,
+                memo: normalizedMemo,
+                tag: tag
             )
             do {
                 _ = try await pinAPI.create(groupId: groupId, request: request)
-                savedCount += 1
+                if tag == .WISH {
+                    wishNames.append(card.name)
+                } else {
+                    reelNames.append(card.name)
+                }
             } catch let error as APIError where error.code == "PLC_DUPLICATE_PIN" {
-                // 409 — 에러 아님(이미 저장된 장소). 흡수하고 계속(AC-3).
+                // 409 — 에러 아님(이미 저장된 장소). 흡수하고 계속(AC-14). 결과 목록에는 미포함.
                 duplicateCount += 1
             } catch {
                 // 그 외 실패는 안내 후 중단(부분 저장 상태 유지).
@@ -227,11 +247,26 @@ final class BotChatViewModel: ObservableObject {
             }
         }
 
-        saveInfoMessage = saveResultMessage(
-            savedCount: savedCount,
+        // 신규 저장 핀이 1개 이상일 때만 "보러가기" 노출 가능(sourceInstagramUrl 은 비-nil 일 때만, BR-7).
+        let savedCount = wishNames.count + reelNames.count
+        saveResult = ReelSaveResult(
+            wishNames: wishNames,
+            reelNames: reelNames,
             duplicateCount: duplicateCount,
-            skippedNoCoordinate: skippedNoCoordinate
+            memo: normalizedMemo,
+            // 저장 성공 핀이 0개면 포커스할 핀이 없으므로 출처 URL 미노출(BR-7 정합).
+            sourceInstagramUrl: savedCount > 0 ? sourceInstagramUrl : nil
         )
+    }
+
+    /// 결과 카드 [지도에서 보기 →] 액션(FR-I10/I15). .reelFocus 딥링크 발행 → MainTabView 가 지도 탭 전환 + focusReel.
+    func showOnMap(instagramUrl: String) {
+        deepLinkRouter.pending = .reelFocus(instagramUrl: instagramUrl)
+    }
+
+    /// 결과 카드 닫기(✕). 결과 발행 해제(FR-I8).
+    func dismissSaveResult() {
+        saveResult = nil
     }
 
     // MARK: - 재조회(FR-4, 폴링·scenePhase 공용)
@@ -281,16 +316,6 @@ final class BotChatViewModel: ObservableObject {
         knownIds.remove(oldest)
     }
 
-    /// 카드 저장 결과 안내 문구(저장/중복/좌표없음 조합). 모두 0 이면 nil(무표시).
-    private func saveResultMessage(savedCount: Int, duplicateCount: Int, skippedNoCoordinate: Int) -> String? {
-        var parts: [String] = []
-        if savedCount > 0 { parts.append("\(savedCount)곳을 저장했어요") }
-        if duplicateCount > 0 { parts.append("이미 저장된 장소예요") }
-        if skippedNoCoordinate > 0 { parts.append("좌표가 없는 장소는 저장하지 못했어요") }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: ". ")
-    }
-
     /// PROCESSING 플레이스홀더 ChatFrame 생성(전송 응답/폴링 공통).
     /// ChatFrame 은 커스텀 디코더만 있어 직접 메모리 init 이 없으므로 고정 형식 JSON 경유로 구성한다(PROCESSING payload={}).
     /// 형식이 고정이라 디코딩은 항상 성공하지만, 방어적으로 옵셔널 반환(실패 시 호출부 no-op).
@@ -302,4 +327,16 @@ final class BotChatViewModel: ObservableObject {
         guard let data = json.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(ChatFrame.self, from: data)
     }
+}
+
+// MARK: - 저장 결과(FR-I8)
+
+/// 위저드 저장 완료 결과(결과 카드 렌더 입력). 409 중복은 목록(wishNames/reelNames)에서 제외되고 duplicateCount 로만 집계.
+/// sourceInstagramUrl 이 non-nil 일 때만 결과 카드에 [지도에서 보기 →] 노출(BR-7 — 저장 성공 핀 1개 이상 + URL 존재).
+struct ReelSaveResult: Equatable {
+    let wishNames: [String]
+    let reelNames: [String]
+    let duplicateCount: Int
+    let memo: String?
+    let sourceInstagramUrl: String?
 }

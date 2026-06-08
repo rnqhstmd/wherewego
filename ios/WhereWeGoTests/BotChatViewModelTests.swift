@@ -230,6 +230,7 @@ final class BotChatViewModelTests: XCTestCase {
             pinAPI: pinAPI ?? StubBotPinAPI(),
             groupAPI: groupAPI ?? StubBotGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
             currentUser: makeCurrentUser(),
+            deepLinkRouter: DeepLinkRouter(),
             sleeper: sleeper
         )
     }

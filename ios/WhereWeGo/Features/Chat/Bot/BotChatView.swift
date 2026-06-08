@@ -21,18 +21,28 @@ struct BotChatView: View {
         VStack(spacing: 0) {
             ChatScrollContainer(
                 messages: viewModel.messages,
-                emptyText: "릴스 링크를 입력해보세요",
+                emptyText: "관심 있는 릴스 링크를 붙여넣어 보세요 ✨",
                 onLoadMore: { Task { await viewModel.loadMore() } },
-                onSavePlaceCards: { selected, messageId in
-                    Task { await viewModel.savePlaceCards(selected, from: messageId) }
+                onSavePlaceCards: { cards, wishIDs, memo, sourceInstagramUrl in
+                    Task {
+                        await viewModel.savePlaceCards(
+                            cards: cards,
+                            wishIDs: wishIDs,
+                            memo: memo,
+                            sourceInstagramUrl: sourceInstagramUrl
+                        )
+                    }
                 }
             )
+
+            saveResultCard
 
             saveInfoBanner
 
             inputBar
         }
         .background(WGColor.bg)
+        .animation(.easeOut(duration: 0.2), value: viewModel.saveResult)
         .navigationTitle("어디가지 봇")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -46,6 +56,76 @@ struct BotChatView: View {
             if phase == .active {
                 Task { await viewModel.reconcileLatest() }
             }
+        }
+    }
+
+    // MARK: - 저장 결과 카드(FR-I8)
+
+    @ViewBuilder
+    private var saveResultCard: some View {
+        if let result = viewModel.saveResult {
+            let savedCount = result.wishNames.count + result.reelNames.count
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    Text("✨ 위시 \(result.wishNames.count)곳 · 📍 발견 \(result.reelNames.count)곳 저장했어요")
+                        .font(WGFont.sans(14))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(WGColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button {
+                        viewModel.dismissSaveResult()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(WGColor.inkSoft)
+                    }
+                }
+
+                // 신규 저장 성공 장소 목록(409 중복 제외 — N+M 과 건수 일치, AC-9).
+                let savedNames = result.wishNames + result.reelNames
+                if !savedNames.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(savedNames, id: \.self) { name in
+                            Text("· \(name)")
+                                .font(WGFont.sans(12.5))
+                                .foregroundStyle(WGColor.inkSoft)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                if let memo = result.memo, !memo.isEmpty {
+                    Text("메모: \(memo)")
+                        .font(WGFont.sans(12))
+                        .foregroundStyle(WGColor.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // [지도에서 보기 →]: 출처 URL 있고 저장 성공 핀 1개 이상일 때만(BR-7).
+                if let url = result.sourceInstagramUrl, savedCount > 0 {
+                    Button {
+                        viewModel.showOnMap(instagramUrl: url)
+                    } label: {
+                        Text("지도에서 보기 →")
+                            .font(WGFont.sans(13))
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(WGColor.cta)
+                            .foregroundStyle(WGColor.panel)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(WGColor.cta.opacity(0.08))
+            .overlay(alignment: .top) {
+                Rectangle().fill(WGColor.hairline).frame(height: 1)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
