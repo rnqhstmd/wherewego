@@ -1,50 +1,46 @@
-# Cross-Review 결과 — C (맵/필터 정리)
+# Cross-Review 결과 — DM (그룹별 봇방 목록)
 
-- advisor: claude (오케스트레이터 직접 — oh-my-gx 읽기 전용 에이전트 산출물 미반환)
-- 브랜치: feat/ios-ia-redesign (base: develop / 실제 비교 base: origin/develop=11afd42, merge-base 2715daa)
+- advisor: claude (오케스트레이터 직접 — oh-my-gx qa-manager/security-auditor 산출물 미반환 환경) + PR #108 봇 리뷰 통합
+- 브랜치: feat/ios-ia-redesign (base: origin/develop)
 - DEV_DIR: .dev/feat-ios-ia-redesign
-- 검증 대상: C-only diff(ios) 4파일 340줄 — MapView.swift, MapViewModel.swift, TagFilterBar.swift, MapViewModelTests.swift
-- 미션: 산출물(PRD AC / 설계 변경범위) 약속 대비 충실도 + 신규 위험 (코드 품질 일반 리뷰 아님)
+- 대상: DM 그룹별 봇방 목록 (커밋 216b876, PR #108)
 
 ## AC 충족 매트릭스
 
 | AC | 충족 | 근거 |
 |----|------|------|
-| AC-C1 상단 필터/범례 · 좌하단 어디가지 FAB 단독 | O | MapView `mapFilterRow`(390) 상단 노출(85, .loaded 게이트), 좌하단 클러스터 `rouletteFAB` 단독(372–381) |
-| AC-C2 팝업 아래 펼침 · 그룹 오버레이/릴스 배너 겹침 없음 | O(코드) / DoD-B(시각) | TagFilterBar 팝업 `.topTrailing` + `offset(y:44+8)`(72,167); 상단 VStack(spacing:10) 그룹행/필터행 분리(81–88). 릴스 배너 시각 겹침은 self-check W2(Mac) |
-| AC-C3 상호배타 · 바깥탭 닫힘 · 필터 토글/주황점 동일 | O | `activeCornerPopup` 바인딩·바깥탭 catcher 무변경, `TagFilterButton` 토글/주황점 로직 무변경 |
-| AC-C4 전면 스피너 없이 줌아웃→줌인 + 핀 교체 | O | `switchTo` `.loading` 미설정, `zoomOutForSwitch`→`zoomInForSwitch`, 핀 원자 교체(307–331) |
-| AC-C5 기존 기능 무손상 | O | `load()`/`applyInitialCamera()` 불변. **추가**: 리뷰서 발견된 `load(groupId:)` 결손(컴파일 에러) 수정으로 실제 무손상 달성. `selectedPinId=nil`(전환 시) 안전성 개선 |
+| AC-1 목록·가상항목·빈상태 | O(설계상) / ⚠️빌드차단 | DMListView 분기 + botRooms []정규화 — 단, 빌드 실패로 런타임 검증 불가(수정 전) |
+| AC-2 unread 굵게+강조점 | O | DMRoomRow semibold+pinNew+배경 |
+| AC-3 그룹별 송수신 | O | groupId 엔드포인트, 구 호출 0(grep) |
+| AC-4 방 복귀 읽음 갱신 | O | onChange(openedRoom==nil)→refresh |
+| AC-5 릴스 저장=방 그룹 | O | savePlaceCards self.groupId, createGroupIds==[7,7] |
+| AC-6 로딩/에러/빈+재시도 | O | LoadState 분기 + 테스트 |
+| AC-7 기존 봇채팅 회귀없음 | O | BotChatViewModel 로직 불변 |
+| AC-8 테스트 갱신/신규 통과 | ⚠️→O | 빌드 차단으로 테스트 미실행(수정 전) → Hashable 수정 후 해소 |
+| AC-9 DM 탭 배지 | O | hasUnread→hasChatUnread |
 
-[Must] AC-C1~C5 충족(C2 시각은 DoD-B). [Could] FR-C5(권한 거부 시 핀 bounds 줌인) 구현됨.
+[Must] 전체 7건(FR-1~6,10) 설계상 충족. **빌드 차단(아래 Critical)으로 런타임/테스트 검증이 막혀 있었음 → 수정 완료.**
 
 ## 설계 범위 이탈
 
-- **이탈 1건 (정당)**: `MapViewModel.load(groupId:)` 신규 오버로드 추가.
-  - 변경 요약: MapView.task/재시도가 호출하던 `load(groupId:)`가 MapViewModel에 미정의 → 컴파일 에러(iOS CI red). 오버로드 추가로 해소.
-  - 이탈 사유: 설계 "변경 범위"는 switchTo+헬퍼+상수만 명시했고 load(groupId:)는 없었음. **그러나 이는 골격 A(#106)에서 유입된 기존 컴파일 결함**이며, C의 PR CI를 green으로 만들려면 불가피한 수정. → **정당**.
-- 재진입(reentrancy) 가드(switchTo/zoomInForSwitch)는 switchTo 범위 내 보강 → 이탈 아님.
-- MapViewModelTests.swift 변경은 설계 "테스트" 섹션에 명시 → 이탈 아님.
+이탈 없음. 변경 파일이 설계서 §11 변경 범위(신규 3·수정 6·테스트 2)와 정확히 일치.
 
-## 신규 위험
+## 신규 위험 (trust-ledger 미보고분)
 
-(trust-ledger.md / self-check.md에 이미 있는 W1·W2·Info(zoom 수치)는 중복 제외)
+### Critical
+- [RISK] DMListView.swift:29 — `navigationDestination(item:)`가 `BotRoomSummary`에 **Hashable**을 요구하나 모델이 Decodable/Identifiable/Equatable만 보유 → **iOS CI 빌드 실패(exit 65)**, 전 DM 기능 차단.
+  - 근거: CI 로그 `instance method 'navigationDestination(item:destination:)' requires that 'BotRoomSummary' conform to 'Hashable'`. (Windows 빌드 불가로 self-check/phase-review에서 미검출 — Identifiable로 충분하다고 오판.)
+  - 권고/조치: ✅ `BotRoomSummary`에 `Hashable` 추가(전 멤버 Hashable이라 합성). 수정 완료.
 
-### Critical / Warning
-- 없음.
+### Warning
+- [RISK] DMListView.swift:29 — `navigationDestination(item:)` 목적지가 `nil` 경유 없이 다른 room으로 갱신될 때(딥링크/빠른 갱신) `BotChatRoomView`의 StateObject가 잔존해 잘못된 방 데이터를 표시할 수 있음. **(PR #108 Gemini Code Assist 봇 리뷰 #1, medium)**
+  - 권고/조치: ✅ 목적지에 `.id(room.groupId)` 부여 → groupId 변경 시 뷰 정체성 갱신·StateObject 재구성. 수정 완료.
 
 ### Info
-- [GAP] `load(groupId:)`에 재진입 가드 없음 — MapView.task(`.idle` 게이트, 진입 1회)와 재시도 버튼에서만 호출되어 switchTo와 동시 실행 경로가 없음(switchGroup은 이미 레벨1, task 종료 후). **저영향**. 향후 동일 화면에서 load(groupId:)가 비동기 중 재호출되는 시나리오가 생기면 가드 고려.
-- [ASSUMPTION] `zoomInForSwitch` granted 분기의 `applyInitialCamera`는 "내 위치"(그룹 무관)라 stale 덮어쓰기를 무해로 판단해 가드를 생략. 다중 그룹 빠른 전환 + 위치 허용 환경에서도 카메라가 동일한 내 위치로 가므로 그룹 불일치 결과는 발생하지 않음.
-
-## references 위반
-- 해당 없음 (references/ 디렉토리 없음).
+- [ASSUMPTION] DMListViewModel static `DateFormatter`/`ISO8601DateFormatter` Swift 6 동시성 — **(Gemini 봇 리뷰 #2, medium)**. 검증 결과 **false-positive**: `DMListViewModel`이 `@MainActor` 클래스라 static 멤버가 MainActor 격리되어 안전하며, 동일 패턴의 `NotificationInboxViewModel`이 이미 CI 통과 중. 미조치(기존 선례와 정합 유지). 빌드 실패 원인은 이 항목이 아니라 위 Hashable.
+- [INFO] formatTime이 NotificationInboxViewModel.formatTime과 중복(trust-ledger 기보고). 후속 공용 유틸 통합 여지(범위 외).
 
 ## 총평
-- 강점: PR #107 봇 리뷰의 [Critical](컴파일 결손)·[High](재진입 레이스)를 정확히 반영. AC-C1~C5 충족. switchTo/load(groupId:) 단위 테스트 7건으로 회귀 가드.
-- 합산: Critical 0 · Warning 0 · Info 2.
-- 권고: iOS CI(빌드+시뮬 단위테스트) green 확인 후 리뷰어 머지. 시각(W2)·줌아웃 수치는 Mac DoD-B.
-
-## 처리 결과
-- 모든 항목 건너뛰기(기록만, 사용자 선택). 조치 필수 항목 없음 — 설계 이탈 1건은 정당(기존 컴파일 결함 수정), Info 2건은 실 레이스 경로 없는 저영향.
-- 봇 리뷰 Critical/High는 commit cdfd901로 이미 반영 완료.
+- 강점: 설계 범위 정확 준수, AC 설계상 전부 충족, 인스타식 읽음/배지/릴스 귀속 구현 충실.
+- 합산: Critical 1(빌드 차단), Warning 1, Info 2. **Critical/Warning 2건 모두 즉시 수정 완료.**
+- 권고: 수정 push 후 CI green 확인 필수. cross-review가 Windows 빌드 불가로 놓친 Critical(Hashable)을 포착 — 본 단계의 가치 입증.

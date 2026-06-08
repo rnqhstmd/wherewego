@@ -130,7 +130,8 @@ struct SendMessageResponse: Decodable {
 /// - roomId/lastPreview/lastSenderType/lastAt: 메시지 없음 → nil.
 /// - unread: 백엔드 판정(마지막이 BOT & lastRead<latest) 그대로 신뢰(BR-4, 자체 계산 안 함).
 /// - groupId/roomId: Long → Int (PinSummary/ChatFrame 선례, iOS17 64bit 안전 수용 리스크).
-struct BotRoomSummary: Decodable, Identifiable, Equatable {
+/// - Hashable: DMListView 의 `navigationDestination(item:)`이 Hashable 을 요구한다(Identifiable 만으로 부족).
+struct BotRoomSummary: Decodable, Identifiable, Equatable, Hashable {
     let roomId: Int?
     let groupId: Int
     let groupName: String

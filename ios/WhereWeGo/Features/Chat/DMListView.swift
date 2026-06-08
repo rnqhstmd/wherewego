@@ -32,6 +32,10 @@ struct DMListView: View {
                     groupName: room.groupName,
                     makeViewModel: makeRoomViewModel
                 )
+                // groupId 변경 시 뷰 정체성을 새로 부여해 StateObject(방 VM)를 안전하게 재구성한다.
+                //  navigationDestination(item:)이 nil 경유 없이 다른 room 으로 갱신될 때(딥링크/빠른 갱신)
+                //  기존 StateObject 가 잔존해 잘못된 방 데이터를 표시하는 것을 방지(PR #108 Gemini 리뷰 반영).
+                .id(room.groupId)
             }
             // 방 pop(openedRoom==nil) → 읽음 갱신(FR-6/AC-4). 백엔드가 방 GET 시 읽음처리 → 목록 재조회로 반영.
             .onChange(of: openedRoom) { _, new in
