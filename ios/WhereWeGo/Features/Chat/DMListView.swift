@@ -150,9 +150,10 @@ struct BotChatRoomView: View {
     private let groupName: String
     @StateObject private var viewModel: BotChatViewModel
 
-    init(groupId: Int, groupName: String, makeViewModel: (Int) -> BotChatViewModel) {
+    init(groupId: Int, groupName: String, makeViewModel: @escaping (Int) -> BotChatViewModel) {
         self.groupName = groupName
         // StateObject wrappedValue: 최초 1회만 평가(이후 재계산에서도 동일 인스턴스 유지).
+        //  wrappedValue 는 @autoclosure @escaping 이라 makeViewModel 도 @escaping 이어야 캡처 가능.
         _viewModel = StateObject(wrappedValue: makeViewModel(groupId))
     }
 
