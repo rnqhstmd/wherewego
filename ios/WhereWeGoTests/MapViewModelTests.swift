@@ -488,6 +488,29 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertTrue(vm.pins.isEmpty)
     }
 
+    // MARK: - load(groupId:) 명시 그룹 로드 (리뷰 Critical: MapView.task/재시도 시그니처 대응)
+
+    func test_loadByGroupId_loadsThatGroupPins() async {
+        let pinAPI = StubPinAPI(listResult: .success([]))
+        pinAPI.pinsByGroup = [9: [makePin(id: 91, tag: .WISH), makePin(id: 92, tag: .REEL)]]
+        let vm = makeViewModel(pinAPI: pinAPI)
+
+        await vm.load(groupId: 9)
+
+        XCTAssertEqual(vm.loadState, .loaded)
+        XCTAssertEqual(Set(vm.pins.map(\.id)), [91, 92])
+        XCTAssertEqual(pinAPI.lastListedGroupId, 9)
+    }
+
+    func test_loadByGroupId_failure_setsError() async {
+        let pinAPI = StubPinAPI(listResult: .failure(APIError(code: "FAIL", status: 500, message: "boom")))
+        let vm = makeViewModel(pinAPI: pinAPI)
+
+        await vm.load(groupId: 9)
+
+        if case .error = vm.loadState {} else { XCTFail("load(groupId:) 실패 시 loadState 는 .error 여야 함") }
+    }
+
     // MARK: - 헬퍼
 
     private func makeViewModel(
