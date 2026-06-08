@@ -42,6 +42,11 @@ final class MapViewModel: ObservableObject {
     static let currentLocationZoom: Double = 15
     /// 핀 1개 선택 flyTo 시 줌 레벨.
     static let pinFocusZoom: Double = 15
+    /// 그룹 전환 줌아웃 연출 레벨(C단계 D-3, FR-C3). 현 중심 유지하며 이 줌으로 빠진 뒤 줌인. 수치 미세조정 DoD-B.
+    static let switchOverviewZoom: Double = 10
+    /// 줌아웃→줌인 사이 최소 유지 시간(ns, C단계 W1). MapContainerView 가 zoom-out cameraCommand 를
+    /// zoom-in 명령으로 덮이기 전에 1회 소비하도록 보장(B2 계약). 즉시 응답 네트워크에서도 연출을 보장한다. 수치 DoD-B.
+    static let switchZoomOutHoldNanos: UInt64 = 120_000_000
 
     // MARK: - 인라인 핀 추가 진입 줌(FR-11, AC-16). 웹 MapClient.tsx:1043-1066 동치.
 
@@ -278,21 +283,78 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// 그룹 전환(GM-2, 설계 §1). GroupContext.switchGroup/enterGroup 이 호출 — 지정 그룹 id 로 핀 재로드.
-    /// 같은 groupId 면 재로드를 생략(불필요 네트워크 방지). 다른 그룹이면 기존 핀을 비우고 그 그룹 핀을 로드한다.
-    /// myActiveGroup 조회 없이 id 를 직접 사용(목록에서 이미 확정된 그룹) — load() 의 단일 활성 그룹 가정과 분리.
-    func switchTo(groupId newGroupId: Int) async {
-        guard newGroupId != groupId else { return }
+    /// 지정 그룹 id 로 핀 로드(IA 재설계 §3). MapView.task/재시도가 currentGroupId 로 호출한다.
+    /// load() 의 myActiveGroup 단수 resolve 가 다중그룹에서 currentGroupId 와 어긋나는 문제를 피한다.
+    /// 초기 진입 로드라 .loading 으로 스피너를 보인다(switchTo 의 무스피너 연출과 구분).
+    func load(groupId targetGroupId: Int) async {
         loadState = .loading
-        pins = []
-        groupId = newGroupId
+        groupId = targetGroupId
         do {
-            pins = try await pinAPI.list(groupId: newGroupId)
+            pins = try await pinAPI.list(groupId: targetGroupId)
             lastFetchedAt = now()
             loadState = .loaded
             await applyInitialCamera()
         } catch {
             loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 그룹 전환(GM-2, 설계 §1 / IA 재설계 C단계 D-3). GroupContext.switchGroup 이 onGroupChanged 로 호출.
+    /// "로딩 척"(FR-C3): 전면 로딩 스피너 없이 줌아웃 → 핀 원자 교체 → (가능 시) 내 위치 줌인.
+    ///  - .loading 을 세우지 않는다(스피너 미표시). 구 핀은 fetch 완료까지 유지 후 원자 교체 → EmptyMapCard 깜빡임 방지.
+    ///  - selectedPinId 정리: 구 그룹 선택 말풍선 잔여/좀비 재탭 가드 오동작 방지.
+    ///  - 같은 groupId 면 재로드 생략(불필요 네트워크 방지). 다른 그룹이면 그 그룹 핀으로 교체.
+    func switchTo(groupId newGroupId: Int) async {
+        guard newGroupId != groupId else { return }
+        groupId = newGroupId
+        selectedPinId = nil
+        // 줌아웃을 실제 발행했으면 최소 유지(W1): 명령 소비 시간을 확보해 즉시 응답 네트워크에서도 zoom-in 이 zoom-out 을 덮지 않게 한다.
+        if zoomOutForSwitch() {
+            try? await Task.sleep(nanoseconds: Self.switchZoomOutHoldNanos)
+            // 재진입 가드(리뷰 High): sleep 중 다른 그룹 전환이 들어왔으면 이 흐름을 폐기 — stale 덮어쓰기 방지.
+            guard newGroupId == groupId else { return }
+        }
+        do {
+            let fetched = try await pinAPI.list(groupId: newGroupId)
+            // 재진입 가드: fetch 중 그룹이 또 바뀌었으면 이 결과를 버린다(현재 그룹 핀 보존).
+            guard newGroupId == groupId else { return }
+            pins = fetched
+            lastFetchedAt = now()
+            loadState = .loaded
+            await zoomInForSwitch(targetGroupId: newGroupId)
+        } catch {
+            // 늦게 도착한 이전 전환의 에러로 현재 그룹 화면을 흔들지 않는다.
+            guard newGroupId == groupId else { return }
+            pins = []
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    /// 그룹 전환 줌아웃(D-3). 현 중심 유지하며 switchOverviewZoom 으로 빠진다. 명령을 실제 발행했으면 true(W1 sleep 판단용).
+    @discardableResult
+    private func zoomOutForSwitch() -> Bool {
+        guard let center = mapCenter else { return false }   // 중심 미상이면 생략(줌인만)
+        cameraCommand = CameraTarget(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            zoom: Self.switchOverviewZoom
+        )
+        mapZoom = Self.switchOverviewZoom
+        return true
+    }
+
+    /// 그룹 전환 줌인(D-3, FR-C3/C5). 위치 허용=내 위치(applyInitialCamera, 그룹 무관), 거부+핀 있으면 그룹 핀 bounds, 핀 없으면 폴백.
+    /// targetGroupId: 비동기(applyInitialCamera) 중 다른 전환이 끼어들면 이전 그룹 bounds 로 덮지 않도록 검증한다(리뷰 High).
+    private func zoomInForSwitch(targetGroupId: Int) async {
+        let status = locationService.authorizationStatus
+        let granted = status == .authorizedWhenInUse || status == .authorizedAlways
+        if granted {
+            await applyInitialCamera()   // 내 위치는 그룹 무관 — stale 위험 없음
+        } else if !markers.isEmpty {
+            guard targetGroupId == groupId else { return }   // 재진입 가드: 새 전환 중이면 이전 그룹 bounds 미적용
+            fitBoundsCommand = markers   // FR-C5: 권한 거부 시 새 그룹 핀 bounds 로 줌인
+        } else {
+            await applyInitialCamera()
         }
     }
 

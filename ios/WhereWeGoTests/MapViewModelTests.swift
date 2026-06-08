@@ -410,6 +410,107 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertEqual(vm.cameraCommand?.zoom, MapViewModel.currentLocationZoom)
     }
 
+    // MARK: - 그룹 전환 switchTo 줌 연출(C단계 D-3, FR-C3/C5, AC-C4/C5)
+
+    func test_switchTo_swapsToNewGroupPins_andClearsSelection() async {
+        // Given 활성 그룹1 핀 로드 + 마커 선택, 그룹2는 다른 핀.
+        let pinAPI = StubPinAPI(listResult: .success([]))
+        pinAPI.pinsByGroup = [
+            1: [makePin(id: 11, tag: .WISH)],
+            2: [makePin(id: 21, tag: .REEL), makePin(id: 22, tag: .MEMORY)]
+        ]
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()   // StubGroupAPI 기본 활성 그룹 1 → 그룹1 핀
+        vm.updateMapSize(CGSize(width: 390, height: 844))
+        vm.handle(.markerTapped(pinId: 11, screenPoint: ScreenPoint(x: 100, y: 200)))
+        XCTAssertEqual(vm.selectedPinId, 11)
+
+        // When 그룹2로 전환
+        await vm.switchTo(groupId: 2)
+
+        // Then 핀 원자 교체 + 구 그룹 선택 해제 + 최종 .loaded(전면 .loading 거치지 않음).
+        XCTAssertEqual(Set(vm.pins.map(\.id)), [21, 22])
+        XCTAssertNil(vm.selectedPinId)
+        XCTAssertEqual(vm.loadState, .loaded)
+    }
+
+    func test_switchTo_sameGroup_isNoOp() async {
+        // Given 활성 그룹1 로드(groupId=1 확정).
+        let pinAPI = StubPinAPI(listResult: .success([makePin(id: 1, tag: .WISH)]))
+        let vm = makeViewModel(pinAPI: pinAPI)
+        await vm.load()
+        let callsAfterLoad = pinAPI.listCallCount
+
+        // When 같은 그룹(1)으로 전환 시도 → 가드로 no-op
+        await vm.switchTo(groupId: 1)
+
+        // Then 재조회 없음(불필요 네트워크 방지)
+        XCTAssertEqual(pinAPI.listCallCount, callsAfterLoad)
+    }
+
+    func test_switchTo_whenLocationDeniedWithPins_usesFitBounds() async {
+        // Given 위치 거부 + 그룹2에 핀 존재.
+        let pinAPI = StubPinAPI(listResult: .success([]))
+        pinAPI.pinsByGroup = [2: [makePin(id: 21, tag: .REEL)]]
+        let vm = makeViewModel(pinAPI: pinAPI, location: StubLocationService(status: .denied))
+
+        // When 그룹2로 전환(groupId 초기 nil → 가드 통과)
+        await vm.switchTo(groupId: 2)
+
+        // Then 권한 거부 시 새 그룹 핀 bounds 로 줌인(FR-C5)
+        XCTAssertEqual(vm.fitBoundsCommand?.map(\.id), [21])
+    }
+
+    func test_switchTo_whenLocationDeniedNoPins_fallsBackToSeoul() async {
+        // Given 위치 거부 + 그룹2 핀 없음.
+        let pinAPI = StubPinAPI(listResult: .success([]))
+        let vm = makeViewModel(pinAPI: pinAPI, location: StubLocationService(status: .denied))
+
+        // When 전환
+        await vm.switchTo(groupId: 2)
+
+        // Then 핀 없으면 기존 폴백(서울시청) 카메라, fitBounds 미설정
+        XCTAssertEqual(vm.cameraCommand?.latitude, MapViewModel.seoulCityHall.latitude)
+        XCTAssertEqual(vm.cameraCommand?.zoom, MapViewModel.seoulCityHall.zoom)
+        XCTAssertNil(vm.fitBoundsCommand)
+    }
+
+    func test_switchTo_fetchFailure_setsErrorAndClearsPins() async {
+        // Given list 실패 목.
+        let pinAPI = StubPinAPI(listResult: .failure(APIError(code: "FAIL", status: 500, message: "boom")))
+        let vm = makeViewModel(pinAPI: pinAPI)
+
+        // When 전환(groupId 초기 nil → 가드 통과)
+        await vm.switchTo(groupId: 2)
+
+        // Then 에러 상태 + 핀 비움
+        if case .error = vm.loadState {} else { XCTFail("fetch 실패 시 loadState 는 .error 여야 함") }
+        XCTAssertTrue(vm.pins.isEmpty)
+    }
+
+    // MARK: - load(groupId:) 명시 그룹 로드 (리뷰 Critical: MapView.task/재시도 시그니처 대응)
+
+    func test_loadByGroupId_loadsThatGroupPins() async {
+        let pinAPI = StubPinAPI(listResult: .success([]))
+        pinAPI.pinsByGroup = [9: [makePin(id: 91, tag: .WISH), makePin(id: 92, tag: .REEL)]]
+        let vm = makeViewModel(pinAPI: pinAPI)
+
+        await vm.load(groupId: 9)
+
+        XCTAssertEqual(vm.loadState, .loaded)
+        XCTAssertEqual(Set(vm.pins.map(\.id)), [91, 92])
+        XCTAssertEqual(pinAPI.lastListedGroupId, 9)
+    }
+
+    func test_loadByGroupId_failure_setsError() async {
+        let pinAPI = StubPinAPI(listResult: .failure(APIError(code: "FAIL", status: 500, message: "boom")))
+        let vm = makeViewModel(pinAPI: pinAPI)
+
+        await vm.load(groupId: 9)
+
+        if case .error = vm.loadState {} else { XCTFail("load(groupId:) 실패 시 loadState 는 .error 여야 함") }
+    }
+
     // MARK: - 헬퍼
 
     private func makeViewModel(
@@ -466,12 +567,23 @@ private final class StubPinAPI: PinAPIProtocol, @unchecked Sendable {
     private let listResult: ListOutcome
     var updateResult: Result<UpdatePinResponse, Error> = .failure(APIError(code: "UNSET", status: 0, message: ""))
     var deleteResult: Result<Void, Error> = .success(())
+    /// groupId 별 핀 목록(switchTo 전환 테스트용). 키가 있으면 listResult 보다 우선 반환한다.
+    var pinsByGroup: [Int: [PinSummary]] = [:]
+    /// list 호출 횟수(switchTo 동일 그룹 no-op 검증용).
+    private(set) var listCallCount = 0
+    /// 마지막으로 list 요청된 groupId.
+    private(set) var lastListedGroupId: Int?
 
     init(listResult: ListOutcome) {
         self.listResult = listResult
     }
 
     func list(groupId: Int) async throws -> [PinSummary] {
+        listCallCount += 1
+        lastListedGroupId = groupId
+        if let pins = pinsByGroup[groupId] {
+            return pins
+        }
         switch listResult {
         case .success(let pins): return pins
         case .failure(let error): throw error

@@ -67,10 +67,11 @@ struct TagLegendButton: View {
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
         .accessibilityLabel("아이콘 및 단계 안내")
-        // 팝업은 버튼 위(leading)로 띄운다(웹 bottom:52, left:0 동치). 버튼 프레임 밖으로 렌더되며 상호배타.
-        .overlay(alignment: .bottomLeading) {
+        // C단계 D-2(FR-C1/AC-C2): 필터/범례 상단 이동에 맞춰 팝업을 버튼 아래로 띄운다(top 기준 +52).
+        //  우측 정렬 버튼이라 trailing 앵커 — 팝업(248)이 좌측으로 펼쳐져 화면 안에 머문다(leading이면 우측 오버플로).
+        .overlay(alignment: .topTrailing) {
             if isOpen {
-                popup.offset(y: -(44 + 8))
+                popup.offset(y: 44 + 8)
             }
         }
     }
@@ -162,9 +163,10 @@ struct TagFilterButton: View {
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
         .accessibilityLabel("핀 필터")
-        .overlay(alignment: .bottomLeading) {
+        // C단계 D-2(FR-C1/AC-C2): 범례와 동일하게 팝업을 버튼 아래로(top +52) + trailing 앵커로 좌측 펼침(220 화면 내 유지).
+        .overlay(alignment: .topTrailing) {
             if isOpen {
-                popup.offset(y: -(44 + 8))
+                popup.offset(y: 44 + 8)
             }
         }
     }

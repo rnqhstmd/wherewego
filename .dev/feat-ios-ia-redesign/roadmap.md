@@ -2,10 +2,11 @@
 
 > 새 세션(clear 후) 이어개발용 마스터 문서. 이 파일 + 같은 폴더의 design.md/prd.md/codemap.md/state.md를 함께 읽을 것.
 
-## 현재 상태 (2026-06-08)
-- 브랜치 **`feat/ios-ia-redesign`** (base develop `b6509bb`)
-- **A 내비 골격 ✅ 커밋 `9b70fa1`, PR #106** — Mac DoD-B 미검증(집에서 빌드/테스트 예정)
-- 묶음 전략: **같은 브랜치에 C/DM/D/IC-2 누적**, 단계별 커밋 + (점검 시) PR + Mac. 머지는 리뷰어.
+## 현재 상태 (2026-06-08 갱신)
+- 브랜치 **`feat/ios-ia-redesign`** (base develop)
+- **A 내비 골격 ✅ PR #106 → develop 머지 완료** (merge `11afd42`, 2026-06-08 05:41). Mac DoD-B는 머지 후 별도.
+- **C 맵/필터 정리 ✅ 커밋 `e2578ba`, PR #107 (base develop)** — 머지/Mac DoD-B는 리뷰어.
+- ⚠️ **묶음 머지 전략 폐기**: A가 #106으로 단독 머지되어 "한 브랜치에 누적 후 한 번 머지"는 무효. **이후 DM/D/IC-2도 단계별 PR**(같은 브랜치에서 develop 기준 커밋 1~N개씩). 각 PR 머지 전 Mac DoD-B는 리뷰어.
 
 ## develop 기반 자산 (전부 머지됨)
 - 백엔드: `GET /groups`(GM-1, iOS `GroupAPI.listMyGroups` 소비 중) / `GET /chat/bot/rooms` + `POST·GET /chat/bot/{groupId}/messages`(GM-2 B #105, **iOS 미소비 — DM 단계서**) / 초대 IC-1(#101 V019 재사용 코드)
@@ -13,10 +14,11 @@
 
 ## 남은 단계 (각각 /gx-dev NORMAL 권장)
 
-### C — 맵/필터 정리 (가장 작음, 골격 직후 권장)
-- **필터/범례 좌하단 → 상단 이동**: 현 `MapView`의 `TagFilterButton`/`TagLegendButton`(좌하단). 어디가지 FAB(좌하단, 골격서 추가)와 자리 충돌 해소 위해 필터는 상단으로.
-- **맵 로딩 "로딩 척"**: 앱 시작 1회만 Mapbox 로딩. 그룹 전환/목록→선택 시 전체 재로딩 X → 줌아웃→내 위치 줌인 연출 + 핀만 그룹별 교체.
-- 파일: `Features/Map/MapView.swift`, `Features/Map/MapViewModel.swift`(`switchTo`가 이미 줌아웃→핀 교체 비슷 — 내 위치 줌인 + 1회 로딩 보장 보강), `Features/Map/TagFilterBar.swift`.
+### C — 맵/필터 정리 ✅ 완료 (커밋 e2578ba, PR #107)
+- **필터/범례 좌하단 → 상단 이동** ✅: `TagLegendButton`/`TagFilterButton`을 MapView 상단 행(그룹 오버레이 아래 우측)으로. 좌하단은 어디가지 FAB 단독. TagFilterBar 팝업 아래·trailing 전환.
+- **맵 로딩 "로딩 척"** ✅(B안): 구조 변경 없이 `switchTo` 줌아웃→줌인 연출 + 핀 원자 교체 + 전면 스피너 제거. 위치 거부 시 핀 bounds 줌인. 줌아웃 소비 보장 120ms.
+  - ⚠️ **진짜 1회 로딩(Mapbox 상시 마운트, 목록→선택 재로딩 제거)은 후속 분리** — MapView 상시 마운트 + enterGroup→switchTo 통합 구조 변경 필요(리스크로 C에서 제외, B안 선택).
+- 파일: `MapView.swift`, `MapViewModel.swift`, `TagFilterBar.swift` + `MapViewModelTests.swift`(switchTo 5건).
 
 ### DM — 그룹별 봇방 목록 (#105 소비, 핵심)
 - DM 탭을 단일 `BotChatView` → **그룹별 봇방 목록**(신규 `DMListView`).
@@ -52,8 +54,8 @@
 4. 단계별 커밋. 점검 필요 시 PR + Mac 빌드.
 5. 권장 순서: **C → DM → D → IC-2** (C가 가장 작고 골격 직결, DM이 #105 소비 핵심).
 
-## 머지 전략 (2026-06-08 확정)
-- **묶음 한 번 머지**: `feat/ios-ia-redesign`에 C/DM/D/IC-2를 단계별 커밋으로 누적(PR #106 갱신) → **집에서 Mac 전체 빌드/시뮬/단위테스트 검증** → 통과 후 develop에 **한 번 머지**.
-- **단계별 순차 머지는 안 함**. 근거: iOS는 Mac 검증이 병목 — 단계마다 머지하려면 매번 Mac 필요(비현실적)이고, Mac 미검증 골격을 develop에 일찍 머지하면 빌드 오염 위험. IA 재설계(골격+C+DM+D+IC-2)는 응집된 한 단위라 묶음 머지가 적합.
-- **주의**: 묶음 기간 동안 develop과 벌어지지 않게 **주기적 `git pull origin develop` 병합**(특히 chat/group/map 도메인 충돌 주시 — #104/#105가 그 영역).
-- 지금 #106을 develop에 머지하지 **않는다**(Mac 미검증).
+## 머지 전략 (2026-06-08 개정 — 묶음 폐기)
+- ⚠️ **묶음 전략 폐기**: A가 PR #106으로 develop에 **이미 단독 머지**됨(merge `11afd42`). "한 브랜치 누적 후 한 번 머지" 전제가 깨짐.
+- **현행: 단계별 PR**. 같은 `feat/ios-ia-redesign` 브랜치에서 develop 기준으로 단계별(C=#107, 이후 DM/D/IC-2) PR을 올린다. 머지·Mac DoD-B 검증은 리뷰어.
+- **주의**: develop과 벌어지지 않게 단계 시작 전 **`git pull origin develop` 병합**(chat/group/map 도메인 충돌 주시 — #104/#105/#106이 그 영역). C 작업 시점엔 origin/develop과 동기였음.
+- 각 PR은 Mac 미검증 상태로 올라가며(Windows 빌드 불가), 머지 전 Mac 빌드/시뮬/단위테스트(DoD-B)는 리뷰어가 수행.
