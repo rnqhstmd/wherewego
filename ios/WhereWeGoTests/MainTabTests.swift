@@ -11,7 +11,7 @@ import CoreLocation
 //  - AC-2: 장소 추가(＋) 액션의 탭 독립성 — ＋ 는 지도 화면 speed-dial(MapView.addPinSpeedDial)의 enterAddPin(mode:) 으로,
 //          탭 selection 과 분리돼 있다(MainTab 에 plus 케이스 부재). FAB 액션이 selection 을 바꾸지 않음을
 //          클로저 모델로 검증한다.
-//          (P8: ＋ 를 탭바 센터에서 지도 우하단 FAB 로 이전. FloatingTabBar 는 5탭(지도·어디갈까·채팅·알림·내정보)만 받고 ＋ 미보유.)
+//          (IA 재설계: 4탭(지도·DM·알림·내정보). 어디갈까(.discover)는 탭 제거 → 지도 좌하단 어디가지 FAB 로 이동. ＋ 도 탭 미보유.)
 //          (SwiftUI 버튼 탭 자체를 구동하는 뷰 상호작용 테스트는 DoD-B(Mac/Xcode) 이연 — 본 테스트는 로직/구조 검증.)
 @MainActor
 final class MainTabTests: XCTestCase {
@@ -19,10 +19,15 @@ final class MainTabTests: XCTestCase {
     // MARK: - AC-1: MainTab 열거형(순서·개수·couple 부재)
 
     func test_mainTab_allCases_orderAndCount() {
-        // FR-1: 탭 순서 = 지도·어디갈까·채팅·알림·내정보. ＋ 는 액션이므로 케이스 미포함.
-        //  (어디갈까=위치기반 룰렛 추천 탭, 구 지도 우상단 🎲 시트에서 탭으로 승격.)
-        XCTAssertEqual(MainTab.allCases, [.map, .discover, .chat, .notification, .myInfo])
-        XCTAssertEqual(MainTab.allCases.count, 5)
+        // IA 재설계 FR-1: 탭 순서 = 지도·DM·알림·내정보. 어디갈까(.discover) 제거(지도 좌하단 FAB로), ＋ 는 액션이므로 케이스 미포함.
+        XCTAssertEqual(MainTab.allCases, [.map, .chat, .notification, .myInfo])
+        XCTAssertEqual(MainTab.allCases.count, 4)
+    }
+
+    func test_mainTab_doesNotContainDiscover() {
+        // IA 재설계 AC-1: 어디갈까(.discover) 탭 제거. allCases 어디에도 discover 식별자가 없어야 한다.
+        let labels = MainTab.allCases.map { String(describing: $0) }
+        XCTAssertFalse(labels.contains("discover"))
     }
 
     func test_mainTab_doesNotContainCouple() {
@@ -32,9 +37,9 @@ final class MainTabTests: XCTestCase {
         XCTAssertFalse(labels.contains("couple"))
     }
 
-    func test_mainTab_isCaseIterableWithExactFive() {
-        // 개수 회귀 방지: 탭 식별자는 정확히 5개(지도·어디갈까·채팅·알림·내정보). ＋ 는 액션이라 미포함.
-        XCTAssertEqual(Set(MainTab.allCases).count, 5)
+    func test_mainTab_isCaseIterableWithExactFour() {
+        // 개수 회귀 방지: 탭 식별자는 정확히 4개(지도·DM·알림·내정보). 어디갈까 제거·＋ 는 액션이라 미포함.
+        XCTAssertEqual(Set(MainTab.allCases).count, 4)
     }
 
     // MARK: - AC-2: 장소 추가(＋) 액션의 탭 독립성
@@ -57,9 +62,9 @@ final class MainTabTests: XCTestCase {
         XCTAssertTrue(mapViewModel.isAddingPin, "＋ 액션은 인라인 추가 모드를 활성화해야 한다(AC-1).")
     }
 
-    func test_floatingTabBar_isFiveTabNavigationWithoutPlusParameter() {
-        // P8: FloatingTabBar 는 5탭 순수 네비게이션 바. ＋(onPlusTap) 파라미터를 더는 받지 않는다.
-        // 생성 시그니처가 selection/hasUnread 만으로 정합하고, selection 바인딩 초기값을 보존함을 확인.
+    func test_floatingTabBar_isFourTabNavigationWithoutPlusParameter() {
+        // IA 재설계: FloatingTabBar 는 4탭 순수 네비게이션 바. ＋(onPlusTap) 파라미터를 받지 않는다.
+        // 생성 시그니처가 selection/hasUnread/onReselectMap 으로 정합하고, selection 바인딩 초기값을 보존함을 확인.
         var selection: MainTab = .chat
 
         let bar = FloatingTabBar(
@@ -113,6 +118,7 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     private let group: ActiveGroup?
     init(group: ActiveGroup?) { self.group = group }
     func myActiveGroup() async throws -> ActiveGroup? { group }
+    func listMyGroups() async throws -> [GroupSummary] { [] }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
     func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
     func leaveGroup(groupId: Int) async throws {}

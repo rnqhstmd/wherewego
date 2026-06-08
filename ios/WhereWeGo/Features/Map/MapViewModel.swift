@@ -278,6 +278,24 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    /// 그룹 전환(GM-2, 설계 §1). GroupContext.switchGroup/enterGroup 이 호출 — 지정 그룹 id 로 핀 재로드.
+    /// 같은 groupId 면 재로드를 생략(불필요 네트워크 방지). 다른 그룹이면 기존 핀을 비우고 그 그룹 핀을 로드한다.
+    /// myActiveGroup 조회 없이 id 를 직접 사용(목록에서 이미 확정된 그룹) — load() 의 단일 활성 그룹 가정과 분리.
+    func switchTo(groupId newGroupId: Int) async {
+        guard newGroupId != groupId else { return }
+        loadState = .loading
+        pins = []
+        groupId = newGroupId
+        do {
+            pins = try await pinAPI.list(groupId: newGroupId)
+            lastFetchedAt = now()
+            loadState = .loaded
+            await applyInitialCamera()
+        } catch {
+            loadState = .error("핀을 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
     /// 위치 권한에 따른 초기 카메라(FR-2). granted=현재위치 zoom15, 미허용=서울시청 zoom3.
     private func applyInitialCamera() async {
         let status = locationService.authorizationStatus

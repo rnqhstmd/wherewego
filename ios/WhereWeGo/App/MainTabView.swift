@@ -1,16 +1,17 @@
 import SwiftUI
 
-// 메인 탭 화면(설계 §1·§2·§11). 온보딩 종착 — 5탭(지도·어디갈까·채팅·알림·내정보).
-//  - 지도=전체 핀 보기/관리, 어디갈까=위치기반 룰렛 추천(구 지도 우상단 🎲 시트 → 탭 승격, RouletteView). 둘은 레벨이 다른 별개 기능.
+// 메인 탭 화면(설계 §1·§2·§11 / IA 재설계 4탭). 온보딩 종착 — 4탭(지도·DM·알림·내정보).
+//  - 지도=2레벨(IA 재설계 §3): currentGroupId==nil → GroupListView(그룹 목록 레벨0), !=nil → MapView(그 그룹 지도 레벨1).
+//  - DM=BotChatView(라벨만 "DM", 봇방 유지 — #105 그룹별 목록 소비는 후속 DM 단계). 알림: NotificationInboxView. 내정보: MyInfoView.
+//  - 어디갈까(룰렛)는 탭 제거 → 지도 좌하단 어디가지 FAB(MapView)로 이동. rouletteViewModel 은 그 FAB 시트가 재사용(VM 수명 본 뷰 소유).
+//  - 그룹 컨텍스트(IA 재설계 §1): GroupContext 를 @StateObject 로 소유. onGroupChanged → mapViewModel.switchTo 배선(그룹 전환 시 지도 재로드).
+//    진입 시 .task 에서 bootstrap(listMyGroups → groups, lastGroupId 유효 시 그 그룹 직행).
 //  - 시스템 탭바 숨김 + .safeAreaInset(edge:.bottom) 으로 FloatingTabBar 부착(둥근 플로팅 필 바, 콘텐츠 자동 회피). ＋ 는 탭이 아닌 액션(selection 불변, BR-1/AC-2).
-//  - 지도: MapView(외부 주입 MapViewModel 공유 — 딥링크 .pin/.map flyTo 를 위해 VM 을 본 뷰가 소유).
-//  - 어디갈까: RouletteView(rouletteViewModel — mapViewModel 공유로 추첨 풀=pins, "지도에서 보기" flyTo). 진입 시 자동 추첨.
-//  - 채팅: BotChatView(BotChatViewModel). 알림: NotificationInboxView. 내정보: MyInfoView.
 //  - ＋ 장소 추가(P8 영역1·영역4 후속): 탭바에서 분리되어 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
 //    speed-dial 2선택지(✋ 콕찍기 / 🔍 검색) → mapViewModel.enterAddPin(mode:) → 메인 지도 인라인 오버레이(시트 제거).
 //    탭 전환(selection 변경) 시 exitAddPin 으로 자동 종료(BR-1).
 //  - 딥링크 소비(설계 §3): DeepLinkRouter.pending 관찰 → 탭 전환/네비게이션 후 pending=nil.
-//      · .chat → 채팅 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
+//      · .chat → DM 탭, .pin(id)/.map → 지도 탭 (+ .pin 은 핀 로드 후 flyTo), .invite(slug) → 초대 시트
 //  - 알림 배지(설계 §14): 앱 진입/포그라운드 복귀 시 onForeground(list 만 — 배지 갱신, 읽음 처리 안 함).
 //      읽음 처리(readAll)는 알림 탭 진입 시 NotificationInboxView.load() 에서만 발생한다.
 //
@@ -21,6 +22,8 @@ struct MainTabView: View {
     private let dependencies: AppDependencies
 
     @StateObject private var mapViewModel: MapViewModel
+    /// 그룹 컨텍스트(IA 재설계 §1). 지도 탭 2레벨 분기·그룹 전환 상태 소유. onGroupChanged → mapViewModel.switchTo 배선.
+    @StateObject private var groupContext: GroupContext
     /// 어디갈까(룰렛) VM. mapViewModel 공유(추첨 풀=pins, "지도에서 보기" flyTo). 탭 전환에도 결과 유지.
     @StateObject private var rouletteViewModel: RouletteViewModel
     @StateObject private var botViewModel: BotChatViewModel
@@ -36,10 +39,12 @@ struct MainTabView: View {
     @State private var selection: MainTab = .map
     /// .invite 딥링크 시 표시할 초대 슬러그(시트 트리거). nil 이면 미표시.
     @State private var inviteSlug: String?
+    /// 그룹 추가 진입(GroupListView "새 그룹/합류") 시 표시할 시트 트리거(IA 재설계 §3 빈 상태 연계).
+    @State private var groupEntrySheet: GroupEntrySheet?
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
-        // mapViewModel 을 먼저 생성해 rouletteViewModel 과 공유한다(추첨 풀=pins, "지도에서 보기" flyTo 대상).
+        // mapViewModel 을 먼저 생성해 rouletteViewModel·groupContext 와 공유한다(추첨 풀=pins, 그룹 전환 시 switchTo 트리거).
         let map = MapViewModel(
             pinAPI: dependencies.pinAPI,
             placeAPI: dependencies.placeAPI,
@@ -47,6 +52,16 @@ struct MainTabView: View {
             locationService: dependencies.locationService
         )
         _mapViewModel = StateObject(wrappedValue: map)
+        // 그룹 컨텍스트(IA 재설계 §1). 그룹 진입/전환 시 mapViewModel.switchTo 로 지도 재로드를 약결합 배선.
+        //  map 로컬 인스턴스를 클로저가 캡처(StateObject wrappedValue 와 동일 인스턴스) — 그룹 변경 시 그 지도 VM 이 재로드된다.
+        _groupContext = StateObject(
+            wrappedValue: GroupContext(
+                groupAPI: dependencies.groupAPI,
+                onGroupChanged: { groupId in
+                    Task { await map.switchTo(groupId: groupId) }
+                }
+            )
+        )
         _rouletteViewModel = StateObject(
             wrappedValue: RouletteViewModel(
                 mapViewModel: map,
@@ -82,22 +97,13 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            // 지도 탭 — 전체 핀 보기/관리. 외부 주입 VM 공유(딥링크 flyTo 대상).
-            MapView(viewModel: mapViewModel)
+            // 지도 탭 2레벨(IA 재설계 §3): currentGroupId==nil → GroupListView(레벨0), !=nil → MapView(레벨1).
+            //  레벨1 MapView 는 외부 주입 VM 공유(딥링크 flyTo·그룹 전환 switchTo 대상). 어디가지(룰렛) FAB 로 진입.
+            mapTabContent
                 .tag(MainTab.map)
 
-            // 어디갈까(룰렛) 탭 — 위치기반 무작위 추천. 진입(selection→.discover) 시 자동 추첨(아래 onChange).
-            //  "지도에서 보기" → showOnMap() 후 onShowOnMap 콜백으로 지도 탭 전환.
-            NavigationStack {
-                RouletteView(
-                    viewModel: rouletteViewModel,
-                    onShowOnMap: { selection = .map }
-                )
-            }
-            .reserveFloatingTabBarSpace()
-            .tag(MainTab.discover)
-
-            // 채팅(봇 방) 탭. navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
+            // DM(봇 방) 탭. 라벨/아이콘만 "DM"(FloatingTabBar) — 내용은 기존 BotChatView 유지(#105 그룹별 목록은 후속).
+            //  navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
             NavigationStack {
                 BotChatView(viewModel: botViewModel)
             }
@@ -133,22 +139,28 @@ struct MainTabView: View {
         .overlay(alignment: .bottom) {
             FloatingTabBar(
                 selection: $selection,
-                hasUnread: notificationInboxViewModel.unreadCount > 0
+                hasUnread: notificationInboxViewModel.unreadCount > 0,
+                // 지도 탭 재탭(이미 .map 선택 중) → 그룹 목록(레벨0)(IA 재설계 FR-3/AC-4).
+                onReselectMap: { groupContext.backToList() }
             )
             // 키보드 표시 시 바만 고정(Q3/QE-2, ZT-3): ignoresSafeArea(.keyboard)를 바에 한정한다.
             //  TabView 전체에 걸면 채팅 입력바의 SwiftUI 키보드 회피까지 억제되어 입력바가 키보드에 가려진다.
             //  바에만 적용 → 바는 고정(키보드 뒤), 채팅 입력바는 키보드 위로 정상 회피.
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-        // 릴스 포커스 배너(FR-I13): 지도 탭 + focusedInstagramUrl 활성 시 상단 오버레이. ✕(전체 보기) → clearReelFocus(BR-4).
+        // 릴스 포커스 배너(FR-I13): 지도 탭 + 그룹 진입(레벨1) + focusedInstagramUrl 활성 시 상단 오버레이. ✕(전체 보기) → clearReelFocus(BR-4).
+        //  레벨0(그룹 목록)에선 지도가 없으므로 배너를 띄우지 않는다(IA 재설계 §3).
         .overlay(alignment: .top) {
-            if selection == .map, mapViewModel.focusedInstagramUrl != nil {
+            if selection == .map, groupContext.currentGroupId != nil, mapViewModel.focusedInstagramUrl != nil {
                 reelFocusBanner
             }
         }
         .animation(.easeOut(duration: 0.2), value: mapViewModel.focusedInstagramUrl)
-        // 딥링크 소비(설계 §3) + 알림 배지 최초 갱신(설계 §14). 진입 시 보류분 1회 + 배지 1회.
+        // 그룹 컨텍스트 부트스트랩(IA 재설계 §1) + 딥링크 소비(설계 §3) + 알림 배지 최초 갱신(설계 §14).
+        //  bootstrap: listMyGroups → groups, lastGroupId 유효 시 그 그룹 직행(currentGroupId 세팅). 진입 시 1회.
+        //  bootstrap 으로 currentGroupId 가 채워지면 지도 탭이 레벨1(MapView)로 들어가며 MapView.task 가 핀을 로드한다.
         .task {
+            await groupContext.bootstrap()
             consumePending()
             await notificationInboxViewModel.onForeground()
         }
@@ -159,13 +171,9 @@ struct MainTabView: View {
         //  들어간 뒤 다른 탭으로 이동하면 작성 중 상태를 정리한다.
         // 작성 중 위치 정보는 exitAddPin 이 폐기(cancelPendingWork → 디바운스/생성 Task 취소).
         // ＋ speed-dial 을 펼친 채(모드 미진입) 탭 이동한 경우도 메뉴를 닫아 잔여 펼침 상태를 정리한다.
-        .onChange(of: selection) { _, newValue in
+        .onChange(of: selection) { _, _ in
             mapViewModel.exitAddPin()
             mapViewModel.isAddMenuExpanded = false
-            // 어디갈까 탭 진입 즉시 자동 추첨(GPS one-shot → 반경 10km 무작위 1곳). 매 진입마다 새로 돌린다.
-            if newValue == .discover {
-                Task { await rouletteViewModel.spin() }
-            }
         }
         // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
         .onChange(of: scenePhase) { _, phase in
@@ -183,6 +191,47 @@ struct MainTabView: View {
                     onCancel: { inviteSlug = nil }
                 )
             }
+        }
+        // 그룹 목록(레벨0) 빈 상태/추가 진입 시트(IA 재설계 §3 연계). 새 그룹 생성 / 초대 코드 합류.
+        //  합류·생성 후 그룹 목록을 재조회(refresh)해 최신 목록을 반영한다(닫힘 시).
+        .sheet(item: $groupEntrySheet, onDismiss: {
+            Task { await groupContext.refresh() }
+        }) { entry in
+            NavigationStack {
+                switch entry {
+                case .create:
+                    GroupCreateView()
+                case .invite:
+                    InviteCodeView(
+                        groupAPI: dependencies.groupAPI,
+                        onJoined: { groupEntrySheet = nil },
+                        onCancel: { groupEntrySheet = nil }
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - 지도 탭 2레벨 분기(IA 재설계 §3)
+
+    /// 지도 탭 콘텐츠: 그룹 미진입(currentGroupId==nil) → 그룹 목록(레벨0), 진입 → 그 그룹 지도(레벨1).
+    ///  레벨0 GroupListView 의 그룹 선택 → groupContext.enterGroup(currentGroupId 세팅 + switchTo 재로드).
+    ///  레벨1 MapView 는 상단 그룹 오버레이(전환/뒤로/⋯) + 좌하단 어디가지 FAB(룰렛)를 위해 groupContext/rouletteViewModel 주입.
+    @ViewBuilder
+    private var mapTabContent: some View {
+        if groupContext.currentGroupId == nil {
+            GroupListView(
+                groupContext: groupContext,
+                onCreateGroup: { groupEntrySheet = .create },
+                onJoin: { groupEntrySheet = .invite }
+            )
+            .reserveFloatingTabBarSpace()
+        } else {
+            MapView(
+                viewModel: mapViewModel,
+                groupContext: groupContext,
+                rouletteViewModel: rouletteViewModel
+            )
         }
     }
 
@@ -228,8 +277,10 @@ struct MainTabView: View {
         guard let destination = deepLinkRouter.pending else { return }
         switch destination {
         case .chat:
+            // .chat → DM 탭(MainTab.chat 유지, 라벨만 "DM"). 케이스 리네이밍 없이 라우팅 정합(IA 재설계 §7).
             selection = .chat
         case .map:
+            // .map → 지도 탭. 그룹 미진입(레벨0)이면 그룹 목록, 진입(레벨1)이면 그 그룹 지도가 표시된다(2레벨).
             selection = .map
         case .pin(let pinId):
             // 지도 탭으로 전환 후 핀으로 flyTo(핀 목록 로드 전이면 flyTo 가 no-op — 로드 후 재소비는 없으나
@@ -272,5 +323,18 @@ private struct InviteSlug: Identifiable {
 
     init(_ value: String) {
         self.value = value
+    }
+}
+
+/// 그룹 목록(레벨0) 추가 진입 시트 식별자(IA 재설계 §3). 새 그룹 생성 / 초대 코드 합류.
+private enum GroupEntrySheet: Identifiable {
+    case create
+    case invite
+
+    var id: Int {
+        switch self {
+        case .create: return 0
+        case .invite: return 1
+        }
     }
 }

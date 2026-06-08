@@ -235,6 +235,8 @@ private final class MockGroupAPI: GroupAPIProtocol, @unchecked Sendable {
         }
     }
 
+    func listMyGroups() async throws -> [GroupSummary] { [] }
+
     func acceptInvite(token: String) async throws -> InviteAccept {
         InviteAccept(groupId: 0)
     }

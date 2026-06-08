@@ -1,11 +1,12 @@
 import SwiftUI
 
-// 둥근 플로팅 필 바(설계 §1, FR-1~4).
+// 둥근 플로팅 필 바(설계 §1·§4, FR-1~4 / IA 재설계 4탭).
 //  - 시스템 탭바를 숨기고(MainTabView 에서 .toolbar(.hidden, for:.tabBar)) .overlay(alignment:.bottom) 으로 얹는다.
 //    각 탭은 reserveFloatingTabBarSpace() 로 footprint 를 확보한다(TabView 는 safe area 를 자식 탭으로 전파하지 않음 — PR리뷰).
-//  - 5칸 = 5탭 버튼(지도·어디갈까·채팅·알림·내정보). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
-//    지도=전체 핀 보기, 어디갈까=위치기반 룰렛 추천(구 지도 우상단 🎲 시트에서 탭으로 승격).
+//  - 4칸 = 4탭 버튼(지도·DM·알림·내정보). 순수 네비게이션 바(maxWidth:.infinity 로 균등 분배).
+//    지도=2레벨(그룹 목록↔그룹 지도), DM=봇방(구 채팅 라벨/아이콘만 "DM"으로 변경). 어디갈까(룰렛)는 탭 제거 → 지도 좌하단 FAB 로 이동.
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
+//  - 지도 더블탭(IA 재설계 FR-3/AC-4): 이미 .map 선택 중 지도 탭 재탭 → onReselectMap 콜백 → 그룹 목록(레벨0).
 //  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
 //  - 버전 분기(FR-4): iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 필(WGColor.panel) 폴백.
 //  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
@@ -13,10 +14,10 @@ import SwiftUI
 //    채팅/알림/내정보 탭에서 누르면 (안 보이는 지도에만 작용해) 무반응이 되는 비대칭이 있었다.
 
 /// 메인 탭 식별자(딥링크 탭 전환·FloatingTabBar selection 바인딩). 장소 추가(＋)는 지도 화면 FAB 이므로 탭 미포함.
-/// .map=지도(전체 핀 보기·관리) / .discover=어디갈까(위치기반 룰렛 추천) — 둘은 레벨이 다른 별개 기능이라 탭 분리.
+/// .map=지도(2레벨: 그룹 목록↔그룹 지도) / .chat=DM(봇방, 라벨만 "DM") / .notification / .myInfo.
+/// 어디갈까(룰렛)는 탭 제거 → 지도 좌하단 어디가지 FAB 로 이동(IA 재설계, 접근 경로 보존).
 enum MainTab: Hashable, CaseIterable {
     case map
-    case discover
     case chat
     case notification
     case myInfo
@@ -36,20 +37,26 @@ struct FloatingTabBar: View {
 
     @Binding private var selection: MainTab
     private let hasUnread: Bool
+    /// 지도 탭 재탭(이미 .map 선택 중) 콜백(IA 재설계 FR-3/AC-4) → 그룹 목록(레벨0). 미배선이면 no-op.
+    private let onReselectMap: () -> Void
 
-    init(selection: Binding<MainTab>, hasUnread: Bool) {
+    init(
+        selection: Binding<MainTab>,
+        hasUnread: Bool,
+        onReselectMap: @escaping () -> Void = {}
+    ) {
         self._selection = selection
         self.hasUnread = hasUnread
+        self.onReselectMap = onReselectMap
     }
 
     var body: some View {
         HStack(spacing: 0) {
             tabButton(.map, outline: "map", fill: "map.fill", label: "지도")
-            tabButton(.discover, outline: "dice", fill: "dice.fill", label: "어디갈까")
             tabButton(.chat,
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
-                      label: "채팅")
+                      label: "DM")
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
             tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")
         }
@@ -70,7 +77,13 @@ struct FloatingTabBar: View {
                            showUnread: Bool = false) -> some View {
         let isSelected = selection == tab
         Button {
-            selection = tab
+            // 지도 탭 재탭(이미 .map 선택 중) → 그룹 목록(레벨0) 콜백(IA 재설계 FR-3/AC-4).
+            //  그 외 탭은 selection 전환. selection 미변경 경로라 onChange(selection) 의존이 아닌 명시 콜백을 둔다.
+            if tab == .map, selection == .map {
+                onReselectMap()
+            } else {
+                selection = tab
+            }
         } label: {
             Image(systemName: isSelected ? fill : outline)
                 .font(.system(size: 22, weight: .regular))

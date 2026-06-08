@@ -12,7 +12,14 @@ import SwiftUI
 //   ＋ 탭 → 2선택지(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색) → enterAddPin(mode:). 모드별 UI 분리:
 //   십자선은 콕찍기 모드(inputMode==.pinpoint)만, 검색바는 검색 모드(.search)만 노출.
 struct MapView: View {
-    @StateObject private var viewModel: MapViewModel
+    /// 지도 VM. MainTabView 가 @StateObject 로 소유·주입하므로 여기선 @ObservedObject(주입 VM 정석).
+    ///  2레벨 조건부 렌더(목록↔지도)로 MapView 가 마운트/언마운트돼도 주입된 동일 인스턴스를 관찰해야
+    ///  딥링크 flyTo·그룹 전환 switchTo 가 같은 VM 에 일관 적용된다(@StateObject 면 주입값 무시·상태 손실).
+    @ObservedObject private var viewModel: MapViewModel
+    /// 그룹 컨텍스트(IA 재설계 §1·§5). 상단 그룹 오버레이(그룹명·전환·뒤로) 표시·전환에 사용.
+    @ObservedObject private var groupContext: GroupContext
+    /// 어디가지(룰렛) VM(IA 재설계 §5). 좌하단 어디가지 FAB → 룰렛 시트가 재사용(MainTabView 소유, 탭 전환에도 결과 유지).
+    @ObservedObject private var rouletteViewModel: RouletteViewModel
     @Environment(\.scenePhase) private var scenePhase
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
@@ -20,6 +27,12 @@ struct MapView: View {
 
     /// 좌하단 태그 컨트롤(범례/필터) 팝업 상호배타 상태(웹 정합). 동시 표시 금지 + 바깥 탭 닫힘 공유.
     @State private var activeCornerPopup: CornerPopup = .none
+    /// 어디가지(룰렛) 시트 표시(IA 재설계 §5). 좌하단 FAB → 룰렛 시트.
+    @State private var showRoulette = false
+    /// 그룹 전환 시트 표시(IA 재설계 §5). 상단 그룹 전환 버튼 → 내 그룹 목록 시트.
+    @State private var showGroupSwitcher = false
+    /// ⋯ 그룹관리 시트 표시(IA 재설계 §5, 진입점만 — 내용은 D단계).
+    @State private var showGroupManage = false
 
     private enum CornerPopup { case none, legend, filter }
 
@@ -39,10 +52,18 @@ struct MapView: View {
         )
     }
 
-    /// 외부에서 생성·소유한 MapViewModel 을 주입한다(설계 §9 — MainTabView 가 딥링크 .pin/.map flyTo 를 위해 VM 공유).
-    /// MapViewModel 은 @MainActor 이며 MainTabView 가 @StateObject 로 수명을 보유한다.
-    init(viewModel: MapViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    /// 외부에서 생성·소유한 VM/컨텍스트를 주입한다(설계 §9 / IA 재설계 §1·§5 — MainTabView 가 수명 보유·공유).
+    ///  - viewModel: 딥링크 .pin/.map flyTo·그룹 전환 switchTo 대상(MainTabView @StateObject).
+    ///  - groupContext: 상단 그룹 오버레이(그룹명·전환·뒤로)에 사용(MainTabView @StateObject).
+    ///  - rouletteViewModel: 좌하단 어디가지 FAB 룰렛 시트 재사용(MainTabView @StateObject, 탭 전환에도 결과 유지).
+    init(
+        viewModel: MapViewModel,
+        groupContext: GroupContext,
+        rouletteViewModel: RouletteViewModel
+    ) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        _groupContext = ObservedObject(wrappedValue: groupContext)
+        _rouletteViewModel = ObservedObject(wrappedValue: rouletteViewModel)
     }
 
     var body: some View {
@@ -53,6 +74,15 @@ struct MapView: View {
             MapContainerView(viewModel: viewModel)
 
             content
+
+            // 상단 그룹 오버레이(IA 재설계 §5, FR-4/AC-5): 그룹명 + 그룹 전환 + 뒤로(→목록) + ⋯(그룹관리 진입점).
+            //  레벨1(그룹 진입 상태)에서만 표시. 인라인 추가 모드 중엔 검색바/카드와 겹치지 않게 숨긴다.
+            if !viewModel.isAddingPin {
+                VStack {
+                    groupTopOverlay
+                    Spacer()
+                }
+            }
 
             // 인라인 핀 추가 모드(P8 영역1, FR-3/4, AC-2/3). 십자선은 토스트보다 아래 레이어
             // (방문 토스트가 십자선 위에 표시 — PRD 엣지). 십자선은 지도 중심(=화면 중앙) 위 고정.
@@ -119,8 +149,11 @@ struct MapView: View {
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
         .navigationBarBackButtonHidden(true)
         .task {
-            if case .idle = viewModel.loadState {
-                await viewModel.load()
+            // 진입 시 현재 그룹(currentGroupId)의 핀을 로드한다(IA 재설계 §3). load()(myActiveGroup 단수 resolve)는
+            //  다중그룹에서 currentGroupId 와 어긋날 수 있으므로 그룹 id 를 명시해 로드한다. MapView 는 레벨1
+            //  (currentGroupId != nil)에서만 렌더되지만 방어적으로 옵셔널 바인딩한다.
+            if case .idle = viewModel.loadState, let groupId = groupContext.currentGroupId {
+                await viewModel.load(groupId: groupId)
             }
             viewModel.startVisitDetection()
             viewModel.startPolling()
@@ -173,6 +206,28 @@ struct MapView: View {
             }
         }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
+        }
+        // 어디가지(룰렛) 시트(IA 재설계 §5). 진입 시 자동 추첨(룰렛 탭 onChange 동치 이식). RouletteView 재사용.
+        //  "지도에서 보기" → showOnMap()(flyTo+정보창) 후 시트 닫기(onShowOnMap).
+        .sheet(isPresented: $showRoulette) {
+            NavigationStack {
+                RouletteView(
+                    viewModel: rouletteViewModel,
+                    onShowOnMap: { showRoulette = false }
+                )
+            }
+        }
+        // 그룹 전환 시트(IA 재설계 §5). 내 그룹 목록에서 선택 → switchGroup(지도 재로드). 동일 그룹 선택은 no-op.
+        .sheet(isPresented: $showGroupSwitcher) {
+            NavigationStack {
+                groupSwitcherSheet
+            }
+        }
+        // ⋯ 그룹관리 시트(IA 재설계 §5, 진입점만 — 내용은 D단계).
+        .sheet(isPresented: $showGroupManage) {
+            NavigationStack {
+                groupManagePlaceholder
+            }
         }
     }
 
@@ -230,7 +285,12 @@ struct MapView: View {
                 .foregroundStyle(WGColor.ink)
                 .multilineTextAlignment(.center)
             Button {
-                Task { await viewModel.load() }
+                Task {
+                    // 재시도도 현재 그룹 기준으로 로드(load() 의 myActiveGroup 폴백이 잘못된 그룹을 부르지 않게).
+                    if let groupId = groupContext.currentGroupId {
+                        await viewModel.load(groupId: groupId)
+                    }
+                }
             } label: {
                 Text("다시 시도")
                     .font(WGFont.sans(14))
@@ -303,11 +363,13 @@ struct MapView: View {
             }
             .padding(.horizontal, 16)
 
-            // 좌하단 태그 컨트롤 클러스터(웹 MapClient bottom/left 이식). [!]마커 범례 + [▽]필터.
+            // 좌하단 컨트롤 클러스터(웹 MapClient bottom/left 이식). 어디가지 FAB(위) + [!]범례·[▽]필터(아래).
+            //  어디가지 FAB(IA 재설계 §5): 룰렛 탭 제거 후 접근 경로 보존 — 좌하단 FAB → 룰렛 시트(rouletteViewModel 재사용).
             //  speed-dial(우하단)과 같은 bottom 라인에 좌측 배치(대칭). 팝업은 버튼 위로 떠 상호배타(activeCornerPopup).
-            //  팝업이 다른 오버레이 위로 뜨도록 zIndex 상향.
-            VStack {
+            //  필터/범례 상단 이동·맵 로딩 최적화는 C단계(이번 비범위) — 현 위치 유지.
+            VStack(alignment: .leading, spacing: 12) {
                 Spacer()
+                rouletteFAB
                 HStack(spacing: 8) {
                     TagLegendButton(isOpen: legendPopupBinding)
                     TagFilterButton(
@@ -323,7 +385,137 @@ struct MapView: View {
         }
     }
 
-    // MARK: - 플로팅 버튼(룰렛 우상단 / 내 위치·＋ 추가 우하단, FR-6/7 + P8 영역4 후속)
+    // MARK: - 상단 그룹 오버레이(IA 재설계 §5, FR-4/AC-5)
+
+    /// 그룹명 + 뒤로(→목록) + 그룹 전환 + ⋯(그룹관리). 레벨1(그룹 진입)에서 지도 상단에 떠 있다.
+    ///  - 뒤로: groupContext.backToList() → 그룹 목록(레벨0). 더블탭과 동일 결과(AC-4 보조 경로).
+    ///  - 그룹 전환: 내 그룹 목록 시트(switchGroup). - ⋯: 그룹관리 진입점(내용 D).
+    private var groupTopOverlay: some View {
+        HStack(spacing: 10) {
+            Button {
+                groupContext.backToList()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(WGColor.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(WGColor.panel))
+                    .shadow(color: WGColor.shadow, radius: 6, y: 2)
+            }
+            .accessibilityLabel("그룹 목록으로")
+
+            // 그룹명 + 전환(드롭다운 시트). 탭 → 그룹 전환 시트.
+            Button {
+                Task { await groupContext.refresh() }
+                showGroupSwitcher = true
+            } label: {
+                HStack(spacing: 6) {
+                    Text(currentGroupName)
+                        .font(WGFont.emo(16))
+                        .foregroundStyle(WGColor.ink)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(WGColor.inkSoft)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(WGColor.panel))
+                .shadow(color: WGColor.shadow, radius: 6, y: 2)
+            }
+            .accessibilityLabel("그룹 전환")
+
+            Spacer(minLength: 0)
+
+            Button {
+                showGroupManage = true
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(WGColor.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(WGColor.panel))
+                    .shadow(color: WGColor.shadow, radius: 6, y: 2)
+            }
+            .accessibilityLabel("그룹 관리")
+        }
+        .padding(.horizontal, 16)
+        // reelFocus 배너(MainTabView 최상단 overlay)와 겹치지 않도록 상단 여백 확보(DoD-B 수치 보정).
+        .padding(.top, 8)
+    }
+
+    /// 현재 진입한 그룹명(groupContext.groups 에서 currentGroupId 매칭). 미매칭이면 폴백 라벨.
+    private var currentGroupName: String {
+        guard let id = groupContext.currentGroupId,
+              let group = groupContext.groups.first(where: { $0.groupId == id }) else {
+            return "그룹"
+        }
+        return group.name
+    }
+
+    // MARK: - 그룹 전환 시트(IA 재설계 §5)
+
+    /// 내 그룹 목록 — 선택 시 switchGroup(지도 재로드) 후 시트 닫기. 현재 그룹은 체크 표시.
+    private var groupSwitcherSheet: some View {
+        List {
+            ForEach(groupContext.groups) { group in
+                Button {
+                    groupContext.switchGroup(group.groupId)
+                    showGroupSwitcher = false
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle().fill(WGColor.pinWish).frame(width: 10, height: 10)
+                        Text(group.name)
+                            .font(WGFont.sans(15))
+                            .foregroundStyle(WGColor.ink)
+                        Spacer(minLength: 0)
+                        if group.groupId == groupContext.currentGroupId {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(WGColor.cta)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("그룹 전환")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// ⋯ 그룹관리 시트(진입점만 — 내용은 D단계, IA 재설계 비범위).
+    private var groupManagePlaceholder: some View {
+        ZStack {
+            WGColor.bg.ignoresSafeArea()
+            Text("그룹 관리 — 다음 단계에서 구현")
+                .font(WGFont.sans(15))
+                .foregroundStyle(WGColor.inkSoft)
+        }
+        .navigationTitle("그룹 관리")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - 플로팅 버튼(어디가지 좌하단 / 내 위치·＋ 추가 우하단, IA 재설계 §5 + P8 영역4 후속)
+
+    /// 어디가지(룰렛) FAB(IA 재설계 §5). 좌하단. 탭 → 룰렛 시트(자동 추첨). 룰렛 탭 제거 후 접근 경로 보존.
+    private var rouletteFAB: some View {
+        Button {
+            showRoulette = true
+            Task { await rouletteViewModel.spin() }   // 진입 즉시 자동 추첨(구 어디갈까 탭 onChange 동치)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "dice.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("어디가지")
+                    .font(WGFont.sans(13))
+            }
+            .foregroundStyle(WGColor.panel)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Capsule().fill(WGColor.cta))
+            .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
+        }
+        .accessibilityLabel("어디가지 추천")
+    }
 
     /// 내 위치 플로팅 버튼(FR-7). 우하단. one-shot 현재 위치로 지도 카메라 이동.
     private var myLocationButton: some View {
