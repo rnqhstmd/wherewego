@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * P2 PR-1: 앱 채팅 REST 컨트롤러(FR-4/5/8/9).
  *
@@ -35,6 +37,40 @@ public class ChatV1Controller implements ChatV1ApiSpec {
     private final CoupleChatService coupleChatService;
     private final ObjectMapper objectMapper;
 
+    @GetMapping("/bot/rooms")
+    @Override
+    public ApiResponse<List<ChatV1Dto.BotRoomSummaryResponse>> getBotRooms(@AuthUser Long userId) {
+        List<ChatV1Dto.BotRoomSummaryResponse> rooms = botChatService.getBotRooms(userId).stream()
+                .map(ChatV1Dto.BotRoomSummaryResponse::from)
+                .toList();
+        return ApiResponse.success(rooms);
+    }
+
+    @PostMapping("/bot/{groupId}/messages")
+    @Override
+    public ApiResponse<ChatV1Dto.SendMessageResponse> postBotGroupMessage(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @Valid @RequestBody ChatV1Dto.BotMessageRequest request
+    ) {
+        ChatMessage processing = botChatService.postMessage(userId, groupId, request.text());
+        return ApiResponse.success(ChatV1Dto.SendMessageResponse.from(processing));
+    }
+
+    @GetMapping("/bot/{groupId}/messages")
+    @Override
+    public ApiResponse<ChatV1Dto.MessagesResponse> getBotGroupMessages(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer limit
+    ) {
+        ChatMessagePageResult result = botChatService.getBotMessages(
+                userId, groupId, normalizeCursor(cursor), clampLimit(limit));
+        return ApiResponse.success(ChatV1Dto.MessagesResponse.from(groupId, result, objectMapper));
+    }
+
+    @Deprecated
     @PostMapping("/bot/messages")
     @Override
     public ApiResponse<ChatV1Dto.SendMessageResponse> postBotMessage(
@@ -45,6 +81,7 @@ public class ChatV1Controller implements ChatV1ApiSpec {
         return ApiResponse.success(ChatV1Dto.SendMessageResponse.from(processing));
     }
 
+    @Deprecated
     @GetMapping("/bot/messages")
     @Override
     public ApiResponse<ChatV1Dto.MessagesResponse> getBotMessages(

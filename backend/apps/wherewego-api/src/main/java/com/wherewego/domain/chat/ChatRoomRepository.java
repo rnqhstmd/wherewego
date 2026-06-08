@@ -13,7 +13,11 @@ public interface ChatRoomRepository {
 
     ChatRoom save(ChatRoom room);
 
-    Optional<ChatRoom> findActiveBotRoom(Long ownerUserId);
+    /**
+     * 활성 봇 방(type=BOT) 을 owner+group 별로 조회한다(GM-2). 활성 = {@code deleted_at IS NULL}.
+     * V020 부분 UNIQUE 인덱스(owner_user_id, group_id)로 (owner, group)당 활성 1개가 보장된다.
+     */
+    Optional<ChatRoom> findActiveBotRoom(Long ownerUserId, Long groupId);
 
     Optional<ChatRoom> findActiveCoupleRoom(Long groupId);
 
