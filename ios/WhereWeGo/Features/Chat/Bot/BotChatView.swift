@@ -11,6 +11,9 @@ import SwiftUI
 struct BotChatView: View {
     @ObservedObject var viewModel: BotChatViewModel
 
+    /// 방의 그룹명(DM 그룹별 전환, FR-9). 네비게이션 타이틀로 어느 그룹 방인지 식별.
+    let groupName: String
+
     /// 입력바 포커스(전송 후 유지/해제 제어).
     @FocusState private var inputFocused: Bool
 
@@ -43,7 +46,7 @@ struct BotChatView: View {
         }
         .background(WGColor.bg)
         .animation(.easeOut(duration: 0.2), value: viewModel.saveResult)
-        .navigationTitle("어디가지 봇")
+        .navigationTitle(groupName)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.appear()

@@ -122,3 +122,23 @@ struct SendMessageResponse: Decodable {
     let messageId: Int
     let kind: MessageKind
 }
+
+// MARK: - DM 목록 항목
+
+/// DM 목록 항목(백엔드 ChatV1Dto.BotRoomSummaryResponse 와 1:1). 내 활성 그룹별 봇 방 요약(가입 순).
+/// 봇 방이 아직 없는 활성 그룹은 가상항목(roomId=nil, lastPreview/lastSenderType/lastAt=nil, unread=false)으로 내려온다.
+/// - roomId/lastPreview/lastSenderType/lastAt: 메시지 없음 → nil.
+/// - unread: 백엔드 판정(마지막이 BOT & lastRead<latest) 그대로 신뢰(BR-4, 자체 계산 안 함).
+/// - groupId/roomId: Long → Int (PinSummary/ChatFrame 선례, iOS17 64bit 안전 수용 리스크).
+struct BotRoomSummary: Decodable, Identifiable, Equatable {
+    let roomId: Int?
+    let groupId: Int
+    let groupName: String
+    let lastPreview: String?
+    let lastSenderType: SenderType?
+    let unread: Bool
+    let lastAt: String?
+
+    /// 그룹당 봇 방 1개 — groupId 가 안정 식별자(가상항목 roomId=nil 회피, List 식별자 안정성 확보).
+    var id: Int { groupId }
+}

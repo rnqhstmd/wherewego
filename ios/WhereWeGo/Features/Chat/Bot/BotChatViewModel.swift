@@ -6,7 +6,7 @@ import Foundation
 //  - APNs 푸시(BR-1): 백그라운드 통지(발송·라우팅은 푸시 도메인이 담당, 본 VM 무관).
 //  - scenePhase .active 재조회(FR-4): BotChatView 가 reconcileLatest 트리거.
 //
-//  - 로드(FR-2): botMessages(cursor:nil,limit:20) → id DESC 응답을 오름차순(오래된→최신)으로 유지.
+//  - 로드(FR-2): botMessages(groupId:,cursor:nil,limit:20) → id DESC 응답을 오름차순(오래된→최신)으로 유지.
 //  - 전송(FR-3/BR-3/AC-4): 2000자 가드 후 sendBotMessage → 응답 messageId 로 PROCESSING 버블 추가(FIFO) + 폴링 시작.
 //  - 결과 반영(AC-2): reconcileLatest 가 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT) 병합 시 가장 오래된 PROCESSING 교체. dedup=knownIds.
 //  - 카드 저장(FR-I5/BR-2): 좌표 있는 카드 전부 pinAPI.create(체크=WISH/미체크=REEL) + 공통 메모 + 출처 instagramUrl. 409 흡수.
@@ -38,9 +38,10 @@ final class BotChatViewModel: ObservableObject {
 
     // MARK: - 의존성
 
+    /// 이 방의 그룹 식별자(DM 그룹별 전환). 메시지 조회/전송 경로 및 릴스 저장 핀 귀속에 사용(FR-5/AC-5).
+    private let groupId: Int
     private let chatAPI: ChatAPIProtocol
     private let pinAPI: PinAPIProtocol
-    private let groupAPI: GroupAPIProtocol
     private let currentUser: CurrentUser
     /// 딥링크 라우터(I5/I8). "보러가기" → .reelFocus(instagramUrl) 발행으로 지도 탭 전환·릴스 포커스를 트리거.
     private let deepLinkRouter: DeepLinkRouter
@@ -63,18 +64,18 @@ final class BotChatViewModel: ObservableObject {
     private var pollingTask: Task<Void, Never>?
 
     init(
+        groupId: Int,
         chatAPI: ChatAPIProtocol,
         pinAPI: PinAPIProtocol,
-        groupAPI: GroupAPIProtocol,
         currentUser: CurrentUser,
         deepLinkRouter: DeepLinkRouter,
         sleeper: @escaping @Sendable (Double) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
     ) {
+        self.groupId = groupId
         self.chatAPI = chatAPI
         self.pinAPI = pinAPI
-        self.groupAPI = groupAPI
         self.currentUser = currentUser
         self.deepLinkRouter = deepLinkRouter
         self.sleeper = sleeper
@@ -103,7 +104,7 @@ final class BotChatViewModel: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let response = try? await chatAPI.botMessages(cursor: nil, limit: Self.pageLimit) else { return }
+        guard let response = try? await chatAPI.botMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return }
         // 최신 페이지로 초기화 — 기존 표시분도 재구성(중복 진입 방어).
         let ascending = response.messages.reversed()
         var rebuilt: [ChatFrame] = []
@@ -124,7 +125,7 @@ final class BotChatViewModel: ObservableObject {
         guard !isLoading, hasMore, let cursor = nextCursor else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let response = try? await chatAPI.botMessages(cursor: cursor, limit: Self.pageLimit) else { return }
+        guard let response = try? await chatAPI.botMessages(groupId: groupId, cursor: cursor, limit: Self.pageLimit) else { return }
         // 응답은 id DESC(더 과거 페이지) → 오름차순으로 뒤집어 기존 앞쪽에 삽입. dedup.
         let ascending = response.messages.reversed()
         var older: [ChatFrame] = []
@@ -147,7 +148,7 @@ final class BotChatViewModel: ObservableObject {
         // BR-3/AC-4: 2000자 가드. 초과면 전송하지 않는다(입력바 카운터가 비활성 안내).
         guard text.count <= Self.messageMaxLength else { return }
         draft = ""
-        guard let response = try? await chatAPI.sendBotMessage(text: text) else {
+        guard let response = try? await chatAPI.sendBotMessage(groupId: groupId, text: text) else {
             // 전송 실패 시 입력 복원(사용자가 재시도).
             draft = text
             return
@@ -190,7 +191,7 @@ final class BotChatViewModel: ObservableObject {
 
     // MARK: - 카드 저장(FR-I5, BR-1/2/3, AC-5/6/8/9/14)
 
-    /// 위저드 제출 → PLACE_CARDS 를 핀으로 저장(groupId=활성그룹). 좌표 있는 카드 전부 저장(BR-2).
+    /// 위저드 제출 → PLACE_CARDS 를 핀으로 저장(groupId=이 방의 그룹, FR-5/AC-5). 좌표 있는 카드 전부 저장(BR-2).
     /// - 체크된(wishIDs 포함) 카드는 tag=.WISH, 미체크 카드(좌표 있는 것)는 tag=.REEL(FR-I5/BR-2).
     /// - 메모는 있으면 저장되는 모든 핀에 동일 적용(BR-3). 각 핀의 instagramUrl 에 sourceInstagramUrl 기록(BR-7: nil 이면 미기록).
     /// - 좌표(lat/lng) 없는 카드는 스킵(BR-1).
@@ -203,12 +204,9 @@ final class BotChatViewModel: ObservableObject {
         sourceInstagramUrl: String?
     ) async {
         guard !cards.isEmpty else { return }
-        // try? 가 throwing+ActiveGroup? 을 ActiveGroup? 로 평탄화 → guard let 후 group 은 비옵셔널.
-        guard let group = try? await groupAPI.myActiveGroup() else {
-            saveInfoMessage = "활성 그룹을 찾지 못했어요. 잠시 후 다시 시도해 주세요."
-            return
-        }
-        let groupId = group.groupId
+        // DM 그룹별 전환: 활성 그룹 추정(myActiveGroup) 제거 → 이 방의 groupId 로 저장(FR-5/AC-5).
+        //  방 컨텍스트가 groupId 를 항상 보유하므로 "활성 그룹 못 찾음" 실패 경로가 사라진다.
+        let groupId = self.groupId
         let normalizedMemo = (memo?.isEmpty == false) ? memo : nil
 
         var wishNames: [String] = []
@@ -274,7 +272,7 @@ final class BotChatViewModel: ObservableObject {
     /// 최신 N건 재조회 + id dedup 병합(서버 진실 소스). 폴링 틱과 포그라운드 복귀(scenePhase .active)에서 호출한다.
     /// 같은 turn 의 BOT 결과(PLACE_CARDS/SYSTEM/MEMO_PROMPT)가 들어오면 가장 오래된 PROCESSING 을 교체한다(AC-2 정합).
     func reconcileLatest() async {
-        guard let response = try? await chatAPI.botMessages(cursor: nil, limit: Self.pageLimit) else { return }
+        guard let response = try? await chatAPI.botMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return }
         let ascending = response.messages.reversed()
         for frame in ascending where !knownIds.contains(frame.messageId) {
             switch frame.kind {

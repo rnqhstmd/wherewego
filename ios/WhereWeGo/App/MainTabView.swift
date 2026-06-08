@@ -2,7 +2,7 @@ import SwiftUI
 
 // 메인 탭 화면(설계 §1·§2·§11 / IA 재설계 4탭). 온보딩 종착 — 4탭(지도·DM·알림·내정보).
 //  - 지도=2레벨(IA 재설계 §3): currentGroupId==nil → GroupListView(그룹 목록 레벨0), !=nil → MapView(그 그룹 지도 레벨1).
-//  - DM=BotChatView(라벨만 "DM", 봇방 유지 — #105 그룹별 목록 소비는 후속 DM 단계). 알림: NotificationInboxView. 내정보: MyInfoView.
+//  - DM=DMListView(그룹별 봇방 목록, #105 소비) → 행 탭 시 그 그룹 BotChatView 방 push(2레벨). 알림: NotificationInboxView. 내정보: MyInfoView.
 //  - 어디갈까(룰렛)는 탭 제거 → 지도 좌하단 어디가지 FAB(MapView)로 이동. rouletteViewModel 은 그 FAB 시트가 재사용(VM 수명 본 뷰 소유).
 //  - 그룹 컨텍스트(IA 재설계 §1): GroupContext 를 @StateObject 로 소유. onGroupChanged → mapViewModel.switchTo 배선(그룹 전환 시 지도 재로드).
 //    진입 시 .task 에서 bootstrap(listMyGroups → groups, lastGroupId 유효 시 그 그룹 직행).
@@ -26,7 +26,9 @@ struct MainTabView: View {
     @StateObject private var groupContext: GroupContext
     /// 어디갈까(룰렛) VM. mapViewModel 공유(추첨 풀=pins, "지도에서 보기" flyTo). 탭 전환에도 결과 유지.
     @StateObject private var rouletteViewModel: RouletteViewModel
-    @StateObject private var botViewModel: BotChatViewModel
+    /// DM 목록 VM(DM 그룹별 전환, #105 소비). 미읽음 배지(hasUnread)를 FloatingTabBar 가 항상 관찰 — 탭 진입 전에도 노출.
+    ///  방별 BotChatViewModel 은 본 VM 이 소유하지 않고, DMListView 가 방 진입 시 팩토리로 @StateObject 생성(인스타식 수명).
+    @StateObject private var dmListViewModel: DMListViewModel
     /// 알림함 VM(설계 §2). 미읽음 배지(unreadCount)를 FloatingTabBar 가 항상 관찰 — 탭 진입 전에도 노출.
     @StateObject private var notificationInboxViewModel: NotificationInboxViewModel
     /// 내정보 VM(설계 §2). 본 뷰가 소유해 body 재계산마다 재생성되지 않도록 한다(MyInfoView 는 @ObservedObject 관찰).
@@ -68,14 +70,8 @@ struct MainTabView: View {
                 locationService: dependencies.locationService
             )
         )
-        _botViewModel = StateObject(
-            wrappedValue: BotChatViewModel(
-                chatAPI: dependencies.chatAPI,
-                pinAPI: dependencies.pinAPI,
-                groupAPI: dependencies.groupAPI,
-                currentUser: dependencies.currentUser,
-                deepLinkRouter: dependencies.deepLinkRouter
-            )
+        _dmListViewModel = StateObject(
+            wrappedValue: DMListViewModel(chatAPI: dependencies.chatAPI)
         )
         _notificationInboxViewModel = StateObject(
             wrappedValue: NotificationInboxViewModel(
@@ -102,10 +98,21 @@ struct MainTabView: View {
             mapTabContent
                 .tag(MainTab.map)
 
-            // DM(봇 방) 탭. 라벨/아이콘만 "DM"(FloatingTabBar) — 내용은 기존 BotChatView 유지(#105 그룹별 목록은 후속).
-            //  navigationTitle 표시를 위해 NavigationStack 으로 감싼다.
+            // DM 탭(그룹별 봇방 목록, #105 소비). DMListView(레벨0 목록) → 행 탭 시 그 그룹 BotChatView 방 push(레벨1).
+            //  방별 BotChatViewModel 은 DMListView 가 진입 시 팩토리로 @StateObject 생성(deps 캡처) — 인스타식 수명(pop 시 해제).
             NavigationStack {
-                BotChatView(viewModel: botViewModel)
+                DMListView(
+                    viewModel: dmListViewModel,
+                    makeRoomViewModel: { groupId in
+                        BotChatViewModel(
+                            groupId: groupId,
+                            chatAPI: dependencies.chatAPI,
+                            pinAPI: dependencies.pinAPI,
+                            currentUser: dependencies.currentUser,
+                            deepLinkRouter: dependencies.deepLinkRouter
+                        )
+                    }
+                )
             }
             .reserveFloatingTabBarSpace()   // 탭 콘텐츠가 바 footprint 회피(TabView는 safe area 전파 안 함 — PR리뷰)
             .tag(MainTab.chat)
@@ -140,6 +147,8 @@ struct MainTabView: View {
             FloatingTabBar(
                 selection: $selection,
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
+                // DM 탭 미읽음 배지(FR-10/AC-9): 안 읽은 봇 방 1개 이상이면 빨간 점.
+                hasChatUnread: dmListViewModel.hasUnread,
                 // 지도 탭 재탭(이미 .map 선택 중) → 그룹 목록(레벨0)(IA 재설계 FR-3/AC-4).
                 onReselectMap: { groupContext.backToList() }
             )
@@ -163,6 +172,8 @@ struct MainTabView: View {
             await groupContext.bootstrap()
             consumePending()
             await notificationInboxViewModel.onForeground()
+            // DM 탭 미읽음 배지 최초 갱신(FR-6/FR-10) — 탭 진입 전에도 배지 노출(무음 refresh).
+            await dmListViewModel.refresh()
         }
         .onChange(of: deepLinkRouter.pending) { _, _ in
             consumePending()
@@ -175,10 +186,13 @@ struct MainTabView: View {
             mapViewModel.exitAddPin()
             mapViewModel.isAddMenuExpanded = false
         }
-        // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만).
+        // 포그라운드 복귀 시 알림 배지 갱신(설계 §14, list 만 — 읽음 처리는 알림 탭 진입에서만) + DM 배지 갱신(FR-6/FR-10).
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await notificationInboxViewModel.onForeground() }
+                Task {
+                    await notificationInboxViewModel.onForeground()
+                    await dmListViewModel.refresh()
+                }
             }
         }
         // 초대 코드 합류 시트(.invite 딥링크). 합류/취소 시 닫힘.

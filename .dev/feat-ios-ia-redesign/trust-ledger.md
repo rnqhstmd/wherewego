@@ -1,26 +1,35 @@
-# Trust Ledger — C (맵/필터 정리)
+# Trust Ledger — DM 그룹별 봇방 목록 (review)
 
-> QA·security-auditor(읽기 전용) 산출물 미반환 → 오케스트레이터 직접 수행. 변경: ios/ Swift 3 + 테스트 1. 빌드/시뮬은 Mac DoD-B.
+> qa-manager·security-auditor 미반환 환경 → 오케스트레이터 직접 QA + ZT 통합 감사.
+> 대상: iOS diff 11파일(+635/-76). 백엔드 무변경. Mechanical Gate(빌드/테스트 실행)=Windows iOS 불가 → Mac DoD-B(리뷰어).
 
-## Mechanical Gate
-- iOS = Windows 빌드/시뮬/단위테스트 불가(문서화 제약). 백엔드 변경 없음(스테이징 전부 ios/) → Windows 빌드 게이트 대상 없음. **빌드·MapViewModelTests 실행 = Mac DoD-B 이월**.
+## QA (스펙 충족)
+- CERTAIN(Critical): 0
+- Warning: 1 (수정 완료)
+- Info: 1
+- QUESTION: 0
 
-## QA 리뷰 (스펙 충족 — 직접)
-- CERTAIN(Critical): **0건**. AC-C1~C5 정합(self-check.md 참조).
-- Warning: 2건
-  - W1 switchTo 2단 카메라 병합 가능성 → **해소(코드 반영)**: 줌아웃 발행 시 `Task.sleep(switchZoomOutHoldNanos=120ms)`로 소비 보장. 최종 수치는 Mac DoD-B 미세조정.
-  - W2 reelFocusBanner vs 상단 그룹/필터 행 시각 겹침 — 골격부터의 기존 DoD-B 수치 보정. C가 악화 안 함(필터 행=그룹 행 아래). **Mac 시각 확인 이월**(padding 실측 필요, blind 수정 안 함).
-- Info: 1건 — switchOverviewZoom=10 수치 미세조정 DoD-B.
-- QUESTION: 0건.
+### [Warning/수정완료] DMListViewModel 무음 refresh 실패 시 스피너 무한 고정 가능
+- 파일: ios/WhereWeGo/Features/Chat/DMListViewModel.swift (fetch catch)
+- 근거: 콜드스타트에서 MainTabView.task 의 refresh()가 in-flight 인 동안 DMListView.task 의 load()가 isFetching 가드로 조기 반환 → 그 refresh()가 실패하면 showLoading=false 라 에러 미세팅 → loadState 가 .idle 잔존 → .idle 가 로딩 스피너로 렌더되어 무한 고정(다음 포그라운드 복귀까지 자가회복은 되나 소프트락).
+- 수정: catch 에서 **기존 목록이 없으면(.idle/.loading/.error)** 무음 refresh 라도 .error 노출(재시도 경로). 이미 .loaded 면 화면 유지(무음). 테스트 ⑦ 추가(미로드 refresh 실패→.error).
 
-## 통합 감사 (security/policy/허점 — 직접)
-- CRITICAL 0 · HIGH 0 · MEDIUM 0.
-- 근거:
-  - 신규 엔드포인트/인증/시크릿/사용자 입력 파싱 없음. switchTo는 기존 `pinAPI.list(groupId:)` 재사용(권한은 백엔드 강제, 클라 변경 없음).
-  - 필터/범례 이동은 순수 SwiftUI 레이아웃 — 데이터/권한 경로 무관.
-  - fitBoundsCommand=markers: 서버 핀 좌표 기반 기존 메커니즘 재사용, 주입 표면 없음.
-  - selectedPinId=nil(전환 시): 구 그룹 좀비 말풍선/재탭 가드 오동작 제거 — 안전성 개선.
-- 누락 시나리오 점검: 같은 그룹 no-op(가드 유지), fetch 실패(.error+pins 비움), 위치 거부+핀(bounds)/핀없음(서울 폴백) — 모두 처리·테스트됨.
+### [Info] formatTime 중복
+- DMListViewModel.formatTime 이 NotificationInboxViewModel.formatTime 과 동일 로직 중복(설계서 명시 인지). 후속 공용 유틸 통합 여지(범위 외, 비차단).
 
-## 미답변/이월
-- 없음(QUESTION 0). DoD-B 항목(W1/W2/Info)은 Mac 검증 단계로 명시 이월.
+## ZT 통합 감사 (정책/보안/허점)
+- CRITICAL: 0 · HIGH: 0 · MEDIUM: 0
+
+### 점검 항목 (모두 통과)
+- **인증/인가**: 봇 API 호출은 기존 APIClient(토큰 자동 부착) 경유. groupId 는 path Int(인젝션 불가). 백엔드가 활성 멤버십 강제(비멤버 403). iOS 는 사용자 본인 그룹 목록(botRooms 결과)만 진입시킴 → 권한 우회 경로 없음.
+- **읽음 시맨틱 신뢰(BR-4)**: unread 판정은 백엔드(마지막 BOT & lastRead<latest) 그대로 신뢰. iOS 자체 계산 없음 → 클라이언트 위변조 표면 없음.
+- **데이터 노출**: groupName/lastPreview 는 방 소유자(본인)에게만 표시. 로깅/print 추가 없음(PII 유출 없음).
+- **deprecated 엔드포인트**: 백엔드 비그룹 `/chat/bot/messages` 잔존하나 iOS 소비 제거 → 보안 회귀 없음.
+- **신규 권한/자격(entitlement)**: 없음(네트워크/푸시/위치 변경 없음).
+- **Swift 6 동시성**: @MainActor VM, @unchecked Sendable 목, StateObject 래퍼 — 데이터레이스 표면 없음.
+
+## 미해결 항목
+없음. (Warning 1건 수정 완료, Critical/QUESTION 0)
+
+## 잔여(비차단) — 리뷰어 인수
+- iOS 빌드/시뮬/단위테스트 **실행** 검증은 Windows 불가 → **Mac DoD-B(리뷰어)**. 타입/시그니처/enum/동시성은 코드 리뷰 수준 직접 검증 완료(잔존 구 시그니처 0, 생성처 전수 정합).

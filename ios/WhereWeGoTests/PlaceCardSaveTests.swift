@@ -6,8 +6,9 @@ import XCTest
 // - 409(PLC_DUPLICATE_PIN) → 흡수(결과 목록 제외, duplicateCount 집계).
 // - 좌표 없는 카드 스킵(BR-1).
 //
-// Stub(StubChatAPI/StubBotPinAPI/StubBotGroupAPI)·makeFrame·makeCurrentUser 는
+// Stub(StubChatAPI/StubBotPinAPI)·makeFrame·makeCurrentUser 는
 // BotChatViewModelTests.swift 의 공유 정의를 재사용한다(동일 테스트 타깃).
+// DM 그룹별 전환으로 그룹 API 목(StubBotGroupAPI)은 불필요 — groupId 를 직접 주입한다.
 @MainActor
 final class PlaceCardSaveTests: XCTestCase {
 
@@ -16,7 +17,7 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_savePlaceCards_success_savesWishAndReelWithUrlAndMemo() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
-        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 7, name: "팀", memberCount: 2))
+        let vm = makeViewModel(pinAPI: pinAPI, groupId: 7)
 
         let wishCard = makePlaceCard(name: "성수동 카페", latitude: 37.5, longitude: 127.05)
         let reelCard = makePlaceCard(name: "발견 식당", latitude: 37.6, longitude: 127.06)
@@ -30,6 +31,8 @@ final class PlaceCardSaveTests: XCTestCase {
 
         // 좌표 있는 2건 모두 저장.
         XCTAssertEqual(pinAPI.createRequests.count, 2)
+        // AC-5: 릴스 저장 핀이 모두 방의 groupId(=7)로 귀속(myActiveGroup 추정 아님).
+        XCTAssertEqual(pinAPI.createGroupIds, [7, 7])
         let wishReq = pinAPI.createRequests.first { $0.placeName == "성수동 카페" }
         let reelReq = pinAPI.createRequests.first { $0.placeName == "발견 식당" }
         XCTAssertEqual(wishReq?.tag, .WISH)
@@ -53,7 +56,7 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_savePlaceCards_noMemo_savesNilMemo() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
-        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
+        let vm = makeViewModel(pinAPI: pinAPI, groupId: 1)
 
         let card = makePlaceCard(name: "장소", latitude: 37.5, longitude: 127.0)
         await vm.savePlaceCards(cards: [card], wishIDs: [], memo: nil, sourceInstagramUrl: nil)
@@ -69,7 +72,7 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_savePlaceCards_duplicate409_absorbedNotInList() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .failure(APIError(code: "PLC_DUPLICATE_PIN", status: 409, message: "duplicate"))
-        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
+        let vm = makeViewModel(pinAPI: pinAPI, groupId: 1)
 
         let card = makePlaceCard(name: "중복 장소", latitude: 37.5, longitude: 127.0)
         // throw 하지 않아야 한다(흡수).
@@ -89,7 +92,7 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_savePlaceCards_noCoordinate_skipped() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
-        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
+        let vm = makeViewModel(pinAPI: pinAPI, groupId: 1)
 
         let card = makePlaceCard(name: "좌표 없음", latitude: nil, longitude: nil)
         await vm.savePlaceCards(cards: [card], wishIDs: [card.id], memo: nil, sourceInstagramUrl: nil)
@@ -103,7 +106,7 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_savePlaceCards_mixed_savesOnlyCoordinated() async {
         let pinAPI = StubBotPinAPI()
         pinAPI.createResult = .success(makePinSummary(id: 1))
-        let vm = makeViewModel(pinAPI: pinAPI, group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2))
+        let vm = makeViewModel(pinAPI: pinAPI, groupId: 1)
 
         let cards = [
             makePlaceCard(name: "좌표 있음", latitude: 37.5, longitude: 127.0),
@@ -122,9 +125,9 @@ final class PlaceCardSaveTests: XCTestCase {
     func test_showOnMap_setsReelFocusPending() async {
         let router = DeepLinkRouter()
         let vm = BotChatViewModel(
+            groupId: 1,
             chatAPI: StubChatAPI(),
             pinAPI: StubBotPinAPI(),
-            groupAPI: StubBotGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
             currentUser: makeCurrentUser(),
             deepLinkRouter: router
         )
@@ -136,11 +139,12 @@ final class PlaceCardSaveTests: XCTestCase {
 
     // MARK: - 헬퍼
 
-    private func makeViewModel(pinAPI: PinAPIProtocol, group: ActiveGroup?) -> BotChatViewModel {
+    private func makeViewModel(pinAPI: PinAPIProtocol, groupId: Int) -> BotChatViewModel {
+        // DM 그룹별 전환: 활성 그룹 추정(groupAPI) 제거 → 방의 groupId 주입. savePlaceCards 가 이 groupId 로 핀 저장(AC-5).
         BotChatViewModel(
+            groupId: groupId,
             chatAPI: StubChatAPI(),
             pinAPI: pinAPI,
-            groupAPI: StubBotGroupAPI(group: group),
             currentUser: makeCurrentUser(),
             deepLinkRouter: DeepLinkRouter()
         )
