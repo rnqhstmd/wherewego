@@ -59,8 +59,8 @@ struct FloatingTabBar: View {
         HStack(spacing: 0) {
             tabButton(.map, outline: "map", fill: "map.fill", label: "지도")
             tabButton(.chat,
-                      outline: "bubble.left.and.bubble.right",
-                      fill: "bubble.left.and.bubble.right.fill",
+                      outline: "play.square",
+                      fill: "play.square.fill",
                       label: "DM",
                       showUnread: hasChatUnread)
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
