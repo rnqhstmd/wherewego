@@ -1,5 +1,5 @@
-phase: implement
-status: in_progress
+phase: complete
+status: in_progress  # 코드측 완료·PR #114·iOS CI green / Mac DoD-B 잔여
 vcs-type: git
 branch: feat/ios-pin-share-card
 base: develop
@@ -11,7 +11,7 @@ flags: --hotfix (전체 이식)
 mode: hotfix
 intent-source: user-selection
 started: 2026-06-09
-current-step: "구현 완료 → 커밋/푸시(사용자 요청) → iOS CI 검증 대기"
+current-step: "PR #114(base develop) 생성 · iOS CI(빌드+단위테스트) green(8m41s) · Mac DoD-B 잔여"
 
 ## 핵심 발견
 - iOS 앱에는 핀 공유 카드 기능이 **부재**(웹만 Phase 9 존재) → 신규 이식 작업.
