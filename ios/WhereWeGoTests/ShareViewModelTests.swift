@@ -78,8 +78,8 @@ private final class StubShareAPI: ShareAPIClientProtocol, @unchecked Sendable {
     private var _sentGroupIds: [Int] = []
     private var _sentTexts: [String] = []
 
-    var sentGroupIds: [Int] { lock.lock(); defer { lock.unlock() }; return _sentGroupIds }
-    var sentTexts: [String] { lock.lock(); defer { lock.unlock() }; return _sentTexts }
+    var sentGroupIds: [Int] { lock.withLock { _sentGroupIds } }
+    var sentTexts: [String] { lock.withLock { _sentTexts } }
 
     init(rooms: [ShareGroup] = [], roomsError: Error? = nil, failGroupIds: Set<Int> = []) {
         self.rooms = rooms
@@ -93,10 +93,11 @@ private final class StubShareAPI: ShareAPIClientProtocol, @unchecked Sendable {
     }
 
     func sendBotMessage(groupId: Int, text: String) async throws {
-        lock.lock()
-        _sentGroupIds.append(groupId)
-        _sentTexts.append(text)
-        lock.unlock()
+        // Swift 6: async 컨텍스트에서 lock()/unlock() 직접 호출 불가 → 스코프 락(withLock) 사용.
+        lock.withLock {
+            _sentGroupIds.append(groupId)
+            _sentTexts.append(text)
+        }
         if failGroupIds.contains(groupId) {
             throw ShareAPIError(code: "FAIL", status: 500, message: "x")
         }
