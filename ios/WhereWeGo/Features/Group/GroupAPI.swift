@@ -36,6 +36,25 @@ struct InviteAccept: Decodable {
     let groupId: Int
 }
 
+/// 그룹원 1명(D단계, GET /groups/{id}/members). 백엔드 MemberResponse 와 1:1 정합.
+/// - userId: Long → Int. 방장 판정 키(CurrentUser.id 비교).
+/// - joinedAt: 가입 시각(ISO8601). 현재 표시엔 미사용이나 백엔드 필드 보존.
+/// - isOwner: 방장(활성 멤버 중 가입 순 첫 항목) 여부. 백엔드가 조회 시점 계산해 마킹.
+struct GroupMemberItem: Decodable, Identifiable, Equatable {
+    let userId: Int
+    let nickname: String
+    let joinedAt: String?
+    let isOwner: Bool
+
+    /// Identifiable(GroupManageView 멤버 목록 ForEach) — userId 를 식별자로 사용.
+    var id: Int { userId }
+}
+
+/// 그룹명 수정 요청 body(D단계, PATCH /groups/{id}).
+private struct UpdateGroupNameRequest: Encodable {
+    let name: String
+}
+
 // MARK: - GroupAPI
 
 final class GroupAPI: GroupAPIProtocol {
@@ -103,6 +122,47 @@ final class GroupAPI: GroupAPIProtocol {
         do {
             _ = try await client.request(
                 "/groups/\(groupId)/members/me",
+                method: "DELETE",
+                type: EmptyResponse.self
+            )
+        } catch let error as APIError where error.code == "HTTP_200" || error.code == "NO_CONTENT" {
+            return
+        }
+    }
+
+    /// GET /groups/{groupId}/members (D단계). 가입 순 멤버 목록(첫 항목 방장).
+    /// 백엔드는 List<MemberResponse>(data 배열)를 반환한다. 401 은 상위(refresh/logout)로 전파.
+    func listMembers(groupId: Int) async throws -> [GroupMemberItem] {
+        try await client.request(
+            "/groups/\(groupId)/members",
+            type: [GroupMemberItem].self
+        )
+    }
+
+    /// PATCH /groups/{groupId} {name} (D단계). 활성 멤버면 누구나 이름 수정.
+    // 백엔드는 성공 시 200(data 무관) 응답하므로 EmptyResponse 로 받되, data:null/204 는
+    // leaveGroup 패턴대로 HTTP_200/NO_CONTENT 를 흡수한다(나머지 에러는 전파).
+    func updateGroupName(groupId: Int, name: String) async throws {
+        let body = try JSONEncoder().encode(UpdateGroupNameRequest(name: name))
+        do {
+            _ = try await client.request(
+                "/groups/\(groupId)",
+                method: "PATCH",
+                body: body,
+                type: EmptyResponse.self
+            )
+        } catch let error as APIError where error.code == "HTTP_200" || error.code == "NO_CONTENT" {
+            return
+        }
+    }
+
+    /// DELETE /groups/{groupId} (D단계). 방장만 — 비방장은 403(GROUP_OWNER_REQUIRED) 전파.
+    // 200 success(data:null) 또는 204(빈 본문) 둘 다 성공 → HTTP_200/NO_CONTENT 흡수(leaveGroup 패턴).
+    // 그 외(403 등)는 그대로 throw 해 호출측(VM)이 에러 메시지로 노출한다.
+    func deleteGroup(groupId: Int) async throws {
+        do {
+            _ = try await client.request(
+                "/groups/\(groupId)",
                 method: "DELETE",
                 type: EmptyResponse.self
             )

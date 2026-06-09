@@ -1,14 +1,14 @@
 import XCTest
 @testable import WhereWeGo
 
-// MyInfoViewModel 활성 그룹 섹션 조건부 노출 + 챗봇 연동 부재 검증(설계 §8, FR-25/FR-27, AC-10/AC-11).
+// MyInfoViewModel 회귀 검증(설계 §8 / IA 재설계 D단계 내정보 축소, FR-23~27, AC-11).
 //
-// AC-10: activeGroup==nil → shouldShowGroupSection==false; ActiveGroup 보유 → true.
-// AC-11: VM 에 챗봇 연동 관련 상태/메서드 부재(표면 검증 — 공개 API 가 닉네임·그룹·계정에 한정).
+// IA 재설계: 그룹(활성그룹·탈퇴)은 지도 탭 ⋯ 그룹관리(GroupManageView)로 이전됐다.
+//  → MyInfoViewModel 에서 activeGroup·shouldShowGroupSection·leaveGroup·groupAPI 의존이 제거됨.
+//  본 테스트는 (1) groupAPI 없이 생성·load 가 정상 동작하고 (2) 그룹/챗봇 상태가 표면에서 사라졌는지를 검증한다.
 //
 // AuthAPI 는 구체 클래스(프로토콜 없음)라 mock 할 수 없으므로 StubURLProtocol 기반 APIClient 로 만든
 // 실제 AuthAPI 를 주입하되, me() 응답을 스텁이 제어해 네트워크/Keychain 부작용을 제거한다.
-// AC-10 의 그룹 분기는 GroupAPIProtocol mock(myActiveGroup 반환값 제어)으로 검증한다(지시 명시).
 @MainActor
 final class MyInfoViewModelTests: XCTestCase {
 
@@ -25,94 +25,70 @@ final class MyInfoViewModelTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - AC-10: 활성 그룹 보유 여부 → 그룹 섹션 노출
+    // MARK: - load: 닉네임만 로드(그룹 조회 제거 회귀)
 
-    func test_shouldShowGroupSection_falseWhenNoActiveGroup() async {
-        // Given groupAPI mock 이 nil(활성 그룹 없음) 반환.
-        let vm = makeViewModel(groupResult: .success(nil))
+    func test_load_setsNicknameFromMe() async {
+        // Given me() 가 닉네임을 반환.
+        StubURLProtocol.handler = { _ in
+            (200, Data("""
+            {"meta":{"result":"SUCCESS"},"data":{"id":7,"nickname":"보승","profileImageUrl":null}}
+            """.utf8))
+        }
+        let vm = makeViewModel()
 
-        // When 진입 로드(me + myActiveGroup).
+        // When 진입 로드(me 만 — 그룹 조회 없음).
         await vm.load()
 
-        // Then 그룹 섹션 미노출(AC-10).
-        XCTAssertNil(vm.activeGroup)
-        XCTAssertFalse(vm.shouldShowGroupSection)
+        // Then 닉네임 반영, 에러 없음(그룹 조회 부작용 부재).
+        XCTAssertEqual(vm.nickname, "보승")
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertFalse(vm.isBusy)
     }
 
-    func test_shouldShowGroupSection_trueWhenActiveGroupPresent() async {
-        // Given groupAPI mock 이 ActiveGroup 반환.
-        let group = ActiveGroup(groupId: 9, name: "여행팀", memberCount: 4)
-        let vm = makeViewModel(groupResult: .success(group))
+    func test_load_meFailure_keepsNoError() async {
+        // me() 실패(404) → try? 로 흡수, 닉네임 폴백. 그룹 조회 제거로 에러 메시지가 생기지 않아야 한다.
+        StubURLProtocol.handler = { _ in
+            (404, Data("""
+            {"meta":{"result":"FAIL","errorCode":"NOT_FOUND","message":"n/a"},"data":null}
+            """.utf8))
+        }
+        let vm = makeViewModel()
 
-        // When 진입 로드.
         await vm.load()
 
-        // Then 그룹 섹션 노출(AC-10).
-        XCTAssertEqual(vm.activeGroup?.groupId, 9)
-        XCTAssertEqual(vm.activeGroup?.name, "여행팀")
-        XCTAssertTrue(vm.shouldShowGroupSection)
+        // 그룹 조회가 제거됐으므로 어떤 경로에서도 errorMessage 가 세팅되지 않는다(회귀 핵심).
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertFalse(vm.isBusy)
     }
 
-    func test_shouldShowGroupSection_derivesFromActiveGroupDirectly() {
-        // shouldShowGroupSection 은 activeGroup != nil 의 순수 파생(load 무관).
-        let vm = makeViewModel(groupResult: .success(nil))
-        XCTAssertFalse(vm.shouldShowGroupSection)
+    // MARK: - 그룹/챗봇 상태 부재(표면 검증 — 회귀 시 실패)
 
-        vm.activeGroup = ActiveGroup(groupId: 1, name: "팀", memberCount: 2)
-        XCTAssertTrue(vm.shouldShowGroupSection)
-
-        vm.activeGroup = nil
-        XCTAssertFalse(vm.shouldShowGroupSection)
-    }
-
-    func test_leaveGroup_clearsActiveGroup_hidesSection() async {
-        // 그룹 탈퇴 성공 → activeGroup=nil → 섹션 미렌더(AC-10 연계, FR-25).
-        let group = ActiveGroup(groupId: 9, name: "여행팀", memberCount: 4)
-        let vm = makeViewModel(groupResult: .success(group))
-        await vm.load()
-        XCTAssertTrue(vm.shouldShowGroupSection)
-
-        await vm.leaveGroup()
-
-        XCTAssertNil(vm.activeGroup)
-        XCTAssertFalse(vm.shouldShowGroupSection)
-    }
-
-    // MARK: - AC-11: 챗봇 연동 상태/메서드 부재(표면 검증)
-
-    func test_noChatbotIntegrationState() {
-        // AC-11/FR-27: 웹 SettingsClient "챗봇 연동" 섹션 미이식.
-        // VM 공개 표면이 닉네임·그룹·계정에 한정됨을 표면 검증한다.
-        // (Mirror 로 저장 프로퍼티 라벨을 훑어 chatbot/connect 류 식별자 부재를 확인 — 회귀 시 실패.)
-        let vm = makeViewModel(groupResult: .success(nil))
+    func test_noGroupOrChatbotState() {
+        // IA 재설계 D단계: 그룹(activeGroup·shouldShowGroupSection·leaveGroup)·챗봇 연동 상태가 표면에서 제거됨.
+        // Mirror 로 저장 프로퍼티 라벨을 훑어 group/chatbot/integration 류 식별자 부재를 확인한다.
+        let vm = makeViewModel()
         let labels = Mirror(reflecting: vm).children.compactMap { $0.label?.lowercased() }
         for label in labels {
+            XCTAssertFalse(label.contains("group"), "그룹 상태가 존재하면 안 된다(D단계 축소): \(label)")
+            XCTAssertFalse(label.contains("activegroup"), "활성 그룹 상태가 존재하면 안 된다(D단계 축소): \(label)")
             XCTAssertFalse(label.contains("chatbot"), "챗봇 연동 상태가 존재하면 안 된다(AC-11): \(label)")
             XCTAssertFalse(label.contains("integration"), "연동 상태가 존재하면 안 된다(AC-11): \(label)")
         }
-        // 공개 게시 상태는 nickname/activeGroup/isBusy/errorMessage 로 한정(챗봇 무관).
+        // 공개 게시 상태는 nickname/isBusy/errorMessage 로 한정(그룹·챗봇 무관).
         XCTAssertNil(vm.errorMessage)
         XCTAssertFalse(vm.isBusy)
     }
 
     // MARK: - 헬퍼
 
-    /// GroupAPIProtocol mock 의 myActiveGroup 결과를 주입한 MyInfoViewModel.
-    /// authAPI 는 StubURLProtocol 기반 실제 AuthAPI(me() 는 빈 응답 → load 에서 try? 로 흡수되어
-    /// nickname=currentUser.nickname 폴백). sessionStore/currentUser 는 부작용 없는 실제 인스턴스.
-    private func makeViewModel(groupResult: MockGroupAPI.Outcome) -> MyInfoViewModel {
-        // me() 가 호출돼도 그룹 분기에 영향 없도록 항상 실패(404) 응답 → load 의 try? 가 흡수.
-        StubURLProtocol.handler = { _ in
-            (404, Data("""
-            {"meta":{"result":"FAIL","errorCode":"NOT_FOUND","message":"n/a"},"data":null}
-            """.utf8))
-        }
+    /// groupAPI 의존이 제거된 MyInfoViewModel(D단계). authAPI 는 StubURLProtocol 기반 실제 AuthAPI.
+    /// sessionStore/currentUser 는 부작용 없는 실제 인스턴스.
+    private func makeViewModel() -> MyInfoViewModel {
         let session = StubURLProtocol.makeSession()
         let client = APIClient(baseURL: baseURL, tokens: DummyTokens(), session: session)
         let authAPI = AuthAPI(client: client)
         return MyInfoViewModel(
             authAPI: authAPI,
-            groupAPI: MockGroupAPI(result: groupResult),
             sessionStore: SessionStore(tokens: KeychainTokenStore(baseURL: baseURL, session: session)),
             currentUser: CurrentUser(authAPI: authAPI)
         )
@@ -124,24 +100,4 @@ final class MyInfoViewModelTests: XCTestCase {
 private actor DummyTokens: TokenStore {
     func accessToken() async -> String? { "access-1" }
     func refresh() async throws {}
-}
-
-private final class MockGroupAPI: GroupAPIProtocol, @unchecked Sendable {
-    enum Outcome {
-        case success(ActiveGroup?)
-        case failure(Error)
-    }
-    private let result: Outcome
-    init(result: Outcome) { self.result = result }
-
-    func myActiveGroup() async throws -> ActiveGroup? {
-        switch result {
-        case .success(let group): return group
-        case .failure(let error): throw error
-        }
-    }
-    func listMyGroups() async throws -> [GroupSummary] { [] }
-    func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
-    func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
-    func leaveGroup(groupId: Int) async throws {}
 }

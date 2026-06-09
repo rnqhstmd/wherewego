@@ -1,8 +1,9 @@
 import SwiftUI
 
-// 내정보 화면(설계 §8, FR-23~27, BR-5, AC-10/AC-11).
+// 내정보 화면(설계 §8 / IA 재설계 D단계 내정보 축소, FR-23~27, BR-5, AC-11).
 // frontend/src/app/settings/SettingsClient.tsx 이식 — 단 "챗봇 연동" 섹션은 제외(FR-27, AC-11).
-// 섹션: 1) 사용자(닉네임 + 닉네임 수정) 2) 활성 그룹(보유 시) 3) 계정(로그아웃 + 계정 삭제).
+// IA 재설계: 그룹(활성그룹·탈퇴)은 지도 탭 ⋯ 그룹관리(GroupManageView)로 이전 → 내정보는 사용자+계정 2섹션.
+// 섹션: 1) 사용자(닉네임 + 닉네임 수정) 2) 계정(로그아웃 + 계정 삭제).
 struct MyInfoView: View {
     // VM 수명은 MainTabView 가 @StateObject 로 소유(탭 전환·body 재계산에도 단일 인스턴스 유지).
     // 본 뷰는 @ObservedObject 로 관찰만 한다(NotificationInboxView 와 동일 패턴).
@@ -10,7 +11,6 @@ struct MyInfoView: View {
     private let authAPI: AuthAPI
 
     @State private var showNicknameEdit = false
-    @State private var showLeaveConfirm = false
     @State private var showDeleteConfirm = false
 
     init(authAPI: AuthAPI, viewModel: MyInfoViewModel) {
@@ -36,9 +36,6 @@ struct MyInfoView: View {
 
                     VStack(alignment: .leading, spacing: 18) {
                         userSection
-                        if viewModel.shouldShowGroupSection {
-                            groupSection
-                        }
                         accountSection
 
                         if let message = viewModel.errorMessage {
@@ -65,18 +62,6 @@ struct MyInfoView: View {
             }
         }
         .confirmationDialog(
-            leaveDialogTitle,
-            isPresented: $showLeaveConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("그룹 탈퇴", role: .destructive) {
-                Task { await viewModel.leaveGroup() }
-            }
-            Button("취소", role: .cancel) {}
-        } message: {
-            Text("이 그룹의 핀에 더 이상 접근할 수 없어요.")
-        }
-        .confirmationDialog(
             "정말 계정을 삭제하시겠어요?",
             isPresented: $showDeleteConfirm,
             titleVisibility: .visible
@@ -88,13 +73,6 @@ struct MyInfoView: View {
         } message: {
             Text("내 핀과 그룹 정보가 모두 사라지고 되돌릴 수 없어요.")
         }
-    }
-
-    private var leaveDialogTitle: String {
-        if let name = viewModel.activeGroup?.name {
-            return "'\(name)' 그룹에서 나가시겠어요?"
-        }
-        return "그룹에서 나가시겠어요?"
     }
 
     // MARK: - 1) 사용자
@@ -128,33 +106,7 @@ struct MyInfoView: View {
         }
     }
 
-    // MARK: - 2) 활성 그룹 (shouldShowGroupSection 일 때만)
-
-    private var groupSection: some View {
-        section(label: "활성 그룹") {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(viewModel.activeGroup?.name ?? "")
-                    .font(WGFont.emo(18))
-                    .foregroundStyle(WGColor.ink)
-                HStack(spacing: 5) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(WGColor.inkSoft)
-                    Text("\(viewModel.activeGroup?.memberCount ?? 0)명 참여 중")
-                        .font(WGFont.sans(12))
-                        .foregroundStyle(WGColor.inkSoft)
-                }
-                .padding(.top, 4)
-
-                rowButton(label: "그룹 탈퇴", danger: true, disabled: viewModel.isBusy) {
-                    showLeaveConfirm = true
-                }
-                .padding(.top, 14)
-            }
-        }
-    }
-
-    // MARK: - 3) 계정
+    // MARK: - 2) 계정
 
     private var accountSection: some View {
         section(label: "계정") {

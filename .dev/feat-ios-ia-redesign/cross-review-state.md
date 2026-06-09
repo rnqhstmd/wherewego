@@ -1,16 +1,16 @@
 status: completed
-advisor: claude
-base: origin/develop (merge-base deb546f)
-scope: DM (ios 11파일) + PR #108 봇 리뷰 통합
+advisor: claude (오케스트레이터 직접 — qa-manager/security-auditor 미반환)
+base: feat/ios-ia-redesign (stacked, D diff만)
+scope: D (백엔드 14 + iOS 17 + 테스트 13, 커밋 4a83cb5 / PR #109)
 findings:
-  ac_total: 9
-  ac_met: 9   # 설계상 충족(빌드 차단 수정 후 런타임/테스트 검증 가능)
-  range_violation: 0
-  critical: 1   # navigationDestination(item:) Hashable 미충족 → CI 빌드 실패
-  warning: 1    # navigationDestination .id(groupId) 미부여(Gemini #1)
-  info: 2       # Gemini #2 concurrency false-positive, formatTime 중복(기보고)
+  ac_total: 8
+  ac_met: 8
+  range_violation: 1   # 테스트 11개 stub 정합(정당, 위험 아님)
+  critical: 0
+  warning: 0
+  info: 1              # 목록 행 작성자 표시 미흡(D 범위 밖, 기존 코드)
   references_violation: 0
 processed:
-  fixed: 2     # Hashable 추가 + .id(room.groupId) 추가
-  skipped: 0
-note: "cross-review가 Windows 빌드 불가로 놓친 Critical(BotRoomSummary Hashable)을 포착. PR #108 Gemini 봇 리뷰 2건 중 #1(.id) 반영, #2(concurrency)는 NotificationInbox 선례로 false-positive. 수정 push로 CI 재실행."
+  fixed: 0
+  skipped: 1           # Info 1건 D 스코프 밖 → 후속 개선 기록
+note: "D는 iOS CI 첫 push green(DM의 Hashable 컴파일 결손과 대조) + 백엔드 단위/통합 통과로 AC 8/8 런타임 검증. 신규 Critical/Warning 0. 설계 범위 이탈은 GroupAPIProtocol 확장의 테스트 stub 파급(정당). Info 1(NotificationRow 작성자 표시)은 기존 코드 한계로 D 책임 밖."

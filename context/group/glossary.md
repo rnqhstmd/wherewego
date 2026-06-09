@@ -15,3 +15,8 @@
 | 1인 N그룹 (GM-1 이후) | 1인이 여러 그룹에 동시 활성 가능. 이전 MVP의 "1인 1활성 제약"은 V018에서 해제. DB 스키마는 N:M, 그룹당 정원 10 |
 | 연결 해제 (탈퇴) | GroupMember를 soft delete(`left_at` 갱신). 핀은 그룹에 잔류. 탈퇴 시 활성 초대 코드도 만료(BR-5) |
 | 활성 GroupMember | `left_at IS NULL`인 GroupMember 행 |
+| 방장 (owner) | 그룹 활성 멤버 중 가장 먼저 가입한 사람(`joined_at` 최소, 동률 시 `id` 최소). 별도 owner 컬럼·승계 트랜잭션 없이 **조회 시점 계산** → 방장 탈퇴 시 다음 최선임이 자동 승계. 그룹 삭제 권한 보유 (GM-2) |
+| 그룹원 목록 조회 (GM-2) | `GET /api/v1/groups/{id}/members`. 활성 멤버만 접근 가능. 가입 순(joined_at ASC, id ASC) + 첫 항목 `isOwner=true` 마킹 |
+| 그룹명 수정 (GM-2) | `PATCH /api/v1/groups/{id}` `{name}`. 활성 멤버 **누구나**(방장 제한 없음). trim 후 1~30자 검증(createGroup 동일). `findByIdForUpdate` 락으로 삭제/탈퇴와 직렬화 |
+| 그룹 삭제 (GM-2) | `DELETE /api/v1/groups/{id}`. **방장만**(비방장 `GROUP_OWNER_REQUIRED` 403). 전원 `markLeft` + group soft delete + 미수락 토큰 만료 + 잔여 활성 0인 멤버 봇 unlink (leaveGroup 패턴 확장) |
+| GROUP_OWNER_REQUIRED | 비방장이 그룹 삭제 시도 시 반환(403). 방장=활성멤버 joined_at 최소 (GM-2) |

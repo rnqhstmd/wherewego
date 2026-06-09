@@ -1,35 +1,39 @@
-# Trust Ledger — DM 그룹별 봇방 목록 (review)
+# Trust Ledger — D단계: 알림 상세 / 내정보 축소 / 그룹관리 (review)
 
 > qa-manager·security-auditor 미반환 환경 → 오케스트레이터 직접 QA + ZT 통합 감사.
-> 대상: iOS diff 11파일(+635/-76). 백엔드 무변경. Mechanical Gate(빌드/테스트 실행)=Windows iOS 불가 → Mac DoD-B(리뷰어).
+> 대상: 풀스택 diff(백엔드 14 + iOS 17 + 테스트). Mechanical Gate 백엔드 통과, iOS 실행=Mac DoD-B(리뷰어).
+
+## Mechanical Gate (실행 검증)
+- 백엔드 `compileJava compileTestJava`: **BUILD SUCCESSFUL**
+- `GroupMemberServiceTest`(단위 — 방장 판정·자동 승계·삭제 권한): **통과**
+- `GroupV1ControllerIntegrationTest` + `NotificationServiceIT`(통합, PostgreSQL): **통과**
+- iOS: Windows 빌드 불가 → Mac DoD-B(리뷰어). 시그니처/디코딩/동시성 직접 검토 완료.
 
 ## QA (스펙 충족)
-- CERTAIN(Critical): 0
-- Warning: 1 (수정 완료)
-- Info: 1
-- QUESTION: 0
+- CERTAIN(Critical): 0 · Warning: 0 · Info: 1 · QUESTION: 0
+- AC-1~8 전부 충족(self-check.md 표 참조). 백엔드 IT가 AC-4~8(멤버/방장/삭제/승계) 실행 검증.
 
-### [Warning/수정완료] DMListViewModel 무음 refresh 실패 시 스피너 무한 고정 가능
-- 파일: ios/WhereWeGo/Features/Chat/DMListViewModel.swift (fetch catch)
-- 근거: 콜드스타트에서 MainTabView.task 의 refresh()가 in-flight 인 동안 DMListView.task 의 load()가 isFetching 가드로 조기 반환 → 그 refresh()가 실패하면 showLoading=false 라 에러 미세팅 → loadState 가 .idle 잔존 → .idle 가 로딩 스피너로 렌더되어 무한 고정(다음 포그라운드 복귀까지 자가회복은 되나 소프트락).
-- 수정: catch 에서 **기존 목록이 없으면(.idle/.loading/.error)** 무음 refresh 라도 .error 노출(재시도 경로). 이미 .loaded 면 화면 유지(무음). 테스트 ⑦ 추가(미로드 refresh 실패→.error).
-
-### [Info] formatTime 중복
-- DMListViewModel.formatTime 이 NotificationInboxViewModel.formatTime 과 동일 로직 중복(설계서 명시 인지). 후속 공용 유틸 통합 여지(범위 외, 비차단).
+### [Info] deleteGroup 전원 markLeft N+1
+- `GroupMemberService.deleteGroup`이 멤버별 `findActiveByGroupIdAndUserId` 재조회. 멤버 수 작아 허용(설계 §6 R2, 비차단).
 
 ## ZT 통합 감사 (정책/보안/허점)
 - CRITICAL: 0 · HIGH: 0 · MEDIUM: 0
 
 ### 점검 항목 (모두 통과)
-- **인증/인가**: 봇 API 호출은 기존 APIClient(토큰 자동 부착) 경유. groupId 는 path Int(인젝션 불가). 백엔드가 활성 멤버십 강제(비멤버 403). iOS 는 사용자 본인 그룹 목록(botRooms 결과)만 진입시킴 → 권한 우회 경로 없음.
-- **읽음 시맨틱 신뢰(BR-4)**: unread 판정은 백엔드(마지막 BOT & lastRead<latest) 그대로 신뢰. iOS 자체 계산 없음 → 클라이언트 위변조 표면 없음.
-- **데이터 노출**: groupName/lastPreview 는 방 소유자(본인)에게만 표시. 로깅/print 추가 없음(PII 유출 없음).
-- **deprecated 엔드포인트**: 백엔드 비그룹 `/chat/bot/messages` 잔존하나 iOS 소비 제거 → 보안 회귀 없음.
-- **신규 권한/자격(entitlement)**: 없음(네트워크/푸시/위치 변경 없음).
-- **Swift 6 동시성**: @MainActor VM, @unchecked Sendable 목, StateObject 래퍼 — 데이터레이스 표면 없음.
+- **인가**: `listMembers`/`renameGroup` = `requireActiveMembership`(비멤버 `GROUP_NOT_MEMBER`). `deleteGroup` = 방장(joined_at 최소)만, 비방장 `GROUP_OWNER_REQUIRED`(403). iOS는 `isOwner`일 때만 삭제 버튼 노출 + 백엔드 이중 검증(UI 우회해도 403).
+- **데이터 노출**: 알림 `groupName`은 자기 알림(`receiverId`)의 그룹만 노출 — 권한 경계 내. soft-delete 그룹명 노출은 "어느 그룹" 맥락 의도(본인이 속했던 그룹).
+- **입력 검증**: `updateGroupName` trim + 30자 가드(createGroup 동일). 그룹명 표시는 SwiftUI `Text` 자동 이스케이프(XSS 무관).
+- **동시성**: `renameGroup`/`deleteGroup`/`leaveGroup` 모두 `findByIdForUpdate` 비관락으로 직렬화 → 동시 삭제+탈퇴 race 방지. `markLeft` 멱등.
+- **방장 판정 위변조**: 조회 시점 `joined_at` 최소 계산(클라이언트 입력 무관) → iOS `isOwner`는 표시용일 뿐 권한은 백엔드 재계산.
+- **신규 권한/자격**: 없음(네트워크/푸시/위치 변경 없음).
+
+### 회귀
+- `MyInfoView` leaveGroup 제거 → `GroupManageViewModel.leave`로 이전, 호출 정합(grep).
+- `NotificationService` 생성자 변경(GroupRepository 주입) → IT 통과로 DI 검증.
+- `GroupAPIProtocol` 신규 3메서드 → 전 stub 구현(compileTestJava·iOS grep 정합).
 
 ## 미해결 항목
-없음. (Warning 1건 수정 완료, Critical/QUESTION 0)
+없음. (Critical 0 · CRITICAL 0 · QUESTION 0)
 
 ## 잔여(비차단) — 리뷰어 인수
-- iOS 빌드/시뮬/단위테스트 **실행** 검증은 Windows 불가 → **Mac DoD-B(리뷰어)**. 타입/시그니처/enum/동시성은 코드 리뷰 수준 직접 검증 완료(잔존 구 시그니처 0, 생성처 전수 정합).
+- iOS 빌드/시뮬/단위테스트 **실행** = Windows 불가 → **Mac DoD-B(리뷰어)**. 타입/시그니처/디코딩/Swift 동시성 직접 검증 완료.

@@ -32,6 +32,8 @@ struct NotificationItem: Decodable, Identifiable, Equatable {
     let reelCount: Int?
     let createdAt: String
     let readAt: String?
+    /// 알림이 속한 그룹명(D단계). 백엔드 groupName(nullable) 과 1:1. 미존재/삭제 그룹은 null → 표시 생략.
+    let groupName: String?
 }
 
 /// 백엔드 NotificationV1Dto.NotificationListResponse.
@@ -61,6 +63,8 @@ struct NotificationDetail: Decodable {
     let registeredByNickname: String?
     let createdAt: String
     let pins: [NotificationPinItem]
+    /// 알림이 속한 그룹명(D단계). 백엔드 groupName(nullable) 과 1:1. 미존재/삭제 그룹은 null → 표시 생략.
+    let groupName: String?
 }
 
 /// 백엔드 NotificationV1Dto.ReadAllResponse.

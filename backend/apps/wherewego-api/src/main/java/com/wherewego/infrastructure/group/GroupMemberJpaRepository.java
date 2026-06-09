@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.group;
 
 import com.wherewego.domain.group.GroupMember;
+import com.wherewego.domain.group.GroupMemberInfo;
 import com.wherewego.domain.group.GroupSummary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -27,6 +28,13 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMember, Lon
             + "WHERE gm.userId = :userId AND gm.leftAt IS NULL AND g.deletedAt IS NULL "
             + "ORDER BY gm.joinedAt ASC, gm.id ASC")
     List<GroupSummary> findActiveGroupSummariesByUserId(@Param("userId") Long userId);
+
+    // GM-2 그룹관리: 그룹의 활성 멤버 + User 닉네임 join. 정렬 joined_at ASC, id ASC → 첫 항목 = 방장.
+    @Query("SELECT new com.wherewego.domain.group.GroupMemberInfo(gm.userId, u.nickname, gm.joinedAt, gm.id) "
+            + "FROM GroupMember gm JOIN UserModel u ON u.id = gm.userId "
+            + "WHERE gm.groupId = :groupId AND gm.leftAt IS NULL "
+            + "ORDER BY gm.joinedAt ASC, gm.id ASC")
+    List<GroupMemberInfo> findActiveMembersByGroupId(@Param("groupId") Long groupId);
 
     // 용도: 활성 그룹 전체 순회용(group_id ASC). UserDeletion 의 다중 비관락 데드락 방지를 위한 결정론적 락 순서.
     //   위 findActiveGroupIdsByUserId(최신 1개, id DESC)와 정렬/용도가 다르므로 혼동 주의.

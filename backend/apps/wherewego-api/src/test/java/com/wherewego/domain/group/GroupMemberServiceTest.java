@@ -628,6 +628,257 @@ class GroupMemberServiceTest {
         }
     }
 
+    @DisplayName("그룹원 목록을 조회할 때,")
+    @Nested
+    class ListMembers {
+
+        @DisplayName("정렬된 첫 항목(joined_at 최소)만 방장(isOwner=true)으로 마킹하고 나머지는 false 다 (GM-2).")
+        @Test
+        void listMembers_marksFirstAsOwner() {
+            // arrange : repo 가 joined_at ASC, id ASC 정렬된 목록을 반환(첫 항목 = 방장).
+            Instant base = Instant.now();
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, base)));
+            when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+
+            // act
+            List<GroupMemberService.GroupMemberResult> result =
+                    groupMemberService.listMembers(USER_ID, GROUP_ID);
+
+            // assert
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).userId()).isEqualTo(USER_ID);
+            assertThat(result.get(0).isOwner()).isTrue();
+            assertThat(result.get(1).userId()).isEqualTo(OTHER_USER_ID);
+            assertThat(result.get(1).isOwner()).isFalse();
+        }
+
+        @DisplayName("비멤버가 조회하면 GROUP_NOT_MEMBER 가 발생한다.")
+        @Test
+        void listMembers_notMember_throws() {
+            // arrange
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.empty());
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.listMembers(USER_ID, GROUP_ID))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+        }
+    }
+
+    @DisplayName("그룹명을 수정할 때,")
+    @Nested
+    class RenameGroup {
+
+        @DisplayName("활성 멤버가 정상 이름으로 수정하면 group.rename 후 save 가 호출된다 (GM-2).")
+        @Test
+        void renameGroup_validName_renamesAndSaves() {
+            // arrange
+            Group group = newGroup("옛이름");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+
+            // act
+            groupMemberService.renameGroup(USER_ID, GROUP_ID, "새이름");
+
+            // assert
+            assertThat(group.getName()).isEqualTo("새이름");
+            verify(groupRepository).save(group);
+        }
+
+        @DisplayName("이름을 trim 한 뒤 빈 문자열이면 GROUP_NAME_INVALID 가 발생한다.")
+        @Test
+        void renameGroup_blankName_throws() {
+            // arrange
+            Group group = newGroup("옛이름");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.renameGroup(USER_ID, GROUP_ID, "   "))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NAME_INVALID);
+            verify(groupRepository, never()).save(any(Group.class));
+        }
+
+        @DisplayName("이름이 30자 초과(31자)면 GROUP_NAME_INVALID 가 발생한다.")
+        @Test
+        void renameGroup_tooLongName_throws() {
+            // arrange
+            Group group = newGroup("옛이름");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.renameGroup(USER_ID, GROUP_ID, "a".repeat(31)))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NAME_INVALID);
+        }
+
+        @DisplayName("비멤버가 수정하면 GROUP_NOT_MEMBER 가 발생한다.")
+        @Test
+        void renameGroup_notMember_throws() {
+            // arrange
+            Group group = newGroup("옛이름");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.empty());
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.renameGroup(USER_ID, GROUP_ID, "새이름"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+        }
+
+        @DisplayName("soft-deleted 그룹을 수정하려 하면 GROUP_NOT_MEMBER 가 발생한다.")
+        @Test
+        void renameGroup_deletedGroup_throws() {
+            // arrange
+            Group deletedGroup = newDeletedGroup("옛이름");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(deletedGroup));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.renameGroup(USER_ID, GROUP_ID, "새이름"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+        }
+    }
+
+    @DisplayName("그룹을 삭제할 때,")
+    @Nested
+    class DeleteGroup {
+
+        @DisplayName("방장(첫 항목)이 삭제하면 전원 markLeft + group soft delete + expirePending 이 호출된다 (GM-2).")
+        @Test
+        void deleteGroup_owner_marksAllLeftAndSoftDeletes() {
+            // arrange : USER_ID 가 방장(첫 항목), OTHER_USER_ID 가 멤버.
+            Instant base = Instant.now();
+            Group group = newGroup("우리커플");
+            GroupMember ownerMember = GroupMember.createActive(GROUP_ID, USER_ID, base);
+            GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(ownerMember));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
+                    .thenReturn(Optional.of(otherMember));
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of());
+            when(groupMemberRepository.listActiveGroupIdsByUserId(OTHER_USER_ID)).thenReturn(List.of());
+
+            // act
+            groupMemberService.deleteGroup(USER_ID, GROUP_ID);
+
+            // assert : 전원 탈퇴 + 그룹 soft delete + 초대 만료.
+            assertThat(ownerMember.getLeftAt()).isNotNull();
+            assertThat(otherMember.getLeftAt()).isNotNull();
+            assertThat(group.getDeletedAt()).isNotNull();
+            verify(groupRepository).save(group);
+            verify(inviteLinkRepository).expirePendingByGroupId(eq(GROUP_ID), any(Instant.class));
+            // 두 멤버 모두 잔여 활성 그룹 0개 → 봇 매핑 해제.
+            verify(botUserMappingService).unlink(USER_ID);
+            verify(botUserMappingService).unlink(OTHER_USER_ID);
+        }
+
+        @DisplayName("방장이 아닌 멤버가 삭제하려 하면 GROUP_OWNER_REQUIRED 가 발생하고 아무 변경도 없다.")
+        @Test
+        void deleteGroup_notOwner_throwsOwnerRequired() {
+            // arrange : 첫 항목(방장)은 OTHER_USER_ID, 요청자는 USER_ID(비방장).
+            Instant base = Instant.now();
+            Group group = newGroup("우리커플");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
+                    new GroupMemberInfo(OTHER_USER_ID, "방장", base, 1L),
+                    new GroupMemberInfo(USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.deleteGroup(USER_ID, GROUP_ID))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_OWNER_REQUIRED);
+            assertThat(group.getDeletedAt()).isNull();
+            verify(groupRepository, never()).save(any(Group.class));
+            verify(botUserMappingService, never()).unlink(any());
+        }
+
+        @DisplayName("방장 자동 승계: 방장이 탈퇴한 뒤 다음 최선임이 방장이 되어 삭제할 수 있다 (GM-2).")
+        @Test
+        void deleteGroup_ownerSuccession_nextSeniorBecomesOwner() {
+            // arrange : 원래 방장(joined_at 최소)이 탈퇴해 활성 목록의 첫 항목이 OTHER_USER_ID 가 됐다.
+            //   조회 시점 계산이라 별도 승계 로직 없이 OTHER_USER_ID 가 방장으로 삭제 가능.
+            Instant base = Instant.now();
+            Group group = newGroup("우리커플");
+            GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
+                    new GroupMemberInfo(OTHER_USER_ID, "승계방장", base.plus(Duration.ofDays(1)), 2L)));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
+                    .thenReturn(Optional.of(otherMember));
+            when(groupMemberRepository.listActiveGroupIdsByUserId(OTHER_USER_ID)).thenReturn(List.of());
+
+            // act : 승계된 방장 OTHER_USER_ID 가 삭제.
+            groupMemberService.deleteGroup(OTHER_USER_ID, GROUP_ID);
+
+            // assert
+            assertThat(otherMember.getLeftAt()).isNotNull();
+            assertThat(group.getDeletedAt()).isNotNull();
+            verify(groupRepository).save(group);
+        }
+
+        @DisplayName("soft-deleted 그룹을 삭제하려 하면 GROUP_NOT_MEMBER 가 발생한다.")
+        @Test
+        void deleteGroup_deletedGroup_throws() {
+            // arrange
+            Group deletedGroup = newDeletedGroup("우리커플");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(deletedGroup));
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.deleteGroup(USER_ID, GROUP_ID))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+        }
+
+        @DisplayName("멤버가 다른 활성 그룹을 보유하면 해당 멤버의 봇 매핑은 해제하지 않는다.")
+        @Test
+        void deleteGroup_memberHasOtherGroups_doesNotUnlinkThatMember() {
+            // arrange : OTHER_USER_ID 는 잔여 활성 그룹 보유 → unlink 제외. 방장 USER_ID 는 0개 → unlink.
+            Instant base = Instant.now();
+            Group group = newGroup("우리커플");
+            GroupMember ownerMember = GroupMember.createActive(GROUP_ID, USER_ID, base);
+            GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(ownerMember));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
+                    .thenReturn(Optional.of(otherMember));
+            when(groupMemberRepository.listActiveGroupIdsByUserId(USER_ID)).thenReturn(List.of());
+            when(groupMemberRepository.listActiveGroupIdsByUserId(OTHER_USER_ID)).thenReturn(List.of(99L));
+
+            // act
+            groupMemberService.deleteGroup(USER_ID, GROUP_ID);
+
+            // assert
+            verify(botUserMappingService).unlink(USER_ID);
+            verify(botUserMappingService, never()).unlink(OTHER_USER_ID);
+        }
+    }
+
     @DisplayName("listMyGroups 호출 시,")
     @Nested
     class ListMyGroups {

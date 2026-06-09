@@ -151,6 +151,12 @@ struct NotificationInboxView: View {
                     .foregroundStyle(WGColor.inkSoft)
                 }
                 Spacer()
+                // 상세 헤더 그룹명(D단계). nil 이면 생략(방어, Should-10).
+                if let groupName = detail.groupName, !groupName.isEmpty {
+                    Text(groupName)
+                        .font(WGFont.sans(13))
+                        .foregroundStyle(WGColor.inkSoft)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -215,9 +221,21 @@ private struct NotificationRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(NotificationInboxViewModel.formatTime(item.createdAt))
-                    .font(WGFont.mono(11))
-                    .foregroundStyle(WGColor.inkSoft)
+                // 그룹명(D단계) + 시간. groupName nil 이면 그룹 칩 생략(방어, Should-10).
+                HStack(spacing: 6) {
+                    if let groupName = item.groupName, !groupName.isEmpty {
+                        Text(groupName)
+                            .font(WGFont.sans(11))
+                            .foregroundStyle(WGColor.cta)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(WGColor.cta.opacity(0.1))
+                            .clipShape(Capsule())
+                    }
+                    Text(NotificationInboxViewModel.formatTime(item.createdAt))
+                        .font(WGFont.mono(11))
+                        .foregroundStyle(WGColor.inkSoft)
+                }
             }
 
             Spacer(minLength: 0)

@@ -32,6 +32,13 @@ public class Group extends BaseEntity {
     }
 
     /**
+     * 그룹 이름 변경. 검증(trim/길이)은 서비스 레이어에서 수행한 정상 값을 받는다.
+     */
+    public void rename(String name) {
+        this.name = name;
+    }
+
+    /**
      * 멱등 soft delete. BaseEntity.delete() 위임.
      */
     public void markDeleted() {

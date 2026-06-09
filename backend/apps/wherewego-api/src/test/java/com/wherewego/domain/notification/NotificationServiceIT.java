@@ -328,4 +328,34 @@ class NotificationServiceIT {
                 .isInstanceOf(CoreException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.NOT_FOUND);
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 8. GM-2 — 알림 groupName 노출 (listRecent / getDetail)
+    // ────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GM-2: listRecent / getDetail 모두 알림이 속한 그룹명을 노출한다")
+    void notification_exposesGroupName() {
+        // given : 그룹("알림 테스트 그룹")에 핀 1개 등록 → userB 알림 1건
+        Pin pin = savePin(userAId, "https://www.instagram.com/p/GN1/");
+        notificationService.createForManualPin(groupId, userAId, pin.getId());
+
+        // when : listRecent
+        NotificationService.NotificationListResult list =
+                notificationService.listRecent(userBId, 50);
+
+        // then : item 에 groupName 노출
+        assertThat(list.items()).hasSize(1);
+        assertThat(list.items().get(0).groupName()).isEqualTo("알림 테스트 그룹");
+
+        // when : getDetail
+        Notification target = notificationJpa
+                .findByReceiverIdOrderByCreatedAtDesc(userBId, org.springframework.data.domain.PageRequest.of(0, 50))
+                .get(0);
+        NotificationService.NotificationDetailResult detail =
+                notificationService.getDetail(target.getId(), userBId);
+
+        // then : detail 에도 groupName 노출
+        assertThat(detail.groupName()).isEqualTo("알림 테스트 그룹");
+    }
 }

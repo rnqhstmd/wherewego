@@ -1,20 +1,17 @@
 import Foundation
 
-// 내정보 ViewModel(설계 §8, FR-23~27, BR-5, AC-10/AC-11).
+// 내정보 ViewModel(설계 §8 / IA 재설계 D단계 내정보 축소, FR-23~27, BR-5, AC-11).
 // frontend/src/app/settings/SettingsClient.tsx 이식 — 단 "챗봇 연동" 섹션은 제외(FR-27, AC-11).
-// 닉네임·탈퇴·로그아웃·계정삭제를 주입 의존(authAPI/groupAPI/sessionStore/currentUser)에 위임한다.
+// IA 재설계: 그룹(활성그룹·탈퇴)은 지도 탭 ⋯ 그룹관리(GroupManageView)로 이전 → 내정보는 사용자(닉네임)+계정만.
+//  따라서 activeGroup·shouldShowGroupSection·leaveGroup·groupAPI 의존을 제거한다.
+// 닉네임·로그아웃·계정삭제를 주입 의존(authAPI/sessionStore/currentUser)에 위임한다.
 @MainActor
 final class MyInfoViewModel: ObservableObject {
     @Published var nickname: String?
-    @Published var activeGroup: ActiveGroup?
     @Published var isBusy = false
     @Published var errorMessage: String?
 
-    /// 활성 그룹 보유 시에만 그룹 섹션 노출(AC-10).
-    var shouldShowGroupSection: Bool { activeGroup != nil }
-
     private let authAPI: AuthAPI
-    private let groupAPI: GroupAPIProtocol
     private let sessionStore: SessionStore
     private let currentUser: CurrentUser
     /// 앱 표준 로그아웃 경로(설계 §11) — 디바이스 토큰 해제·CurrentUser.clear·SessionStore.logout 일괄.
@@ -23,13 +20,11 @@ final class MyInfoViewModel: ObservableObject {
 
     init(
         authAPI: AuthAPI,
-        groupAPI: GroupAPIProtocol,
         sessionStore: SessionStore,
         currentUser: CurrentUser,
         logoutHandler: (@Sendable () async -> Void)? = nil
     ) {
         self.authAPI = authAPI
-        self.groupAPI = groupAPI
         self.sessionStore = sessionStore
         self.currentUser = currentUser
         self.logoutHandler = logoutHandler
@@ -49,18 +44,13 @@ final class MyInfoViewModel: ObservableObject {
         }
     }
 
-    /// 진입 시 닉네임(GET /users/me) + 활성 그룹(GET /groups/me) 로드.
-    /// me 실패는 조용히 무시(CurrentUser 캐시 유지), 그룹 실패는 에러 노출.
+    /// 진입 시 닉네임(GET /users/me) 로드. me 실패는 조용히 무시(CurrentUser 캐시 폴백).
+    /// IA 재설계: 활성 그룹 로드는 제거됨(그룹은 지도 탭 ⋯ 그룹관리로 이전).
     func load() async {
         if let user = try? await authAPI.me() {
             nickname = user.nickname
         } else {
             nickname = currentUser.nickname
-        }
-        do {
-            activeGroup = try await groupAPI.myActiveGroup()
-        } catch {
-            errorMessage = "그룹 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
         }
     }
 
@@ -68,22 +58,6 @@ final class MyInfoViewModel: ObservableObject {
     func refreshNickname() async {
         if let user = try? await authAPI.me() {
             nickname = user.nickname
-        }
-    }
-
-    /// 그룹 탈퇴(BR-5). 확인 다이얼로그는 View 책임 — VM 은 호출만 한다.
-    /// 성공 시 activeGroup=nil → 그룹 섹션 미렌더(AC-10).
-    func leaveGroup() async {
-        guard let group = activeGroup, !isBusy else { return }
-        isBusy = true
-        errorMessage = nil
-        // 성공/실패 양 경로 모두 isBusy 해제(@MainActor 보장). defer 로 고착 방지.
-        defer { isBusy = false }
-        do {
-            try await groupAPI.leaveGroup(groupId: group.groupId)
-            activeGroup = nil
-        } catch {
-            errorMessage = "그룹 탈퇴에 실패했어요. 잠시 후 다시 시도해 주세요."
         }
     }
 
