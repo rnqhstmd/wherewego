@@ -93,9 +93,8 @@ enum PinShareCardRenderer {
         format.scale = 1
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { ctx in
-            let cg = ctx.cgContext
-            // 배경 지도(흑백)를 카드 전체로 스케일.
+        return renderer.image { _ in
+            // 배경 지도(흑백)를 카드 전체로 스케일(UIGraphicsImageRenderer 가 current context 설정).
             grayMap.draw(in: CGRect(origin: .zero, size: size))
 
             let centerLat = input.pin.latitude
