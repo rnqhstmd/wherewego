@@ -157,6 +157,31 @@ class GroupV1ControllerIntegrationTest {
                 JsonNode.class);
     }
 
+    private ResponseEntity<JsonNode> listMembers(String accessToken, Long groupId) {
+        return restTemplate.exchange(
+                "/api/v1/groups/" + groupId + "/members",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(accessToken)),
+                JsonNode.class);
+    }
+
+    private ResponseEntity<JsonNode> renameGroup(String accessToken, Long groupId, String name) {
+        String body = "{\"name\":\"" + (name == null ? "" : name.replace("\"", "\\\"")) + "\"}";
+        return restTemplate.exchange(
+                "/api/v1/groups/" + groupId,
+                HttpMethod.PATCH,
+                new HttpEntity<>(body, authHeaders(accessToken)),
+                JsonNode.class);
+    }
+
+    private ResponseEntity<JsonNode> deleteGroup(String accessToken, Long groupId) {
+        return restTemplate.exchange(
+                "/api/v1/groups/" + groupId,
+                HttpMethod.DELETE,
+                new HttpEntity<>(authHeaders(accessToken)),
+                JsonNode.class);
+    }
+
     @DisplayName("POST /api/v1/groups - 인증된 사용자의 그룹 생성 요청에 201 과 groupId/name 을 반환한다.")
     @Test
     void createGroup_authenticated_returns201WithGroupId() {
@@ -476,6 +501,144 @@ class GroupV1ControllerIntegrationTest {
 
         // assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @DisplayName("GM-2: GET /api/v1/groups/{groupId}/members - 활성 멤버가 조회하면 200 과 가입 순 목록을 반환하고 첫 항목만 isOwner=true 다.")
+    @Test
+    void listMembers_member_returnsListWithOwnerMarked() {
+        // arrange : userA(방장) 그룹 + userB 수락
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+        acceptInviteLink(tokenB, inviteToken);
+
+        // act
+        ResponseEntity<JsonNode> response = listMembers(tokenA, groupId);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.isArray()).isTrue();
+        assertThat(data).hasSize(2);
+        // 가입 순(joined_at ASC): 방장 userA 가 첫 항목.
+        assertThat(data.get(0).get("userId").asLong()).isEqualTo(userAId);
+        assertThat(data.get(0).get("nickname").asText()).isEqualTo("userA");
+        assertThat(data.get(0).get("isOwner").asBoolean()).isTrue();
+        assertThat(data.get(1).get("userId").asLong()).isEqualTo(userBId);
+        assertThat(data.get(1).get("isOwner").asBoolean()).isFalse();
+    }
+
+    @DisplayName("GM-2: GET /api/v1/groups/{groupId}/members - 비멤버가 조회하면 403 GROUP_NOT_MEMBER 를 반환한다.")
+    @Test
+    void listMembers_notMember_returns403() {
+        // arrange : userA 그룹, userB 비멤버
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = listMembers(tokenB, groupId);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("GROUP_NOT_MEMBER");
+    }
+
+    @DisplayName("GM-2: PATCH /api/v1/groups/{groupId} - 활성 멤버가 이름을 수정하면 200 과 DB 의 그룹명이 갱신된다.")
+    @Test
+    void renameGroup_member_returns200AndUpdatesName() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = renameGroup(tokenA, groupId, "맛집투어팀");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().get("meta").get("result").asText()).isEqualTo("SUCCESS");
+        // DB : 그룹명 갱신 확인
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getName()).isEqualTo("맛집투어팀");
+    }
+
+    @DisplayName("GM-2: PATCH /api/v1/groups/{groupId} - 빈 이름이면 400 GROUP_NAME_INVALID 를 반환한다.")
+    @Test
+    void renameGroup_blankName_returns400() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = renameGroup(tokenA, groupId, "   ");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("GROUP_NAME_INVALID");
+    }
+
+    @DisplayName("GM-2: PATCH /api/v1/groups/{groupId} - 비멤버가 수정하면 403 GROUP_NOT_MEMBER 를 반환한다.")
+    @Test
+    void renameGroup_notMember_returns403() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = renameGroup(tokenB, groupId, "새이름");
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("GROUP_NOT_MEMBER");
+    }
+
+    @DisplayName("GM-2: DELETE /api/v1/groups/{groupId} - 방장이 삭제하면 200 과 전원 탈퇴 + 그룹 soft delete 가 적용된다.")
+    @Test
+    void deleteGroup_owner_returns200AndSoftDeletes() {
+        // arrange : userA(방장) 그룹 + userB 수락
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+        acceptInviteLink(tokenB, inviteToken);
+
+        // act : 방장 userA 가 삭제
+        ResponseEntity<JsonNode> response = deleteGroup(tokenA, groupId);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().get("meta").get("result").asText()).isEqualTo("SUCCESS");
+        // DB : 활성 멤버 0명 + 그룹 soft delete
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(0L);
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getDeletedAt()).isNotNull();
+    }
+
+    @DisplayName("GM-2: DELETE /api/v1/groups/{groupId} - 방장이 아닌 멤버가 삭제하면 403 GROUP_OWNER_REQUIRED 를 반환하고 그룹은 유지된다.")
+    @Test
+    void deleteGroup_notOwner_returns403() {
+        // arrange : userA(방장) 그룹 + userB 수락(비방장)
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+        acceptInviteLink(tokenB, inviteToken);
+
+        // act : 비방장 userB 가 삭제 시도
+        ResponseEntity<JsonNode> response = deleteGroup(tokenB, groupId);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("GROUP_OWNER_REQUIRED");
+        // 그룹은 그대로 활성
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(2L);
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getDeletedAt()).isNull();
+    }
+
+    @DisplayName("GM-2: DELETE /api/v1/groups/{groupId} - 방장 탈퇴 후 자동 승계된 방장(다음 최선임)이 삭제할 수 있다.")
+    @Test
+    void deleteGroup_ownerSuccession_nextSeniorCanDelete() {
+        // arrange : userA(방장) 그룹 + userB 수락 → userA 탈퇴 → userB 가 방장 승계
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+        acceptInviteLink(tokenB, inviteToken);
+        leaveGroup(tokenA, groupId);
+
+        // act : 승계된 방장 userB 가 삭제
+        ResponseEntity<JsonNode> response = deleteGroup(tokenB, groupId);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(0L);
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getDeletedAt()).isNotNull();
     }
 
     @DisplayName("GM-1(AC-8): GET /api/v1/groups/me - 활성 그룹이 2개여도 최신(id DESC) 1개만 반환한다 (BR-4 웹 호환 가드).")

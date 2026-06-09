@@ -183,6 +183,6 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
 
     func detail(id: Int) async throws -> NotificationDetail {
         lock.withLock { _detailCount += 1 }
-        return NotificationDetail(id: id, type: .MANUAL_PIN, registeredByNickname: nil, createdAt: "", pins: [])
+        return NotificationDetail(id: id, type: .MANUAL_PIN, registeredByNickname: nil, createdAt: "", pins: [], groupName: nil)
     }
 }

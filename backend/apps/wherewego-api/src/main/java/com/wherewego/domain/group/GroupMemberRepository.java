@@ -19,6 +19,12 @@ public interface GroupMemberRepository {
     List<GroupSummary> listActiveGroupSummariesByUserId(Long userId);
 
     /**
+     * 그룹의 활성 멤버 목록 (GM-2 그룹관리). User 닉네임 join.
+     * 정렬: joined_at 오름차순(가입 순), 동률 시 id 오름차순 → 첫 항목 = 방장(owner).
+     */
+    List<GroupMemberInfo> listActiveMembersByGroupId(Long groupId);
+
+    /**
      * 활성 그룹 ID 목록. group_id 오름차순(다중 비관락 데드락 방지 결정론적 순서).
      * UserDeletion 전체 순회 탈퇴에서 사용 (GM-1, FR-7).
      */

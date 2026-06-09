@@ -1,46 +1,45 @@
-# Cross-Review 결과 — DM (그룹별 봇방 목록)
+# Cross-Review 결과 — D (그룹관리 / 알림 그룹명 / 내정보 축소)
 
-- advisor: claude (오케스트레이터 직접 — oh-my-gx qa-manager/security-auditor 산출물 미반환 환경) + PR #108 봇 리뷰 통합
-- 브랜치: feat/ios-ia-redesign (base: origin/develop)
+- advisor: claude (오케스트레이터 직접 — oh-my-gx qa-manager/security-auditor 산출물 미반환 환경)
+- 브랜치: feat/ios-group-manage (base: feat/ios-ia-redesign, stacked)
 - DEV_DIR: .dev/feat-ios-ia-redesign
-- 대상: DM 그룹별 봇방 목록 (커밋 216b876, PR #108)
+- 대상: D (커밋 4a83cb5, PR #109)
 
 ## AC 충족 매트릭스
 
 | AC | 충족 | 근거 |
 |----|------|------|
-| AC-1 목록·가상항목·빈상태 | O(설계상) / ⚠️빌드차단 | DMListView 분기 + botRooms []정규화 — 단, 빌드 실패로 런타임 검증 불가(수정 전) |
-| AC-2 unread 굵게+강조점 | O | DMRoomRow semibold+pinNew+배경 |
-| AC-3 그룹별 송수신 | O | groupId 엔드포인트, 구 호출 0(grep) |
-| AC-4 방 복귀 읽음 갱신 | O | onChange(openedRoom==nil)→refresh |
-| AC-5 릴스 저장=방 그룹 | O | savePlaceCards self.groupId, createGroupIds==[7,7] |
-| AC-6 로딩/에러/빈+재시도 | O | LoadState 분기 + 테스트 |
-| AC-7 기존 봇채팅 회귀없음 | O | BotChatViewModel 로직 불변 |
-| AC-8 테스트 갱신/신규 통과 | ⚠️→O | 빌드 차단으로 테스트 미실행(수정 전) → Hashable 수정 후 해소 |
-| AC-9 DM 탭 배지 | O | hasUnread→hasChatUnread |
+| AC-1 알림 그룹명 | O | `NotificationRow`에 `item.groupName` 칩(cta 캡슐, nil 생략) + 상세 헤더 `detail.groupName`. 백엔드 `NotificationV1Dto`/`NotificationService` groupName(GroupRepository 주입) |
+| AC-2 내정보 축소 | O | `MyInfoView` 그룹섹션 제거, `MyInfoViewModel` activeGroup/leaveGroup/groupAPI 제거, `MainTabView` 호출 정합(grep) |
+| AC-3 ⋯→GroupManageView | O | `MapView` groupManageSheet→`GroupManageHost`(@StateObject 소유) |
+| AC-4 방장 뱃지 | O | `GroupManageView.memberRow` isOwner "방장" 캡슐, 백엔드 `listMembers` 첫 항목(i==0) 마킹 |
+| AC-5 이름수정(모든멤버)+상단반영 | O | `renameGroup` requireActiveMembership+30자 PATCH, `onRenamed→groupContext.refresh()`→`currentGroupName`(groups[currentGroupId].name) 갱신 — **설계 R5 해소 확인** |
+| AC-6 삭제(방장만)+403 | O | `deleteGroup` 방장!=요청자→`GROUP_OWNER_REQUIRED`, iOS `isOwner`만 버튼 노출 + 백엔드 이중검증 |
+| AC-7 방장 자동승계 | O | joined_at 최소 조회시점 계산(컬럼 없음), `GroupMemberServiceTest` 통과 |
+| AC-8 일반멤버 탈퇴만 | O | `dangerSection` 탈퇴 항상 노출, 삭제는 isOwner 분기 |
 
-[Must] 전체 7건(FR-1~6,10) 설계상 충족. **빌드 차단(아래 Critical)으로 런타임/테스트 검증이 막혀 있었음 → 수정 완료.**
+[Must] **8/8 충족**. iOS CI(GitHub Actions) green(3m17s) + 백엔드 단위/통합(PostgreSQL) 통과로 런타임 검증됨.
 
 ## 설계 범위 이탈
 
-이탈 없음. 변경 파일이 설계서 §11 변경 범위(신규 3·수정 6·테스트 2)와 정확히 일치.
+- `ios/.../Core/Auth/AuthServiceProtocols.swift`: `GroupAPIProtocol` 정의 위치. 설계 §3.3 "GroupAPIProtocol + GroupAPI 양쪽"으로 암시됨 → **실질 이탈 아님**.
+- **iOS 테스트 11개 동반 수정**(+3씩: AddPlaceViewModelTests/GroupContextTests/InlineAddPlaceModeTests/MainTabTests/MapCacheAndPollingTests/MapViewModelTests/NotificationInboxViewModelTests/PinDetailViewModelTests/RouletteViewModelTests/RouteGuardTests/VisitOrchestrationTests): `GroupAPIProtocol` mock(stub)이 여러 테스트에 분산되어, 신규 3메서드 추가로 컴파일 정합 위해 동반 수정됨. 설계 §3.7은 `GroupManageViewModelTests` 신규 + `MyInfoViewModelTests` 수정만 명시 → **설계 미명시 범위 확대**.
+  - 정당성: 프로토콜 확장의 불가피한 파급(위험 아님, self-check "전 stub 구현"으로 일부 인지).
+  - 교훈: 설계 시 "프로토콜 변경 = N개 stub 동반 수정"을 변경 범위에 포함할 것.
 
-## 신규 위험 (trust-ledger 미보고분)
-
-### Critical
-- [RISK] DMListView.swift:29 — `navigationDestination(item:)`가 `BotRoomSummary`에 **Hashable**을 요구하나 모델이 Decodable/Identifiable/Equatable만 보유 → **iOS CI 빌드 실패(exit 65)**, 전 DM 기능 차단.
-  - 근거: CI 로그 `instance method 'navigationDestination(item:destination:)' requires that 'BotRoomSummary' conform to 'Hashable'`. (Windows 빌드 불가로 self-check/phase-review에서 미검출 — Identifiable로 충분하다고 오판.)
-  - 권고/조치: ✅ `BotRoomSummary`에 `Hashable` 추가(전 멤버 Hashable이라 합성). 수정 완료.
-
-### Warning
-- [RISK] DMListView.swift:29 — `navigationDestination(item:)` 목적지가 `nil` 경유 없이 다른 room으로 갱신될 때(딥링크/빠른 갱신) `BotChatRoomView`의 StateObject가 잔존해 잘못된 방 데이터를 표시할 수 있음. **(PR #108 Gemini Code Assist 봇 리뷰 #1, medium)**
-  - 권고/조치: ✅ 목적지에 `.id(room.groupId)` 부여 → groupId 변경 시 뷰 정체성 갱신·StateObject 재구성. 수정 완료.
+## 신규 위험 (trust-ledger/self-check 미보고분)
 
 ### Info
-- [ASSUMPTION] DMListViewModel static `DateFormatter`/`ISO8601DateFormatter` Swift 6 동시성 — **(Gemini 봇 리뷰 #2, medium)**. 검증 결과 **false-positive**: `DMListViewModel`이 `@MainActor` 클래스라 static 멤버가 MainActor 격리되어 안전하며, 동일 패턴의 `NotificationInboxViewModel`이 이미 CI 통과 중. 미조치(기존 선례와 정합 유지). 빌드 실패 원인은 이 항목이 아니라 위 Hashable.
-- [INFO] formatTime이 NotificationInboxViewModel.formatTime과 중복(trust-ledger 기보고). 후속 공용 유틸 통합 여지(범위 외).
+- [GAP] `NotificationInboxView.swift:267` `NotificationRow.message` — 알림 **목록 행** 문구가 작성자 닉네임(`item.registeredByNickname`) 대신 종류별 고정 문구("파트너가 새 장소를 등록했어요" 등)를 표시한다. PRD AC-1의 "누가"는 **상세**(`detail.registeredByNickname`)에서만 충족되고 목록 행엔 미표시. 1인 N그룹에서 "파트너" 표현은 커플 잔재.
+  - 위치: `ios/WhereWeGo/Features/Notification/NotificationInboxView.swift:267-276`
+  - 근거: D 범위는 `groupName` 추가(충족). 작성자 표시는 **기존 코드** — D가 만든 결손 아님.
+  - 권고: D 스코프 밖. 후속 알림 카피 개선 시 목록 행에도 `registeredByNickname` 반영 검토(선택).
 
 ## 총평
-- 강점: 설계 범위 정확 준수, AC 설계상 전부 충족, 인스타식 읽음/배지/릴스 귀속 구현 충실.
-- 합산: Critical 1(빌드 차단), Warning 1, Info 2. **Critical/Warning 2건 모두 즉시 수정 완료.**
-- 권고: 수정 push 후 CI green 확인 필수. cross-review가 Windows 빌드 불가로 놓친 Critical(Hashable)을 포착 — 본 단계의 가치 입증.
+- 강점: AC 8/8 충족, 방장 판정·자동승계 백엔드 IT 검증, 권한 이중검증(iOS `isOwner` + 백엔드 `GROUP_OWNER_REQUIRED`), iOS CI 첫 push green(DM의 Hashable 같은 컴파일 결손 0).
+- 합산: **Critical 0, Warning 0, Info 1**(D 범위 밖). 설계 범위 이탈 1건(테스트 stub 정합, 정당).
+- 권고: 클린 통과. Info 1(목록 행 작성자 표시)은 D 스코프 밖 → 후속 개선. #108 머지 후 PR #109 base develop 리타겟.
+
+## 처리 결과
+- 사용자 선택: **전부 건너뛰기**. Critical/Warning 0이라 수정 불요.
+- Info 1(NotificationRow 작성자 표시)은 D 스코프 밖(기존 코드 한계) → 후속 알림 카피 개선 시 반영하도록 기록 보존.

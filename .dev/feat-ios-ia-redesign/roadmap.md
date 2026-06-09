@@ -8,7 +8,8 @@
 - **C 맵/필터 정리 ✅ PR #107 → develop 머지 완료** (merge `deb546f`).
 - **DM 그룹별 봇방 목록 ✅ 커밋 `216b876`, PR #108 (base develop)** — 머지/Mac DoD-B는 리뷰어.
 - ⚠️ **묶음 머지 전략 폐기**: A가 #106으로 단독 머지되어 "한 브랜치에 누적 후 한 번 머지"는 무효. **이후 D/IC-2도 단계별 PR**(같은 브랜치에서 develop 기준 커밋 1~N개씩). 각 PR 머지 전 Mac DoD-B는 리뷰어.
-- **다음 단계: D(알림 상세/내정보 축소/그룹관리 ⋯) → IC-2(초대 코드).**
+- **D 그룹관리·알림 그룹명·내정보 축소 ✅ PR #109** (base `feat/ios-ia-redesign` stacked, 2026-06-09). 백엔드 그룹원조회/이름수정/삭제·방장(joined_at 최소 자동승계)·알림 groupName + iOS GroupManageView. Mac DoD-B·머지=리뷰어. **#108 머지 후 base develop 리타겟**.
+- **다음 단계: IC-2(초대 코드 가입/공유).**
 
 ## develop 기반 자산 (전부 머지됨)
 - 백엔드: `GET /groups`(GM-1, iOS `GroupAPI.listMyGroups` 소비 중) / `GET /chat/bot/rooms` + `POST·GET /chat/bot/{groupId}/messages`(GM-2 B #105, **iOS 미소비 — DM 단계서**) / 초대 IC-1(#101 V019 재사용 코드)
@@ -32,7 +33,7 @@
 - 파일: 신규 `DMListView`/`DMListViewModel`, `Features/Chat/ChatAPI.swift`(botRooms() + 그룹별 botMessages/sendBotMessage), `Features/Chat/ChatMessageModels.swift`(BotRoomSummary), `BotChatViewModel`(groupId), `MainTabView`(DM 탭 = 목록).
 - 주의: deprecated `/chat/bot/messages`는 이 단계서 제거. 백엔드는 이미 그룹별 API 제공(#105).
 
-### D — 알림 상세 / 내정보 축소 / 그룹관리 ⋯
+### D — 알림 상세 / 내정보 축소 / 그룹관리 ⋯ ✅ 완료 (커밋 4a83cb5, PR #109 — base feat/ios-ia-redesign stacked)
 - **알림 상세**: "어느 그룹에 / 누가 / 어떤 핀" 상세. ⚠️ **백엔드 알림 응답에 그룹명·작성자 닉네임 있는지 확인 필요** — 없으면 백엔드 소폭(NotificationService/DTO). `NotificationInboxView` 표시 보강.
 - **내정보 축소**: 그룹관리 항목 제거, 내 정보 수정만. `MyInfoView`.
 - **⋯ 그룹관리**(지도 상단 ⋯ → 신규 `GroupManageView`): 그룹 이름 수정·그룹원 목록/관리·그룹 삭제·탈퇴. ⚠️ **백엔드 그룹 관리 API(이름수정/삭제/그룹원 조회) 존재 확인 필요** — `GroupAPI.leaveGroup`은 있음.

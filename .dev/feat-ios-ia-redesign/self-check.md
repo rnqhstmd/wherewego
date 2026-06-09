@@ -1,35 +1,32 @@
-# 자기 점검 — DM 그룹별 봇방 목록 (implement)
+# 자기 점검 — D단계: 알림 상세 / 내정보 축소 / 그룹관리 (implement)
 
-> qa-manager 미반환 환경 → 오케스트레이터 직접 점검(코드 전수 Read + grep 정합).
+> qa-manager 미반환 환경 → 오케스트레이터 직접 점검(코드 전수 Read + grep 정합 + 컴파일 게이트).
 
 ## 스펙 충족 (PRD 수용 기준 대비)
 | AC | 충족 | 근거 |
 |----|------|------|
-| AC-1 목록(가상항목 포함·빈상태) | ✅ | DMListView content 분기(loaded/empty/error), botRooms 그룹0개→[] 정규화(ChatAPI) |
-| AC-2 unread 굵게+강조점 | ✅ | DMRoomRow fontWeight(.semibold)+pinNew 점+cta.opacity 배경 |
-| AC-3 그룹별 엔드포인트 송수신 | ✅ | ChatAPI botMessages/sendBotMessage groupId 인자화, 구 비그룹 호출 0(grep 확인) |
-| AC-4 방 복귀 시 읽음 갱신 | ✅ | DMListView onChange(openedRoom==nil)→refresh, DMListViewModelTests ⑤ |
-| AC-5 릴스 저장=그 방 그룹 | ✅ | savePlaceCards self.groupId 사용, PlaceCardSaveTests createGroupIds==[7,7] |
-| AC-6 로딩/에러/빈+재시도 | ✅ | LoadState 분기 + errorView 다시시도, DMListViewModelTests ②③ |
-| AC-7 기존 봇 채팅 회귀 없음 | ✅ | BotChatViewModel 로직 불변(시그니처만 groupId), 기존 테스트 로직 유지 |
-| AC-8 테스트 갱신/신규 통과 | ✅ | StubChatAPI/makeViewModel 갱신, DMListViewModelTests 6케이스 신규 |
-| AC-9 DM 탭 배지 | ✅ | hasUnread→FloatingTabBar hasChatUnread, .task/scenePhase refresh |
+| AC-1 알림 그룹명 | ✅ | NotificationV1Dto/NotificationService groupName(GroupRepository 주입 batch), iOS NotificationAPI groupName?+InboxView 표시 |
+| AC-2 내정보 축소 | ✅ | MyInfoView 그룹섹션 제거, MyInfoViewModel activeGroup/leaveGroup/groupAPI 제거, MainTabView 호출 정합 |
+| AC-3 ⋯→GroupManageView | ✅ | MapView groupManageSheet→GroupManageHost, showGroupManage |
+| AC-4 방장 뱃지 | ✅ | listMembers i==0 isOwner, GroupManageView memberRow "방장" 캡슐 |
+| AC-5 이름수정(모든멤버) | ✅ | renameGroup requireActiveMembership+30자, PATCH /{id}, onRenamed→groupContext.refresh |
+| AC-6 삭제(방장만)+403 | ✅ | deleteGroup 방장!=요청자→GROUP_OWNER_REQUIRED, iOS isOwner만 버튼 노출 |
+| AC-7 방장 자동승계 | ✅ | joined_at 최소 조회시점 계산(컬럼 없음), markLeft로 활성집합 축소 시 자동 |
+| AC-8 일반멤버 탈퇴만 | ✅ | dangerSection 탈퇴는 항상, 삭제는 isOwner 분기 |
 
-## 정합성 점검 (grep 전수)
-- 구 시그니처 호출(botMessages(cursor:/sendBotMessage(text:) 잔존: **0**
-- groupAPI/myActiveGroup in BotChatViewModel: **주석만**(코드 제거)
-- StubBotGroupAPI 참조: **주석만**(클래스 제거)
-- botViewModel(구 MainTabView 속성): **0**
-- BotChatViewModel( 생성처 4곳 전부 groupId 시그니처 / BotChatView( 1곳(BotChatRoomView) groupName 전달
-- BotRoomSummary: Decodable+Identifiable(id=groupId)+Equatable — LoadState 동등성/ForEach/JSON 디코딩 요건 충족
-- MessagesResponse: 백엔드 groupId 추가분 디코딩 안 함(불필요·무시) — 기존 3필드 init 보존(테스트 호환)
+## 정합성 점검 (grep/Read 전수)
+- 백엔드 `compileJava compileTestJava`: **BUILD SUCCESSFUL** (테스트 코드 포함 컴파일 green)
+- GroupAPIProtocol(AuthServiceProtocols): listMembers/updateGroupName/deleteGroup 선언 ✓ + GroupAPI 구현 ✓ (leaveGroup HTTP_200/NO_CONTENT 정규화 패턴 재사용)
+- MyInfoViewModel: groupAPI/activeGroup/leaveGroup 제거 → MainTabView `MyInfoViewModel(authAPI,sessionStore,currentUser,logoutHandler)` 정합 ✓
+- MapView: init에 currentUser/groupAPI 추가 → MainTabView `MapView(...,currentUser,groupAPI)` 정합 ✓. groupManageSheet→GroupManageHost(onRenamed:refresh / onExit:exitGroup) ✓
+- GroupContext.exitGroup(lastGroupId 정리+backToList+refresh) ✓
+- 컨트롤러 경로: GET/PATCH/DELETE /{id} + /{id}/members(조회) + /{id}/members/me(탈퇴) 충돌 없음 ✓
+- 방장 판정: listMembers/deleteGroup 모두 listActiveMembersByGroupId 첫 항목(joined_at ASC,id ASC) ✓
 
-## 빌드 등록
-- iOS는 **XcodeGen**(`ios/project.yml`, `sources: -path: WhereWeGo`) — 디렉토리 글로빙. 신규 3파일(DMListView/DMListViewModel/DMListViewModelTests)은 Mac `xcodegen` 재생성 시 자동 포함. **pbxproj 수동 등록 불필요**(.xcodeproj=생성물).
-
-## 잔여 리스크
-- **iOS = Windows 빌드 불가** → 컴파일/시뮬/단위테스트 실행 검증 불가. 타입·시그니처·enum·Swift 6 동시성(@MainActor/@unchecked Sendable/StateObject 래퍼)은 코드 리뷰 수준 직접 검토로 보장. **최종 빌드·테스트 실행 = Mac DoD-B(리뷰어)**.
-- formatTime 이 NotificationInboxViewModel.formatTime 과 중복(설계 명시 인지) — 후속 공용 유틸 통합 여지(범위 외).
+## 잔여 리스크 (Info)
+- [Info] deleteGroup 전원 markLeft 시 멤버별 findActiveByGroupIdAndUserId 재조회(N+1) — 멤버 수 작아 허용(설계 §6 R2).
+- [Info] iOS = Windows 빌드 불가 → 컴파일/시뮬/단위테스트 실행은 Mac DoD-B(리뷰어). 시그니처/디코딩/Swift 동시성은 직접 검토로 보장.
+- [Info] 신규 백엔드 테스트 3종 컴파일 green, 실행은 Mechanical Gate에서 타겟 검증.
 
 ## 판정
-Critical 0 · 스펙 충족. 구현 완료.
+Critical 0 · QUESTION 0 · 스펙 충족. 구현 완료.

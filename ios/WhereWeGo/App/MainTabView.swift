@@ -82,7 +82,6 @@ struct MainTabView: View {
         _myInfoViewModel = StateObject(
             wrappedValue: MyInfoViewModel(
                 authAPI: dependencies.authAPI,
-                groupAPI: dependencies.groupAPI,
                 sessionStore: dependencies.session,
                 currentUser: dependencies.currentUser,
                 logoutHandler: dependencies.logout
@@ -244,7 +243,9 @@ struct MainTabView: View {
             MapView(
                 viewModel: mapViewModel,
                 groupContext: groupContext,
-                rouletteViewModel: rouletteViewModel
+                rouletteViewModel: rouletteViewModel,
+                currentUser: dependencies.currentUser,
+                groupAPI: dependencies.groupAPI
             )
         }
     }

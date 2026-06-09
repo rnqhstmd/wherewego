@@ -195,6 +195,12 @@ private final class StubGroupAPI: GroupAPIProtocol, @unchecked Sendable {
     }
 
     func leaveGroup(groupId: Int) async throws {}
+
+    func listMembers(groupId: Int) async throws -> [GroupMemberItem] { [] }
+
+    func updateGroupName(groupId: Int, name: String) async throws {}
+
+    func deleteGroup(groupId: Int) async throws {}
 }
 
 @MainActor

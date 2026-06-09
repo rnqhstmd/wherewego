@@ -97,4 +97,12 @@ final class GroupContext: ObservableObject {
     func backToList() {
         currentGroupId = nil
     }
+
+    /// 그룹 삭제/탈퇴 후(D단계): 레벨0 복귀 + lastGroupId 정리 + 목록 재조회.
+    /// backToList 와 달리 lastGroupId 도 비운다 — 떠난 그룹으로 다시 직행하지 않도록(AC-3 역동작).
+    func exitGroup(_ id: Int) async {
+        if lastGroupId == id { lastGroupId = nil }
+        currentGroupId = nil
+        await refresh()
+    }
 }

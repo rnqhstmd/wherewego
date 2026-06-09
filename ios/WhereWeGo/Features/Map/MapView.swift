@@ -20,6 +20,10 @@ struct MapView: View {
     @ObservedObject private var groupContext: GroupContext
     /// 어디가지(룰렛) VM(IA 재설계 §5). 좌하단 어디가지 FAB → 룰렛 시트가 재사용(MainTabView 소유, 탭 전환에도 결과 유지).
     @ObservedObject private var rouletteViewModel: RouletteViewModel
+    /// 현재 로그인 사용자(D단계). ⋯ 그룹관리 시트의 방장 판정(GroupManageViewModel.isOwner)에 주입.
+    @ObservedObject private var currentUser: CurrentUser
+    /// 그룹 API(D단계). ⋯ 그룹관리 시트의 GroupManageViewModel(멤버 조회·이름수정·삭제·탈퇴)에 주입.
+    private let groupAPI: GroupAPIProtocol
     @Environment(\.scenePhase) private var scenePhase
 
     /// 인라인 확정 카드 하단 여백(QE-2/AC-14). FloatingTabBar(높이 64 + bottom 12 = 76) 위로 겹치지 않게 확보.
@@ -56,14 +60,20 @@ struct MapView: View {
     ///  - viewModel: 딥링크 .pin/.map flyTo·그룹 전환 switchTo 대상(MainTabView @StateObject).
     ///  - groupContext: 상단 그룹 오버레이(그룹명·전환·뒤로)에 사용(MainTabView @StateObject).
     ///  - rouletteViewModel: 좌하단 어디가지 FAB 룰렛 시트 재사용(MainTabView @StateObject, 탭 전환에도 결과 유지).
+    ///  - currentUser: ⋯ 그룹관리 시트의 방장 판정(GroupManageViewModel.isOwner)에 주입(AppDependencies @StateObject).
+    ///  - groupAPI: ⋯ 그룹관리 시트의 GroupManageViewModel(멤버 조회·이름수정·삭제·탈퇴)에 주입(AppDependencies).
     init(
         viewModel: MapViewModel,
         groupContext: GroupContext,
-        rouletteViewModel: RouletteViewModel
+        rouletteViewModel: RouletteViewModel,
+        currentUser: CurrentUser,
+        groupAPI: GroupAPIProtocol
     ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
         _groupContext = ObservedObject(wrappedValue: groupContext)
         _rouletteViewModel = ObservedObject(wrappedValue: rouletteViewModel)
+        _currentUser = ObservedObject(wrappedValue: currentUser)
+        self.groupAPI = groupAPI
     }
 
     var body: some View {
@@ -227,10 +237,11 @@ struct MapView: View {
                 groupSwitcherSheet
             }
         }
-        // ⋯ 그룹관리 시트(IA 재설계 §5, 진입점만 — 내용은 D단계).
+        // ⋯ 그룹관리 시트(D단계, IA 재설계 §3.5). 그룹원 조회·이름수정·탈퇴·삭제(방장만).
+        //  레벨1(currentGroupId != nil)에서만 ⋯ 가 노출되므로 옵셔널 바인딩으로 안전 생성한다.
         .sheet(isPresented: $showGroupManage) {
             NavigationStack {
-                groupManagePlaceholder
+                groupManageSheet
             }
         }
     }
@@ -496,16 +507,26 @@ struct MapView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// ⋯ 그룹관리 시트(진입점만 — 내용은 D단계, IA 재설계 비범위).
-    private var groupManagePlaceholder: some View {
-        ZStack {
-            WGColor.bg.ignoresSafeArea()
-            Text("그룹 관리 — 다음 단계에서 구현")
-                .font(WGFont.sans(15))
-                .foregroundStyle(WGColor.inkSoft)
+    /// ⋯ 그룹관리 시트(D단계, IA 재설계 §3.5). currentGroupId 기준으로 GroupManageHost 생성.
+    ///  - onRenamed: 이름 수정 성공 → groupContext.refresh()(상단 그룹명은 groups[currentGroupId].name 사용 — currentGroupName).
+    ///  - onExit: 삭제/탈퇴 성공 → 시트 닫기 + groupContext.exitGroup(레벨0 복귀 + lastGroupId 정리).
+    @ViewBuilder
+    private var groupManageSheet: some View {
+        if let groupId = groupContext.currentGroupId {
+            GroupManageHost(
+                groupAPI: groupAPI,
+                currentUser: currentUser,
+                groupId: groupId,
+                groupName: currentGroupName,
+                onRenamed: {
+                    Task { await groupContext.refresh() }
+                },
+                onExit: {
+                    showGroupManage = false
+                    Task { await groupContext.exitGroup(groupId) }
+                }
+            )
         }
-        .navigationTitle("그룹 관리")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - 플로팅 버튼(어디가지 좌하단 / 내 위치·＋ 추가 우하단, IA 재설계 §5 + P8 영역4 후속)

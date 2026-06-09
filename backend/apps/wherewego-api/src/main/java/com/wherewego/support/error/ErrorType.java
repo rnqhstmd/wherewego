@@ -47,6 +47,7 @@ public enum ErrorType {
     GROUP_CAPACITY_EXCEEDED(HttpStatus.CONFLICT, "GROUP_CAPACITY_EXCEEDED", "그룹 정원이 가득 찼습니다."),
     GROUP_ALREADY_MEMBER(HttpStatus.CONFLICT, "GROUP_ALREADY_MEMBER", "이미 이 그룹의 멤버입니다."),
     GROUP_REJOIN_FORBIDDEN(HttpStatus.CONFLICT, "GROUP_REJOIN_FORBIDDEN", "탈퇴한 그룹에는 다시 가입할 수 없습니다."),
+    GROUP_OWNER_REQUIRED(HttpStatus.FORBIDDEN, "GROUP_OWNER_REQUIRED", "방장만 삭제할 수 있어요."),
     INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "INVITE_LINK_NOT_FOUND", "존재하지 않는 초대 링크입니다."),
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "INVITE_LINK_EXPIRED", "초대 링크가 만료되었습니다."),
     INVITE_LINK_SELF_ACCEPT(HttpStatus.BAD_REQUEST, "INVITE_LINK_SELF_ACCEPT", "본인이 발급한 초대 링크는 수락할 수 없습니다."),

@@ -2,6 +2,7 @@ package com.wherewego.interfaces.api.group;
 
 import com.wherewego.domain.group.ActiveGroupInfo;
 import com.wherewego.domain.group.GroupCreatedResult;
+import com.wherewego.domain.group.GroupMemberService.GroupMemberResult;
 import com.wherewego.domain.group.GroupSummary;
 import com.wherewego.domain.group.InviteAcceptResult;
 import com.wherewego.domain.group.InviteLinkIssueResult;
@@ -102,6 +103,30 @@ public class GroupV1Dto {
             );
         }
     }
+
+    /**
+     * 그룹원 목록 항목 (GM-2 그룹관리). {@code isOwner} 는 방장(joined_at 최소) 여부.
+     */
+    public record MemberResponse(
+            Long userId,
+            String nickname,
+            Instant joinedAt,
+            boolean isOwner
+    ) {
+        public static MemberResponse from(GroupMemberResult result) {
+            return new MemberResponse(
+                    result.userId(),
+                    result.nickname(),
+                    result.joinedAt(),
+                    result.isOwner()
+            );
+        }
+    }
+
+    /**
+     * 그룹명 수정 요청 (GM-2). 이름 검증은 서비스 레이어에서 GROUP_NAME_INVALID 로 통일한다.
+     */
+    public record UpdateGroupNameRequest(String name) { }
 
     private GroupV1Dto() { }
 }
