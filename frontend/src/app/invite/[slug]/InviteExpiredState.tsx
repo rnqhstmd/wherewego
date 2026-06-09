@@ -1,16 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { BtnPrimary } from "@/components/ui/BtnPrimary";
+import { IOS_APP_URL } from "@/lib/config/appStore";
 import { colors, fonts } from "@/lib/design/tokens";
 
 /**
  * 만료/소진/존재하지 않는 슬러그에 대한 안내 상태.
  * 정보 노출 방지를 위해 백엔드도 404 INVITE_LINK_NOT_FOUND 로 통일하므로
  * 사용자에게는 동일하게 "만료" 메시지를 보여준다.
+ *
+ * 웹 가입은 종료(앱 전용)되어 "홈으로"(/map) 동선이 없다.
+ * 대신 앱 설치를 유도한다.
  */
 export function InviteExpiredState() {
-  const router = useRouter();
   return (
     <div
       style={{
@@ -52,17 +53,22 @@ export function InviteExpiredState() {
             lineHeight: 1.6,
           }}
         >
-          짝꿍에게 새 초대 링크를 받아주세요.
+          우리가 갈 지도 앱에서 새 초대를 받을 수 있어요.
         </div>
 
         <div style={{ flex: 1 }} />
 
-        <BtnPrimary
-          onClick={() => router.replace("/map")}
-          style={{ width: "100%", padding: "14px 0", fontSize: 15 }}
-        >
-          홈으로
-        </BtnPrimary>
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
+          <a href={IOS_APP_URL}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/app-store-badge.svg"
+              alt="App Store에서 다운로드"
+              width={160}
+              style={{ display: "block" }}
+            />
+          </a>
+        </div>
       </div>
     </div>
   );

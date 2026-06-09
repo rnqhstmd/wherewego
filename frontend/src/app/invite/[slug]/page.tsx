@@ -40,12 +40,12 @@ export async function generateMetadata(
   const preview = await loadPreview(slug);
   if (!preview) {
     return {
-      title: "초대 링크가 만료됐어요 · wherewego",
+      title: "초대 링크가 만료됐어요 · 우리가 갈 지도",
       description: "짝꿍에게 새 초대 링크를 받아주세요.",
     };
   }
   const title = `${preview.inviterNickname}님이 '${preview.groupName}'에 초대했어요`;
-  const description = "wherewego에서 함께 지도를 만들어요.";
+  const description = "우리가 갈 지도에서 함께 갈 곳을 모아요.";
   return {
     title,
     description,
