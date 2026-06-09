@@ -142,11 +142,14 @@ enum PinShareCardRenderer {
         UIColor.white.withAlphaComponent(bgAlpha).setFill()
         UIBezierPath(ovalIn: circleRect).fill()
 
-        let config = UIImage.SymbolConfiguration(pointSize: glyphSize, weight: .semibold)
-        guard let symbol = UIImage(systemName: PinShareGlyph.symbolName(tag), withConfiguration: config) else { return }
-        let tinted = symbol.withTintColor(UIColor(PinShareGlyph.color(tag)), renderingMode: .alwaysOriginal)
-        let rect = CGRect(x: cx - glyphSize / 2, y: cy - glyphSize / 2, width: glyphSize, height: glyphSize)
-        tinted.draw(in: rect)
+        // 태그 글리프(웹 markers.tsx SVG 경로 동치) — 흰 원 위에 채워 그린다.
+        let glyphRect = CGRect(x: cx - glyphSize / 2, y: cy - glyphSize / 2, width: glyphSize, height: glyphSize)
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        ctx.saveGState()
+        ctx.addPath(PinGlyphShape.cgPath(for: tag, in: glyphRect))
+        ctx.setFillColor(UIColor(PinShareGlyph.color(tag)).cgColor)
+        ctx.fillPath()
+        ctx.restoreGState()
     }
 
     /// Gaussian blur(radius≈2px, 웹 blur(2px) 근사). 가장자리 어두워짐 방지 위해 clamp 후 카드 영역으로 crop.

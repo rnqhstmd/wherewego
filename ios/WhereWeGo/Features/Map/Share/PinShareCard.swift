@@ -106,23 +106,13 @@ struct PinShareCardInput {
     }
 }
 
-/// 태그별 마커 색·글리프(웹 PIN_COLORS / markers.tsx 형상 근사).
+/// 태그별 마커 색(웹 PIN_COLORS = WGColor.pin* 동치). 형상은 PinGlyphShape(웹 SVG 경로 이식).
 enum PinShareGlyph {
-    /// 태그 색(웹 PIN_COLORS = WGColor.pin* 동치).
     static func color(_ tag: PinTag) -> Color {
         switch tag {
         case .REEL: return WGColor.pinReel
         case .WISH: return WGColor.pinWish
         case .MEMORY: return WGColor.pinMemory
-        }
-    }
-
-    /// 태그별 SF Symbol(웹 글리프 형상 근사: REEL=원 / WISH=별 / MEMORY=하트).
-    static func symbolName(_ tag: PinTag) -> String {
-        switch tag {
-        case .REEL: return "circle.fill"
-        case .WISH: return "star.fill"
-        case .MEMORY: return "heart.fill"
         }
     }
 }

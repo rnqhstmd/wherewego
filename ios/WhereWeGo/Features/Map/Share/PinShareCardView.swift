@@ -62,11 +62,10 @@ struct PinShareCardView: View {
 
             // 장소명 + 좌측 태그 글리프(웹 BR-3, 최대 2줄).
             HStack(alignment: .firstTextBaseline, spacing: PinShareCardSpec.glyphTextGap) {
-                Image(systemName: PinShareGlyph.symbolName(input.pin.tag))
-                    .resizable()
-                    .scaledToFit()
+                PinGlyph(tag: input.pin.tag)
+                    .fill(PinShareGlyph.color(input.pin.tag))
                     .frame(width: PinShareCardSpec.tagGlyphSize, height: PinShareCardSpec.tagGlyphSize)
-                    .foregroundStyle(PinShareGlyph.color(input.pin.tag))
+                    .shadow(color: PinShareGlyph.color(input.pin.tag).opacity(0.5), radius: 1.5, y: 1)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
                 Text(input.pin.placeName)
                     .font(WGFont.sans(PinShareCardSpec.fontPlace))
