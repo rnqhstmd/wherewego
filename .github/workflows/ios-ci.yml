@@ -33,8 +33,6 @@ jobs:
     timeout-minutes: 30
     env:
       SCHEME: WhereWeGo
-      # macos-15 러너 기본 시뮬레이터. 부재 시 destination 만 조정하면 됨.
-      DESTINATION: 'platform=iOS Simulator,name=iPhone 16'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,10 +64,17 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          # 러너 Xcode 버전에 따라 시뮬레이터 라인업이 바뀐다(예: Xcode 26.3엔 'iPhone 16' 부재 → device 매칭 실패).
+          # 기기명 하드코딩 대신 사용 가능한 첫 iPhone 시뮬레이터 UDID를 동적 선택한다(Xcode 버전 변동에 견고).
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E 'iPhone' | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}' | head -1)
+          if [ -z "$DEVICE_ID" ]; then
+            echo "사용 가능한 iPhone 시뮬레이터가 없습니다:"; xcrun simctl list devices available; exit 1
+          fi
+          echo "Using simulator id: $DEVICE_ID"
           xcodebuild test \
             -project WhereWeGo.xcodeproj \
             -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -resultBundlePath TestResults.xcresult \
             -skip-testing:WhereWeGoTests/KeychainTokenStoreTests \
             CODE_SIGNING_ALLOWED=NO \

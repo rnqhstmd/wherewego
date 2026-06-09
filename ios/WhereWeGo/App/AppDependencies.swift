@@ -46,7 +46,12 @@ final class AppDependencies {
         let logoutBox = LogoutHandlerBox()
 
         // 1) 토큰 저장소(refresh 자체 내포, §5). 생성 시점에 logoutBox 주입(순환 차단).
-        let tokens = KeychainTokenStore(baseURL: baseURL, logoutBox: logoutBox)
+        //    accessGroup: Share Extension 과 토큰 공유(App Group 겸용 keychain access group).
+        let tokens = KeychainTokenStore(
+            baseURL: baseURL,
+            logoutBox: logoutBox,
+            accessGroup: AppConfig.appGroupIdentifier
+        )
         // 2) APIClient 에 tokens 주입(APIClient 무변경).
         let client = APIClient(baseURL: baseURL, tokens: tokens)
         // 3) 세션 상태.
