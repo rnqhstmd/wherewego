@@ -53,7 +53,7 @@ export function InviteExpiredState() {
             lineHeight: 1.6,
           }}
         >
-          wherewego 앱에서 새 초대를 받을 수 있어요.
+          우리가 갈 지도 앱에서 새 초대를 받을 수 있어요.
         </div>
 
         <div style={{ flex: 1 }} />

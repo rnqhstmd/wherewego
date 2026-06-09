@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { BtnSub } from "@/components/ui/BtnSub";
 import { IOS_APP_URL } from "@/lib/config/appStore";
@@ -18,29 +18,11 @@ interface InvitePreviewClientProps {
  *
  * 웹 가입은 종료(앱 전용)되어 "합류하기" 동선이 없다. 대신:
  * - 초대 코드(slug)를 크게 표시 + "코드 복사" 버튼.
- * - "wherewego 앱을 설치하고 이 코드를 입력하세요" 안내.
+ * - "우리가 갈 지도 앱을 설치하고 이 코드를 입력하세요" 안내.
  * - App Store 배지(NEXT_PUBLIC_IOS_APP_URL). 미설정 시에도 배지 노출.
  */
 export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps) {
   const [copied, setCopied] = useState(false);
-  const [now, setNow] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const remainingText = useMemo(() => {
-    const diff = new Date(preview.expiresAt).getTime() - now;
-    if (Number.isNaN(diff) || diff <= 0) return "곧 만료돼요";
-    const totalMin = Math.floor(diff / 60000);
-    const days = Math.floor(totalMin / (60 * 24));
-    const hours = Math.floor((totalMin % (60 * 24)) / 60);
-    const minutes = totalMin % 60;
-    if (days > 0) return `${days}일 ${hours}시간 남음`;
-    if (hours > 0) return `${hours}시간 ${minutes}분 남음`;
-    return `${minutes}분 남음`;
-  }, [preview.expiresAt, now]);
 
   const onCopy = async () => {
     try {
@@ -96,7 +78,7 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
             lineHeight: 1.6,
           }}
         >
-          초대 코드로 wherewego에 합류하세요.
+          초대 코드로 우리가 갈 지도에 합류하세요.
         </div>
 
         <div
@@ -122,16 +104,6 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
             }}
           >
             {preview.groupName}
-          </div>
-          <div
-            style={{
-              marginTop: 4,
-              fontFamily: fonts.mono,
-              fontSize: 12,
-              color: colors.inkSoft,
-            }}
-          >
-            {remainingText}
           </div>
         </div>
 
@@ -184,7 +156,7 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
             lineHeight: 1.6,
           }}
         >
-          wherewego 앱을 설치하고 이 코드를 입력하세요.
+          우리가 갈 지도 앱을 설치하고 이 코드를 입력하세요.
         </div>
 
         <div style={{ flex: 1 }} />
