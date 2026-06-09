@@ -176,6 +176,47 @@ final class GroupManageViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    // MARK: - 초대 코드 발급/복사(IC-2)
+
+    func test_issueInvite_success_setsCodeAndShareUrl() async {
+        let api = StubGroupManageAPI(
+            members: [],
+            issueResult: InviteLink(token: "tkn", slug: "Abc123Xy", shareUrl: "https://wherewego.app/invite/Abc123Xy")
+        )
+        let vm = await makeViewModel(api: api, currentUserId: 1)
+
+        await vm.issueInvite()
+
+        XCTAssertEqual(vm.inviteCode, "Abc123Xy")
+        XCTAssertEqual(vm.inviteShareUrl, "https://wherewego.app/invite/Abc123Xy")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_issueInvite_failure_setsError_noCode() async {
+        let api = StubGroupManageAPI(members: [], issueError: APIError(code: "SERVER", status: 500, message: "boom"))
+        let vm = await makeViewModel(api: api, currentUserId: 1)
+
+        await vm.issueInvite()
+
+        XCTAssertNil(vm.inviteCode)
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func test_copyInviteCode_copiesSlug_setsCopied() async {
+        let api = StubGroupManageAPI(
+            members: [],
+            issueResult: InviteLink(token: "tkn", slug: "Abc123Xy", shareUrl: nil)
+        )
+        let vm = await makeViewModel(api: api, currentUserId: 1)
+        await vm.issueInvite()
+
+        var copied: String?
+        vm.copyInviteCode { copied = $0 }
+
+        XCTAssertEqual(copied, "Abc123Xy")
+        XCTAssertTrue(vm.inviteCopied)
+    }
+
     // MARK: - 헬퍼
 
     /// currentUserId 를 GET /users/me 응답으로 채운 CurrentUser + 주입 stub 으로 VM 생성.
@@ -221,6 +262,8 @@ private final class StubGroupManageAPI: GroupAPIProtocol, @unchecked Sendable {
     private let renameError: Error?
     private let deleteError: Error?
     private let leaveError: Error?
+    private let issueResult: InviteLink?
+    private let issueError: Error?
 
     private(set) var renamedTo: String?
     private(set) var deleteCalled = false
@@ -231,13 +274,17 @@ private final class StubGroupManageAPI: GroupAPIProtocol, @unchecked Sendable {
         listError: Error? = nil,
         renameError: Error? = nil,
         deleteError: Error? = nil,
-        leaveError: Error? = nil
+        leaveError: Error? = nil,
+        issueResult: InviteLink? = nil,
+        issueError: Error? = nil
     ) {
         self.members = members
         self.listError = listError
         self.renameError = renameError
         self.deleteError = deleteError
         self.leaveError = leaveError
+        self.issueResult = issueResult
+        self.issueError = issueError
     }
 
     func listMembers(groupId: Int) async throws -> [GroupMemberItem] {
@@ -264,5 +311,8 @@ private final class StubGroupManageAPI: GroupAPIProtocol, @unchecked Sendable {
     func myActiveGroup() async throws -> ActiveGroup? { nil }
     func listMyGroups() async throws -> [GroupSummary] { [] }
     func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
-    func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
+    func issueInviteLink(groupId: Int) async throws -> InviteLink {
+        if let issueError { throw issueError }
+        return issueResult ?? InviteLink(token: "stub", slug: nil, shareUrl: nil)
+    }
 }
