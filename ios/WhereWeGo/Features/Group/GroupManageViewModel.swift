@@ -115,4 +115,39 @@ final class GroupManageViewModel: ObservableObject {
             errorMessage = "그룹 탈퇴에 실패했어요. 잠시 후 다시 시도해 주세요."
         }
     }
+
+    // MARK: - 초대 코드 발급/공유(IC-2)
+
+    /// 발급된 초대 코드(slug). nil = 미발급("초대 코드 만들기" 노출).
+    @Published private(set) var inviteCode: String?
+    /// 공유용 링크(shareUrl). ShareLink 대상(절대 URL이면 url, 아니면 코드 텍스트 폴백).
+    @Published private(set) var inviteShareUrl: String?
+    /// 발급 진행 중(중복 호출 가드 + 버튼 라벨).
+    @Published private(set) var isIssuing = false
+    /// 코드 복사 완료 표시(버튼 라벨 토글).
+    @Published var inviteCopied = false
+
+    /// 초대 코드 발급(POST /groups/{id}/invite-links). slug·shareUrl 확보.
+    /// 재호출 시 백엔드가 이전 미수락 토큰을 만료(BR-3)하므로 load 자동 발급 금지 — 명시 호출만 한다.
+    func issueInvite() async {
+        guard !isIssuing else { return }
+        isIssuing = true
+        errorMessage = nil
+        defer { isIssuing = false }
+        do {
+            let link = try await groupAPI.issueInviteLink(groupId: groupId)
+            inviteCode = link.slug
+            inviteShareUrl = link.shareUrl
+            inviteCopied = false
+        } catch {
+            errorMessage = "초대 코드를 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+        }
+    }
+
+    /// 발급된 코드(slug)를 클립보드로 복사. pasteboardSetter 주입(테스트 가능, WelcomeWizardVM 패턴).
+    func copyInviteCode(_ pasteboardSetter: (String) -> Void) {
+        guard let code = inviteCode, !code.isEmpty else { return }
+        pasteboardSetter(code)
+        inviteCopied = true
+    }
 }

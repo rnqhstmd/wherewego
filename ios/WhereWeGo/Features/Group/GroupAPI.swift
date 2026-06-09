@@ -36,6 +36,15 @@ struct InviteAccept: Decodable {
     let groupId: Int
 }
 
+/// 초대 코드(slug) 미리보기 응답(IC-2, GET /groups/invite-links/by-slug/{slug}).
+/// 백엔드 InviteLinkPreviewResponse 와 1:1. 확보한 token 으로 합류(acceptInvite)를 진행한다.
+struct InviteLinkPreview: Decodable {
+    let token: String
+    let groupName: String
+    let inviterNickname: String?
+    let expiresAt: String?
+}
+
 /// 그룹원 1명(D단계, GET /groups/{id}/members). 백엔드 MemberResponse 와 1:1 정합.
 /// - userId: Long → Int. 방장 판정 키(CurrentUser.id 비교).
 /// - joinedAt: 가입 시각(ISO8601). 현재 표시엔 미사용이나 백엔드 필드 보존.
@@ -102,6 +111,15 @@ final class GroupAPI: GroupAPIProtocol {
             "/groups/invite-links/\(token)/accept",
             method: "POST",
             type: InviteAccept.self
+        )
+    }
+
+    /// GET /groups/invite-links/by-slug/{slug} (IC-2). slug → token·groupName 확보(공개 미리보기).
+    /// slug 는 base56(URL-safe)이라 별도 인코딩 불필요. 401 은 상위(refresh/logout)로 전파.
+    func previewBySlug(slug: String) async throws -> InviteLinkPreview {
+        try await client.request(
+            "/groups/invite-links/by-slug/\(slug)",
+            type: InviteLinkPreview.self
         )
     }
 

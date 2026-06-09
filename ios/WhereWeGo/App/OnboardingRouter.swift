@@ -68,7 +68,7 @@ struct OnboardingRouter: View {
                     case .inviteCode:
                         InviteCodeView(
                             groupAPI: dependencies.groupAPI,
-                            onJoined: { afterGroupResolved() },
+                            onJoined: { _ in afterGroupResolved() },   // 온보딩은 그룹 재조회로 진행(groupId 무시)
                             onCancel: { path.removeLast() }
                         )
                     case .groupCreate:

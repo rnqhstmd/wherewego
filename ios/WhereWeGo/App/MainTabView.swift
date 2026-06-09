@@ -200,7 +200,13 @@ struct MainTabView: View {
                 InviteCodeView(
                     groupAPI: dependencies.groupAPI,
                     prefill: slug.value,
-                    onJoined: { inviteSlug = nil },
+                    onJoined: { groupId in
+                        // 합류 성공: 가입 그룹으로 진입(지도 레벨1) + 목록 갱신 + 지도 탭으로 + 시트 닫기.
+                        groupContext.enterGroup(groupId)
+                        selection = .map
+                        Task { await groupContext.refresh() }
+                        inviteSlug = nil
+                    },
                     onCancel: { inviteSlug = nil }
                 )
             }
@@ -217,7 +223,12 @@ struct MainTabView: View {
                 case .invite:
                     InviteCodeView(
                         groupAPI: dependencies.groupAPI,
-                        onJoined: { groupEntrySheet = nil },
+                        onJoined: { groupId in
+                            // 합류 성공: 가입 그룹으로 진입(레벨0 목록 → 그 그룹 지도) + 목록 갱신 + 시트 닫기.
+                            groupContext.enterGroup(groupId)
+                            Task { await groupContext.refresh() }
+                            groupEntrySheet = nil
+                        },
                         onCancel: { groupEntrySheet = nil }
                     )
                 }

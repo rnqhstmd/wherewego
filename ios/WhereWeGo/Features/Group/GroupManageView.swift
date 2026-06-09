@@ -55,6 +55,7 @@ struct GroupManageView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     nameSection
                     membersSection
+                    inviteSection
                     dangerSection
 
                     if let message = viewModel.errorMessage {
@@ -183,6 +184,64 @@ struct GroupManageView: View {
             }
         }
         .padding(.vertical, 10)
+    }
+
+    // MARK: - 초대 코드(발급 + 복사 + 링크 공유, IC-2)
+
+    private var inviteSection: some View {
+        section(label: "초대") {
+            VStack(alignment: .leading, spacing: 0) {
+                if let code = viewModel.inviteCode {
+                    HStack {
+                        Text(code)
+                            .font(WGFont.mono(22))
+                            .foregroundStyle(WGColor.ink)
+                            .textSelection(.enabled)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 10)
+
+                    Rectangle().fill(WGColor.hairline).frame(height: 1).padding(.vertical, 2)
+                    rowButton(label: viewModel.inviteCopied ? "복사됨" : "코드 복사") {
+                        viewModel.copyInviteCode { UIPasteboard.general.string = $0 }
+                    }
+
+                    Rectangle().fill(WGColor.hairline).frame(height: 1).padding(.vertical, 2)
+                    inviteShareRow(code: code)
+                } else {
+                    rowButton(
+                        label: viewModel.isIssuing ? "만드는 중..." : "초대 코드 만들기",
+                        disabled: viewModel.isIssuing
+                    ) {
+                        Task { await viewModel.issueInvite() }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 링크 공유 행 — shareUrl 이 절대 URL이면 URL 공유, 아니면 코드 텍스트 공유로 폴백.
+    /// rowButton 톤(라벨 + 우측 아이콘)을 ShareLink 라벨로 재현한다.
+    @ViewBuilder
+    private func inviteShareRow(code: String) -> some View {
+        let shareLabel = HStack {
+            Text("링크 공유")
+                .font(WGFont.sans(14))
+                .foregroundStyle(WGColor.ink)
+            Spacer()
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(WGColor.inkFaint)
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 12)
+
+        if let urlString = viewModel.inviteShareUrl,
+           let url = URL(string: urlString), url.scheme != nil {
+            ShareLink(item: url) { shareLabel }
+        } else {
+            ShareLink(item: code) { shareLabel }
+        }
     }
 
     // MARK: - 3) 위험(탈퇴 — 모든 멤버 / 삭제 — 방장만)
