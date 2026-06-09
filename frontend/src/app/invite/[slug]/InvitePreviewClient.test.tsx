@@ -3,11 +3,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import type { InviteLinkPreviewResponse } from "@/lib/api/group-client";
 
-// appStore 모듈을 모킹 — 기본은 env 미설정(버튼 비활성) 상태.
-// env 설정 시나리오는 개별 테스트에서 doMock 으로 덮어쓴다.
+// appStore 모듈을 모킹 — IOS_APP_URL 만 export (isAppStoreReady 제거됨).
 vi.mock("@/lib/config/appStore", () => ({
-  IOS_APP_URL: "",
-  isAppStoreReady: false,
+  IOS_APP_URL: "https://apps.apple.com/app/wherewego/id000000000",
 }));
 
 // acceptInviteLink 가 import/호출되지 않음을 확인하기 위한 스파이.
@@ -71,10 +69,15 @@ describe("InvitePreviewClient", () => {
     );
   });
 
-  it("(AC-3) env 미설정 시 앱스토어 버튼이 disabled + '출시 예정'", () => {
+  it("(AC-3) App Store 배지 링크가 IOS_APP_URL 을 href 로 가진다", () => {
     render(<InvitePreviewClient slug="ABCD2345" preview={makePreview()} />);
-    const appBtn = screen.getByRole("button", { name: "출시 예정" });
-    expect(appBtn).toBeDisabled();
+    const badge = screen.getByAltText("App Store에서 다운로드");
+    expect(badge).toBeInTheDocument();
+    const link = badge.closest("a");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://apps.apple.com/app/wherewego/id000000000",
+    );
   });
 
   it("(AC-4) acceptInviteLink 가 호출되지 않는다 (웹 수락 제거)", () => {

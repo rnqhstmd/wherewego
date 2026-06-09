@@ -1,7 +1,6 @@
 "use client";
 
-import { BtnPrimary } from "@/components/ui/BtnPrimary";
-import { IOS_APP_URL, isAppStoreReady } from "@/lib/config/appStore";
+import { IOS_APP_URL } from "@/lib/config/appStore";
 import { colors, fonts } from "@/lib/design/tokens";
 
 /**
@@ -10,13 +9,9 @@ import { colors, fonts } from "@/lib/design/tokens";
  * 사용자에게는 동일하게 "만료" 메시지를 보여준다.
  *
  * 웹 가입은 종료(앱 전용)되어 "홈으로"(/map) 동선이 없다.
- * 대신 앱 설치를 유도한다(미설정 시 버튼 비활성 + "출시 예정").
+ * 대신 앱 설치를 유도한다.
  */
 export function InviteExpiredState() {
-  const onOpenAppStore = () => {
-    if (IOS_APP_URL) window.location.href = IOS_APP_URL;
-  };
-
   return (
     <div
       style={{
@@ -56,22 +51,24 @@ export function InviteExpiredState() {
             fontSize: 14,
             color: colors.inkSoft,
             lineHeight: 1.6,
-            whiteSpace: "pre-wrap",
           }}
         >
-          짝꿍에게 새 초대 링크를 받아주세요.
-          {"\n"}wherewego 앱에서 새 초대를 받을 수 있어요.
+          wherewego 앱에서 새 초대를 받을 수 있어요.
         </div>
 
         <div style={{ flex: 1 }} />
 
-        <BtnPrimary
-          onClick={onOpenAppStore}
-          disabled={!isAppStoreReady}
-          style={{ width: "100%", padding: "14px 0", fontSize: 15 }}
-        >
-          {isAppStoreReady ? "App Store에서 받기" : "출시 예정"}
-        </BtnPrimary>
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
+          <a href={IOS_APP_URL}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/app-store-badge.svg"
+              alt="App Store에서 다운로드"
+              width={160}
+              style={{ display: "block" }}
+            />
+          </a>
+        </div>
       </div>
     </div>
   );

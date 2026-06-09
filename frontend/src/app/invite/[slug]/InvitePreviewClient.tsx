@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
-import { IOS_APP_URL, isAppStoreReady } from "@/lib/config/appStore";
+import { IOS_APP_URL } from "@/lib/config/appStore";
 import { colors, fonts } from "@/lib/design/tokens";
 
 import type { InviteLinkPreviewResponse } from "@/lib/api/group-client";
@@ -20,7 +19,7 @@ interface InvitePreviewClientProps {
  * 웹 가입은 종료(앱 전용)되어 "합류하기" 동선이 없다. 대신:
  * - 초대 코드(slug)를 크게 표시 + "코드 복사" 버튼.
  * - "wherewego 앱을 설치하고 이 코드를 입력하세요" 안내.
- * - App Store 버튼(NEXT_PUBLIC_IOS_APP_URL). 미설정 시 비활성 + "출시 예정".
+ * - App Store 배지(NEXT_PUBLIC_IOS_APP_URL). 미설정 시에도 배지 노출.
  */
 export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps) {
   const [copied, setCopied] = useState(false);
@@ -52,10 +51,6 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
       // FR-8: navigator.clipboard 미지원(비-HTTPS/구형 브라우저) — 직접 복사 안내.
       window.prompt("아래 코드를 길게 눌러 복사하세요", slug);
     }
-  };
-
-  const onOpenAppStore = () => {
-    if (IOS_APP_URL) window.location.href = IOS_APP_URL;
   };
 
   return (
@@ -90,7 +85,7 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
             whiteSpace: "pre-wrap",
           }}
         >
-          {preview.inviterNickname}님이{"\n"}당신을 초대했어요
+          {"함께 갈 곳을\n모아두는 공간이에요"}
         </div>
 
         <div
@@ -101,7 +96,7 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
             lineHeight: 1.6,
           }}
         >
-          함께 갈 곳을 모아둘 수 있어요.
+          초대 코드로 wherewego에 합류하세요.
         </div>
 
         <div
@@ -117,15 +112,6 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
           }}
           aria-live="polite"
         >
-          <div
-            style={{
-              fontSize: 12,
-              color: colors.inkFaint,
-              letterSpacing: 0.4,
-            }}
-          >
-            그룹
-          </div>
           <div
             style={{
               fontFamily: fonts.emo,
@@ -203,13 +189,17 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
 
         <div style={{ flex: 1 }} />
 
-        <BtnPrimary
-          onClick={onOpenAppStore}
-          disabled={!isAppStoreReady}
-          style={{ width: "100%", padding: "14px 0", fontSize: 15 }}
-        >
-          {isAppStoreReady ? "App Store에서 받기" : "출시 예정"}
-        </BtnPrimary>
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
+          <a href={IOS_APP_URL}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/app-store-badge.svg"
+              alt="App Store에서 다운로드"
+              width={160}
+              style={{ display: "block" }}
+            />
+          </a>
+        </div>
       </div>
     </div>
   );
