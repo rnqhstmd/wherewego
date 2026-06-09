@@ -125,6 +125,10 @@ MapClient (useNotifications 단일 인스턴스)
 - visibilitychange(visible) / focus 시 동일 fetch 재실행 + 직전 max id 비교로 신규 감지 → toast 노출.
 - 패널 열림: `markAllRead()` 호출 후 빨간 점 제거. 패널 내부에서는 자동 갱신 없음 (SSE 미사용).
 
+## 그룹명 노출 (GM-2)
+
+알림 목록/상세 응답에 `groupName`을 추가했다(PR [#109](https://github.com/rnqhstmd/wherewego/pull/109)). `Notification.groupId`로 `GroupRepository.findById`를 조회(`loadPinsByIds` 선례, MVP 규모 N+1 허용)하여 `NotificationService.listRecent`/`getDetail`에서 채운다. `NotificationService` 생성자에 `GroupRepository`를 주입한다. soft-delete된 그룹도 그룹명을 노출한다("어느 그룹" 맥락 — 본인이 속했던 그룹). iOS 알림 행/상세에 "○○ 그룹"으로 표시하며 `groupName`이 null이면 생략한다.
+
 ## 안 하는 것 / 보류
 
 | 항목 | 사유 |

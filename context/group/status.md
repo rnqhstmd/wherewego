@@ -34,6 +34,20 @@
 | GM1-동시성 | 토큰 1회용 `markAcceptedIfPending` 조건부 원자적 UPDATE | ✅ |
 | GM1-챗봇 | 챗봇 5곳 단수전제 GM-2 이관 TODO (코드 무변경) | ✅ |
 
+## GM-2: 그룹관리 (PR [#109](https://github.com/rnqhstmd/wherewego/pull/109), base `feat/ios-ia-redesign` stacked)
+
+> 방장(owner) 개념 신규 도입. 별도 owner 컬럼 없이 활성멤버 `joined_at` 최소를 조회 시점 계산 → 자동 승계. iOS `GroupManageView`/VM은 Mac DoD-B(리뷰어) 잔여. #108(DM) 머지 후 base를 develop로 리타겟.
+
+| ID | 요구사항 | 상태 |
+|----|----------|------|
+| GM2-그룹원조회 | `GET /groups/{id}/members` 활성 멤버 목록(닉네임 + 방장 마킹), 활성 멤버만 접근 | ✅ |
+| GM2-이름수정 | `PATCH /groups/{id}` 그룹명 수정(모든 활성 멤버, trim 1~30자) | ✅ |
+| GM2-삭제 | `DELETE /groups/{id}` 방장만(전원 markLeft + group soft delete + 토큰 만료 + 봇 unlink), 비방장 `GROUP_OWNER_REQUIRED`(403) | ✅ |
+| GM2-방장판정 | 방장 = 활성 멤버 `joined_at` 최소(동률 id) 조회 시점 계산, 자동 승계(컬럼·승계 TX 없음) | ✅ |
+| GM2-알림그룹명 | 알림 목록/상세 응답에 `groupName` 추가(`NotificationService`에 `GroupRepository` 주입, soft-delete 그룹명도 노출) | ✅ |
+
+> 테스트: `GroupMemberServiceTest`(단위 — 방장 판정·자동 승계·삭제 권한) + `GroupV1ControllerIntegrationTest` + `NotificationServiceIT`(통합, PostgreSQL) 통과.
+
 ## 동시성 보호
 
 - 비관적 락(`SELECT ... FOR UPDATE`)으로 `groups` 행을 직렬화하여 락 → count → INSERT/UPDATE 순서 보장

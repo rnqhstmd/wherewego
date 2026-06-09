@@ -21,6 +21,8 @@
   - GroupMember 행은 `left_at` 타임스탬프로 soft delete
   - 해당 사용자가 등록한 핀은 **그룹에 잔류**. `pins.created_by`는 user_id 그대로 유지 (개인정보보다 추억의 맥락 보존 우선)
   - 탈퇴한 사용자는 그룹 핀을 더 이상 조회/수정할 수 없음 (활성 GroupMember 기준 권한 검사)
+- **방장(owner, GM-2)**: 활성 멤버 중 `joined_at` 최소(동률 `id`). 별도 owner 컬럼·승계 트랜잭션 없이 **조회 시점 계산** → 방장 탈퇴 시 다음 최선임 자동 승계
+- **그룹 관리 API(GM-2)**: 그룹원 목록 조회(`GET /groups/{id}/members`, 활성 멤버만), 그룹명 수정(`PATCH /groups/{id}`, 모든 멤버 1~30자), 그룹 삭제(`DELETE /groups/{id}`, 방장만 → `GROUP_OWNER_REQUIRED`). 그룹 삭제 = 전원 `markLeft` + group soft delete + 미수락 토큰 만료 + 봇 unlink (leaveGroup 패턴 확장). 모두 `findByIdForUpdate` 락으로 직렬화
 - 관련 도메인: [[pin]] (그룹 스코프), [[chatbot]] (연동 코드 입력 시 user_id → group_id 확정)
 
 ## 주제 문서
