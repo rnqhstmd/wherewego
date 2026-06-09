@@ -3,6 +3,10 @@ import Foundation
 // Info.plist 에 주입된 빌드 설정값(xcconfig → Info.plist)을 읽는 단일 진입점.
 // 키/계정 미보유 상태에서도 빌드·크래시가 없도록 폴백을 둔다(설계 §3, QE-3).
 enum AppConfig {
+    /// App Group(키체인 공유 겸용) 식별자. Share Extension 과 토큰을 공유하기 위한 keychain access group.
+    /// ⚠️ ShareExtension 측 ShareKeychain 의 동일 상수와 반드시 일치해야 한다(기기/릴스는 portal App Group 등록 필요).
+    static let appGroupIdentifier = "group.com.wherewego.app"
+
     /// Info "API_BASE_URL" → URL. 파싱 실패 시 http://localhost:8080 폴백.
     static var apiBaseURL: URL {
         resolveBaseURL(from: infoString("API_BASE_URL"))

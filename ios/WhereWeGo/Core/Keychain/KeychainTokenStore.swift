@@ -26,6 +26,8 @@ actor KeychainTokenStore: TokenStore {
     private let baseURL: URL
     private let session: URLSession
     private let service = "com.wherewego.tokens"
+    /// 공유 keychain access group(App Group). nil이면 미사용(앱 단독·테스트). 설정 시 Share Extension 과 토큰 공유.
+    private let accessGroup: String?
 
     private enum Account {
         static let access = "accessToken"
@@ -39,10 +41,16 @@ actor KeychainTokenStore: TokenStore {
     /// 생성 시점에 박스를 주입받아 .task 순서 경쟁을 차단한다.
     private let logoutBox: LogoutHandlerBox
 
-    init(baseURL: URL, session: URLSession = .shared, logoutBox: LogoutHandlerBox = LogoutHandlerBox()) {
+    init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        logoutBox: LogoutHandlerBox = LogoutHandlerBox(),
+        accessGroup: String? = nil
+    ) {
         self.baseURL = baseURL
         self.session = session
         self.logoutBox = logoutBox
+        self.accessGroup = accessGroup
     }
 
     // MARK: - TokenStore
@@ -135,11 +143,16 @@ actor KeychainTokenStore: TokenStore {
     // MARK: - Keychain (SecItem)
 
     private func baseQuery(account: String) -> [String: Any] {
-        [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
+        // 공유 access group이 설정되면 Share Extension 과 동일 키체인 항목을 가리킨다(미설정 시 앱 전용 기본 그룹).
+        if let accessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
+        return query
     }
 
     private func readItem(account: String) -> String? {
