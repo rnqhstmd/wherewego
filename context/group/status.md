@@ -78,7 +78,7 @@
 
 ### 초대 코드 시스템 (IC) — 링크→코드 전환, GM-2와 통합/직후
 - ✅ **IC-1 백엔드 완료** (PR [#101](https://github.com/rnqhstmd/wherewego/pull/101)): `accepted_at` 1회용→재사용 재설계. slug 재활용, 1코드 정원(10)까지 N명 가입. `accepted_at` 컬럼 제거(V019)+index 재정의, `markAccepted`/`isPending`/`markAcceptedIfPending` 제거. **[Option A] 정원 도달 시 코드 만료 안 함**(count 차단)→by-slug 정원초과 `GROUP_CAPACITY_EXCEEDED` 구분. 중복멤버 `GROUP_ALREADY_MEMBER`(409) 사전가드, `INVITE_LINK_ALREADY_USED` 제거. accept(POST) IP 레이트리밋 추가. `expirePendingByGroupId`는 재발급(BR-3)·탈퇴(BR-5)에만 유지. AC-1~10 그린. (후속: accept rate capacity 배포 전 확인, V019 게이트 쿼리 CI 자동화, 탈퇴→재가입 동시성 테스트 보강)
-- **IC-2 iOS**: 그룹 진입 후 코드 입력 가입 UI + 코드 발급/복사 (인스타 공유→앱→가입 그룹 목록→선택→봇 전송)
+- ✅ **IC-2 iOS 완료** (branch `feat/ios-invite-code`): 기존 코드 입력 합류가 입력값을 token 으로 직접 accept(slug≠token) 하여 **깨져 있던 것**을 slug 2단계(`previewBySlug`→그룹명 확인 다이얼로그→`acceptInvite(token)`)로 재배선. 에러코드 매핑(이미멤버/정원초과/만료·없음). in-app 합류 성공 시 `GroupContext.enterGroup`+`refresh`(목록 즉시 반영). GroupManageView에 "초대" 섹션 신규(코드 발급·복사·링크 공유 ShareLink). `GroupAPIProtocol.previewBySlug`는 익스텐션 기본구현으로 기존 12개 테스트 스텁 무수정. 단위테스트 신규(InviteCodeVM 11 + GroupManageVM 발급 3). iOS Windows 빌드 불가→GitHub Actions(macOS) 검증.
 - ✅ **IC-3 웹 랜딩 완료** (PR [#110](https://github.com/rnqhstmd/wherewego/pull/110), base develop): frontend `/invite/[slug]` CTA를 웹 직접 가입(`acceptInviteLink`) → **코드(slug) 표시 + 복사 + 앱스토어 유도**로 교체(앱 전용 전환, 웹 수락 제거). 앱스토어 URL=`NEXT_PUBLIC_IOS_APP_URL`(미설정 시 "출시 예정" 비활성). 만료화면도 앱스토어 유도. `page.tsx` 무변경(카톡 OG 유지). 백엔드·인프라 0. 딥링크(AASA)·iOS IC-2는 후속. tsc·vitest 182·next build green
 - 의존: ~~IC-1 백엔드 선행~~ ✅ → **IC-2 iOS + IC-3 웹 병행 가능**
 
