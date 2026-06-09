@@ -5,8 +5,10 @@
 ## 현재 상태 (2026-06-08 갱신)
 - 브랜치 **`feat/ios-ia-redesign`** (base develop)
 - **A 내비 골격 ✅ PR #106 → develop 머지 완료** (merge `11afd42`, 2026-06-08 05:41). Mac DoD-B는 머지 후 별도.
-- **C 맵/필터 정리 ✅ 커밋 `e2578ba`, PR #107 (base develop)** — 머지/Mac DoD-B는 리뷰어.
-- ⚠️ **묶음 머지 전략 폐기**: A가 #106으로 단독 머지되어 "한 브랜치에 누적 후 한 번 머지"는 무효. **이후 DM/D/IC-2도 단계별 PR**(같은 브랜치에서 develop 기준 커밋 1~N개씩). 각 PR 머지 전 Mac DoD-B는 리뷰어.
+- **C 맵/필터 정리 ✅ PR #107 → develop 머지 완료** (merge `deb546f`).
+- **DM 그룹별 봇방 목록 ✅ 커밋 `216b876`, PR #108 (base develop)** — 머지/Mac DoD-B는 리뷰어.
+- ⚠️ **묶음 머지 전략 폐기**: A가 #106으로 단독 머지되어 "한 브랜치에 누적 후 한 번 머지"는 무효. **이후 D/IC-2도 단계별 PR**(같은 브랜치에서 develop 기준 커밋 1~N개씩). 각 PR 머지 전 Mac DoD-B는 리뷰어.
+- **다음 단계: D(알림 상세/내정보 축소/그룹관리 ⋯) → IC-2(초대 코드).**
 
 ## develop 기반 자산 (전부 머지됨)
 - 백엔드: `GET /groups`(GM-1, iOS `GroupAPI.listMyGroups` 소비 중) / `GET /chat/bot/rooms` + `POST·GET /chat/bot/{groupId}/messages`(GM-2 B #105, **iOS 미소비 — DM 단계서**) / 초대 IC-1(#101 V019 재사용 코드)
@@ -20,8 +22,10 @@
   - ⚠️ **진짜 1회 로딩(Mapbox 상시 마운트, 목록→선택 재로딩 제거)은 후속 분리** — MapView 상시 마운트 + enterGroup→switchTo 통합 구조 변경 필요(리스크로 C에서 제외, B안 선택).
 - 파일: `MapView.swift`, `MapViewModel.swift`, `TagFilterBar.swift` + `MapViewModelTests.swift`(switchTo 5건).
 
-### DM — 그룹별 봇방 목록 (#105 소비, 핵심)
-- DM 탭을 단일 `BotChatView` → **그룹별 봇방 목록**(신규 `DMListView`).
+### DM — 그룹별 봇방 목록 ✅ 완료 (커밋 216b876, PR #108)
+- DM 탭을 단일 `BotChatView` → **그룹별 봇방 목록**(신규 `DMListView`/`DMListViewModel`). 인스타식 읽음(unread 굵게+강조점), 방별 VM 인스타식 재생성, DM 탭 미읽음 배지.
+- `ChatAPI` 그룹별 전환(`botRooms()` + `botMessages/sendBotMessage(groupId:)`, 구 비그룹 호출 제거). `BotChatViewModel` groupId 주입(groupAPI 제거→릴스 저장=그 방 그룹). 읽음 갱신=방복귀+포그라운드 refresh(백엔드 GET시 읽음처리). 백엔드 무변경(#105 머지분 소비). Mac DoD-B 잔여.
+- (구 계획 메모) DM 탭을 단일 `BotChatView` → **그룹별 봇방 목록**(신규 `DMListView`).
 - 목록: `GET /chat/bot/rooms` → `BotRoomSummary[]`(roomId·groupId·groupName·lastPreview·lastSenderType·unread·lastAt). **인스타식 읽음**(unread면 굵게).
 - 방 진입: 그룹별 봇 채팅. `ChatAPI`를 `POST·GET /chat/bot/{groupId}/messages`로 (현 deprecated `/chat/bot/messages` 대체·제거). `BotChatViewModel`에 groupId 주입.
 - **릴스 저장 그룹 = 그 방 groupId** (savePlaceCards가 그 groupId로 — #104 위저드와 통합).

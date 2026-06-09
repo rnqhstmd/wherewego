@@ -1,26 +1,35 @@
-# 자기점검 — C (맵/필터 정리)
+# 자기 점검 — DM 그룹별 봇방 목록 (implement)
 
-> qa-manager(읽기 전용) 산출물 미반환 → 오케스트레이터 직접 검토. iOS=Windows 빌드 불가라 시그니처/로직/AC 정합 직접 검증, 빌드·시뮬·시각은 Mac DoD-B.
-> (직전 골격 A 자기점검은 PR #106·roadmap.md 참조 — 이 파일은 C로 갱신됨.)
+> qa-manager 미반환 환경 → 오케스트레이터 직접 점검(코드 전수 Read + grep 정합).
 
-## Critical (자동 수정 대상): 0건
-없음. AC-C1~C5 대비 정합 확인.
+## 스펙 충족 (PRD 수용 기준 대비)
+| AC | 충족 | 근거 |
+|----|------|------|
+| AC-1 목록(가상항목 포함·빈상태) | ✅ | DMListView content 분기(loaded/empty/error), botRooms 그룹0개→[] 정규화(ChatAPI) |
+| AC-2 unread 굵게+강조점 | ✅ | DMRoomRow fontWeight(.semibold)+pinNew 점+cta.opacity 배경 |
+| AC-3 그룹별 엔드포인트 송수신 | ✅ | ChatAPI botMessages/sendBotMessage groupId 인자화, 구 비그룹 호출 0(grep 확인) |
+| AC-4 방 복귀 시 읽음 갱신 | ✅ | DMListView onChange(openedRoom==nil)→refresh, DMListViewModelTests ⑤ |
+| AC-5 릴스 저장=그 방 그룹 | ✅ | savePlaceCards self.groupId 사용, PlaceCardSaveTests createGroupIds==[7,7] |
+| AC-6 로딩/에러/빈+재시도 | ✅ | LoadState 분기 + errorView 다시시도, DMListViewModelTests ②③ |
+| AC-7 기존 봇 채팅 회귀 없음 | ✅ | BotChatViewModel 로직 불변(시그니처만 groupId), 기존 테스트 로직 유지 |
+| AC-8 테스트 갱신/신규 통과 | ✅ | StubChatAPI/makeViewModel 갱신, DMListViewModelTests 6케이스 신규 |
+| AC-9 DM 탭 배지 | ✅ | hasUnread→FloatingTabBar hasChatUnread, .task/scenePhase refresh |
 
-## AC 대비 검토 결과
-- AC-C1 ✓ 상단 mapFilterRow(우측 [!]범례·[▽]필터), 좌하단 클러스터=rouletteFAB 단독.
-- AC-C2 ✓ 팝업 .topTrailing + offset(y:44+8)(아래·좌측 펼침). 상단 VStack(spacing:10): 그룹 행 / 필터 행 분리(겹침 없음). 릴스 배너 겹침은 기존 DoD-B 이슈(아래 W2).
-- AC-C3 ✓ legend/filterPopupBinding(activeCornerPopup) 상호배타·바깥탭 닫힘 catcher 무변경. catcher(loadedOverlay)는 상단 버튼/팝업보다 아래 레이어, Spacer hit-test 비대상 → 버튼 탭 정상·빈 곳 탭 닫힘 유지. 필터 토글/주황점 로직 무변경.
-- AC-C4 ✓ switchTo: `.loading` 미설정(전면 스피너 미표시) + 핀 원자 교체(구 핀 fetch까지 유지 → EmptyMapCard 깜빡임 방지) + zoomOut→zoomIn.
-- AC-C5 ✓ load()/applyInitialCamera() 무변경(초기 로드·목록→선택 경로 회귀 없음). selectedPinId=nil(전환 시)로 구 그룹 좀비 말풍선 제거.
+## 정합성 점검 (grep 전수)
+- 구 시그니처 호출(botMessages(cursor:/sendBotMessage(text:) 잔존: **0**
+- groupAPI/myActiveGroup in BotChatViewModel: **주석만**(코드 제거)
+- StubBotGroupAPI 참조: **주석만**(클래스 제거)
+- botViewModel(구 MainTabView 속성): **0**
+- BotChatViewModel( 생성처 4곳 전부 groupId 시그니처 / BotChatView( 1곳(BotChatRoomView) groupName 전달
+- BotRoomSummary: Decodable+Identifiable(id=groupId)+Equatable — LoadState 동등성/ForEach/JSON 디코딩 요건 충족
+- MessagesResponse: 백엔드 groupId 추가분 디코딩 안 함(불필요·무시) — 기존 3필드 init 보존(테스트 호환)
 
-## Warning / Info (phase-review·DoD-B 이월)
-- [Warning] MapViewModel.swift switchTo — 2단 카메라(zoomOut cameraCommand → await fetch → zoomIn) 병합 가능성: 네트워크 즉시 응답 시 zoomOut이 MapContainerView 소비 전 zoomIn으로 덮일 수 있음. 설계 명시(필요 시 zoomOut 후 Task.sleep 120ms). **Mac DoD-B 확인**.
-- [Warning] 상단 레이아웃 — reelFocusBanner(MainTabView top overlay) vs groupTopOverlay/mapFilterRow 시각 겹침: 기존 골격 단계부터의 DoD-B 수치 보정 이슈. C는 필터 행을 그룹 행 아래 배치해 악화시키지 않음. **Mac 시각 확인**.
-- [Info] switchOverviewZoom=10 — 줌아웃 레벨 수치 미세조정 DoD-B.
+## 빌드 등록
+- iOS는 **XcodeGen**(`ios/project.yml`, `sources: -path: WhereWeGo`) — 디렉토리 글로빙. 신규 3파일(DMListView/DMListViewModel/DMListViewModelTests)은 Mac `xcodegen` 재생성 시 자동 포함. **pbxproj 수동 등록 불필요**(.xcodeproj=생성물).
 
-## QUESTION (사용자 확인): 0건
-스코프 핵심 질문(맵 1회 로딩 A/B)은 requirements에서 B안으로 확정됨.
+## 잔여 리스크
+- **iOS = Windows 빌드 불가** → 컴파일/시뮬/단위테스트 실행 검증 불가. 타입·시그니처·enum·Swift 6 동시성(@MainActor/@unchecked Sendable/StateObject 래퍼)은 코드 리뷰 수준 직접 검토로 보장. **최종 빌드·테스트 실행 = Mac DoD-B(리뷰어)**.
+- formatTime 이 NotificationInboxViewModel.formatTime 과 중복(설계 명시 인지) — 후속 공용 유틸 통합 여지(범위 외).
 
-## 변경 검증
-- 수정 3 + 테스트 1: TagFilterBar.swift(팝업 방향) / MapView.swift(상단 필터행+좌하단 정리) / MapViewModel.swift(switchTo 연출) / MapViewModelTests.swift(switchTo 5 테스트 + StubPinAPI 그룹별·카운트 확장, 하위호환).
-- 직접 정독으로 시그니처(cameraCommand:CameraTarget / fitBoundsCommand:[MapMarker]? / markers:[MapMarker])·enum(LoadState)·SwiftUI 패턴 정합 확인.
+## 판정
+Critical 0 · 스펙 충족. 구현 완료.

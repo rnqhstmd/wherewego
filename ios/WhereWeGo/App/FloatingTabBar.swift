@@ -8,6 +8,7 @@ import SwiftUI
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
 //  - 지도 더블탭(IA 재설계 FR-3/AC-4): 이미 .map 선택 중 지도 탭 재탭 → onReselectMap 콜백 → 그룹 목록(레벨0).
 //  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
+//    hasChatUnread 시 DM(말풍선) 아이콘에도 동일 빨간 점(DM 그룹별 전환 FR-10/AC-9 — 안 읽은 봇 방 존재).
 //  - 버전 분기(FR-4): iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 필(WGColor.panel) 폴백.
 //  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
 //    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리. 기존 센터 ＋는 selection 불변이라
@@ -37,16 +38,20 @@ struct FloatingTabBar: View {
 
     @Binding private var selection: MainTab
     private let hasUnread: Bool
+    /// DM 탭 미읽음 배지(DM 그룹별 전환 FR-10/AC-9) — 안 읽은 봇 방 1개 이상. 알림 점과 동일 패턴.
+    private let hasChatUnread: Bool
     /// 지도 탭 재탭(이미 .map 선택 중) 콜백(IA 재설계 FR-3/AC-4) → 그룹 목록(레벨0). 미배선이면 no-op.
     private let onReselectMap: () -> Void
 
     init(
         selection: Binding<MainTab>,
         hasUnread: Bool,
+        hasChatUnread: Bool = false,
         onReselectMap: @escaping () -> Void = {}
     ) {
         self._selection = selection
         self.hasUnread = hasUnread
+        self.hasChatUnread = hasChatUnread
         self.onReselectMap = onReselectMap
     }
 
@@ -56,7 +61,8 @@ struct FloatingTabBar: View {
             tabButton(.chat,
                       outline: "bubble.left.and.bubble.right",
                       fill: "bubble.left.and.bubble.right.fill",
-                      label: "DM")
+                      label: "DM",
+                      showUnread: hasChatUnread)
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
             tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")
         }

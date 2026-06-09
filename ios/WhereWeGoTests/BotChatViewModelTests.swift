@@ -221,14 +221,15 @@ final class BotChatViewModelTests: XCTestCase {
 
     private func makeViewModel(
         chatAPI: StubChatAPI,
+        groupId: Int = 1,
         pinAPI: PinAPIProtocol? = nil,
-        groupAPI: GroupAPIProtocol? = nil,
         sleeper: @escaping @Sendable (Double) async -> Void = { _ in }
     ) -> BotChatViewModel {
+        // DM 그룹별 전환: BotChatViewModel 은 groupId 를 주입받고 groupAPI 의존을 제거했다(savePlaceCards 가 주입 groupId 사용).
         BotChatViewModel(
+            groupId: groupId,
             chatAPI: chatAPI,
             pinAPI: pinAPI ?? StubBotPinAPI(),
-            groupAPI: groupAPI ?? StubBotGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
             currentUser: makeCurrentUser(),
             deepLinkRouter: DeepLinkRouter(),
             sleeper: sleeper
@@ -339,16 +340,25 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
 // MARK: - In-file 목
 
 final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
+    var roomsResult: Result<[BotRoomSummary], Error> = .success([])
     var messagesResult: Result<MessagesResponse, Error> = .success(MessagesResponse(messages: [], hasMore: false, nextCursor: nil))
     var sendResult: Result<SendMessageResponse, Error> = .success(SendMessageResponse(messageId: 0, kind: .PROCESSING))
     private(set) var sendCallCount = 0
     private(set) var lastSentText: String?
+    /// 마지막으로 봇 메시지 조회/전송에 사용된 groupId(DM 그룹별 전환 검증용).
+    private(set) var lastGroupId: Int?
 
-    func botMessages(cursor: Int?, limit: Int) async throws -> MessagesResponse {
-        try messagesResult.get()
+    func botRooms() async throws -> [BotRoomSummary] {
+        try roomsResult.get()
     }
 
-    func sendBotMessage(text: String) async throws -> SendMessageResponse {
+    func botMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> MessagesResponse {
+        lastGroupId = groupId
+        return try messagesResult.get()
+    }
+
+    func sendBotMessage(groupId: Int, text: String) async throws -> SendMessageResponse {
+        lastGroupId = groupId
         sendCallCount += 1
         lastSentText = text
         return try sendResult.get()
@@ -366,10 +376,13 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
 final class StubBotPinAPI: PinAPIProtocol, @unchecked Sendable {
     var createResult: Result<PinSummary, Error> = .failure(APIError(code: "UNSET", status: 0, message: ""))
     private(set) var createRequests: [CreatePinRequest] = []
+    /// create 에 사용된 groupId 기록(DM 그룹별 전환 AC-5 — 릴스 저장이 주입 groupId 로 귀속되는지 검증).
+    private(set) var createGroupIds: [Int] = []
 
     func list(groupId: Int) async throws -> [PinSummary] { [] }
 
     func create(groupId: Int, request: CreatePinRequest) async throws -> PinSummary {
+        createGroupIds.append(groupId)
         createRequests.append(request)
         return try createResult.get()
     }
@@ -389,25 +402,8 @@ final class StubBotPinAPI: PinAPIProtocol, @unchecked Sendable {
     }
 }
 
-final class StubBotGroupAPI: GroupAPIProtocol, @unchecked Sendable {
-    private let group: ActiveGroup?
-    var error: Error?
-
-    init(group: ActiveGroup?) {
-        self.group = group
-    }
-
-    func myActiveGroup() async throws -> ActiveGroup? {
-        if let error { throw error }
-        return group
-    }
-
-    func listMyGroups() async throws -> [GroupSummary] { [] }
-
-    func acceptInvite(token: String) async throws -> InviteAccept { InviteAccept(groupId: 0) }
-    func issueInviteLink(groupId: Int) async throws -> InviteLink { InviteLink(token: "stub", slug: nil, shareUrl: nil) }
-    func leaveGroup(groupId: Int) async throws {}
-}
+// StubBotGroupAPI 제거: DM 그룹별 전환으로 BotChatViewModel 이 groupAPI 의존을 버리고 groupId 를 주입받아
+//  봇 채팅/릴스 저장 테스트가 더는 그룹 API 목을 필요로 하지 않는다(savePlaceCards 가 주입 groupId 사용).
 
 final class DummyTokenStore: TokenStore, @unchecked Sendable {
     func accessToken() async -> String? { nil }
