@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { BtnPrimary } from "@/components/ui/BtnPrimary";
 import { BtnSub } from "@/components/ui/BtnSub";
-import { acceptInviteLink } from "@/lib/api/group-client";
-import { ApiError } from "@/lib/api/http-client";
+import { IOS_APP_URL, isAppStoreReady } from "@/lib/config/appStore";
 import { colors, fonts } from "@/lib/design/tokens";
 
 import type { InviteLinkPreviewResponse } from "@/lib/api/group-client";
@@ -17,18 +15,15 @@ interface InvitePreviewClientProps {
 }
 
 /**
- * 단축 슬러그 진입 후 보이는 미리보기.
+ * 단축 슬러그 진입 후 보이는 초대 랜딩.
  *
- * - "합류하기" 클릭 → acceptInviteLink(token).
- *   401(미로그인) → `/login?returnUrl=/invite/{slug}` 로 보낸다.
- *   200 → `/groups` 로 이동.
- *   기타 4xx → 화면 내 에러 표시.
- * - "취소" → 이전 페이지로 복귀.
+ * 웹 가입은 종료(앱 전용)되어 "합류하기" 동선이 없다. 대신:
+ * - 초대 코드(slug)를 크게 표시 + "코드 복사" 버튼.
+ * - "wherewego 앱을 설치하고 이 코드를 입력하세요" 안내.
+ * - App Store 버튼(NEXT_PUBLIC_IOS_APP_URL). 미설정 시 비활성 + "출시 예정".
  */
 export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps) {
-  const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -48,26 +43,19 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
     return `${minutes}분 남음`;
   }, [preview.expiresAt, now]);
 
-  const onAccept = async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
+  const onCopy = async () => {
     try {
-      await acceptInviteLink(preview.token);
-      router.replace("/groups");
-      router.refresh();
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) {
-        router.replace(`/login?returnUrl=${encodeURIComponent(`/invite/${slug}`)}`);
-        return;
-      }
-      const message =
-        e instanceof ApiError
-          ? e.message
-          : "합류하지 못했어요. 잠시 후 다시 시도해 주세요.";
-      setSubmitting(false);
-      setError(message);
+      await navigator.clipboard.writeText(slug);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // FR-8: navigator.clipboard 미지원(비-HTTPS/구형 브라우저) — 직접 복사 안내.
+      window.prompt("아래 코드를 길게 눌러 복사하세요", slug);
     }
+  };
+
+  const onOpenAppStore = () => {
+    if (IOS_APP_URL) window.location.href = IOS_APP_URL;
   };
 
   return (
@@ -161,36 +149,67 @@ export function InvitePreviewClient({ slug, preview }: InvitePreviewClientProps)
           </div>
         </div>
 
-        {error ? (
+        <div
+          style={{
+            marginTop: 14,
+            background: colors.panel,
+            borderRadius: 14,
+            border: `1px solid ${colors.hairline}`,
+            padding: "18px 22px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
           <div
-            role="alert"
             style={{
-              marginTop: 12,
-              fontSize: 13,
-              color: colors.cta,
+              fontSize: 12,
+              color: colors.inkFaint,
+              letterSpacing: 0.4,
             }}
           >
-            {error}
+            초대 코드
           </div>
-        ) : null}
+          <div
+            style={{
+              fontFamily: fonts.mono,
+              fontSize: 28,
+              fontWeight: 700,
+              color: colors.ink,
+              letterSpacing: 4,
+              wordBreak: "break-all",
+            }}
+          >
+            {slug}
+          </div>
+          <BtnSub
+            onClick={onCopy}
+            style={{ width: "100%", padding: "12px 0", fontSize: 14 }}
+          >
+            {copied ? "복사됐어요" : "코드 복사"}
+          </BtnSub>
+        </div>
+
+        <div
+          style={{
+            marginTop: 16,
+            fontSize: 14,
+            color: colors.inkSoft,
+            lineHeight: 1.6,
+          }}
+        >
+          wherewego 앱을 설치하고 이 코드를 입력하세요.
+        </div>
 
         <div style={{ flex: 1 }} />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <BtnPrimary
-            onClick={onAccept}
-            disabled={submitting}
-            style={{ width: "100%", padding: "14px 0", fontSize: 15 }}
-          >
-            {submitting ? "합류 중..." : "합류하기"}
-          </BtnPrimary>
-          <BtnSub
-            onClick={() => router.back()}
-            style={{ width: "100%", padding: "13px 0", fontSize: 14 }}
-          >
-            취소
-          </BtnSub>
-        </div>
+        <BtnPrimary
+          onClick={onOpenAppStore}
+          disabled={!isAppStoreReady}
+          style={{ width: "100%", padding: "14px 0", fontSize: 15 }}
+        >
+          {isAppStoreReady ? "App Store에서 받기" : "출시 예정"}
+        </BtnPrimary>
       </div>
     </div>
   );
