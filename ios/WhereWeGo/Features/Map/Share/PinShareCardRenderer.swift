@@ -5,13 +5,16 @@ import CoreImage.CIFilterBuiltins
 
 // 핀 공유 카드 렌더러. 웹 frontend/src/lib/share/renderPinCard.ts 파이프라인 이식.
 //  1) Mapbox Static 지도 다운로드(streets-v12 → light-v11 폴백) — 토큰 미설정/실패 시 단색 폴백(웹 BR-6)
-//  2) 흑백(채도0) → 핀 글리프 합성(흰 원 + 태그 심볼) → blur(2px)  [CoreImage/CoreGraphics]
+//  2) 흑백(Rec.601 luma) → 핀 글리프 합성(흰 원 + 웹 SVG 글리프) → blur(2px)  [CoreImage/CoreGraphics]
 //  3) PinShareCardView(베이지 오버레이 + 텍스트)를 ImageRenderer 로 1080×1350 PNG 추출
 //
 // ImageRenderer 는 MainActor 전용이라 enum 전체를 @MainActor 로 둔다. 네트워크는 await 로 양보하고,
 // CoreImage 처리는 짧아(1080×1350 단발) 사용자 트리거 카드 생성에서 허용 범위다.
 @MainActor
 enum PinShareCardRenderer {
+
+    /// CoreImage 컨텍스트(렌더당 재사용 — 생성 비용 절감). desaturate/gaussianBlur 공용.
+    private static let ciContext = CIContext()
 
     /// 카드 PNG(UIImage) 생성. 지도 다운로드가 실패해도 단색 폴백 카드를 반환한다(nil 은 ImageRenderer 실패뿐).
     static func render(_ input: PinShareCardInput) async -> UIImage? {
@@ -42,7 +45,7 @@ enum PinShareCardRenderer {
         }
         guard let map = original else { return nil }
 
-        // 2) 흑백(채도0).
+        // 2) 흑백(Rec.601 luma).
         let grayscale = desaturate(map) ?? map
         // 3) 글리프 합성(blur 전) — 카드 사이즈로 스케일하며 그린다.
         let composited = drawGlyphs(on: grayscale, input: input)
@@ -74,15 +77,20 @@ enum PinShareCardRenderer {
         }
     }
 
-    /// 채도 0 흑백 변환(웹 luminance 흑백 동치). 원본 사이즈 유지(스케일은 drawGlyphs 단계).
+    /// Rec.601 luma 흑백 변환(웹 renderPinCard 0.299R+0.587G+0.114B 동치). 원본 사이즈 유지(스케일은 drawGlyphs 단계).
     private static func desaturate(_ image: UIImage) -> UIImage? {
         guard let ciInput = CIImage(image: image) else { return nil }
-        let filter = CIFilter.colorControls()
+        let filter = CIFilter.colorMatrix()
         filter.inputImage = ciInput
-        filter.saturation = 0
+        // 각 출력 채널 = 0.299R+0.587G+0.114B → R=G=B(웹과 동일한 그레이스케일).
+        let luma = CIVector(x: 0.299, y: 0.587, z: 0.114, w: 0)
+        filter.rVector = luma
+        filter.gVector = luma
+        filter.bVector = luma
+        filter.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        filter.biasVector = CIVector(x: 0, y: 0, z: 0, w: 0)
         guard let output = filter.outputImage else { return nil }
-        let context = CIContext()
-        guard let cg = context.createCGImage(output, from: output.extent) else { return nil }
+        guard let cg = ciContext.createCGImage(output, from: output.extent) else { return nil }
         return UIImage(cgImage: cg)
     }
 
@@ -134,7 +142,7 @@ enum PinShareCardRenderer {
         }
     }
 
-    /// 흰 원 배경 + 태그 글리프(SF Symbol) 1개 마커를 현재 컨텍스트에 그린다.
+    /// 흰 원 배경 + 태그 글리프(웹 markers.tsx SVG 경로) 1개 마커를 현재 컨텍스트에 그린다.
     private static func drawMarker(
         cx: CGFloat, cy: CGFloat, bgRadius: CGFloat, glyphSize: CGFloat, tag: PinTag, bgAlpha: CGFloat
     ) {
@@ -143,11 +151,14 @@ enum PinShareCardRenderer {
         UIBezierPath(ovalIn: circleRect).fill()
 
         // 태그 글리프(웹 markers.tsx SVG 경로 동치) — 흰 원 위에 채워 그린다.
+        // 웹 글리프 drop-shadow(0 1px 3px color80) 이식(이후 blur 로 부드럽게 합쳐짐).
         let glyphRect = CGRect(x: cx - glyphSize / 2, y: cy - glyphSize / 2, width: glyphSize, height: glyphSize)
         guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let fill = UIColor(PinShareGlyph.color(tag))
         ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: 1), blur: 3, color: fill.withAlphaComponent(0.5).cgColor)
         ctx.addPath(PinGlyphShape.cgPath(for: tag, in: glyphRect))
-        ctx.setFillColor(UIColor(PinShareGlyph.color(tag)).cgColor)
+        ctx.setFillColor(fill.cgColor)
         ctx.fillPath()
         ctx.restoreGState()
     }
@@ -160,9 +171,8 @@ enum PinShareCardRenderer {
         filter.inputImage = clamped
         filter.radius = Float(radius)
         guard let output = filter.outputImage else { return nil }
-        let context = CIContext()
         let rect = CGRect(x: 0, y: 0, width: PinShareCardSpec.cardWidth, height: PinShareCardSpec.cardHeight)
-        guard let cg = context.createCGImage(output, from: rect) else { return nil }
+        guard let cg = ciContext.createCGImage(output, from: rect) else { return nil }
         return UIImage(cgImage: cg)
     }
 }
