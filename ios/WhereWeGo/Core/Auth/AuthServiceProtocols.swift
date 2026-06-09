@@ -19,6 +19,12 @@ protocol GroupAPIProtocol: Sendable {
     func issueInviteLink(groupId: Int) async throws -> InviteLink
     /// 그룹 탈퇴(DELETE /groups/{groupId}/members/me, FR-25).
     func leaveGroup(groupId: Int) async throws
+    /// 그룹원 목록 조회(GET /groups/{id}/members, D단계). 가입 순, 첫 항목 isOwner=true(방장).
+    func listMembers(groupId: Int) async throws -> [GroupMemberItem]
+    /// 그룹명 수정(PATCH /groups/{id} {name}, D단계). 활성 멤버면 누구나.
+    func updateGroupName(groupId: Int, name: String) async throws
+    /// 그룹 삭제(DELETE /groups/{id}, D단계). 방장만(비방장 403 GROUP_OWNER_REQUIRED 전파).
+    func deleteGroup(groupId: Int) async throws
 }
 
 /// 인증 흐름 에러. View 친화 메시지(BR-7).

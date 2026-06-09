@@ -20,6 +20,7 @@ public final class NotificationV1Dto {
             NotificationType type,
             Long registeredBy,
             String registeredByNickname,
+            String groupName,
             String firstPlaceName,
             int totalPinCount,
             int wishCount,
@@ -33,6 +34,7 @@ public final class NotificationV1Dto {
                     r.type(),
                     r.registeredBy(),
                     r.registeredByNickname(),
+                    r.groupName(),
                     r.firstPlaceName(),
                     r.totalPinCount(),
                     r.wishCount(),
@@ -85,6 +87,7 @@ public final class NotificationV1Dto {
             Long id,
             NotificationType type,
             String registeredByNickname,
+            String groupName,
             Instant createdAt,
             List<PinItem> pins
     ) {
@@ -93,6 +96,7 @@ public final class NotificationV1Dto {
                     r.id(),
                     r.type(),
                     r.registeredByNickname(),
+                    r.groupName(),
                     r.createdAt(),
                     r.pins().stream().map(PinItem::from).toList()
             );

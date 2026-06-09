@@ -249,4 +249,89 @@ public class GroupMemberService {
     public List<GroupSummary> listMyGroups(Long userId) {
         return groupMemberRepository.listActiveGroupSummariesByUserId(userId);
     }
+
+    /**
+     * 그룹원 목록 조회 (GM-2 그룹관리). 활성 멤버만 접근 가능(비멤버 GROUP_NOT_MEMBER).
+     * 정렬(joined_at ASC, id ASC)된 첫 항목 = 방장(owner)으로 마킹한다 — 별도 owner 컬럼 없이
+     * 조회 시점 계산이라 방장 탈퇴 시 다음 최선임이 자동 승계된다.
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMemberResult> listMembers(Long userId, Long groupId) {
+        requireActiveMembership(userId, groupId);
+        List<GroupMemberInfo> members = groupMemberRepository.listActiveMembersByGroupId(groupId);
+        List<GroupMemberResult> results = new java.util.ArrayList<>(members.size());
+        for (int i = 0; i < members.size(); i++) {
+            GroupMemberInfo m = members.get(i);
+            results.add(new GroupMemberResult(m.userId(), m.nickname(), m.joinedAt(), i == 0));
+        }
+        return results;
+    }
+
+    /**
+     * 그룹명 수정 (GM-2 그룹관리). 권한은 활성 멤버(모든 멤버, 방장 제한 없음).
+     * findByIdForUpdate 로 락을 잡아 삭제/탈퇴와 직렬화하고, 검증은 createGroup 과 동일하다.
+     */
+    @Transactional
+    public void renameGroup(Long userId, Long groupId, String rawName) {
+        Group group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.GROUP_NOT_MEMBER));
+        if (group.getDeletedAt() != null) {
+            throw new CoreException(ErrorType.GROUP_NOT_MEMBER);
+        }
+        requireActiveMembership(userId, groupId);
+        String name = rawName == null ? "" : rawName.trim();
+        if (name.isEmpty() || name.length() > 30) {
+            throw new CoreException(ErrorType.GROUP_NAME_INVALID);
+        }
+        group.rename(name);
+        groupRepository.save(group);
+    }
+
+    /**
+     * 그룹 삭제 (GM-2 그룹관리). 방장(joined_at 최소)만 가능(비방장 GROUP_OWNER_REQUIRED).
+     * findByIdForUpdate 로 락을 잡아 탈퇴/이름수정과 직렬화한다.
+     * 전원 markLeft + group soft delete + 미수락 초대 일괄 만료 후,
+     * 각 멤버의 잔여 활성 그룹이 0개이면 봇 매핑을 해제한다 (leaveGroup 패턴 확장, R-2).
+     */
+    @Transactional
+    public void deleteGroup(Long userId, Long groupId) {
+        Instant now = Instant.now();
+        Group group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.GROUP_NOT_MEMBER));
+        if (group.getDeletedAt() != null) {
+            throw new CoreException(ErrorType.GROUP_NOT_MEMBER);
+        }
+        List<GroupMemberInfo> members = groupMemberRepository.listActiveMembersByGroupId(groupId);
+        // 방장 = 정렬된 첫 항목(joined_at 최소). 빈 목록(이론상 비활성)이면 비멤버로 차단.
+        if (members.isEmpty() || !members.get(0).userId().equals(userId)) {
+            throw new CoreException(ErrorType.GROUP_OWNER_REQUIRED);
+        }
+        // 전원 탈퇴 마킹.
+        for (GroupMemberInfo info : members) {
+            groupMemberRepository.findActiveByGroupIdAndUserId(groupId, info.userId())
+                    .ifPresent(member -> {
+                        member.markLeft(now);
+                        groupMemberRepository.save(member);
+                    });
+        }
+        group.markDeleted();
+        groupRepository.save(group);
+        inviteLinkRepository.expirePendingByGroupId(groupId, now);
+        // 각 멤버: 잔여 활성 그룹이 0개면 user 단위 봇 매핑 해제 (leaveGroup 과 동일 규칙).
+        for (GroupMemberInfo info : members) {
+            if (groupMemberRepository.listActiveGroupIdsByUserId(info.userId()).isEmpty()) {
+                botUserMappingService.unlink(info.userId());
+            }
+        }
+    }
+
+    /**
+     * 그룹원 목록 항목 결과 (GM-2). 정렬된 첫 항목만 {@code isOwner=true}.
+     */
+    public record GroupMemberResult(
+            Long userId,
+            String nickname,
+            Instant joinedAt,
+            boolean isOwner
+    ) {}
 }

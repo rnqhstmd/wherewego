@@ -79,4 +79,36 @@ public interface GroupV1ApiSpec {
     ApiResponse<List<GroupV1Dto.GroupSummaryResponse>> listMyGroups(
             @Parameter(hidden = true) Long userId
     );
+
+    @Operation(
+            summary = "그룹원 목록 조회",
+            description = "활성 멤버가 그룹의 멤버 목록을 가입 순으로 조회합니다 (GM-2). " +
+                    "방장(joined_at 최소)은 isOwner=true 로 표시됩니다. 비멤버는 GROUP_NOT_MEMBER 로 거부됩니다."
+    )
+    ApiResponse<List<GroupV1Dto.MemberResponse>> listMembers(
+            @Parameter(hidden = true) Long userId,
+            Long groupId
+    );
+
+    @Operation(
+            summary = "그룹명 수정",
+            description = "활성 멤버(모든 멤버)가 그룹 이름을 수정합니다 (GM-2). " +
+                    "이름은 1~30자여야 하며(GROUP_NAME_INVALID), 비멤버는 GROUP_NOT_MEMBER 로 거부됩니다."
+    )
+    ApiResponse<Object> renameGroup(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            GroupV1Dto.UpdateGroupNameRequest request
+    );
+
+    @Operation(
+            summary = "그룹 삭제",
+            description = "방장(joined_at 최소)만 그룹을 삭제합니다 (GM-2). " +
+                    "멤버 전원을 탈퇴 처리하고 그룹을 soft delete 합니다. " +
+                    "비방장은 GROUP_OWNER_REQUIRED 로 거부됩니다."
+    )
+    ApiResponse<Object> deleteGroup(
+            @Parameter(hidden = true) Long userId,
+            Long groupId
+    );
 }

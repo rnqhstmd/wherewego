@@ -1,6 +1,8 @@
 package com.wherewego.domain.notification;
 
+import com.wherewego.domain.group.Group;
 import com.wherewego.domain.group.GroupMemberRepository;
+import com.wherewego.domain.group.GroupRepository;
 import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinRepository;
 import com.wherewego.domain.user.UserModel;
@@ -46,6 +48,7 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupRepository groupRepository;
     private final PinRepository pinRepository;
     private final UserRepository userRepository;
     private final NotificationVisitWriter visitWriter;
@@ -172,6 +175,12 @@ public class NotificationService {
                 ? Map.of()
                 : userRepository.findNicknamesByIds(registeredByIds);
 
+        // GM-2: 알림의 groupId 집합 → 그룹명 batch (findById 반복, loadPinsByIds 선례 — MVP 규모 N+1 허용).
+        Set<Long> groupIds = notifications.stream()
+                .map(Notification::getGroupId)
+                .collect(Collectors.toSet());
+        Map<Long, String> groupNameById = loadGroupNamesByIds(groupIds);
+
         List<NotificationItemResult> items = notifications.stream().map(n -> {
             List<NotificationPin> links = pinsMap.getOrDefault(n.getId(), List.of());
             Pin firstPin = links.isEmpty() ? null : pinById.get(links.get(0).getPinId());
@@ -198,6 +207,7 @@ public class NotificationService {
                     n.getType(),
                     n.getRegisteredBy(),
                     nicknameById.getOrDefault(n.getRegisteredBy(), FALLBACK_NICKNAME),
+                    groupNameById.get(n.getGroupId()),
                     firstPlaceName,
                     links.size(),
                     wishCount,
@@ -226,6 +236,11 @@ public class NotificationService {
                 .map(UserModel::getNickname)
                 .orElse(FALLBACK_NICKNAME);
 
+        // GM-2: 그룹명. soft-delete 그룹도 findById 로 그룹명 노출, 미존재 시 null.
+        String groupName = groupRepository.findById(n.getGroupId())
+                .map(Group::getName)
+                .orElse(null);
+
         List<NotificationPin> links = repository.findPinsByNotificationId(notificationId);
         Set<Long> pinIds = links.stream().map(NotificationPin::getPinId).collect(Collectors.toSet());
         Map<Long, Pin> pinById = loadPinsByIds(pinIds);
@@ -251,7 +266,7 @@ public class NotificationService {
         }).toList();
 
         return new NotificationDetailResult(
-                n.getId(), n.getType(), registeredByNickname, toInstant(n.getCreatedAt()), pinItems);
+                n.getId(), n.getType(), registeredByNickname, groupName, toInstant(n.getCreatedAt()), pinItems);
     }
 
     /**
@@ -277,6 +292,21 @@ public class NotificationService {
         return result;
     }
 
+    /**
+     * 그룹 id 집합에 대해 그룹명 Map 을 구성한다. soft-delete 그룹도 findById 로 그룹명만 노출한다
+     * (deletedAt 무관). 미존재 그룹은 Map 에서 빠져 호출부에서 null 로 처리된다.
+     * GroupRepository 에 batch 조회가 없어 개별 findById 반복으로 폴백한다 (수신 그룹 수가 작아 비용 허용).
+     */
+    private Map<Long, String> loadGroupNamesByIds(Collection<Long> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) return Map.of();
+        Map<Long, String> result = new LinkedHashMap<>(groupIds.size());
+        for (Long groupId : groupIds) {
+            if (groupId == null) continue;
+            groupRepository.findById(groupId).ifPresent(g -> result.put(groupId, g.getName()));
+        }
+        return result;
+    }
+
     /** BaseEntity.createdAt 은 {@link ZonedDateTime} → {@link Instant} 로 정규화. */
     private static Instant toInstant(ZonedDateTime zdt) {
         return zdt == null ? null : zdt.toInstant();
@@ -287,6 +317,8 @@ public class NotificationService {
             NotificationType type,
             Long registeredBy,
             String registeredByNickname,
+            /** GM-2: 알림이 속한 그룹명. soft-delete 그룹도 노출, 미존재 시 null. */
+            String groupName,
             String firstPlaceName,
             int totalPinCount,
             /**
@@ -328,6 +360,8 @@ public class NotificationService {
             Long id,
             NotificationType type,
             String registeredByNickname,
+            /** GM-2: 알림이 속한 그룹명. soft-delete 그룹도 노출, 미존재 시 null. */
+            String groupName,
             Instant createdAt,
             List<NotificationPinItemResult> pins
     ) {}

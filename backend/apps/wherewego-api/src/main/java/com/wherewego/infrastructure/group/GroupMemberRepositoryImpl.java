@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.group;
 
 import com.wherewego.domain.group.GroupMember;
+import com.wherewego.domain.group.GroupMemberInfo;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupSummary;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,11 @@ public class GroupMemberRepositoryImpl implements GroupMemberRepository {
     @Override
     public List<GroupSummary> listActiveGroupSummariesByUserId(Long userId) {
         return jpaRepository.findActiveGroupSummariesByUserId(userId);
+    }
+
+    @Override
+    public List<GroupMemberInfo> listActiveMembersByGroupId(Long groupId) {
+        return jpaRepository.findActiveMembersByGroupId(groupId);
     }
 
     @Override

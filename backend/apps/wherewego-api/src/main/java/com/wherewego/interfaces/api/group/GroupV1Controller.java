@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -97,5 +98,38 @@ public class GroupV1Controller implements GroupV1ApiSpec {
                 groupMemberService.listMyGroups(userId).stream()
                         .map(GroupV1Dto.GroupSummaryResponse::from)
                         .toList());
+    }
+
+    @GetMapping("/{groupId}/members")
+    @Override
+    public ApiResponse<List<GroupV1Dto.MemberResponse>> listMembers(
+            @AuthUser Long userId,
+            @PathVariable Long groupId
+    ) {
+        return ApiResponse.success(
+                groupMemberService.listMembers(userId, groupId).stream()
+                        .map(GroupV1Dto.MemberResponse::from)
+                        .toList());
+    }
+
+    @PatchMapping("/{groupId}")
+    @Override
+    public ApiResponse<Object> renameGroup(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @RequestBody GroupV1Dto.UpdateGroupNameRequest request
+    ) {
+        groupMemberService.renameGroup(userId, groupId, request.name());
+        return ApiResponse.success();
+    }
+
+    @DeleteMapping("/{groupId}")
+    @Override
+    public ApiResponse<Object> deleteGroup(
+            @AuthUser Long userId,
+            @PathVariable Long groupId
+    ) {
+        groupMemberService.deleteGroup(userId, groupId);
+        return ApiResponse.success();
     }
 }
