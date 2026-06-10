@@ -8,7 +8,7 @@ import SwiftUI
 //  - 선택 표시(FR-3): SF Symbols 외곽선↔채움 쌍. 선택=채움+WGColor.cta, 미선택=외곽선+WGColor.inkSoft. 알약 배경 없음.
 //  - 지도 더블탭(IA 재설계 FR-3/AC-4): 이미 .map 선택 중 지도 탭 재탭 → onReselectMap 콜백 → 그룹 목록(레벨0).
 //  - 미읽음(FR-22): hasUnread 시 알림(bell) 아이콘 우상단 빨간 점(WGColor.pinNew). 건수 미표시.
-//    hasChatUnread 시 DM(말풍선) 아이콘에도 동일 빨간 점(DM 그룹별 전환 FR-10/AC-9 — 안 읽은 봇 방 존재).
+//    hasChatUnread 시 DM(paperplane, 인스타 DM 아이콘) 아이콘에도 동일 빨간 점(DM 그룹별 전환 FR-10/AC-9 — 안 읽은 봇 방 존재).
 //  - 버전 분기(FR-4): iOS 26+ Liquid Glass(DoD-B 보정) / iOS 17~25 솔리드 둥근 필(WGColor.panel) 폴백.
 //  - ＋ 장소 추가는 이 바에서 제거하고 지도 화면 우하단 speed-dial(MapView.addPinSpeedDial)로 이동했다.
 //    근거: "탭=화면 이동 / FAB=지도 컨텍스트 행동" 멘탈모델 분리. 기존 센터 ＋는 selection 불변이라
@@ -57,10 +57,10 @@ struct FloatingTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tabButton(.map, outline: "map", fill: "map.fill", label: "지도")
+            tabButton(.map, outline: "globe.asia.australia", fill: "globe.asia.australia.fill", label: "지도")
             tabButton(.chat,
-                      outline: "play.square",
-                      fill: "play.square.fill",
+                      outline: "paperplane",
+                      fill: "paperplane.fill",
                       label: "DM",
                       showUnread: hasChatUnread)
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
@@ -129,13 +129,11 @@ private struct FloatingBarBackground: ViewModifier {
 
     @available(iOS 26.0, *)
     private func glassBackground(_ content: Content) -> some View {
-        // TODO(DoD-B): Xcode 26 SDK에서 .glassEffect 계열 정확 파라미터로 교체. iOS 26.5 시뮬 '불투명 흰 캡슐'은 이 분기가 폴백과 동일했던 탓 → 반투명 분리.
+        // iOS 26 Liquid Glass 정식 API. 이전엔 `Capsule().fill(.ultraThinMaterial).shadow(...)` 였는데,
+        // 반투명 머티리얼 도형에 그림자를 직접 걸면 그림자가 머티리얼 본체를 투과해 비쳐 "두 겹"으로 보였다.
+        // glassEffect 는 광택·그림자가 통합된 단일 글라스 레이어라 그 아티팩트가 없다(AC-5: 폴백과 시각적 분리).
         content
-            .background(
-                Capsule()
-                    .fill(.ultraThinMaterial)   // AC-5: 폴백(solid panel)과 다른 반투명 머티리얼
-                    .shadow(color: WGColor.shadowMd, radius: 12, x: 0, y: 4)
-            )
+            .glassEffect(.regular, in: Capsule())
     }
 
     private func solidBackground(_ content: Content) -> some View {

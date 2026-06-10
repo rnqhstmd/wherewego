@@ -17,10 +17,15 @@ struct DMListView: View {
     @State private var openedRoom: BotRoomSummary?
 
     var body: some View {
-        content
-            .background(WGColor.bg)
-            .navigationTitle("DM")
-            .navigationBarTitleDisplayMode(.inline)
+        VStack(spacing: 0) {
+            // 큰 제목 헤더(그룹목록/마이페이지 디자인 언어 정합) — 인라인 작은 타이틀 대체.
+            ScreenHeader(title: "DM", subtitle: "그룹별 대화방")
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(WGColor.bg)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
             // 최초 진입 로드(list, FR-1). 이미 .loaded 면 깜빡임 없이 갱신.
             .task {
                 await viewModel.load()
