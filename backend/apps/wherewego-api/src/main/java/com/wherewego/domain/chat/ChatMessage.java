@@ -83,4 +83,14 @@ public class ChatMessage extends BaseEntity {
     public boolean isActive() {
         return getDeletedAt() == null;
     }
+
+    /**
+     * REEL_LINK 썸네일 비동기 반영용(GC-3, FR-GC3-2). 이미 직렬화된 JSON 문자열만 교체하고 {@link #guard()}를
+     * 재실행한다(ObjectMapper 의존 없이 String 만 다루는 엔티티 규약 유지 — 직렬화는 ChatMessageAppender 담당).
+     * blank/null 교체는 guard 가 거부한다. 트랜잭션 내 dirty checking 으로 커밋 시 payload_json 이 갱신된다.
+     */
+    void replacePayloadJson(String payloadJson) {
+        this.payloadJson = payloadJson;
+        guard();
+    }
 }

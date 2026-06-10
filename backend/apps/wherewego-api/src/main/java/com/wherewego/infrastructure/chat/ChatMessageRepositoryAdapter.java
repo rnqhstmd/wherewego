@@ -35,4 +35,9 @@ public class ChatMessageRepositoryAdapter implements ChatMessageRepository {
     public Optional<ChatMessage> findActiveByIdAndRoomId(Long id, Long roomId) {
         return chatMessageJpa.findByIdAndRoomIdAndDeletedAtIsNull(id, roomId);
     }
+
+    @Override
+    public Optional<ChatMessage> findActiveById(Long id) {
+        return chatMessageJpa.findByIdAndDeletedAtIsNull(id);
+    }
 }

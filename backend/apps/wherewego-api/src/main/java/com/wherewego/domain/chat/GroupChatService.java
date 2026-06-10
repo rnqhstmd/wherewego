@@ -71,6 +71,7 @@ public class GroupChatService {
     private final ReelPlaceExtractor reelPlaceExtractor;
     private final BotPlaceCardsPayloadBuilder payloadBuilder;
     private final PlaceProperties placeProperties;
+    private final ReelThumbnailService reelThumbnailService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -91,6 +92,7 @@ public class GroupChatService {
         ChatRoom room = ensureGroupRoom(groupId);
         ChatMessage saved = appendByKind(room.getId(), userId, kind, text, url);
 
+        captureThumbnailAfterCommit(saved);
         broadcastToOthersAfterCommit(groupId, userId, saved);
         return saved;
     }
@@ -229,6 +231,24 @@ public class GroupChatService {
     }
 
     /**
+     * REEL_LINK 메시지면 커밋 후(afterCommit) 비동기 썸네일 스크래핑을 등록한다(GC-3, FR-GC3-2).
+     * 전송 트랜잭션·응답은 막지 않으며(별도 스레드 + best-effort), flag off 시엔 {@link ReelThumbnailService}가 즉시 종료한다.
+     */
+    private void captureThumbnailAfterCommit(ChatMessage saved) {
+        if (saved.getKind() != MessageKind.REEL_LINK) {
+            return;
+        }
+        Long messageId = saved.getId();
+        String reelUrl = reelUrlOf(saved);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                reelThumbnailService.captureAsync(messageId, reelUrl);
+            }
+        });
+    }
+
+    /**
      * 발신자 제외 활성 멤버가 존재할 때만 커밋 후 APNs 푸시를 등록한다(FR-GC1-8).
      * 1인 그룹(상대 없음)이면 생략한다. kind 별 문구 분기는 {@code PushPayload.groupMessage}가 담당한다.
      */
@@ -261,14 +281,17 @@ public class GroupChatService {
         List<GroupChatMessageFrame> frames = new ArrayList<>(messages.size());
         for (ChatMessage message : messages) {
             Boolean registered = null;
+            String thumbnailUrl = null;
             if (message.getKind() == MessageKind.REEL_LINK) {
                 String url = readPayloadText(message.getPayloadJson(), "url");
                 registered = url != null && registeredUrls.contains(url);
+                // GC-3(FR-GC3-2): payload.thumbnailUrl 을 top-level 계약 필드로 파생(registered 와 동형).
+                thumbnailUrl = readPayloadText(message.getPayloadJson(), "thumbnailUrl");
             }
             String nickname = message.getSenderUserId() == null
                     ? null
                     : nicknames.get(message.getSenderUserId());
-            frames.add(GroupChatMessageFrame.from(message, objectMapper, nickname, registered));
+            frames.add(GroupChatMessageFrame.from(message, objectMapper, nickname, registered, thumbnailUrl));
         }
         return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor());
     }

@@ -78,11 +78,23 @@ public class ChatMessageAppender {
     /**
      * 그룹 방 릴스 링크 메시지(GC-1, FR-GC1-3). kind=REEL_LINK, senderType=USER.
      *
-     * @param url 검증된 인스타 릴스 URL. payload {@code {"url": url, "thumbnailKey": null}}로 직렬화된다
-     *            (thumbnailKey 는 GC-3 썸네일 단계에서 채워질 예약 필드).
+     * @param url 검증된 인스타 릴스 URL. payload {@code {"url": url, "thumbnailKey": null, "thumbnailUrl": null}}로
+     *            직렬화된다(thumbnailUrl 은 GC-3 비동기 스크래핑이 채우며, thumbnailKey 는 S3 전환용 예약 필드).
      */
     public ChatMessage appendReelLink(Long roomId, Long userId, String url) {
-        return save(roomId, SenderType.USER, userId, MessageKind.REEL_LINK, new ReelLinkPayload(url, null));
+        return save(roomId, SenderType.USER, userId, MessageKind.REEL_LINK, new ReelLinkPayload(url, null, null));
+    }
+
+    /**
+     * REEL_LINK payload 를 썸네일 URL 포함하여 JSON 문자열로 직렬화한다(GC-3, FR-GC3-2). 저장은 하지 않으며
+     * {@link ReelThumbnailWriter}가 비동기 스크래핑 결과를 {@link ChatMessage#replacePayloadJson}로 반영할 때 쓴다.
+     * thumbnailKey 는 S3 전환용 예약 슬롯이라 계속 {@code null} 로 둔다.
+     *
+     * @param url          기존 payload 에서 읽어온 릴스 URL(보존)
+     * @param thumbnailUrl 스크래핑한 og:image URL
+     */
+    public String serializeReelLinkPayload(String url, String thumbnailUrl) {
+        return serialize(new ReelLinkPayload(url, null, thumbnailUrl));
     }
 
     private ChatMessage save(Long roomId, SenderType senderType, Long senderUserId,
@@ -115,10 +127,12 @@ public class ChatMessageAppender {
     private record TextPayload(String text) { }
 
     /**
-     * 릴스 링크 payload 루트(GC-1). {@code {"url": ..., "thumbnailKey": null}} JSON 객체로 직렬화된다.
+     * 릴스 링크 payload 루트(GC-1/GC-3). {@code {"url": ..., "thumbnailKey": null, "thumbnailUrl": ...}} JSON 객체로
+     * 직렬화된다.
      *
      * @param url          인스타 릴스 URL
-     * @param thumbnailKey S3 썸네일 키(GC-3 예약 — GC-1 에서는 항상 {@code null})
+     * @param thumbnailKey S3 썸네일 키(예약 — 현행 항상 {@code null}, MVP 직참조라 미사용)
+     * @param thumbnailUrl og:image 직참조 썸네일 URL(GC-3, FR-GC3-2 — 전송 시 {@code null}, 비동기 스크래핑 성공 시 채움)
      */
-    private record ReelLinkPayload(String url, String thumbnailKey) { }
+    private record ReelLinkPayload(String url, String thumbnailKey, String thumbnailUrl) { }
 }

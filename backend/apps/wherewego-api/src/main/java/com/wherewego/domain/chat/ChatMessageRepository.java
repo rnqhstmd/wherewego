@@ -32,4 +32,10 @@ public interface ChatMessageRepository {
      * roomId 를 함께 강제하여 타 방 메시지 접근을 차단한다.
      */
     Optional<ChatMessage> findActiveByIdAndRoomId(Long id, Long roomId);
+
+    /**
+     * GC-3(FR-GC3-2): 활성 메시지 단건 조회 — 비동기 썸네일 반영({@code ReelThumbnailWriter})용.
+     * 비동기 스레드는 roomId 컨텍스트가 없고 그 사이 soft-delete 됐으면 no-op 이어야 하므로 id+활성만으로 조회한다.
+     */
+    Optional<ChatMessage> findActiveById(Long id);
 }
