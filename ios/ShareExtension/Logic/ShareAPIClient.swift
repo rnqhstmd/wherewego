@@ -3,8 +3,8 @@ import Foundation
 // Share Extension 경량 네트워킹(설계 §3·§4). 앱 APIClient 미사용 — 자족.
 // Bearer(공유 키체인 access token) + 401 시 refresh 1회 후 재시도. `/api/v1` 프리픽스 부착.
 protocol ShareAPIClientProtocol: Sendable {
-    func botRooms() async throws -> [ShareGroup]
-    func sendBotMessage(groupId: Int, text: String) async throws
+    func groupRooms() async throws -> [ShareGroup]
+    func sendReelLink(groupId: Int, url: String) async throws
 }
 
 final class ShareAPIClient: ShareAPIClientProtocol {
@@ -18,16 +18,16 @@ final class ShareAPIClient: ShareAPIClientProtocol {
         self.session = session
     }
 
-    /// GET /chat/bot/rooms → 내 활성 그룹별 봇 방. 그룹 0개(data null/204) → 빈 배열.
-    func botRooms() async throws -> [ShareGroup] {
-        let env: ShareEnvelope<[ShareGroup]> = try await request(path: "/chat/bot/rooms", method: "GET", body: nil)
+    /// GET /chat/groups → 내 활성 그룹별 그룹 채팅방. 그룹 0개(data null/204) → 빈 배열.
+    func groupRooms() async throws -> [ShareGroup] {
+        let env: ShareEnvelope<[ShareGroup]> = try await request(path: "/chat/groups", method: "GET", body: nil)
         return env.data ?? []
     }
 
-    /// POST /chat/bot/{groupId}/messages {text} — 봇이 URL→장소 추출(릴스 저장). 2xx면 성공.
-    func sendBotMessage(groupId: Int, text: String) async throws {
-        let body = try JSONSerialization.data(withJSONObject: ["text": text])
-        let _: ShareEnvelope<ShareIgnore> = try await request(path: "/chat/bot/\(groupId)/messages", method: "POST", body: body)
+    /// POST /chat/groups/{groupId}/messages {kind:REEL_LINK, url} — 그룹 채팅에 릴스 공유(GC-2 FR-GC2-7). 2xx면 성공.
+    func sendReelLink(groupId: Int, url: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["kind": "REEL_LINK", "url": url])
+        let _: ShareEnvelope<ShareIgnore> = try await request(path: "/chat/groups/\(groupId)/messages", method: "POST", body: body)
     }
 
     /// 본문 무시용(전송 응답 형태와 무관하게 2xx 성공 판정).

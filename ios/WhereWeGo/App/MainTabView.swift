@@ -71,7 +71,7 @@ struct MainTabView: View {
             )
         )
         _dmListViewModel = StateObject(
-            wrappedValue: DMListViewModel(chatAPI: dependencies.chatAPI)
+            wrappedValue: DMListViewModel(chatAPI: dependencies.chatAPI, currentUser: dependencies.currentUser)
         )
         _notificationInboxViewModel = StateObject(
             wrappedValue: NotificationInboxViewModel(
@@ -102,13 +102,16 @@ struct MainTabView: View {
             NavigationStack {
                 DMListView(
                     viewModel: dmListViewModel,
-                    makeRoomViewModel: { groupId in
-                        BotChatViewModel(
-                            groupId: groupId,
+                    pushSignal: dependencies.chatPushSignal,
+                    makeRoomViewModel: { room in
+                        GroupChatViewModel(
+                            groupId: room.groupId,
+                            roomId: room.roomId,
                             chatAPI: dependencies.chatAPI,
                             pinAPI: dependencies.pinAPI,
                             currentUser: dependencies.currentUser,
-                            deepLinkRouter: dependencies.deepLinkRouter
+                            deepLinkRouter: dependencies.deepLinkRouter,
+                            chatPushSignal: dependencies.chatPushSignal
                         )
                     }
                 )
@@ -313,10 +316,12 @@ struct MainTabView: View {
             // 진입 시점엔 이미 load 가 진행되므로 best-effort). 설계 §3.
             selection = .map
             mapViewModel.flyTo(pinId: pinId)
-        case .reelFocus(let url):
-            // 봇 저장 결과 "보러가기"(FR-I16): 지도 탭 전환 + 해당 릴스 핀 필터/fitBounds(방금 저장 핀 재조회 포함).
+        case .reelFocus(let groupId, let url):
+            // 「구경하실래요?」(GC-2 FR-GC2-5): 지도 탭 + 해당 그룹 전환(레벨1) + 릴스 핀 필터/fitBounds.
+            //  enterGroup 으로 UI 레벨1·배너 정합을 맞추고, 그룹 핀 로드+포커스는 focusReel(groupId:) 가 일임한다.
             selection = .map
-            Task { await mapViewModel.focusReel(instagramUrl: url) }
+            groupContext.enterGroup(groupId)
+            Task { await mapViewModel.focusReel(groupId: groupId, instagramUrl: url) }
         case .invite(let slug):
             inviteSlug = slug
         }

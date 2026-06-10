@@ -259,7 +259,7 @@ final class BotChatViewModel: ObservableObject {
 
     /// 결과 카드 [지도에서 보기 →] 액션(FR-I10/I15). .reelFocus 딥링크 발행 → MainTabView 가 지도 탭 전환 + focusReel.
     func showOnMap(instagramUrl: String) {
-        deepLinkRouter.pending = .reelFocus(instagramUrl: instagramUrl)
+        deepLinkRouter.pending = .reelFocus(groupId: groupId, instagramUrl: instagramUrl)
     }
 
     /// 결과 카드 닫기(✕). 결과 발행 해제(FR-I8).
@@ -327,14 +327,4 @@ final class BotChatViewModel: ObservableObject {
     }
 }
 
-// MARK: - 저장 결과(FR-I8)
-
-/// 위저드 저장 완료 결과(결과 카드 렌더 입력). 409 중복은 목록(wishNames/reelNames)에서 제외되고 duplicateCount 로만 집계.
-/// sourceInstagramUrl 이 non-nil 일 때만 결과 카드에 [지도에서 보기 →] 노출(BR-7 — 저장 성공 핀 1개 이상 + URL 존재).
-struct ReelSaveResult: Equatable {
-    let wishNames: [String]
-    let reelNames: [String]
-    let duplicateCount: Int
-    let memo: String?
-    let sourceInstagramUrl: String?
-}
+// ReelSaveResult 는 GroupChatModels.swift 로 이동(봇·그룹 공용, GC-3 봇 제거 후 보존). 정의 중복 방지로 여기선 제거.

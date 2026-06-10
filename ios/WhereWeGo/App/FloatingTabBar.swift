@@ -61,7 +61,7 @@ struct FloatingTabBar: View {
             tabButton(.chat,
                       outline: "paperplane",
                       fill: "paperplane.fill",
-                      label: "DM",
+                      label: "채팅",
                       showUnread: hasChatUnread)
             tabButton(.notification, outline: "bell", fill: "bell.fill", label: "알림", showUnread: hasUnread)
             tabButton(.myInfo, outline: "person", fill: "person.fill", label: "내정보")

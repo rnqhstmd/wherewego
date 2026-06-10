@@ -18,8 +18,8 @@ enum DeepLinkDestination: Equatable {
     case pin(pinId: Int)
     case invite(slug: String)
     case map
-    /// 봇 저장 결과 "보러가기"(FR-I15). 지도 탭 전환 + 해당 릴스 instagramUrl 핀 포커스(focusReel).
-    case reelFocus(instagramUrl: String)
+    /// 「구경하실래요?」(GC-2 FR-GC2-5) / 봇 저장 "보러가기". 지도 탭 + 해당 그룹 전환 + 릴스 instagramUrl 핀 포커스(focusReel).
+    case reelFocus(groupId: Int, instagramUrl: String)
 }
 
 @MainActor
@@ -73,6 +73,9 @@ final class DeepLinkRouter: ObservableObject {
             return .chat
         case "COUPLE_MESSAGE":
             // 커플챗 제거(FR-11/BR-2) 후 채팅 탭으로 재매핑(FR-28 하위호환 폴백).
+            return .chat
+        case "GROUP_MESSAGE":
+            // GC-2 그룹 채팅 새 메시지(COUPLE_MESSAGE 대체). 채팅 탭으로 — 현재 방 매칭/배너 억제는 willPresent 별도 처리.
             return .chat
         case "PIN_SAVED":
             return .map

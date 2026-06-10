@@ -61,6 +61,7 @@ dist/
 .dev/**/frontend-tsc*.log
 .dev/**/cross-review.raw.md
 .dev/**/cross-review-prompt.md
+.dev/**/cross-review-state.md
 .dev/**/extract.ps1
 .dev/**/diff.txt
 

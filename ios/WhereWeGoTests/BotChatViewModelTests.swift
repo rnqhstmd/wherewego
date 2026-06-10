@@ -348,6 +348,17 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
     /// 마지막으로 봇 메시지 조회/전송에 사용된 groupId(DM 그룹별 전환 검증용).
     private(set) var lastGroupId: Int?
 
+    // MARK: GC-2 그룹 채팅 stub(GroupChatViewModel/DMListViewModel 테스트 공용)
+    var groupRoomsResult: Result<[GroupRoomSummary], Error> = .success([])
+    var groupMessagesResult: Result<GroupMessagesResponse, Error> =
+        .success(GroupMessagesResponse(groupId: 1, messages: [], hasMore: false, nextCursor: nil))
+    var sendGroupResult: Result<SendMessageResponse, Error> = .success(SendMessageResponse(messageId: 0, kind: .TEXT))
+    var extractResult: Result<PlaceCardsPayload, Error> = .success(PlaceCardsPayload(cards: [], sourceInstagramUrl: nil))
+    private(set) var sendGroupCallCount = 0
+    private(set) var lastSentKind: MessageKind?
+    private(set) var lastSentURL: String?
+    private(set) var extractedMessageId: Int?
+
     func botRooms() async throws -> [BotRoomSummary] {
         try roomsResult.get()
     }
@@ -370,6 +381,30 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
 
     func sendCoupleMessage(groupId: Int, text: String) async throws -> SendMessageResponse {
         try sendResult.get()
+    }
+
+    func groupRooms() async throws -> [GroupRoomSummary] {
+        try groupRoomsResult.get()
+    }
+
+    func groupMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> GroupMessagesResponse {
+        lastGroupId = groupId
+        return try groupMessagesResult.get()
+    }
+
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse {
+        lastGroupId = groupId
+        sendGroupCallCount += 1
+        lastSentKind = kind
+        lastSentText = text
+        lastSentURL = url
+        return try sendGroupResult.get()
+    }
+
+    func extractGroupReelPlaces(groupId: Int, messageId: Int) async throws -> PlaceCardsPayload {
+        lastGroupId = groupId
+        extractedMessageId = messageId
+        return try extractResult.get()
     }
 }
 

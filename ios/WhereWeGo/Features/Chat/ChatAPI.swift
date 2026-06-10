@@ -19,6 +19,14 @@ struct SendMessageRequest: Encodable {
     let text: String
 }
 
+/// GC-2 그룹 메시지 전송 요청(설계 §0). kind 분기 — TEXT 는 text(1~2000자), REEL_LINK 는 url(https+인스타).
+/// 미사용 필드는 자동 합성 Encodable 의 encodeIfPresent 로 생략된다(nil → 키 누락 → 백엔드 record null).
+struct GroupMessageRequest: Encodable {
+    let kind: MessageKind
+    let text: String?
+    let url: String?
+}
+
 // MARK: - ChatAPIProtocol
 
 protocol ChatAPIProtocol: Sendable {
@@ -32,6 +40,17 @@ protocol ChatAPIProtocol: Sendable {
     func coupleMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> MessagesResponse
     /// POST /chat/couple/{groupId}/messages — 커플 방 전송. 응답은 저장된 메시지 messageId/kind.
     func sendCoupleMessage(groupId: Int, text: String) async throws -> SendMessageResponse
+
+    // MARK: GC-2 그룹 채팅(설계 §0 — /chat/groups). 봇/커플 메서드는 GC-3 제거 예정 dead.
+
+    /// GET /chat/groups — 내 활성 그룹별 그룹 채팅방 목록(FR-GC2-1). 그룹 0개 → 빈 배열.
+    func groupRooms() async throws -> [GroupRoomSummary]
+    /// GET /chat/groups/{groupId}/messages — 그룹 방 메시지 페이지(최신순, id DESC). cursor=nil 이면 최신 N건.
+    func groupMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> GroupMessagesResponse
+    /// POST /chat/groups/{groupId}/messages — TEXT/REEL_LINK 전송. 저장 메시지 {messageId, kind} 반환.
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse
+    /// POST /chat/groups/{groupId}/messages/{messageId}/extract — 발신자 온디맨드 릴스 장소 추출(동기, 15s).
+    func extractGroupReelPlaces(groupId: Int, messageId: Int) async throws -> PlaceCardsPayload
 }
 
 // MARK: - ChatAPI
@@ -88,6 +107,45 @@ final class ChatAPI: ChatAPIProtocol {
             method: "POST",
             body: body,
             type: SendMessageResponse.self
+        )
+    }
+
+    // MARK: - GC-2 그룹 채팅 구현(설계 §0)
+
+    /// GET /chat/groups — 그룹 0개(data null/204)는 빈 배열로 정규화(botRooms 동치). 401 은 상위(refresh/logout) 전파.
+    func groupRooms() async throws -> [GroupRoomSummary] {
+        do {
+            return try await client.request("/chat/groups", type: [GroupRoomSummary].self)
+        } catch let error as APIError {
+            if error.status == 401 { throw error }
+            if error.code == "HTTP_200" || error.code == "NO_CONTENT" { return [] }
+            throw error
+        }
+    }
+
+    func groupMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> GroupMessagesResponse {
+        try await client.request(
+            "/chat/groups/\(groupId)/messages" + Self.pageQuery(cursor: cursor, limit: limit),
+            type: GroupMessagesResponse.self
+        )
+    }
+
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse {
+        let body = try JSONEncoder().encode(GroupMessageRequest(kind: kind, text: text, url: url))
+        return try await client.request(
+            "/chat/groups/\(groupId)/messages",
+            method: "POST",
+            body: body,
+            type: SendMessageResponse.self
+        )
+    }
+
+    /// 추출은 body 없는 POST(서버가 messageId 경로로 식별). deadline 15초는 서버측(APIClient 타임아웃 내).
+    func extractGroupReelPlaces(groupId: Int, messageId: Int) async throws -> PlaceCardsPayload {
+        try await client.request(
+            "/chat/groups/\(groupId)/messages/\(messageId)/extract",
+            method: "POST",
+            type: PlaceCardsPayload.self
         )
     }
 
