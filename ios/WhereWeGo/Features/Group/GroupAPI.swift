@@ -132,6 +132,21 @@ final class GroupAPI: GroupAPIProtocol {
         )
     }
 
+    /// GET /groups/{groupId}/invite-links/current (IC-2 후속) — 현재 활성(미만료) 초대 링크.
+    /// 발급과 달리 새 코드를 만들지 않는다(반복 호출 안전). 활성 코드 없음(data null/204) → nil(myActiveGroup 패턴).
+    func currentInviteLink(groupId: Int) async throws -> InviteLink? {
+        do {
+            return try await client.request(
+                "/groups/\(groupId)/invite-links/current",
+                type: InviteLink.self
+            )
+        } catch let error as APIError {
+            if error.status == 401 { throw error }
+            if error.code == "HTTP_200" || error.code == "NO_CONTENT" { return nil }
+            throw error
+        }
+    }
+
     /// DELETE /groups/{groupId}/members/me (그룹 탈퇴, FR-25).
     // 백엔드는 200 success()(data:null) 또는 204(빈 본문) 가능 — APIClient.decodeEnvelope 는
     // data 키 부재로 HTTP_200/NO_CONTENT 를 throw 한다. 둘 다 성공이므로 흡수하고 나머지는 전파

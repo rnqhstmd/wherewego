@@ -28,6 +28,9 @@ protocol GroupAPIProtocol: Sendable {
     /// 초대 코드(slug) 공개 미리보기(GET /groups/invite-links/by-slug/{slug}, IC-2).
     /// token·groupName 확보용 — 합류는 확보한 token 으로 acceptInvite 호출(2단계).
     func previewBySlug(slug: String) async throws -> InviteLinkPreview
+    /// 현재 활성(미만료) 초대 링크 조회(GET /groups/{id}/invite-links/current, IC-2 후속).
+    /// 발급과 달리 새 코드를 만들지 않는다 — 그룹관리 진입 시 코드 자동 표시용. 없으면 nil.
+    func currentInviteLink(groupId: Int) async throws -> InviteLink?
 }
 
 /// previewBySlug 기본 구현 — 기존 테스트 스텁(미구현)의 프로토콜 정합을 유지한다(12개 스텁 무수정).
@@ -36,6 +39,9 @@ extension GroupAPIProtocol {
     func previewBySlug(slug: String) async throws -> InviteLinkPreview {
         throw APIError(code: "UNSUPPORTED", status: 0, message: "previewBySlug 미지원")
     }
+
+    /// 기본 구현(테스트 스텁 호환) — 활성 코드 없음(nil). 실제 호출은 GroupAPI 구현이 override 한다.
+    func currentInviteLink(groupId: Int) async throws -> InviteLink? { nil }
 }
 
 /// 인증 흐름 에러. View 친화 메시지(BR-7).

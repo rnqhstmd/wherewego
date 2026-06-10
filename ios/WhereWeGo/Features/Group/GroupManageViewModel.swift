@@ -70,6 +70,20 @@ final class GroupManageViewModel: ObservableObject {
         } catch {
             loadState = .error("그룹원 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
         }
+        // 현재 활성 초대 코드 자동 조회(있으면 바로 표시 — 발급 아님이라 기존 코드 만료 없음).
+        await loadCurrentInvite()
+    }
+
+    /// 현재 활성(미만료) 초대 코드 조회(GET, 발급 아님). 없음/실패 시 nil 유지 → '초대 코드 만들기' 노출.
+    private func loadCurrentInvite() async {
+        do {
+            if let link = try await groupAPI.currentInviteLink(groupId: groupId), let slug = link.slug {
+                inviteCode = slug
+                inviteShareUrl = link.shareUrl
+            }
+        } catch {
+            // 무시 — 코드 없음으로 간주(사용자가 '초대 코드 만들기' 로 발급 가능).
+        }
     }
 
     /// 그룹명 수정(모든 멤버 가능). 공백 트림 후 빈 값이면 무시. 성공 시 onRenamed 콜백.
@@ -145,9 +159,14 @@ final class GroupManageViewModel: ObservableObject {
     }
 
     /// 발급된 코드(slug)를 클립보드로 복사. pasteboardSetter 주입(테스트 가능, WelcomeWizardVM 패턴).
+    /// 복사 후 "복사됨" 표시를 2초간 노출하고 자동 원복(토스트형 알림).
     func copyInviteCode(_ pasteboardSetter: (String) -> Void) {
         guard let code = inviteCode, !code.isEmpty else { return }
         pasteboardSetter(code)
         inviteCopied = true
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            self?.inviteCopied = false
+        }
     }
 }

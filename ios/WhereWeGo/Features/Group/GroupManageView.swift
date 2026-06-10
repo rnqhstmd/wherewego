@@ -186,27 +186,17 @@ struct GroupManageView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - 초대 코드(발급 + 복사 + 링크 공유, IC-2)
+    // MARK: - 초대 코드(진입 시 자동 조회 + 코드 탭 복사 + 초대하기 공유창, IC-2 후속)
 
     private var inviteSection: some View {
         section(label: "초대") {
             VStack(alignment: .leading, spacing: 0) {
                 if let code = viewModel.inviteCode {
-                    HStack {
-                        Text(code)
-                            .font(WGFont.mono(22))
-                            .foregroundStyle(WGColor.ink)
-                            .textSelection(.enabled)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 10)
+                    // 코드 탭 = 바로 복사 + "복사됨" 표시(별도 복사 버튼 제거 — 모바일 친화).
+                    inviteCodeRow(code: code)
 
                     Rectangle().fill(WGColor.hairline).frame(height: 1).padding(.vertical, 2)
-                    rowButton(label: viewModel.inviteCopied ? "복사됨" : "코드 복사") {
-                        viewModel.copyInviteCode { UIPasteboard.general.string = $0 }
-                    }
-
-                    Rectangle().fill(WGColor.hairline).frame(height: 1).padding(.vertical, 2)
+                    // 초대하기 = 시스템 공유창(카톡/메신저 선택 → 링크 전송).
                     inviteShareRow(code: code)
                 } else {
                     rowButton(
@@ -220,18 +210,48 @@ struct GroupManageView: View {
         }
     }
 
+    /// 초대코드 행 — 탭하면 바로 복사 + "복사됨" 토스트형 표시(별도 복사 버튼 불필요).
+    private func inviteCodeRow(code: String) -> some View {
+        Button {
+            viewModel.copyInviteCode { UIPasteboard.general.string = $0 }
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("초대코드")
+                        .font(WGFont.sans(12))
+                        .foregroundStyle(WGColor.inkSoft)
+                    Text(code)
+                        .font(WGFont.mono(22))
+                        .foregroundStyle(WGColor.ink)
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    Image(systemName: viewModel.inviteCopied ? "checkmark.circle.fill" : "doc.on.doc")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(viewModel.inviteCopied ? "복사됨" : "탭하여 복사")
+                        .font(WGFont.sans(12))
+                }
+                .foregroundStyle(viewModel.inviteCopied ? WGColor.cta : WGColor.inkFaint)
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 링크 공유 행 — shareUrl 이 절대 URL이면 URL 공유, 아니면 코드 텍스트 공유로 폴백.
     /// rowButton 톤(라벨 + 우측 아이콘)을 ShareLink 라벨로 재현한다.
     @ViewBuilder
     private func inviteShareRow(code: String) -> some View {
         let shareLabel = HStack {
-            Text("링크 공유")
+            Text("초대하기")
                 .font(WGFont.sans(14))
-                .foregroundStyle(WGColor.ink)
+                .fontWeight(.semibold)
+                .foregroundStyle(WGColor.cta)
             Spacer()
             Image(systemName: "square.and.arrow.up")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(WGColor.inkFaint)
+                .foregroundStyle(WGColor.cta)
         }
         .contentShape(Rectangle())
         .padding(.vertical, 12)
