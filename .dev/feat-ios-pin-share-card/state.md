@@ -11,7 +11,7 @@ flags: --hotfix (전체 이식)
 mode: hotfix
 intent-source: user-selection
 started: 2026-06-09
-current-step: "PR #114(base develop) · iOS CI green x2(8m41s→3m2s) · 글리프 웹 SVG 경로 정확 이식(PinGlyphShape) · 코드리뷰 진행중 · Mac DoD-B 잔여"
+current-step: "PR #114(base develop) · iOS CI green x3 · 글리프 웹 SVG 경로 이식 · 코드리뷰 반영 완료(흑백 Rec.601·마커 그림자·CIContext) · 남은 건 Mac DoD-B(시각/실기기)뿐"
 
 ## 핵심 발견
 - iOS 앱에는 핀 공유 카드 기능이 **부재**(웹만 Phase 9 존재) → 신규 이식 작업.
