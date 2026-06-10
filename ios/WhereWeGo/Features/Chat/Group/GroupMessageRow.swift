@@ -2,7 +2,7 @@ import SwiftUI
 
 // 그룹 채팅 메시지 1건 렌더(GC-2 FR-GC2-2/3). 발신자 구분(내/남 정렬·닉네임) + REEL_LINK 3상태 버블.
 //  - TEXT      : 내(senderUserId==currentUserId) 우측 cta, 타인 좌측 panel + 닉네임 라벨.
-//  - REEL_LINK : 링크 카드(도메인+「Instagram 릴스」, 썸네일 GC-3) + 하단 3상태 버튼.
+//  - REEL_LINK : 릴스 썸네일(정사각+radius, 만료/부재 시 회색 폴백, GC-3 FR-GC3-2) + 링크 카드(도메인+「Instagram 릴스」) + 하단 3상태 버튼.
 //      ① 내+미등록 = 「장소 등록하기」(활성)  ② 타인+미등록 = 「장소 등록전이에요」(비활성)
 //      ③ 등록됨(전원) = 「장소가 등록되었어요. 구경하실래요?」(활성). 상태는 서버 registered 만 신뢰.
 //  - SYSTEM    : 중앙 캡션. 봇 kind(PLACE_CARDS/PROCESSING/MEMO_PROMPT)는 그룹 방 미사용 — 렌더 생략.
@@ -77,6 +77,7 @@ struct GroupMessageRow: View {
                         .padding(.leading, 4)
                 }
                 VStack(alignment: .leading, spacing: 10) {
+                    reelThumbnail
                     HStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
                             .font(.system(size: 18))
@@ -102,6 +103,43 @@ struct GroupMessageRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
             }
             if !isOutgoing { Spacer(minLength: 32) }
+        }
+    }
+
+    // MARK: - REEL_LINK 썸네일(FR-GC3-2)
+
+    /// 릴스 커버 썸네일 — 카드 폭 정사각 + radius(둥글둥글). thumbnailUrl 없거나 만료(로드 실패) 시 기본 회색 타일 폴백.
+    private var reelThumbnail: some View {
+        let shape = RoundedRectangle(cornerRadius: 12)
+        return Color.clear
+            .aspectRatio(1, contentMode: .fit)          // 정사각 사이저(카드 폭에 1:1)
+            .overlay {
+                if let raw = frame.thumbnailUrl, let url = URL(string: raw) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure:
+                            thumbnailPlaceholder        // 만료(403)/차단 → 회색
+                        default:
+                            thumbnailPlaceholder        // 로딩 중에도 회색(깜빡임 최소)
+                        }
+                    }
+                } else {
+                    thumbnailPlaceholder                // 아직 스크래핑 전/flag off → 회색
+                }
+            }
+            .clipShape(shape)
+            .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
+    }
+
+    /// 썸네일 부재·실패 폴백: 기본 회색 타일 + photo 글리프.
+    private var thumbnailPlaceholder: some View {
+        ZStack {
+            WGColor.hairline
+            Image(systemName: "photo")
+                .font(.system(size: 24))
+                .foregroundStyle(WGColor.inkFaint)
         }
     }
 

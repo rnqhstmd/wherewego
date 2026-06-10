@@ -24,11 +24,14 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
     let reelUrl: String?
     /// REEL_LINK 만 — 이 릴스의 핀이 그룹에 존재하면 true(파생). 그 외 kind 는 nil.
     let registered: Bool?
+    /// REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 백엔드 프레임의 top-level 계약 필드.
+    /// 스크래핑 전/실패/만료/flag off, 그 외 kind 는 nil → 버블에서 기본 회색 타일로 폴백.
+    let thumbnailUrl: String?
     /// TEXT/SYSTEM 의 payload.text(그 외 nil).
     let text: String?
 
     private enum CodingKeys: String, CodingKey {
-        case messageId, roomId, senderUserId, senderNickname, kind, payload, registered, createdAt
+        case messageId, roomId, senderUserId, senderNickname, kind, payload, registered, thumbnailUrl, createdAt
     }
     private enum TextKeys: String, CodingKey { case text }
     private enum ReelKeys: String, CodingKey { case url }
@@ -42,6 +45,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.kind = try c.decode(MessageKind.self, forKey: .kind)
         self.createdAt = try c.decode(String.self, forKey: .createdAt)
         self.registered = try c.decodeIfPresent(Bool.self, forKey: .registered)
+        // thumbnailUrl 은 백엔드 프레임 top-level(payload 밖) — registered 와 동형으로 kind 무관하게 디코드(비-REEL_LINK 는 서버가 null).
+        self.thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
 
         // payload 는 kind 로 분기. 누락/형식 불일치는 방어적으로 nil 처리.
         switch kind {
@@ -70,6 +75,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         createdAt: String,
         reelUrl: String? = nil,
         registered: Bool? = nil,
+        thumbnailUrl: String? = nil,
         text: String? = nil
     ) {
         self.messageId = messageId
@@ -80,6 +86,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.createdAt = createdAt
         self.reelUrl = reelUrl
         self.registered = registered
+        self.thumbnailUrl = thumbnailUrl
         self.text = text
     }
 }

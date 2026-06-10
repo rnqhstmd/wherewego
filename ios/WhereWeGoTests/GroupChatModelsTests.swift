@@ -30,6 +30,15 @@ final class GroupChatModelsTests: XCTestCase {
         let f = try decodeFrame(#"{"messageId":3,"roomId":10,"senderUserId":7,"senderNickname":"영희","kind":"REEL_LINK","payload":{"url":"https://instagram.com/reel/XYZ"},"registered":false,"createdAt":"2026-06-10T12:02:00+09:00"}"#)
         XCTAssertEqual(f.registered, false)
         XCTAssertEqual(f.reelUrl, "https://instagram.com/reel/XYZ")
+        XCTAssertNil(f.thumbnailUrl)   // thumbnailUrl 키 부재 → 안전하게 nil(GC-3 FR-GC3-2)
+    }
+
+    func test_REEL_LINK_썸네일URL() throws {
+        // 백엔드 프레임 top-level thumbnailUrl(payload 밖) 디코드. 비동기 스크래핑 성공 시 채워진다.
+        let f = try decodeFrame(#"{"messageId":5,"roomId":10,"senderUserId":5,"senderNickname":"민수","kind":"REEL_LINK","payload":{"url":"https://instagram.com/reel/ABC","thumbnailKey":null,"thumbnailUrl":"https://scontent.cdninstagram.com/v/cover.jpg"},"registered":true,"thumbnailUrl":"https://scontent.cdninstagram.com/v/cover.jpg","createdAt":"2026-06-10T12:05:00+09:00"}"#)
+        XCTAssertEqual(f.thumbnailUrl, "https://scontent.cdninstagram.com/v/cover.jpg")
+        XCTAssertEqual(f.reelUrl, "https://instagram.com/reel/ABC")
+        XCTAssertEqual(f.registered, true)
     }
 
     func test_탈퇴_발신자는_nil() throws {
