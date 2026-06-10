@@ -33,6 +33,19 @@ public interface ChatMessageJpaRepository extends JpaRepository<ChatMessage, Lon
                                                Pageable pageable);
 
     /**
+     * 미읽음 수: 읽음 포인터({@code afterId}, {@code null}=전부) 이후의 타인(sender NULL 포함) 활성 메시지 수.
+     * {@code idx_chat_message_room_id_desc (room_id, id DESC)} 인덱스 range scan 으로 커버된다.
+     */
+    @Query("SELECT COUNT(m) FROM ChatMessage m "
+            + "WHERE m.roomId = :roomId "
+            + "AND (:afterId IS NULL OR m.id > :afterId) "
+            + "AND (m.senderUserId IS NULL OR m.senderUserId <> :userId) "
+            + "AND m.deletedAt IS NULL")
+    long countOthersAfter(@Param("roomId") Long roomId,
+                          @Param("afterId") Long afterId,
+                          @Param("userId") Long userId);
+
+    /**
      * 계정 삭제 시 본인 발신 메시지의 {@code sender_user_id}를 NULL 처리한다(PR-3). 벌크 갱신은
      * {@code @PreUpdate}를 우회하므로 {@code updatedAt}도 명시적으로 갱신한다.
      */

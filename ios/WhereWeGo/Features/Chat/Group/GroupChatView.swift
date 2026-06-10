@@ -17,6 +17,12 @@ struct GroupChatView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private let bottomAnchor = "group-chat-bottom"
+    /// 첫 진입 앵커 스크롤 1회 가드(미읽음 위치부터 진입).
+    @State private var didInitialScroll = false
+    /// 하단 근접 여부(하단 센티널 가시성) — 신규 도착 시 자동 스크롤 vs 배너 분기.
+    @State private var isNearBottom = true
+    /// 위로 스크롤 중 신규 메시지 도착 배너("새 메시지가 있어요").
+    @State private var showNewMessagePill = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,37 +65,87 @@ struct GroupChatView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 0) {
                         // 상단 도달 → 과거 메시지 추가 로드(FR-GC2-2).
                         Color.clear
                             .frame(height: 1)
                             .onAppear { Task { await viewModel.loadMore() } }
 
-                        ForEach(viewModel.messages) { frame in
+                        // 카톡식 그루핑: 같은 발신자+같은 분 묶음은 간격 2pt 로 붙이고,
+                        // 닉네임/아바타는 묶음 첫 메시지·시간은 묶음 마지막 메시지에만.
+                        ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, frame in
+                            let chainedWithPrev = viewModel.isChainedWithPrevious(at: index)
                             GroupMessageRow(
                                 frame: frame,
                                 currentUserId: viewModel.currentUserId,
+                                showsSender: !chainedWithPrev,
+                                showsTime: !viewModel.isChainedWithNext(at: index),
                                 onRegister: { messageId, url in viewModel.register(messageId: messageId, url: url) },
                                 onOpenReel: { url in viewModel.openReel(url: url) }
                             )
                             .id(frame.id)
+                            .padding(.top, index == 0 ? 0 : (chainedWithPrev ? 2 : 12))
                         }
 
+                        // 하단 센티널: 가시성으로 "하단 근접" 추적(신규 도착 시 자동 스크롤 vs 배너 분기).
                         Color.clear
                             .frame(height: 1)
                             .id(bottomAnchor)
+                            .onAppear {
+                                isNearBottom = true
+                                showNewMessagePill = false
+                            }
+                            .onDisappear { isNearBottom = false }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .onAppear { scrollToBottom(proxy, animated: false) }
-                // 마지막 메시지 id 변경(신규 append)일 때만 하단 추적(버그 ①, FR-GC2-1/BR-2).
-                //  count 추적은 loadMore 의 prepend 도 증가시켜 과거 로드 중 하단으로 튀는 회귀를 유발한다 →
-                //  messages.last?.messageId(Int? Equatable)로 교체해 신규 도착에만 반응. 빈 방 첫 append(nil→id)도 포함.
-                .onChange(of: viewModel.messages.last?.messageId) { _, _ in
-                    scrollToBottom(proxy, animated: true)
+                // 첫 진입: 미읽음이 있으면 첫 미읽음 메시지부터(앵커 상단), 없으면 맨 아래로.
+                .onAppear {
+                    if !didInitialScroll, let anchor = viewModel.initialUnreadAnchorId {
+                        proxy.scrollTo(anchor, anchor: .top)
+                    } else {
+                        scrollToBottom(proxy, animated: false)
+                    }
+                    didInitialScroll = true
                 }
+                // 마지막 메시지 id 변경(신규 append)일 때만 반응(버그 ①, FR-GC2-1/BR-2 — count 추적은 prepend 에도 발화).
+                //  하단 근접/내 전송이면 자동 스크롤, 위로 스크롤해 읽는 중이면 "새 메시지" 배너만(강제 이동 금지).
+                .onChange(of: viewModel.messages.last?.messageId) { _, _ in
+                    let isMine = viewModel.currentUserId != nil
+                        && viewModel.messages.last?.senderUserId == viewModel.currentUserId
+                    if isNearBottom || isMine {
+                        scrollToBottom(proxy, animated: true)
+                        showNewMessagePill = false
+                    } else {
+                        showNewMessagePill = true
+                    }
+                }
+                // "새 메시지가 있어요" 배너 — 탭하면 맨 아래로.
+                .overlay(alignment: .bottom) {
+                    if showNewMessagePill {
+                        Button {
+                            scrollToBottom(proxy, animated: true)
+                            showNewMessagePill = false
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("새 메시지가 있어요")
+                                    .font(WGFont.sansSemiBold(12))
+                            }
+                            .foregroundStyle(WGColor.panel)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(WGColor.cta))
+                            .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
+                        }
+                        .padding(.bottom, 10)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeOut(duration: 0.18), value: showNewMessagePill)
             }
         }
     }

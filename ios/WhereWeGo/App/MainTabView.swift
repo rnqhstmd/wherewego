@@ -110,6 +110,7 @@ struct MainTabView: View {
                         GroupChatViewModel(
                             groupId: room.groupId,
                             roomId: room.roomId,
+                            initialUnreadCount: room.unreadCount ?? 0,   // 미읽음 위치부터 진입 앵커.
                             chatAPI: dependencies.chatAPI,
                             pinAPI: dependencies.pinAPI,
                             currentUser: dependencies.currentUser,

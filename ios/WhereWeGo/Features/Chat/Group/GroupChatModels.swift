@@ -114,6 +114,8 @@ struct GroupRoomSummary: Decodable, Identifiable, Equatable, Hashable {
     /// 마지막 메시지 발신자. 탈퇴/메시지 없음 → nil. 내 메시지("나: …") 판정용.
     let lastSenderUserId: Int?
     let hasUnread: Bool
+    /// 안 읽은 타인 메시지 수(읽음 포인터 이후). 구버전 서버 응답엔 없을 수 있어 옵셔널(+기본 nil).
+    var unreadCount: Int? = nil
     let lastAt: String?
 
     /// 그룹당 1방 — groupId 가 안정 식별자(가상항목 roomId=nil 회피, List 식별 안정성).

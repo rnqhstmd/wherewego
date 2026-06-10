@@ -11,6 +11,12 @@ struct GroupMessageRow: View {
     let frame: GroupChatFrame
     /// 현재 사용자 id(발신자 구분). nil 이면 전부 타인 취급.
     let currentUserId: Int?
+    /// 묶음 첫 메시지 여부(카톡식 그루핑) — 닉네임/아바타는 묶음 첫 메시지에만.
+    var showsSender: Bool = true
+    /// 묶음 마지막 메시지 여부 — 같은 분 연속 메시지는 마지막에만 시간 표시.
+    var showsTime: Bool = true
+    /// 릴스 썸네일 탭 → 인스타그램 원본 열기.
+    @Environment(\.openURL) private var openURL
     /// 「장소 등록하기」(내 미등록 REEL_LINK) → 추출 팝업 트리거.
     var onRegister: ((_ messageId: Int, _ url: String) -> Void)?
     /// 「구경하실래요?」(등록됨 REEL_LINK) → 지도 딥링크.
@@ -39,15 +45,16 @@ struct GroupMessageRow: View {
 
     private var textBubble: some View {
         // 인스타 DM식: 타인 = 아바타 + 닉네임(위) + 버블 + 오른쪽 하단 시간 / 내 메시지 = 왼쪽 하단 시간 + 버블.
+        // 카톡식 그루핑: 닉네임/아바타는 묶음 첫 메시지(showsSender), 시간은 묶음 마지막(showsTime)에만.
         HStack(alignment: .bottom, spacing: 6) {
             if isOutgoing {
                 Spacer(minLength: 48)
-                timeLabel
+                if showsTime { timeLabel }
             } else {
-                senderAvatar
+                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
-                if !isOutgoing {
+                if !isOutgoing, showsSender {
                     Text(senderName)
                         .font(WGFont.sans(11))
                         .foregroundStyle(WGColor.inkSoft)
@@ -67,7 +74,7 @@ struct GroupMessageRow: View {
                     )
             }
             if !isOutgoing {
-                timeLabel
+                if showsTime { timeLabel }
                 Spacer(minLength: 48)
             }
         }
@@ -79,12 +86,12 @@ struct GroupMessageRow: View {
         HStack(alignment: .bottom, spacing: 6) {
             if isOutgoing {
                 Spacer(minLength: 32)
-                timeLabel
+                if showsTime { timeLabel }
             } else {
-                senderAvatar
+                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
-                if !isOutgoing {
+                if !isOutgoing, showsSender {
                     Text(senderName)
                         .font(WGFont.sans(11))
                         .foregroundStyle(WGColor.inkSoft)
@@ -117,7 +124,7 @@ struct GroupMessageRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
             }
             if !isOutgoing {
-                timeLabel
+                if showsTime { timeLabel }
                 Spacer(minLength: 32)
             }
         }
@@ -148,6 +155,13 @@ struct GroupMessageRow: View {
             }
             .clipShape(shape)
             .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
+            .contentShape(shape)
+            // 썸네일 탭 → 해당 릴스 원본으로 이동(인스타 앱/브라우저).
+            .onTapGesture {
+                if let raw = frame.reelUrl, let url = URL(string: raw) {
+                    openURL(url)
+                }
+            }
     }
 
     /// 썸네일 부재·실패 폴백: 기본 회색 타일 + photo 글리프.

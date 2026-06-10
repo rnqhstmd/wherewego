@@ -59,5 +59,8 @@ enum WGFont {
     static func serif(_ size: CGFloat) -> Font { .custom("NotoSerifKR-Regular", size: size) } // 웹: Noto Serif KR
     static func emo(_ size: CGFloat) -> Font   { .custom("GowunBatang-Regular", size: size) }  // 웹: Gowun Batang
     static func sans(_ size: CGFloat) -> Font  { .custom("Pretendard-Regular", size: size) }   // 웹: Pretendard
+    // Pretendard 는 고정 웨이트 OTF 라 .fontWeight() 합성이 적용되지 않는다 → 강조는 실제 페이스로.
+    static func sansSemiBold(_ size: CGFloat) -> Font { .custom("Pretendard-SemiBold", size: size) }
+    static func sansBold(_ size: CGFloat) -> Font     { .custom("Pretendard-Bold", size: size) }
     static func mono(_ size: CGFloat) -> Font  { .custom("JetBrainsMono-Regular", size: size) }// 웹: JetBrains Mono
 }

@@ -14,6 +14,7 @@ package com.wherewego.domain.chat;
  * @param lastPreview      마지막 메시지 미리보기(TEXT=앞 40자, REEL_LINK=「릴스 링크」). 메시지 없음 → {@code null}.
  * @param lastSenderUserId 마지막 메시지 발신자. 탈퇴 발신자/메시지 없음 → {@code null}.
  * @param hasUnread        마지막 메시지가 타인 발신이고 내 읽음 포인터 이후면 {@code true}(인스타식 boolean).
+ * @param unreadCount      읽음 포인터 이후의 타인 메시지 수(숫자 배지·미읽음 위치 진입 앵커용). hasUnread=false 면 0.
  * @param lastAt           마지막 메시지 생성 시각(ISO8601 offset). 메시지 없음 → {@code null}.
  */
 public record GroupRoomSummary(
@@ -23,6 +24,7 @@ public record GroupRoomSummary(
         String lastPreview,
         Long lastSenderUserId,
         boolean hasUnread,
+        int unreadCount,
         String lastAt
 ) {
 }

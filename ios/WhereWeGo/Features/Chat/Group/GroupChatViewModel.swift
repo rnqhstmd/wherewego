@@ -53,6 +53,8 @@ final class GroupChatViewModel: ObservableObject {
 
     /// 이 방의 그룹 식별자(메시지 조회/전송 경로·릴스 저장 핀 귀속·딥링크 그룹 전환).
     let groupId: Int
+    /// 방 진입 시점의 미읽음 수(목록 응답 unreadCount) — "안 읽은 위치부터 진입" 앵커 계산용.
+    let initialUnreadCount: Int
     /// 이 방의 roomId(willPresent 현재 방 매칭). 가상 방(미생성)이면 nil → 첫 프레임에서 보강.
     private(set) var roomId: Int?
     private let chatAPI: ChatAPIProtocol
@@ -85,9 +87,57 @@ final class GroupChatViewModel: ObservableObject {
     /// 내 userId(발신자 구분). currentUser 캐시.
     var currentUserId: Int? { currentUser.id }
 
+    /// 첫 진입 스크롤 앵커: 첫 미읽음 메시지 id(미읽음 없으면 nil → 맨 아래로).
+    /// 최신 페이지(20건)보다 미읽음이 많으면 페이지 첫 메시지부터(과거는 loadMore 로 연속 탐색).
+    var initialUnreadAnchorId: Int? {
+        guard initialUnreadCount > 0, !messages.isEmpty else { return nil }
+        let index = max(0, messages.count - initialUnreadCount)
+        return messages[index].messageId
+    }
+
+    // MARK: - 메시지 묶음(카톡식: 같은 발신자 + 같은 분)
+
+    /// index 메시지가 직전 메시지와 같은 묶음인지 — 묶음이면 간격을 좁히고 닉네임/아바타 생략.
+    func isChainedWithPrevious(at index: Int) -> Bool {
+        guard index > 0, index < messages.count else { return false }
+        return Self.isSameChain(messages[index - 1], messages[index])
+    }
+
+    /// index 메시지가 다음 메시지와 같은 묶음인지 — 묶음이면 시간 생략(마지막 것에만 표시).
+    func isChainedWithNext(at index: Int) -> Bool {
+        guard index >= 0, index + 1 < messages.count else { return false }
+        return Self.isSameChain(messages[index], messages[index + 1])
+    }
+
+    /// 같은 묶음 판정: 동일 발신자 + 같은 '분'(SYSTEM 제외). 시각 파싱 실패(낙관 직후 등)면 묶지 않음.
+    static func isSameChain(_ a: GroupChatFrame, _ b: GroupChatFrame) -> Bool {
+        guard a.kind != .SYSTEM, b.kind != .SYSTEM else { return false }
+        guard a.senderUserId != nil, a.senderUserId == b.senderUserId else { return false }
+        guard let ma = minuteKey(a.createdAt), let mb = minuteKey(b.createdAt) else { return false }
+        return ma == mb
+    }
+
+    private static func minuteKey(_ iso: String) -> Int? {
+        guard !iso.isEmpty,
+              let date = chainIsoFraction.date(from: iso) ?? chainIsoPlain.date(from: iso) else { return nil }
+        return Int(date.timeIntervalSince1970 / 60)
+    }
+
+    private static let chainIsoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let chainIsoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     init(
         groupId: Int,
         roomId: Int?,
+        initialUnreadCount: Int = 0,
         chatAPI: ChatAPIProtocol,
         pinAPI: PinAPIProtocol,
         currentUser: CurrentUser,
@@ -98,6 +148,7 @@ final class GroupChatViewModel: ObservableObject {
         }
     ) {
         self.groupId = groupId
+        self.initialUnreadCount = initialUnreadCount
         self.roomId = roomId
         self.chatAPI = chatAPI
         self.pinAPI = pinAPI
@@ -238,7 +289,7 @@ final class GroupChatViewModel: ObservableObject {
             senderUserId: currentUser.id,
             senderNickname: currentUser.nickname,
             kind: kind,
-            createdAt: "",                                  // 표시 시각 미사용 — reconcile 이 서버 값으로 교체.
+            createdAt: Self.isoNow(),                       // 즉시 시각 표시(클라 시계) — reconcile 이 서버 값으로 교체.
             reelUrl: url,
             registered: kind == .REEL_LINK ? false : nil,   // 방금 보낸 릴스는 미등록 — 발신자에게 「등록하기」 노출.
             text: text
@@ -246,6 +297,10 @@ final class GroupChatViewModel: ObservableObject {
         knownIds.insert(messageId)
         messages.append(frame)
     }
+
+    /// 낙관 프레임용 현재 시각(ISO-8601). 전송 직후 시간이 1~2초 늦게 뜨던 공백 제거(서버 교체 시 ±오차 자가치유).
+    private static let isoNowFormatter = ISO8601DateFormatter()
+    private static func isoNow() -> String { isoNowFormatter.string(from: Date()) }
 
     // MARK: - 수신 폴링(FR-GC2-6)
 

@@ -353,20 +353,24 @@ public class GroupChatService {
 
     private GroupRoomSummary summarizeRoom(Long userId, GroupSummary group, ChatRoom room) {
         return latestMessage(room.getId())
-                .map(latest -> new GroupRoomSummary(
-                        room.getId(),
-                        group.groupId(),
-                        group.name(),
-                        previewOf(latest),
-                        latest.getSenderUserId(),
-                        isUnread(userId, room.getId(), latest),
-                        formatCreatedAt(latest.getCreatedAt())))
+                .map(latest -> {
+                    int unread = unreadCountOf(userId, room.getId(), latest);
+                    return new GroupRoomSummary(
+                            room.getId(),
+                            group.groupId(),
+                            group.name(),
+                            previewOf(latest),
+                            latest.getSenderUserId(),
+                            unread > 0,
+                            unread,
+                            formatCreatedAt(latest.getCreatedAt()));
+                })
                 .orElseGet(() -> new GroupRoomSummary(
-                        room.getId(), group.groupId(), group.name(), null, null, false, null));
+                        room.getId(), group.groupId(), group.name(), null, null, false, 0, null));
     }
 
     private GroupRoomSummary emptySummary(GroupSummary group) {
-        return new GroupRoomSummary(null, group.groupId(), group.name(), null, null, false, null);
+        return new GroupRoomSummary(null, group.groupId(), group.name(), null, null, false, 0, null);
     }
 
     private Optional<ChatMessage> latestMessage(Long roomId) {
@@ -375,17 +379,21 @@ public class GroupChatService {
     }
 
     /**
-     * unread 판정(FR-GC1-7, 인스타식 boolean): 마지막 메시지가 타인 발신(탈퇴 발신자 NULL 포함)이고
-     * 내 읽음 포인터가 없거나 그보다 과거면 true. 내가 보낸 마지막 메시지는 false.
+     * 미읽음 수(FR-GC1-7 확장): 읽음 포인터 이후의 타인 메시지 수.
+     * 인스타식 규칙 보존 — 마지막 메시지가 내 발신이면(답장함) 0(미읽음 아님). 그 외에는 포인터 이후
+     * 타인(탈퇴 NULL 포함) 메시지를 센다. hasUnread 는 {@code count > 0} 파생으로 기존 의미와 동치.
      */
-    private boolean isUnread(Long userId, Long roomId, ChatMessage latest) {
+    private int unreadCountOf(Long userId, Long roomId, ChatMessage latest) {
         if (userId.equals(latest.getSenderUserId())) {
-            return false;
+            return 0;
         }
         Long lastRead = chatRoomReadRepository.findByRoomIdAndUserId(roomId, userId)
                 .map(ChatRoomRead::getLastReadMessageId)
                 .orElse(null);
-        return lastRead == null || lastRead < latest.getId();
+        if (lastRead != null && lastRead >= latest.getId()) {
+            return 0;
+        }
+        return (int) chatMessageRepository.countOthersAfter(roomId, lastRead, userId);
     }
 
     /**

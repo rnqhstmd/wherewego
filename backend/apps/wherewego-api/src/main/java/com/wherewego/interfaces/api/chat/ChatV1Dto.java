@@ -99,6 +99,7 @@ public final class ChatV1Dto {
             String lastPreview,
             Long lastSenderUserId,
             boolean hasUnread,
+            int unreadCount,
             String lastAt
     ) {
         public static GroupRoomSummaryResponse from(GroupRoomSummary summary) {
@@ -109,6 +110,7 @@ public final class ChatV1Dto {
                     summary.lastPreview(),
                     summary.lastSenderUserId(),
                     summary.hasUnread(),
+                    summary.unreadCount(),
                     summary.lastAt()
             );
         }

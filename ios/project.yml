@@ -49,6 +49,8 @@ targets:
           - NotoSerifKR-Regular.otf
           - GowunBatang-Regular.ttf
           - Pretendard-Regular.otf
+          - Pretendard-SemiBold.otf
+          - Pretendard-Bold.otf
           - JetBrainsMono-Regular.ttf
         NSLocationWhenInUseUsageDescription: "근처에 어떤 핀이 있는지 보여드릴게요"
         NSCameraUsageDescription: "사진을 직접 찍어 추억으로 남길 수 있어요"

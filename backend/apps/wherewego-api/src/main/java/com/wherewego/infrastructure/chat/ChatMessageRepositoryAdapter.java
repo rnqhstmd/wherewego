@@ -27,6 +27,11 @@ public class ChatMessageRepositoryAdapter implements ChatMessageRepository {
     }
 
     @Override
+    public long countOthersAfter(Long roomId, Long afterId, Long userId) {
+        return chatMessageJpa.countOthersAfter(roomId, afterId, userId);
+    }
+
+    @Override
     public void nullifySenderByUserId(Long userId) {
         chatMessageJpa.nullifySenderByUserId(userId, ZonedDateTime.now());
     }

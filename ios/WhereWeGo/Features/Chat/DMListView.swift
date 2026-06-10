@@ -168,7 +168,8 @@ private struct DMRoomRow: View {
     private var isUnread: Bool { room.hasUnread }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        // 세로 중앙 정렬: 우측 시간/배지 블록과 미리보기가 행 가운데로 — 상단 쏠림 해소.
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: "bubble.left.and.bubble.right.fill")
                 .font(.system(size: 18))
                 .foregroundStyle(WGColor.cta)
@@ -177,16 +178,15 @@ private struct DMRoomRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 점).
+                // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 배지).
+                // Pretendard 고정 웨이트라 .fontWeight() 합성이 안 먹음 → 실제 Bold/SemiBold 페이스 사용.
                 Text(room.groupName)
-                    .font(WGFont.sans(15))
-                    .fontWeight(isUnread ? .bold : .regular)
+                    .font(isUnread ? WGFont.sansBold(15) : WGFont.sans(15))
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1)
 
                 Text(previewText)
-                    .font(WGFont.sans(13))
-                    .fontWeight(isUnread ? .semibold : .regular)
+                    .font(isUnread ? WGFont.sansSemiBold(13) : WGFont.sans(13))
                     .foregroundStyle(
                         room.lastPreview == nil
                             ? WGColor.inkFaint
@@ -203,13 +203,20 @@ private struct DMRoomRow: View {
                         .font(WGFont.mono(11))
                         .foregroundStyle(WGColor.inkSoft)
                 }
-                if isUnread {
+                // 미읽음 숫자 배지(카톡식 빨간 필). 카운트 없으면(구버전 응답) 점 폴백.
+                if let count = room.unreadCount, count > 0 {
+                    Text(count > 99 ? "99+" : "\(count)")
+                        .font(WGFont.sansBold(11))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(WGColor.pinNew))
+                } else if isUnread {
                     Circle()
                         .fill(WGColor.pinNew)
                         .frame(width: 7, height: 7)
                 }
             }
-            .padding(.top, 1)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
