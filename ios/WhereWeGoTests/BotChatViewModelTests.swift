@@ -329,7 +329,8 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
         payload = "{\"text\":\"\(text ?? "msg")\"}"
-    case .PROCESSING:
+    case .PROCESSING, .REEL_LINK:
+        // REEL_LINK 는 봇 ChatFrame 경로에서 미사용 — 빈 payload 로 방어 처리.
         payload = "{}"
     }
     let senderType = kind == .TEXT ? "USER" : "BOT"

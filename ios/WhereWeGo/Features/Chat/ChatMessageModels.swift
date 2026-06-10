@@ -101,7 +101,8 @@ struct ChatFrame: Decodable, Identifiable, Equatable {
             self.sourceInstagramUrl = nil
             let payload = try? container.nestedContainer(keyedBy: PayloadKeys.self, forKey: .payload)
             self.text = try? payload?.decodeIfPresent(String.self, forKey: .text)
-        case .PROCESSING:
+        case .PROCESSING, .REEL_LINK:
+            // REEL_LINK 는 그룹 방 전용(GroupChatFrame). 봇 ChatFrame 에선 수신되지 않으므로 방어적 nil.
             self.placeCards = nil
             self.sourceInstagramUrl = nil
             self.text = nil
