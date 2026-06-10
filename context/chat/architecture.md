@@ -1,6 +1,6 @@
 # chat 아키텍처 (To-Be — 그룹 채팅 전환 설계)
 
-> 봇 티키타카(모아보기)를 그룹 채팅방으로 전환하는 설계. 2026-06-10 분석 확정, 구현 미착수.
+> 봇 티키타카(모아보기)를 그룹 채팅방으로 전환하는 설계. 2026-06-10 분석 확정, **GC-1 백엔드 구현 완료([PR #118](https://github.com/rnqhstmd/wherewego/pull/118))**.
 > As-Is(봇 채팅) 구조는 [[chatbot]] status.md "봇 채팅 STOMP→이벤트 전환" 항목 참조.
 
 ## 시스템 구조 (목표)
@@ -46,12 +46,15 @@
 | 핀↔릴스 연관 | `pins.instagram_url` + `UNIQUE(group_id, instagram_url)` | 무변경 — registered 파생의 기반 |
 | 푸시 | `pushCoupleMessage`(APNs, 발신자 제외 전 멤버) | 명칭/문구 일반화 + REEL_LINK 분기 |
 
-## 데이터 모델 변경 (V021 예정)
+## 데이터 모델 변경 (V021 — GC-1 확정 반영)
 
-- `chat_room.type` 에 `GROUP` 추가(또는 COUPLE 의미 일반화 — 그룹당 활성 1방 `uq_chat_room_couple_group` 구조 그대로)
-- `chat_room_reads (room_id FK, user_id FK, last_read_message_id, UNIQUE(room_id, user_id))` — 멤버별 읽음. 기존 `chat_room.last_read_message_id`(V020)는 봇방 owner 전용 단일 포인터라 그룹방에 부족
-- `MessageKind.REEL_LINK` — payload `{"url": "...", "thumbnailKey": null}`. URL 은 `https://` + 인스타 패턴 검증(`Pin.validateInstagramUrl` / `BotChatProcessor.INSTAGRAM_URL` 선례)
-- 상태 컬럼 없음 — registered 는 파생(§핵심 설계 결정 1)
+- `chat_room.type` **COUPLE→GROUP 전면 리네임 확정**(V021 UPDATE + `uq_chat_room_group_group` 부분 UNIQUE 재정의). COUPLE 방은 구조적으로 이미 그룹 공용 방(groupId만 보유)이었고 클라 미사용이라 리네임으로 일반화. couple 엔드포인트(`/chat/couple/*`)·`CoupleMessageRequest`·`coupleMessage` 푸시는 dead surface 라 **즉시 제거**(GC-3 아닌 GC-1에서)
+- 방 생성: **그룹 생성 시 자동 생성 + 기존 활성 그룹 V021 백필** + 전송 시 get-or-create 안전망(idempotent)
+- `chat_room_reads (room_id FK, user_id, last_read_message_id, UNIQUE(room_id, user_id))` — 멤버별 읽음(조회 시 전진·역행 방지). 기존 `chat_room.last_read_message_id`(V020)는 봇방 owner 전용 단일 포인터라 그룹방에 부족
+- `MessageKind.REEL_LINK` — payload `{"url": "...", "thumbnailKey": null}`. URL 은 `https://` + 인스타 패턴 + **2000자 상한**(감사 반영) 검증
+- 상태 컬럼 없음 — registered 는 파생(§핵심 설계 결정 1, 페이지당 IN 쿼리 1회 배치)
+- 추출 deadline 확정: `place.search.extract-deadline-ms=15000`(신설 노브 — 기존 `sync-deadline-ms=4500` 무변경). 추출 파이프라인은 `ReelPlaceExtractor`(domain/place) 로 분리 — `BotChatProcessor` 는 위임(동작 무변경), GC-3 봇 제거 후에도 보존되는 경로
+- GC-2 의존 계약: 푸시 type `GROUP_MESSAGE`(roomId 포함) / `GroupChatMessageFrame(messageId, senderUserId, senderNickname, kind, payload, registered, createdAt)` / extract 응답 = `PlaceCardsPayload` 모양(`ReelSaveWizard` 디코더 호환)
 
 ## Phase 분할 (구현 단위 — gx-dev 파이프라인 1회 = 1 Phase)
 

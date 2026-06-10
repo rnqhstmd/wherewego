@@ -39,4 +39,4 @@
 
 ## 현재 상태
 
-설계 확정(2026-06-10) — 구현 미착수. Phase 분할은 [architecture.md](architecture.md) §Phase, 요구사항 추적은 [status.md](status.md).
+GC-1 백엔드 코드 완료(2026-06-10, [PR #118](https://github.com/rnqhstmd/wherewego/pull/118)) — GC-2(iOS) 대기. Phase 분할은 [architecture.md](architecture.md) §Phase, 요구사항 추적은 [status.md](status.md).
