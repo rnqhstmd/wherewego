@@ -33,6 +33,8 @@ final class AppDependencies {
     let deepLinkRouter: DeepLinkRouter
     /// AppDelegate 가 알림 센터에 연결하는 델리게이트(강참조 보유는 AppDelegate).
     let notificationDelegate: AppNotificationDelegate
+    /// 포그라운드 그룹 메시지 수신 신호(willPresent 현재 방 → GroupChatView reconcile, GC-2 FR-GC2-6).
+    let chatPushSignal: ChatPushSignal
 
     /// 앱 표준 로그아웃 경로(설계 §11/§12). logoutBox.handler 와 동일 — 디바이스 토큰 해제·CurrentUser.clear·SessionStore.logout 일괄.
     /// MyInfo 로그아웃/계정삭제가 SessionStore.logout 단독이 아니라 표준 경로를 타도록 MainTabView 가 MyInfoViewModel 에 주입한다.
@@ -81,6 +83,9 @@ final class AppDependencies {
         // 알림 델리게이트 — 탭 응답을 deepLinkRouter 로 위임(약결합 setter 주입).
         let notificationDelegate = AppNotificationDelegate()
         notificationDelegate.deepLinkRouter = deepLinkRouter
+        // GC-2: 포그라운드 그룹 메시지 현재 방 매칭(배너 억제 + 재조회 신호).
+        let chatPushSignal = ChatPushSignal()
+        notificationDelegate.chatPushSignal = chatPushSignal
 
         self.chatAPI = ChatAPI(client: client)
         self.deviceAPI = deviceAPI
@@ -88,6 +93,7 @@ final class AppDependencies {
         self.currentUser = currentUser
         self.deepLinkRouter = deepLinkRouter
         self.notificationDelegate = notificationDelegate
+        self.chatPushSignal = chatPushSignal
 
         // 6) 박스에 logout 핸들러 동기 주입(§12, 순환 차단). refresh 가 호출하는 시점(로그인 이후)엔
         //    이미 채워져 있어 RootView.task 순서에 의존하지 않는다.

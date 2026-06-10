@@ -35,7 +35,7 @@ final class ShareViewModel: ObservableObject {
     func load() async {
         state = .loading
         do {
-            let rooms = try await api.botRooms()
+            let rooms = try await api.groupRooms()
             groups = rooms
             state = rooms.isEmpty ? .empty : .loaded(rooms)
         } catch let error as ShareAPIError where Self.isAuthError(error) {
@@ -66,7 +66,7 @@ final class ShareViewModel: ObservableObject {
                 let url = self.sharedURL
                 group.addTask {
                     do {
-                        try await api.sendBotMessage(groupId: target.groupId, text: url)
+                        try await api.sendReelLink(groupId: target.groupId, url: url)
                         return (target.groupName, true)
                     } catch {
                         return (target.groupName, false)

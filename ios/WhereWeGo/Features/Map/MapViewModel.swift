@@ -499,10 +499,15 @@ final class MapViewModel: ObservableObject {
     /// 릴스 instagramUrl 기반 핀 필터 + fitBounds(FR-I11/I12). 봇 결과 카드 [지도에서 보기 →] → MainTabView 가 호출.
     /// 방금 저장한 핀이 로컬 캐시에 없을 수 있으므로 최신 핀을 append-only 재조회(stale 무관)한 뒤 해당 URL 핀을 맞춘다.
     /// 핀 0개면 fitBounds 는 no-op(필터만 활성 — 배너는 표시되되 빈 지도).
-    func focusReel(instagramUrl: String) async {
+    /// 릴스 instagramUrl 기반 핀 필터 + fitBounds(GC-2 FR-GC2-5). 「구경하실래요?」 딥링크가 호출.
+    /// 다른 그룹의 릴스면 그 그룹으로 전환(switchTo — 재진입 가드 보유)하며 핀 로드, 같은 그룹이면 방금 저장 핀 재조회.
+    func focusReel(groupId targetGroupId: Int, instagramUrl: String) async {
         focusedInstagramUrl = instagramUrl
-        // 방금 저장한 핀 반영(캐시 stale 여부와 무관하게 1회 강제 재조회).
-        await reloadPinsAppendOnly()
+        if groupId != targetGroupId {
+            await switchTo(groupId: targetGroupId)
+        } else {
+            await reloadPinsAppendOnly()
+        }
         let targets = pins
             .filter { $0.instagramUrl == instagramUrl }
             .map { MapMarker(id: $0.id, latitude: $0.latitude, longitude: $0.longitude, tag: $0.tag) }

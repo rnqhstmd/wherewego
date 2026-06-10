@@ -134,7 +134,7 @@ final class PlaceCardSaveTests: XCTestCase {
 
         vm.showOnMap(instagramUrl: "https://instagram.com/reel/abc")
 
-        XCTAssertEqual(router.pending, .reelFocus(instagramUrl: "https://instagram.com/reel/abc"))
+        XCTAssertEqual(router.pending, .reelFocus(groupId: 1, instagramUrl: "https://instagram.com/reel/abc"))
     }
 
     // MARK: - 헬퍼
