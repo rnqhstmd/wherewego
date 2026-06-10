@@ -57,7 +57,7 @@ struct FloatingTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tabButton(.map, outline: "map", fill: "map.fill", label: "지도")
+            tabButton(.map, outline: "globe.asia.australia", fill: "globe.asia.australia.fill", label: "지도")
             tabButton(.chat,
                       outline: "paperplane",
                       fill: "paperplane.fill",
