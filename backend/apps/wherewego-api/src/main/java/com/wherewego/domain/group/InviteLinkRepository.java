@@ -28,4 +28,12 @@ public interface InviteLinkRepository {
      * 반환값은 갱신된 행 수.
      */
     int expirePendingByGroupId(Long groupId, Instant now);
+
+    /**
+     * slug 가 unique 제약 범위(slug IS NOT NULL AND deleted_at IS NULL — V019
+     * idx_invite_links_slug_active)에서 이미 사용 중인지 검사한다(PR #118 리뷰 반영).
+     * 발급 시 slug 충돌 사전 검사용 — 만료(expires_at) 여부와 무관하게 인덱스 술어와 정확히 일치해야 한다
+     * ({@link #findActiveBySlug}는 만료 필터가 있어 이 용도에 부적합).
+     */
+    boolean existsActiveSlug(String slug);
 }

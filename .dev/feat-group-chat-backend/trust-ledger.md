@@ -32,3 +32,12 @@
 
 ### 미답변 QA QUESTION
 - 없음
+
+## Cross-Review 추가 감사 (PR #118 gemini 리뷰 통합 — 2026-06-10)
+
+- [RISK/CRITICAL→수정됨] save+catch(DataIntegrityViolationException) 충돌 폴백이 **트랜잭션 rollback-only 마킹으로 작동 불능** — IDENTITY 전략의 즉시 INSERT + SimpleJpaRepository 참여 @Transactional 경계를 예외가 넘는 순간 마킹되어, 폴백 성공 후에도 커밋 시 UnexpectedRollbackException.
+  - 수정: `ON CONFLICT DO NOTHING` native insert + 재조회로 전면 전환(예외 원천 제거) — 5곳:
+    GroupChatService 방/읽음 행, BotChatService 봇 방, DeviceService 등록, GroupMemberService slug(사전 존재검사 전환).
+  - 무수정 판정: acceptInviteLink catch — 예외 종결 경로(롤백 의도)라 결함 아님.
+  - 검증: 영향 IT 5클래스 + DeviceServiceIT 신설(멱등 insert 직접 검증) + 방 재생성 케이스.
+- 상세: `.dev/feat-group-chat-backend/cross-review.md`

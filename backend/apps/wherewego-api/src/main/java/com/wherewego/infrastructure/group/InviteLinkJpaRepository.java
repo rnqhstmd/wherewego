@@ -20,6 +20,12 @@ public interface InviteLinkJpaRepository extends JpaRepository<InviteLink, Long>
     Optional<InviteLink> findActiveBySlug(@Param("slug") String slug, @Param("now") Instant now);
 
     /**
+     * slug 사용 중 검사 — V019 unique 인덱스(idx_invite_links_slug_active)의 술어
+     * (slug IS NOT NULL AND deleted_at IS NULL)와 정확히 일치한다(PR #118 리뷰 반영, 만료 여부 무관).
+     */
+    boolean existsBySlugAndDeletedAtIsNull(String slug);
+
+    /**
      * 그룹의 현재 활성(미만료) 초대 링크 조회(IC-2 후속). 재발급(BR-3)이 동일 그룹 미만료 토큰을 일괄 만료한 뒤
      * 1건만 신규 발급하므로 활성 행은 0~1개지만, 안전하게 만료가 가장 늦은 1건을 반환한다.
      */

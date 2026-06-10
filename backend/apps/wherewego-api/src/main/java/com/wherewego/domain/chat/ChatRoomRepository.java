@@ -25,6 +25,22 @@ public interface ChatRoomRepository {
      */
     Optional<ChatRoom> findActiveGroupRoom(Long groupId);
 
+    /**
+     * 활성 GROUP 방을 race-safe 로 생성한다(없을 때만 — ON CONFLICT DO NOTHING).
+     * 동시 생성 충돌에도 예외가 발생하지 않으므로 호출자 트랜잭션이 rollback-only 로 마킹되지 않는다
+     * (PR #118 리뷰 반영). 호출 후 {@link #findActiveGroupRoom}으로 재조회한다.
+     *
+     * @return 삽입 행 수(0 = 이미 존재)
+     */
+    int insertGroupRoomIfAbsent(Long groupId);
+
+    /**
+     * 활성 BOT 방을 race-safe 로 생성한다(없을 때만 — ON CONFLICT DO NOTHING, PR #118 리뷰 반영).
+     *
+     * @return 삽입 행 수(0 = 이미 존재)
+     */
+    int insertBotRoomIfAbsent(Long ownerUserId, Long groupId);
+
     Optional<ChatRoom> findById(Long id);
 
     /**

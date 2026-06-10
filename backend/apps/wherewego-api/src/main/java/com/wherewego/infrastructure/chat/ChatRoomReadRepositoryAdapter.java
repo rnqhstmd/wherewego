@@ -22,4 +22,9 @@ public class ChatRoomReadRepositoryAdapter implements ChatRoomReadRepository {
     public Optional<ChatRoomRead> findByRoomIdAndUserId(Long roomId, Long userId) {
         return chatRoomReadJpa.findFirstByRoomIdAndUserId(roomId, userId);
     }
+
+    @Override
+    public int insertIfAbsent(Long roomId, Long userId) {
+        return chatRoomReadJpa.insertIfAbsent(roomId, userId);
+    }
 }

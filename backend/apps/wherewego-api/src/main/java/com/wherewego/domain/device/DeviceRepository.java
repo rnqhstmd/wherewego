@@ -21,6 +21,15 @@ public interface DeviceRepository {
     Optional<Device> findActiveByUserIdAndToken(Long userId, String deviceToken);
 
     /**
+     * 활성 디바이스를 race-safe 로 생성한다(없을 때만 — ON CONFLICT DO NOTHING).
+     * 동시 등록 충돌에도 예외가 발생하지 않으므로 호출자 트랜잭션이 rollback-only 로 마킹되지 않는다
+     * (PR #118 리뷰 반영). 호출 후 {@link #findActiveByUserIdAndToken}으로 재조회한다.
+     *
+     * @return 삽입 행 수(0 = 이미 존재)
+     */
+    int insertIfAbsent(Long userId, DevicePlatform platform, String deviceToken);
+
+    /**
      * 동일 token의 활성 디바이스를 모두 조회한다(BR-9 reassign용 — 다른 userId 소유 행 탐지).
      */
     List<Device> findActiveByDeviceToken(String deviceToken);

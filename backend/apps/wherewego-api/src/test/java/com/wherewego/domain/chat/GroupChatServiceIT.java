@@ -115,6 +115,20 @@ class GroupChatServiceIT {
         assertThat(activeGroupRoomCount(groupId)).isEqualTo(1);
     }
 
+    @DisplayName("postMessage - 활성 방이 없으면 get-or-create 안전망이 ON CONFLICT insert 로 방을 생성한다(PR #118 리뷰 반영 경로).")
+    @Test
+    void postMessage_recreatesRoomWhenAbsent() {
+        Long groupId = groupMemberService.createGroup(userA, "그룹1").groupId();
+        // 자동 생성된 방을 soft delete 하여 '방 없음' 상태를 만든다 → insertGroupRoomIfAbsent 경로 실행.
+        jdbcTemplate.update(
+                "UPDATE chat_room SET deleted_at = now() WHERE group_id = ? AND type = 'GROUP'", groupId);
+
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "재생성", null);
+
+        assertThat(activeGroupRoomCount(groupId)).isEqualTo(1);
+        assertThat(groupChatService.getMessages(userA, groupId, null, 20).frames()).hasSize(1);
+    }
+
     @DisplayName("postMessage - TEXT 전송 후 타 멤버가 조회로 수신한다. 발신자/닉네임이 프레임에 합성된다(AC-1).")
     @Test
     void postMessage_text_visibleToOtherMember() {

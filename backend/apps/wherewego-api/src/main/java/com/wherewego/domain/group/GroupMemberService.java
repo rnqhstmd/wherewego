@@ -96,20 +96,23 @@ public class GroupMemberService {
                 .map(link -> new InviteLinkIssueResult(link.getToken(), link.getSlug(), link.getExpiresAt()));
     }
 
+    /**
+     * slug 충돌은 사전 존재검사(unique 인덱스 술어와 동일 범위)로 회피하고 재생성한다(PR #118 리뷰 반영).
+     *
+     * <p>기존 save+catch(DataIntegrityViolationException) 재시도는 참여 트랜잭션이 rollback-only 로
+     * 마킹되어 재시도가 성공해도 커밋이 불가능한 결함이 있었다. 검사 통과 후 동시 발급 race 로 남는
+     * 잔존 충돌(base56 8자 공간에서 사실상 0)은 전역 INTERNAL_ERROR 로 종결된다 — 기존 최종 실패와 동일 의미.</p>
+     */
     private InviteLink saveWithSlugRetry(Long groupId, Long userId, String token, Instant now) {
         for (int attempt = 0; attempt < SLUG_GENERATION_MAX_RETRIES; attempt++) {
             String slug = slugGenerator.generate();
-            try {
-                return inviteLinkRepository.save(
-                        InviteLink.issue(groupId, userId, token, slug, now, inviteProperties.ttl()));
-            } catch (DataIntegrityViolationException e) {
-                // slug unique 제약 충돌 — 재시도. 마지막 시도에서도 실패하면 아래에서 throw.
-                if (attempt == SLUG_GENERATION_MAX_RETRIES - 1) {
-                    throw new CoreException(ErrorType.INTERNAL_ERROR);
-                }
+            if (inviteLinkRepository.existsActiveSlug(slug)) {
+                // 기존 행과 충돌 — 새 slug 로 재생성.
+                continue;
             }
+            return inviteLinkRepository.save(
+                    InviteLink.issue(groupId, userId, token, slug, now, inviteProperties.ttl()));
         }
-        // unreachable — loop 안에서 마지막 attempt 에 throw 함.
         throw new CoreException(ErrorType.INTERNAL_ERROR);
     }
 

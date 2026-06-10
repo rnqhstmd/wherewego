@@ -32,6 +32,16 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
     }
 
     @Override
+    public int insertGroupRoomIfAbsent(Long groupId) {
+        return chatRoomJpa.insertGroupRoomIfAbsent(groupId);
+    }
+
+    @Override
+    public int insertBotRoomIfAbsent(Long ownerUserId, Long groupId) {
+        return chatRoomJpa.insertBotRoomIfAbsent(ownerUserId, groupId);
+    }
+
+    @Override
     public Optional<ChatRoom> findById(Long id) {
         return chatRoomJpa.findById(id);
     }

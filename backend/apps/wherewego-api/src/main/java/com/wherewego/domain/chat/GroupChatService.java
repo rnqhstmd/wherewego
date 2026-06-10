@@ -16,7 +16,6 @@ import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -208,23 +207,19 @@ public class GroupChatService {
     /**
      * 활성 그룹 방을 확보한다(get-or-create 안전망 — FR-GC1-1). V021 백필 + 그룹 생성 훅으로 통상은 존재한다.
      *
-     * <p>동시 진입 시 두 트랜잭션이 모두 활성 방을 못 찾고 동시에 save하면 부분 UNIQUE 위반
-     * ({@link DataIntegrityViolationException})이 발생한다 — 패자는 이를 잡아 승자가 만든 행을 재조회하여
-     * 반환한다. 재조회도 비면 INTERNAL_ERROR.</p>
+     * <p>동시 생성 race 는 {@code ON CONFLICT DO NOTHING} insert 가 예외 없이 흡수한다(PR #118 리뷰 반영
+     * — 기존 save+catch 폴백은 참여 트랜잭션이 rollback-only 로 마킹되어 커밋 시
+     * UnexpectedRollbackException 으로 전체 실패하는 결함이 있었다). insert 후 재조회가 비면 INTERNAL_ERROR.</p>
      */
     private ChatRoom ensureGroupRoom(Long groupId) {
         return chatRoomRepository.findActiveGroupRoom(groupId)
-                .orElseGet(() -> saveGroupRoomOnConflict(groupId));
+                .orElseGet(() -> createGroupRoomIfAbsent(groupId));
     }
 
-    private ChatRoom saveGroupRoomOnConflict(Long groupId) {
-        try {
-            return chatRoomRepository.save(ChatRoom.createGroupRoom(groupId));
-        } catch (DataIntegrityViolationException e) {
-            // 동시 생성 충돌 — 승자가 만든 활성 방을 재조회하여 반환.
-            return chatRoomRepository.findActiveGroupRoom(groupId)
-                    .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "방 생성 충돌"));
-        }
+    private ChatRoom createGroupRoomIfAbsent(Long groupId) {
+        chatRoomRepository.insertGroupRoomIfAbsent(groupId);
+        return chatRoomRepository.findActiveGroupRoom(groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "방 생성 충돌"));
     }
 
     /**
@@ -306,25 +301,23 @@ public class GroupChatService {
 
     /**
      * 내 읽음 포인터를 방 최신 메시지 id 로 전진시킨다(FR-GC1-2, 역행 방지). 메시지가 없으면 갱신하지 않는다.
-     * 읽음 행이 없으면 생성한다 — V021 UNIQUE(room, user) 동시 생성 충돌은 재조회 폴백으로 처리한다.
+     * 읽음 행이 없으면 생성한다 — V021 UNIQUE(room, user) 동시 생성 충돌은 {@code ON CONFLICT DO NOTHING}
+     * insert 가 예외 없이 흡수한다(PR #118 리뷰 반영 — 기존 save+catch 폴백은 rollback-only 마킹으로
+     * getMessages 전체가 실패하는 결함이 있었다).
      */
     private void markRoomReadForUser(Long roomId, Long userId) {
         latestMessage(roomId).ifPresent(latest -> {
             ChatRoomRead read = chatRoomReadRepository.findByRoomIdAndUserId(roomId, userId)
-                    .orElseGet(() -> saveReadRowOnConflict(roomId, userId));
+                    .orElseGet(() -> createReadRowIfAbsent(roomId, userId));
             read.markRead(latest.getId());
             chatRoomReadRepository.save(read);
         });
     }
 
-    private ChatRoomRead saveReadRowOnConflict(Long roomId, Long userId) {
-        try {
-            return chatRoomReadRepository.save(ChatRoomRead.create(roomId, userId));
-        } catch (DataIntegrityViolationException e) {
-            // 동시 생성 충돌 — 승자가 만든 행을 재조회하여 반환.
-            return chatRoomReadRepository.findByRoomIdAndUserId(roomId, userId)
-                    .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "읽음 행 생성 충돌"));
-        }
+    private ChatRoomRead createReadRowIfAbsent(Long roomId, Long userId) {
+        chatRoomReadRepository.insertIfAbsent(roomId, userId);
+        return chatRoomReadRepository.findByRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "읽음 행 생성 충돌"));
     }
 
     // ────── 목록 내부 ──────

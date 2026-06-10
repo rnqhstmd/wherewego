@@ -4,7 +4,6 @@ import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,8 +16,8 @@ import java.util.List;
  * 갱신(AC-7), 없으면 신규 생성한다. BR-9에 따라 동일 token이 다른 userId로 활성 상태이면 그 행을 먼저
  * 해제하여 "토큰은 한 사용자 소유" 불변식을 유지한다.</p>
  *
- * <p>동시 등록 race로 부분 UNIQUE(uq_devices_user_token)가 위반되면 {@link DataIntegrityViolationException}을
- * 잡아 승자가 만든 활성 행을 재조회하여 반환한다(GroupChatService의 conflict 폴백 패턴과 동일).</p>
+ * <p>동시 등록 race는 {@code ON CONFLICT DO NOTHING} insert 가 예외 없이 흡수한 뒤 활성 행을 재조회하여
+ * 반환한다(GroupChatService의 race-safe insert 패턴과 동일 — PR #118 리뷰 반영).</p>
  */
 @Slf4j
 @Service
@@ -78,7 +77,9 @@ public class DeviceService {
 
     /**
      * FR-15: 활성 (user_id, device_token)이 있으면 {@code updated_at}만 갱신(AC-7), 없으면 신규 생성한다.
-     * 동시 생성 충돌은 부분 UNIQUE 위반을 잡아 활성 행을 재조회하여 반환한다.
+     * 동시 생성 충돌은 {@code ON CONFLICT DO NOTHING} insert 가 예외 없이 흡수한다(PR #118 리뷰 반영
+     * — 기존 save+catch 폴백은 참여 트랜잭션이 rollback-only 로 마킹되어 커밋 시
+     * UnexpectedRollbackException 으로 전체 실패하는 결함이 있었다).
      */
     private Device upsert(Long userId, DevicePlatform platform, String deviceToken) {
         return deviceRepository.findActiveByUserIdAndToken(userId, deviceToken)
@@ -86,16 +87,12 @@ public class DeviceService {
                     deviceRepository.touch(existing.getId());
                     return existing;
                 })
-                .orElseGet(() -> saveOnConflict(userId, platform, deviceToken));
+                .orElseGet(() -> createIfAbsent(userId, platform, deviceToken));
     }
 
-    private Device saveOnConflict(Long userId, DevicePlatform platform, String deviceToken) {
-        try {
-            return deviceRepository.save(Device.create(userId, platform, deviceToken));
-        } catch (DataIntegrityViolationException e) {
-            // 동시 등록 충돌 — 승자가 만든 활성 행을 재조회하여 반환.
-            return deviceRepository.findActiveByUserIdAndToken(userId, deviceToken)
-                    .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "디바이스 등록 충돌"));
-        }
+    private Device createIfAbsent(Long userId, DevicePlatform platform, String deviceToken) {
+        deviceRepository.insertIfAbsent(userId, platform, deviceToken);
+        return deviceRepository.findActiveByUserIdAndToken(userId, deviceToken)
+                .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "디바이스 등록 충돌"));
     }
 }
