@@ -21,10 +21,17 @@ struct NotificationInboxView: View {
     }
 
     var body: some View {
-        content
-            .background(WGColor.bg)
-            .navigationTitle("알림")
-            .navigationBarTitleDisplayMode(.inline)
+        VStack(spacing: 0) {
+            // 큰 제목 헤더(그룹목록/마이페이지 디자인 언어 정합). 상세(핀 목록)에는 자체 "← 목록" 헤더가 있어 제외.
+            if viewModel.activeDetail == nil {
+                ScreenHeader(title: "알림", subtitle: "새 소식을 모았어요")
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(WGColor.bg)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
             // 탭 진입 시 load(list + readAll 1회, 설계 §14). MainTabView 의 onForeground 가 먼저 loadState 를
             // .loaded 로 바꿔도 읽음 처리(readAll)가 누락되지 않도록 .idle 가드 없이 호출한다.
             // readAll 1회 보장은 VM 내부 didReadAll 플래그가 담당한다.
