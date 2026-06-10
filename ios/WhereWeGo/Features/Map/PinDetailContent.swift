@@ -34,6 +34,8 @@ struct PinDetailContent: View {
     @State private var showPhotoPicker = false
     /// 피커에서 고른 이미지(크롭 단계로 넘김). 설정되면 SquareCropView 표시.
     @State private var pickedImage: PickedImage?
+    /// 공유 카드 시트 표시 여부(웹 PinPopup shareOpen 동치).
+    @State private var showShareCard = false
 
     private let memoLimit = 500
     private let placeNameLimit = 200
@@ -110,6 +112,14 @@ struct PinDetailContent: View {
                 onCancel: { pickedImage = nil }
             )
         }
+        // 공유 카드 시트(웹 PinShareSheet 동치). 그룹 핀은 pins 단일 출처에서 전달(자기 핀은 렌더러가 제외).
+        .sheet(isPresented: $showShareCard) {
+            PinShareCardSheet(
+                pin: live,
+                groupPins: mapViewModel.pins,
+                onClose: { showShareCard = false }
+            )
+        }
         // 다른 사용자/낙관 삭제로 pins 에서 사라지면 말풍선 닫기.
         .onChange(of: currentPin == nil) { _, gone in
             if gone { onRequestClose() }
@@ -129,6 +139,7 @@ struct PinDetailContent: View {
                     .font(WGFont.serif(22))
                     .foregroundStyle(WGColor.ink)
                 Spacer(minLength: 0)
+                shareButton
                 tagBadge(live.tag)
             }
             if let nickname = live.createdByNickname, !nickname.isEmpty {
@@ -137,6 +148,18 @@ struct PinDetailContent: View {
                     .foregroundStyle(WGColor.inkSoft)
             }
         }
+    }
+
+    /// 공유 카드 진입 버튼(웹 PinPopup 공유 아이콘 동치). 탭 시 공유 카드 시트를 띄운다.
+    private var shareButton: some View {
+        Button {
+            showShareCard = true
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+        }
+        .accessibilityLabel("공유")
     }
 
     private func addressRow(_ address: String) -> some View {
