@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
@@ -28,5 +29,10 @@ public class ChatMessageRepositoryAdapter implements ChatMessageRepository {
     @Override
     public void nullifySenderByUserId(Long userId) {
         chatMessageJpa.nullifySenderByUserId(userId, ZonedDateTime.now());
+    }
+
+    @Override
+    public Optional<ChatMessage> findActiveByIdAndRoomId(Long id, Long roomId) {
+        return chatMessageJpa.findByIdAndRoomIdAndDeletedAtIsNull(id, roomId);
     }
 }

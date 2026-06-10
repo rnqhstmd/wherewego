@@ -133,4 +133,14 @@ public class PinRepositoryImpl implements PinRepository {
         }
         return deleted;
     }
+
+    // ────── GC-1 ──────
+
+    @Override
+    public List<String> findActiveInstagramUrlsIn(Long groupId, Collection<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findActiveInstagramUrlsIn(groupId, urls);
+    }
 }

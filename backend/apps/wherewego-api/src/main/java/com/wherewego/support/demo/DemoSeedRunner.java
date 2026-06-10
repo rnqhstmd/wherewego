@@ -98,7 +98,7 @@ public class DemoSeedRunner implements ApplicationRunner {
         groupMemberRepository.save(GroupMember.createActive(group.getId(), demoUser2.getId(), now));
 
         seedBotRoom(demoUser1.getId(), group.getId());
-        seedCoupleRoom(group.getId(), demoUser1.getId(), demoUser2.getId());
+        seedGroupRoom(group.getId(), demoUser1.getId(), demoUser2.getId());
         seedPins(group.getId(), demoUser1.getId(), demoUser2.getId());
 
         applyDemoRefreshToken(demoUser1);
@@ -146,16 +146,16 @@ public class DemoSeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 커플 방 메시지 3건(두 파트너 간 TEXT 대화). 봇 미개입(FR-9).
+     * 그룹 방 메시지 3건(두 멤버 간 TEXT 대화). 봇 미개입(FR-9, GC-1: 커플 방 일반화).
      */
-    private void seedCoupleRoom(Long groupId, Long user1Id, Long user2Id) {
-        ChatRoom coupleRoom = chatRoomRepository.findActiveCoupleRoom(groupId)
-                .orElseGet(() -> chatRoomRepository.save(ChatRoom.createCoupleRoom(groupId)));
-        Long roomId = coupleRoom.getId();
+    private void seedGroupRoom(Long groupId, Long user1Id, Long user2Id) {
+        ChatRoom groupRoom = chatRoomRepository.findActiveGroupRoom(groupId)
+                .orElseGet(() -> chatRoomRepository.save(ChatRoom.createGroupRoom(groupId)));
+        Long roomId = groupRoom.getId();
 
-        chatMessageAppender.appendCoupleText(roomId, user1Id, "이번 주말에 성수 갈래?");
-        chatMessageAppender.appendCoupleText(roomId, user2Id, "좋아! 어니언 가보고 싶었어");
-        chatMessageAppender.appendCoupleText(roomId, user1Id, "그럼 토요일 오전에 보자");
+        chatMessageAppender.appendGroupText(roomId, user1Id, "이번 주말에 성수 갈래?");
+        chatMessageAppender.appendGroupText(roomId, user2Id, "좋아! 어니언 가보고 싶었어");
+        chatMessageAppender.appendGroupText(roomId, user1Id, "그럼 토요일 오전에 보자");
     }
 
     /**

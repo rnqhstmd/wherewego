@@ -40,4 +40,9 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
     public int expirePendingByGroupId(Long groupId, Instant now) {
         return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
     }
+
+    @Override
+    public boolean existsActiveSlug(String slug) {
+        return inviteLinkJpaRepository.existsBySlugAndDeletedAtIsNull(slug);
+    }
 }

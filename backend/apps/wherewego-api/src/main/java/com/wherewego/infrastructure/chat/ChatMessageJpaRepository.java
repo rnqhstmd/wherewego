@@ -9,8 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatMessageJpaRepository extends JpaRepository<ChatMessage, Long> {
+
+    /** GC-1: 방 소속 활성 메시지 단건 조회(온디맨드 추출 대상 검증). */
+    Optional<ChatMessage> findByIdAndRoomIdAndDeletedAtIsNull(Long id, Long roomId);
 
     /**
      * cursor 기반 최신순 조회. {@code cursor}가 {@code null}이면 전체 최신부터, non-null이면 {@code id < cursor}.

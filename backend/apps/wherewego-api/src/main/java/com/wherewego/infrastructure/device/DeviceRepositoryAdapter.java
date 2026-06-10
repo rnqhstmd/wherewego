@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.device;
 
 import com.wherewego.domain.device.Device;
+import com.wherewego.domain.device.DevicePlatform;
 import com.wherewego.domain.device.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -23,6 +24,11 @@ public class DeviceRepositoryAdapter implements DeviceRepository {
     @Override
     public Optional<Device> findActiveByUserIdAndToken(Long userId, String deviceToken) {
         return deviceJpa.findByUserIdAndDeviceTokenAndDeletedAtIsNull(userId, deviceToken);
+    }
+
+    @Override
+    public int insertIfAbsent(Long userId, DevicePlatform platform, String deviceToken) {
+        return deviceJpa.insertIfAbsent(userId, platform.name(), deviceToken);
     }
 
     @Override

@@ -43,7 +43,7 @@ class InstagramScraperClientTest {
                 new PlaceProperties.Gemini(false, "k", "http://localhost", 100, 50));
         PlaceProperties placeProperties = new PlaceProperties(
                 new PlaceProperties.Instagram(true),
-                new PlaceProperties.Search(4_500L, 5, 1_700L),
+                new PlaceProperties.Search(4_500L, 5, 1_700L, 15_000L),
                 scraper);
         client = new InstagramScraperClient(placeProperties, htmlFetcher, tracker);
     }

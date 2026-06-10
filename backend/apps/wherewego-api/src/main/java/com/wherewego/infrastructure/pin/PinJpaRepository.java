@@ -94,4 +94,15 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
     // softDeleteAll 용 entity 로드. 호출자(PinRepositoryImpl)가 BaseEntity.delete() 멱등 호출.
     @Query("SELECT p FROM Pin p WHERE p.id IN :pinIds AND p.deletedAt IS NULL")
     List<Pin> findActiveByIdIn(@Param("pinIds") Collection<Long> pinIds);
+
+    /**
+     * GC-1(FR-GC1-4): 그룹 활성 핀 중 주어진 인스타 URL 집합에 존재하는 URL 만 distinct 반환.
+     * uq_pins_group_instagram_place(group_id, instagram_url, place_name) prefix 인덱스 커버.
+     */
+    @Query("SELECT DISTINCT p.instagramUrl FROM Pin p "
+            + "WHERE p.groupId = :groupId "
+            + "AND p.instagramUrl IN :urls "
+            + "AND p.deletedAt IS NULL")
+    List<String> findActiveInstagramUrlsIn(@Param("groupId") Long groupId,
+                                           @Param("urls") Collection<String> urls);
 }

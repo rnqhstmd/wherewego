@@ -2,6 +2,8 @@ package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.chat.ChatRoom;
+import com.wherewego.domain.chat.ChatRoomRepository;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -61,6 +63,10 @@ class GroupMemberServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    // GC-1: createGroup 이 그룹 방을 함께 생성한다(FR-GC1-1).
+    @Mock
+    private ChatRoomRepository chatRoomRepository;
+
     // record 는 mock 어렵기 때문에 실제 인스턴스를 직접 주입한다.
     private final InviteProperties inviteProperties = new InviteProperties(
             Duration.ofDays(7),
@@ -75,6 +81,7 @@ class GroupMemberServiceTest {
         when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
         when(groupMemberRepository.save(any(GroupMember.class))).thenAnswer(inv -> inv.getArgument(0));
         when(inviteLinkRepository.save(any(InviteLink.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(inv -> inv.getArgument(0));
         when(slugGenerator.generate()).thenReturn(SLUG);
         // InviteProperties 가 record 라 @InjectMocks 가 자동 주입하지 못한다 (생성자 시그니처 일치 시는 성공).
         // @RequiredArgsConstructor 가 전체 필드 생성자를 만들고 inviteProperties 도 그 자리에 포함되므로,

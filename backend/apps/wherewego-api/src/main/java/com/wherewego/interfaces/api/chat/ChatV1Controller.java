@@ -3,9 +3,11 @@ package com.wherewego.interfaces.api.chat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.chat.BotChatService;
+import com.wherewego.domain.chat.BotPlaceCardsPayloadBuilder.PlaceCardsPayload;
 import com.wherewego.domain.chat.ChatMessage;
 import com.wherewego.domain.chat.ChatMessagePageResult;
-import com.wherewego.domain.chat.CoupleChatService;
+import com.wherewego.domain.chat.GroupChatService;
+import com.wherewego.domain.chat.GroupMessagesPage;
 import com.wherewego.interfaces.api.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,10 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * P2 PR-1: 앱 채팅 REST 컨트롤러(FR-4/5/8/9).
+ * P2 PR-1 / GC-1: 앱 채팅 REST 컨트롤러.
  *
- * <p>봇 방/커플 방 메시지 전송과 cursor 기반 메시지 페이지 조회를 노출한다. 실시간 push(STOMP/APNs)는
- * 서비스 계층이 트랜잭션 커밋 후 별도로 처리한다.</p>
+ * <p>봇 방/그룹 방 메시지 전송과 cursor 기반 메시지 페이지 조회를 노출한다. 실시간 push(APNs)는
+ * 서비스 계층이 트랜잭션 커밋 후 별도로 처리한다. (GC-1: 커플 엔드포인트는 그룹 채팅으로 대체·제거.)</p>
  */
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -34,8 +36,52 @@ public class ChatV1Controller implements ChatV1ApiSpec {
     private static final int MAX_LIMIT = 50;
 
     private final BotChatService botChatService;
-    private final CoupleChatService coupleChatService;
+    private final GroupChatService groupChatService;
     private final ObjectMapper objectMapper;
+
+    @GetMapping("/groups")
+    @Override
+    public ApiResponse<List<ChatV1Dto.GroupRoomSummaryResponse>> getGroupRooms(@AuthUser Long userId) {
+        List<ChatV1Dto.GroupRoomSummaryResponse> rooms = groupChatService.getRooms(userId).stream()
+                .map(ChatV1Dto.GroupRoomSummaryResponse::from)
+                .toList();
+        return ApiResponse.success(rooms);
+    }
+
+    @PostMapping("/groups/{groupId}/messages")
+    @Override
+    public ApiResponse<ChatV1Dto.SendMessageResponse> postGroupMessage(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @RequestBody ChatV1Dto.GroupMessageRequest request
+    ) {
+        ChatMessage saved = groupChatService.postMessage(
+                userId, groupId, request.kind(), request.text(), request.url());
+        return ApiResponse.success(ChatV1Dto.SendMessageResponse.from(saved));
+    }
+
+    @GetMapping("/groups/{groupId}/messages")
+    @Override
+    public ApiResponse<ChatV1Dto.GroupMessagesResponse> getGroupMessages(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer limit
+    ) {
+        GroupMessagesPage page = groupChatService.getMessages(
+                userId, groupId, normalizeCursor(cursor), clampLimit(limit));
+        return ApiResponse.success(ChatV1Dto.GroupMessagesResponse.from(groupId, page));
+    }
+
+    @PostMapping("/groups/{groupId}/messages/{messageId}/extract")
+    @Override
+    public ApiResponse<PlaceCardsPayload> extractGroupReelPlaces(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @PathVariable Long messageId
+    ) {
+        return ApiResponse.success(groupChatService.extractPlaces(userId, groupId, messageId));
+    }
 
     @GetMapping("/bot/rooms")
     @Override
@@ -91,30 +137,6 @@ public class ChatV1Controller implements ChatV1ApiSpec {
     ) {
         ChatMessagePageResult result =
                 botChatService.getBotMessages(userId, normalizeCursor(cursor), clampLimit(limit));
-        return ApiResponse.success(ChatV1Dto.MessagesResponse.from(result, objectMapper));
-    }
-
-    @PostMapping("/couple/{groupId}/messages")
-    @Override
-    public ApiResponse<ChatV1Dto.SendMessageResponse> postCoupleMessage(
-            @AuthUser Long userId,
-            @PathVariable Long groupId,
-            @Valid @RequestBody ChatV1Dto.CoupleMessageRequest request
-    ) {
-        ChatMessage saved = coupleChatService.postCoupleMessage(userId, groupId, request.text());
-        return ApiResponse.success(ChatV1Dto.SendMessageResponse.from(saved));
-    }
-
-    @GetMapping("/couple/{groupId}/messages")
-    @Override
-    public ApiResponse<ChatV1Dto.MessagesResponse> getCoupleMessages(
-            @AuthUser Long userId,
-            @PathVariable Long groupId,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(required = false) Integer limit
-    ) {
-        ChatMessagePageResult result = coupleChatService.getCoupleMessages(
-                userId, groupId, normalizeCursor(cursor), clampLimit(limit));
         return ApiResponse.success(ChatV1Dto.MessagesResponse.from(result, objectMapper));
     }
 

@@ -3,10 +3,8 @@ package com.wherewego.domain.chat;
 import com.wherewego.config.env.PlaceProperties;
 import com.wherewego.domain.chat.BotPlaceCardsPayloadBuilder.PlaceCardsPayload;
 import com.wherewego.domain.chatbot.ChatbotContext;
-import com.wherewego.domain.place.PlaceCandidate;
 import com.wherewego.domain.place.PlaceSearchHit;
-import com.wherewego.domain.place.PlaceSearchOutcome;
-import com.wherewego.domain.place.PlaceSearchService;
+import com.wherewego.domain.place.ReelPlaceExtractor;
 import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.domain.place.parser.ContentParser;
 import com.wherewego.domain.place.parser.ContentParserRegistry;
@@ -17,8 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -58,7 +54,7 @@ public class BotChatProcessor {
     private static final String MSG_FAILED = "처리에 실패했어요. 다시 시도해 주세요.";
 
     private final ContentParserRegistry contentParserRegistry;
-    private final PlaceSearchService placeSearchService;
+    private final ReelPlaceExtractor reelPlaceExtractor;
     private final BotPlaceCardsPayloadBuilder payloadBuilder;
     private final ChatMessageAppender appender;
     private final PlaceProperties placeProperties;
@@ -130,8 +126,11 @@ public class BotChatProcessor {
     }
 
     /**
-     * ContentParser로 캡션→장소명 추출 → 장소 검색으로 좌표 보강. confident 후보의 첫 hit만 수집한다.
-     * 카카오 세션 부수효과 없이 stateless 부품(파서·장소 검색)만 사용한다.
+     * ContentParser로 캡션→장소명 추출 → 장소 검색으로 좌표 보강(GC-1: 후보 루프는
+     * {@link ReelPlaceExtractor#hitsFromParsed}로 이동·공유, 동작 동일).
+     *
+     * <p>파싱 실패 try-catch 는 기존 봇 폴백 의미(빈 결과 → MSG_NO_PLACE)를 보존하기 위해
+     * 여기(봇 호출부)에 유지한다 — 추출 API 는 같은 실패를 PLC_* 에러로 전파한다.</p>
      */
     private List<PlaceSearchHit> extractHits(ContentParser parser, String url) {
         ChatbotContext ctx = ChatbotContext.start(placeProperties.search().syncDeadlineMs());
@@ -146,46 +145,7 @@ public class BotChatProcessor {
         if (parsedOpt.isEmpty()) {
             return List.of();
         }
-
-        List<PlaceCandidate> candidates = parsedOpt.get().candidates();
-        if (candidates.isEmpty()) {
-            String keyword = parsedOpt.get().placeKeyword();
-            if (keyword == null || keyword.isBlank()) {
-                return List.of();
-            }
-            return extractFirstHit(placeSearchService.searchByKeyword(keyword, ctx));
-        }
-
-        List<PlaceSearchHit> result = new ArrayList<>(candidates.size());
-        HashSet<String> seenName = new HashSet<>();
-        for (PlaceCandidate cand : candidates) {
-            if (ctx.expired()) {
-                log.warn("봇 1턴 데드라인 초과, 추출 중단 ({}/{} 처리)", result.size(), candidates.size());
-                break;
-            }
-            if (!cand.confident()) {
-                continue;
-            }
-            String nameKey = cand.name().trim().toLowerCase();
-            if (!seenName.add(nameKey)) {
-                continue;
-            }
-            result.addAll(extractFirstHit(placeSearchService.searchByKeyword(cand.name(), ctx)));
-        }
-        return result;
-    }
-
-    private static List<PlaceSearchHit> extractFirstHit(PlaceSearchOutcome outcome) {
-        if (outcome instanceof PlaceSearchOutcome.Single single) {
-            return List.of(single.hit());
-        }
-        if (outcome instanceof PlaceSearchOutcome.Multiple multiple) {
-            List<PlaceSearchHit> hits = multiple.hits();
-            if (!hits.isEmpty()) {
-                return List.of(hits.get(0));
-            }
-        }
-        return List.of();
+        return reelPlaceExtractor.hitsFromParsed(parsedOpt.get(), ctx);
     }
 
     /**

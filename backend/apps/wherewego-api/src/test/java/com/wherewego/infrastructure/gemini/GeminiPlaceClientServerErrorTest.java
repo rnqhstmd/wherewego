@@ -53,7 +53,7 @@ class GeminiPlaceClientServerErrorTest {
                 new PlaceProperties.InstagramScraper(1_000), gemini);
         PlaceProperties placeProperties = new PlaceProperties(
                 new PlaceProperties.Instagram(false),
-                new PlaceProperties.Search(4_500L, 5, 1_700L),
+                new PlaceProperties.Search(4_500L, 5, 1_700L, 15_000L),
                 scraper);
 
         GeminiUserQuotaService quotaService = mock(GeminiUserQuotaService.class);

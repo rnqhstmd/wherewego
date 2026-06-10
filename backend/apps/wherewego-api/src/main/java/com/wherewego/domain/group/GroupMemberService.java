@@ -2,6 +2,8 @@ package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.chat.ChatRoom;
+import com.wherewego.domain.chat.ChatRoomRepository;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -30,6 +32,7 @@ public class GroupMemberService {
     private final InviteLinkSlugGenerator slugGenerator;
     private final UserRepository userRepository;
     private final InviteProperties inviteProperties;
+    private final ChatRoomRepository chatRoomRepository;
 
     /**
      * 사용자의 최근 활성 그룹 ID 를 반환한다. 활성 그룹이 없으면 {@link Optional#empty()}.
@@ -55,6 +58,9 @@ public class GroupMemberService {
         }
         Group saved = groupRepository.save(Group.create(name));
         groupMemberRepository.save(GroupMember.createActive(saved.getId(), userId, Instant.now()));
+        // GC-1(FR-GC1-1): 그룹 채팅방을 그룹 생성 시 함께 생성한다(기존 그룹은 V021 백필,
+        // 누락 시 GroupChatService 의 get-or-create 안전망). 새 그룹이라 부분 UNIQUE 충돌이 구조적으로 없다.
+        chatRoomRepository.save(ChatRoom.createGroupRoom(saved.getId()));
         return new GroupCreatedResult(saved.getId(), saved.getName(), saved.getCreatedAt());
     }
 
@@ -90,20 +96,23 @@ public class GroupMemberService {
                 .map(link -> new InviteLinkIssueResult(link.getToken(), link.getSlug(), link.getExpiresAt()));
     }
 
+    /**
+     * slug 충돌은 사전 존재검사(unique 인덱스 술어와 동일 범위)로 회피하고 재생성한다(PR #118 리뷰 반영).
+     *
+     * <p>기존 save+catch(DataIntegrityViolationException) 재시도는 참여 트랜잭션이 rollback-only 로
+     * 마킹되어 재시도가 성공해도 커밋이 불가능한 결함이 있었다. 검사 통과 후 동시 발급 race 로 남는
+     * 잔존 충돌(base56 8자 공간에서 사실상 0)은 전역 INTERNAL_ERROR 로 종결된다 — 기존 최종 실패와 동일 의미.</p>
+     */
     private InviteLink saveWithSlugRetry(Long groupId, Long userId, String token, Instant now) {
         for (int attempt = 0; attempt < SLUG_GENERATION_MAX_RETRIES; attempt++) {
             String slug = slugGenerator.generate();
-            try {
-                return inviteLinkRepository.save(
-                        InviteLink.issue(groupId, userId, token, slug, now, inviteProperties.ttl()));
-            } catch (DataIntegrityViolationException e) {
-                // slug unique 제약 충돌 — 재시도. 마지막 시도에서도 실패하면 아래에서 throw.
-                if (attempt == SLUG_GENERATION_MAX_RETRIES - 1) {
-                    throw new CoreException(ErrorType.INTERNAL_ERROR);
-                }
+            if (inviteLinkRepository.existsActiveSlug(slug)) {
+                // 기존 행과 충돌 — 새 slug 로 재생성.
+                continue;
             }
+            return inviteLinkRepository.save(
+                    InviteLink.issue(groupId, userId, token, slug, now, inviteProperties.ttl()));
         }
-        // unreachable — loop 안에서 마지막 attempt 에 throw 함.
         throw new CoreException(ErrorType.INTERNAL_ERROR);
     }
 

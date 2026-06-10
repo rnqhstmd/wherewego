@@ -19,7 +19,27 @@ public interface ChatRoomRepository {
      */
     Optional<ChatRoom> findActiveBotRoom(Long ownerUserId, Long groupId);
 
-    Optional<ChatRoom> findActiveCoupleRoom(Long groupId);
+    /**
+     * 활성 그룹 방(type=GROUP)을 그룹별로 조회한다(GC-1). 활성 = {@code deleted_at IS NULL}.
+     * V021 부분 UNIQUE 인덱스(group_id)로 그룹당 활성 1개가 보장된다.
+     */
+    Optional<ChatRoom> findActiveGroupRoom(Long groupId);
+
+    /**
+     * 활성 GROUP 방을 race-safe 로 생성한다(없을 때만 — ON CONFLICT DO NOTHING).
+     * 동시 생성 충돌에도 예외가 발생하지 않으므로 호출자 트랜잭션이 rollback-only 로 마킹되지 않는다
+     * (PR #118 리뷰 반영). 호출 후 {@link #findActiveGroupRoom}으로 재조회한다.
+     *
+     * @return 삽입 행 수(0 = 이미 존재)
+     */
+    int insertGroupRoomIfAbsent(Long groupId);
+
+    /**
+     * 활성 BOT 방을 race-safe 로 생성한다(없을 때만 — ON CONFLICT DO NOTHING, PR #118 리뷰 반영).
+     *
+     * @return 삽입 행 수(0 = 이미 존재)
+     */
+    int insertBotRoomIfAbsent(Long ownerUserId, Long groupId);
 
     Optional<ChatRoom> findById(Long id);
 
@@ -32,11 +52,10 @@ public interface ChatRoomRepository {
     void softDeleteByOwner(Long ownerUserId);
 
     /**
-     * 마지막 1인 탈퇴로 그룹이 soft delete 될 때, 해당 그룹의 커플 방(type=COUPLE)을 함께 soft delete 한다.
+     * 마지막 1인 탈퇴로 그룹이 soft delete 될 때, 해당 그룹의 그룹 방(type=GROUP)을 함께 soft delete 한다.
      *
-     * <p>활성({@code deleted_at IS NULL}) 행만 대상으로 하며, 커플 방만 {@code groupId}를 보유한다.
-     * 그룹은 soft delete됐는데 커플 방이 활성으로 잔존하는 고아 활성 방을 방지한다.
-     * 벌크 갱신이라 {@code updatedAt}도 함께 갱신한다.</p>
+     * <p>활성({@code deleted_at IS NULL}) 행만 대상으로 한다. 그룹은 soft delete됐는데 그룹 방이
+     * 활성으로 잔존하는 고아 활성 방을 방지한다. 벌크 갱신이라 {@code updatedAt}도 함께 갱신한다.</p>
      */
     void softDeleteByGroup(Long groupId);
 }

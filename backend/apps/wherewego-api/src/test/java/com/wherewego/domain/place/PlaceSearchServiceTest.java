@@ -42,7 +42,7 @@ class PlaceSearchServiceTest {
 
     @BeforeEach
     void setUp() {
-        PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5, 1_700L);
+        PlaceProperties.Search search = new PlaceProperties.Search(5_000L, 5, 1_700L, 15_000L);
         when(placeProperties.search()).thenReturn(search);
         placeSearchService = new PlaceSearchService(googlePlacesClient, placeProperties);
     }

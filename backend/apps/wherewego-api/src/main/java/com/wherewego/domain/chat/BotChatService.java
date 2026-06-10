@@ -8,7 +8,6 @@ import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -160,23 +159,19 @@ public class BotChatService {
     /**
      * 활성 봇 방을 보장한다(GM-2). 없으면 생성한다(V020 부분 UNIQUE 라 동시성은 DB 가 보호).
      *
-     * <p>동시 진입 시 두 트랜잭션이 모두 활성 방을 못 찾고 동시에 save 하면 부분 UNIQUE 위반
-     * ({@link DataIntegrityViolationException})이 발생한다 — 패자는 이를 잡아 승자가 만든 행을 재조회하여 반환한다
-     * (CoupleChatService 의 optimistic insert + conflict 폴백 패턴과 동일). 재조회도 비면 INTERNAL_ERROR.</p>
+     * <p>동시 생성 race 는 {@code ON CONFLICT DO NOTHING} insert 가 예외 없이 흡수한다(PR #118 리뷰 반영
+     * — 기존 save+catch 폴백은 참여 트랜잭션이 rollback-only 로 마킹되어 커밋 시
+     * UnexpectedRollbackException 으로 전체 실패하는 결함이 있었다). insert 후 재조회가 비면 INTERNAL_ERROR.</p>
      */
     private ChatRoom ensureBotRoom(Long userId, Long groupId) {
         return chatRoomRepository.findActiveBotRoom(userId, groupId)
-                .orElseGet(() -> saveBotRoomOnConflict(userId, groupId));
+                .orElseGet(() -> createBotRoomIfAbsent(userId, groupId));
     }
 
-    private ChatRoom saveBotRoomOnConflict(Long userId, Long groupId) {
-        try {
-            return chatRoomRepository.save(ChatRoom.createBotRoom(userId, groupId));
-        } catch (DataIntegrityViolationException e) {
-            // 동시 생성 충돌 — 승자가 만든 활성 방을 재조회하여 반환.
-            return chatRoomRepository.findActiveBotRoom(userId, groupId)
-                    .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "방 생성 충돌"));
-        }
+    private ChatRoom createBotRoomIfAbsent(Long userId, Long groupId) {
+        chatRoomRepository.insertBotRoomIfAbsent(userId, groupId);
+        return chatRoomRepository.findActiveBotRoom(userId, groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.INTERNAL_ERROR, "방 생성 충돌"));
     }
 
     /**
@@ -237,13 +232,15 @@ public class BotChatService {
 
     /**
      * 미리보기 규칙(FR-7, 설계 §5): TEXT/SYSTEM/MEMO_PROMPT → payload text 앞 40자,
-     * PLACE_CARDS → "장소 N곳", PROCESSING → "답장을 준비하고 있어요".
+     * PLACE_CARDS → "장소 N곳", PROCESSING → "답장을 준비하고 있어요",
+     * REEL_LINK → "릴스 링크"(GC-1 그룹 방 전용 kind — 봇 방엔 등장하지 않으나 exhaustive 커버).
      */
     private String previewOf(ChatMessage message) {
         return switch (message.getKind()) {
             case TEXT, SYSTEM, MEMO_PROMPT -> truncate(textPayload(message.getPayloadJson()));
             case PLACE_CARDS -> "장소 " + placeCardCount(message.getPayloadJson()) + "곳";
             case PROCESSING -> PREVIEW_PROCESSING;
+            case REEL_LINK -> "릴스 링크";
         };
     }
 

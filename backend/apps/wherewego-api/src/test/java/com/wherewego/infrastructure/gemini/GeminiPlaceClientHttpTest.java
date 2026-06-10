@@ -55,7 +55,7 @@ class GeminiPlaceClientHttpTest {
                 new PlaceProperties.InstagramScraper(1000), gemini);
         PlaceProperties placeProperties = new PlaceProperties(
                 new PlaceProperties.Instagram(false),
-                new PlaceProperties.Search(4500L, 5, 1700L),
+                new PlaceProperties.Search(4500L, 5, 1700L, 15000L),
                 scraper);
 
         quotaService = mock(GeminiUserQuotaService.class);

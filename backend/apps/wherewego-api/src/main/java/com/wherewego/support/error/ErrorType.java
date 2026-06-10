@@ -77,7 +77,15 @@ public enum ErrorType {
     PIN_PHOTO_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_SIZE_EXCEEDED", "사진은 2MB 이하만 업로드할 수 있어요."),
     PIN_PHOTO_DIMENSION_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_DIMENSION_EXCEEDED", "사진 해상도가 너무 커요. (장변 4096px 이하)"),
     PIN_PHOTO_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_FILE_REQUIRED", "업로드할 사진 파일이 없어요."),
-    PIN_PHOTO_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "PIN_PHOTO_STORAGE_FAILED", "사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    PIN_PHOTO_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "PIN_PHOTO_STORAGE_FAILED", "사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요."),
+
+    /** 그룹 채팅 (GC-1) */
+    CHAT_KIND_INVALID(HttpStatus.BAD_REQUEST, "CHAT_KIND_INVALID", "지원하지 않는 메시지 종류예요."),
+    CHAT_TEXT_INVALID(HttpStatus.BAD_REQUEST, "CHAT_TEXT_INVALID", "메시지는 1~2000자여야 해요."),
+    CHAT_REEL_URL_INVALID(HttpStatus.BAD_REQUEST, "CHAT_REEL_URL_INVALID", "인스타그램 릴스 링크(https)만 보낼 수 있어요."),
+    CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MESSAGE_NOT_FOUND", "존재하지 않는 메시지예요."),
+    CHAT_NOT_REEL_LINK(HttpStatus.BAD_REQUEST, "CHAT_NOT_REEL_LINK", "릴스 링크 메시지가 아니에요."),
+    CHAT_EXTRACT_FORBIDDEN(HttpStatus.FORBIDDEN, "CHAT_EXTRACT_FORBIDDEN", "발신자만 장소를 등록할 수 있어요.");
 
     private final HttpStatus status;
     private final String code;
