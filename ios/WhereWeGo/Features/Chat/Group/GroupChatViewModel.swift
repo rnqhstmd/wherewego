@@ -155,20 +155,29 @@ final class GroupChatViewModel: ObservableObject {
     }
 
     /// 최신 N건 재조회 + 교체-병합(registered 갱신, FR-GC2-3). 폴링·scenePhase·willPresent 신호 공용 단일 경로.
-    func reconcileLatest() async {
-        guard let response = try? await chatAPI.groupMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return }
-        applyLatestPage(response, replaceAll: false)
+    /// 반환값: 이번 병합에서 새로 append 된 프레임 목록(send-poll 조기 종료 판정용, FR-GC2-9). 대부분 호출부는 무시.
+    @discardableResult
+    func reconcileLatest() async -> [GroupChatFrame] {
+        guard let response = try? await chatAPI.groupMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return [] }
+        return applyLatestPage(response, replaceAll: false)
     }
 
     /// 최신 페이지를 표시 모델에 반영.
     /// - replaceAll(load): 전체 재구성.
     /// - 병합(reconcile): 페이지에 포함된 기존 messageId 프레임을 **교체**(registered false→true 등 갱신),
     ///   신규 messageId 는 오름차순 끝에 append(채팅 append-only — 새 메시지는 항상 최신).
-    private func applyLatestPage(_ response: GroupMessagesResponse, replaceAll: Bool) {
+    /// 반환값: 이번에 새로 append 된 프레임 목록(merge 경로). replaceAll 경로는 [] 반환.
+    @discardableResult
+    private func applyLatestPage(_ response: GroupMessagesResponse, replaceAll: Bool) -> [GroupChatFrame] {
         let ascending = Array(response.messages.reversed())
+        var appended: [GroupChatFrame] = []
         if replaceAll {
             messages = ascending
             knownIds = Set(ascending.map(\.messageId))
+            // 커서 소유권은 load/loadMore 에만 있다(FR-GC2-3, BR-3). merge(reconcile) 경로는 커서를 건드리지 않는다 —
+            // loadMore 로 확정한 과거 페이지 커서를 reconcile 이 최신 페이지 값으로 되돌리는 회귀(버그 ②)를 차단.
+            nextCursor = response.nextCursor
+            hasMore = response.hasMore
         } else {
             var byId: [Int: GroupChatFrame] = [:]
             for f in ascending { byId[f.messageId] = f }
@@ -182,15 +191,15 @@ final class GroupChatViewModel: ObservableObject {
             for f in ascending where !knownIds.contains(f.messageId) {
                 knownIds.insert(f.messageId)
                 messages.append(f)
+                appended.append(f)
             }
         }
-        nextCursor = response.nextCursor
-        hasMore = response.hasMore
         // 가상 방(roomId nil) 진입 후 첫 프레임에서 roomId 보강 → willPresent 현재 방 매칭 활성화.
         if roomId == nil, let firstRoomId = ascending.first?.roomId {
             roomId = firstRoomId
             chatPushSignal.register(roomId: roomId)
         }
+        return appended
     }
 
     // MARK: - 전송(FR-GC2-2/8)
@@ -248,13 +257,25 @@ final class GroupChatViewModel: ObservableObject {
         }
     }
 
+    /// 전송 직후 빠른 결과 폴링(2초×10). 목적: 상대의 빠른 답장을 8초 라이브 폴링보다 빨리 수신(BR-4).
+    /// 조기 종료(FR-GC2-9): 어떤 회차의 reconcile 에서 "타인"의 새 메시지가 1건 이상 append 되면 즉시 종료하고
+    /// 이후 수신은 8초 라이브 폴링에 위임한다. 10회 소진/취소(이탈)는 기존대로 종료.
     private func runSendPolling() async {
         defer { sendPollingTask = nil }
         var attempts = 0
         while attempts < Self.maxSendPollAttempts {
             await sleeper(Self.sendPollIntervalSeconds)
             if Task.isCancelled { return }
-            await reconcileLatest()
+            let appended = await reconcileLatest()
+            // reconcile 진행 중 이탈(disappear)했으면 조기 종료 판정 없이 즉시 종료(AC-7 엄밀 보장).
+            if Task.isCancelled { return }
+            // "타인"의 새 메시지 기준(BR-5): senderUserId 가 non-nil 이고 내 id 와 다른 프레임의 append.
+            // currentUserId 미확보(nil)면 판정 자체를 건너뛴다(보수적 비-종료) — reconcile 이 낙관 프레임을
+            // 서버 진실(내 senderUserId non-nil)로 교체한 것을 타인 메시지로 오판해 조기 종료하는 경로 차단.
+            if let myId = currentUserId,
+               appended.contains(where: { $0.senderUserId != nil && $0.senderUserId != myId }) {
+                return
+            }
             attempts += 1
         }
     }

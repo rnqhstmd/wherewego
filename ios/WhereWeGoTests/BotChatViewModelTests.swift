@@ -359,6 +359,10 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
     private(set) var lastSentKind: MessageKind?
     private(set) var lastSentURL: String?
     private(set) var extractedMessageId: Int?
+    /// groupMessages(reconcile/load 포함) 호출 횟수(send-poll 조기 종료 검증용, AC-5/6).
+    private(set) var groupMessagesCallCount = 0
+    /// 호출 순서대로 응답을 큐잉(set 시 우선 소비, 빈 큐는 groupMessagesResult 폴백). 회차별 다른 페이지 시뮬레이션.
+    var groupMessagesQueue: [GroupMessagesResponse] = []
 
     func botRooms() async throws -> [BotRoomSummary] {
         try roomsResult.get()
@@ -390,6 +394,8 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
 
     func groupMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> GroupMessagesResponse {
         lastGroupId = groupId
+        groupMessagesCallCount += 1
+        if !groupMessagesQueue.isEmpty { return groupMessagesQueue.removeFirst() }
         return try groupMessagesResult.get()
     }
 

@@ -84,7 +84,10 @@ struct GroupChatView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .onAppear { scrollToBottom(proxy, animated: false) }
-                .onChange(of: viewModel.messages.count) { _, _ in
+                // 마지막 메시지 id 변경(신규 append)일 때만 하단 추적(버그 ①, FR-GC2-1/BR-2).
+                //  count 추적은 loadMore 의 prepend 도 증가시켜 과거 로드 중 하단으로 튀는 회귀를 유발한다 →
+                //  messages.last?.messageId(Int? Equatable)로 교체해 신규 도착에만 반응. 빈 방 첫 append(nil→id)도 포함.
+                .onChange(of: viewModel.messages.last?.messageId) { _, _ in
                     scrollToBottom(proxy, animated: true)
                 }
             }
