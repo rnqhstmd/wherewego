@@ -46,12 +46,20 @@ struct MapboxMapView: UIViewRepresentable {
         )
         let mapView = MBMapView(frame: .zero, mapInitOptions: initOptions)
         mapView.ornaments.options.scaleBar.visibility = .hidden
+        // 좌하단 Mapbox 로고/ⓘ 어트리뷰션이 플로팅 탭바 뒤에 어중간하게 겹쳐 보여 숨김(베타 내부용).
+        // options.logo.visibility 는 @_spi 잠금(ToS 보호)이라 공개 API 인 ornament 뷰의 isHidden 으로 처리.
+        // ⚠️ 스토어 출시 전 Mapbox ToS 어트리뷰션 요건 재검토 필요(로고+ⓘ 표기 의무 — margins 로 위치 이동이 안전).
+        mapView.ornaments.logoView.isHidden = true
+        mapView.ornaments.attributionButton.isHidden = true
         context.coordinator.mapView = mapView
 
         // 스타일 로드 후 클러스터 소스/레이어 구성(FR-5). supercluster 동치(radius 60 / maxZoom 16 / minPoints 2).
         mapView.mapboxMap.onStyleLoaded.observe { [weak coordinator = context.coordinator] _ in
             coordinator?.installClusterLayers()
             coordinator?.syncMarkers(coordinator?.pendingMarkers ?? [])
+            // 로고/ⓘ 재숨김 — makeUIView 시점 isHidden 을 SDK 가 레이아웃에서 되살리는 경우 대비.
+            coordinator?.mapView?.ornaments.logoView.isHidden = true
+            coordinator?.mapView?.ornaments.attributionButton.isHidden = true
         }.store(in: &context.coordinator.cancellables)
 
         // 클러스터/개별 마커 탭 → clusterTapped/markerTapped 이벤트(FR-5).

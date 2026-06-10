@@ -82,11 +82,8 @@ struct MapView: View {
             //  레벨1(그룹 진입 상태)에서만 표시. 인라인 추가 모드 중엔 검색바/카드와 겹치지 않게 숨긴다.
             if !viewModel.isAddingPin {
                 VStack(spacing: 10) {
+                    // 필터는 그룹 행 안(⋯ 좌측)으로 통합 — 별도 2번째 행 제거(상단 혼잡 해소).
                     groupTopOverlay
-                    // 필터/범례 상단 이동(C단계 D-1, FR-C1): 그룹 행 아래 2번째 행 우측. 로드 완료 시만(핀 컨텍스트 존재).
-                    if case .loaded = viewModel.loadState {
-                        mapFilterRow
-                    }
                     Spacer()
                 }
             }
@@ -398,19 +395,6 @@ struct MapView: View {
 
     // MARK: - 상단 필터/범례 행(C단계 D-1, FR-C1/C2)
 
-    /// 지도 상단 필터 행(C단계 D-1, FR-C1/C2). 우측 정렬 필터 버튼 1개.
-    ///  범례([!])는 필터 팝업에 통합 — 태그 행에 설명 병기 + 하단 안내 캡션(버튼 2개 혼잡 해소).
-    private var mapFilterRow: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            TagFilterButton(
-                activeFilters: $viewModel.activeFilters,
-                isOpen: filterPopupBinding
-            )
-        }
-        .padding(.horizontal, 16)
-    }
-
     // MARK: - 상단 그룹 오버레이(IA 재설계 §5, FR-4/AC-5)
 
     /// 그룹명 + 뒤로(→목록) + 그룹 전환 + ⋯(그룹관리). 레벨1(그룹 진입)에서 지도 상단에 떠 있다.
@@ -452,6 +436,14 @@ struct MapView: View {
             .accessibilityLabel("그룹 전환")
 
             Spacer(minLength: 0)
+
+            // 핀 필터(범례 통합) — ⋯ 좌측 같은 행(좌우 배치). 로드 완료 시만(핀 컨텍스트 존재).
+            if case .loaded = viewModel.loadState {
+                TagFilterButton(
+                    activeFilters: $viewModel.activeFilters,
+                    isOpen: filterPopupBinding
+                )
+            }
 
             Button {
                 showGroupManage = true
@@ -533,22 +525,18 @@ struct MapView: View {
     // MARK: - 플로팅 버튼(어디가지 좌하단 / 내 위치·＋ 추가 우하단, IA 재설계 §5 + P8 영역4 후속)
 
     /// 어디가지(룰렛) FAB(IA 재설계 §5). 좌하단. 탭 → 룰렛 시트(자동 추첨). 룰렛 탭 제거 후 접근 경로 보존.
+    /// 주사위 아이콘 단독 48pt 원형 — 우하단 컨트롤(내위치/＋ 48pt)과 크기·기준선 통일.
     private var rouletteFAB: some View {
         Button {
             showRoulette = true
             Task { await rouletteViewModel.spin() }   // 진입 즉시 자동 추첨(구 어디갈까 탭 onChange 동치)
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "dice.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("어디가지")
-                    .font(WGFont.sans(13))
-            }
-            .foregroundStyle(WGColor.panel)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(Capsule().fill(WGColor.cta))
-            .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
+            Image(systemName: "dice.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(WGColor.panel)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(WGColor.cta))
+                .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
         }
         .accessibilityLabel("어디가지 추천")
     }
@@ -580,35 +568,42 @@ struct MapView: View {
     ///  닫힘=＋ 원형 FAB(56 주황). ＋ 탭 → 위로 2선택지 펼침(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색).
     ///  각 선택지가 enterAddPin(mode:)로 해당 모드 진입. isAddingPin 중엔 상위 스택에서 숨겨 중복을 막는다.
     private var addPinSpeedDial: some View {
-        VStack(alignment: .trailing, spacing: 12) {
+        // ZStack 고정 배치: ＋ 버튼 위치를 불변으로 두고 선택지만 위로 펼친다.
+        //  (이전 VStack 삽입 방식은 펼침 시 레이아웃이 출렁여 ＋가 대각선으로 움직이는 모션이 생겼다 —
+        //   ＋는 제자리에서 45° 회전(✕)만 하도록 고정.)
+        ZStack(alignment: .bottomTrailing) {
             if viewModel.isAddMenuExpanded {
-                speedDialItem(
-                    icon: "hand.draw.fill",
-                    label: "지도에서 찍기",
-                    accessibility: "지도에서 찍어 추가"
-                ) { viewModel.enterAddPin(mode: .pinpoint) }
-                speedDialItem(
-                    icon: "magnifyingglass",
-                    label: "검색해서 찾기",
-                    accessibility: "검색해서 추가"
-                ) { viewModel.enterAddPin(mode: .search) }
+                VStack(alignment: .trailing, spacing: 12) {
+                    speedDialItem(
+                        icon: "hand.draw.fill",
+                        label: "지도에서 찍기",
+                        accessibility: "지도에서 찍어 추가"
+                    ) { viewModel.enterAddPin(mode: .pinpoint) }
+                    speedDialItem(
+                        icon: "magnifyingglass",
+                        label: "검색해서 찾기",
+                        accessibility: "검색해서 추가"
+                    ) { viewModel.enterAddPin(mode: .search) }
+                }
+                .padding(.bottom, 48 + 12)   // ＋ 버튼 높이 + 간격 — 버튼 위로만 펼침
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             mainPlusButton
         }
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
     }
 
-    /// speed-dial 메인 ＋ 버튼(56 주황). 펼침 시 45° 회전해 ✕ 처럼 보인다(열기/닫기 토글).
+    /// speed-dial 메인 ＋ 버튼(48 주황 — 내위치/어디가지와 크기 통일). 펼침 시 제자리 45° 회전(✕).
     private var mainPlusButton: some View {
         Button {
             viewModel.isAddMenuExpanded.toggle()
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(WGColor.panel)
-                .frame(width: 56, height: 56)
-                .background(Circle().fill(WGColor.cta))
                 .rotationEffect(.degrees(viewModel.isAddMenuExpanded ? 45 : 0))
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(WGColor.cta))
                 .shadow(color: WGColor.shadowMd, radius: 10, y: 4)
         }
         .accessibilityLabel(viewModel.isAddMenuExpanded ? "추가 메뉴 닫기" : "장소 추가")

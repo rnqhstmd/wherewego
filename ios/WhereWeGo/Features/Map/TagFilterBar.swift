@@ -58,10 +58,11 @@ struct TagFilterButton: View {
             isOpen.toggle()
         } label: {
             // slider.horizontal.3: ≡(메뉴)로 오독되던 line.3.horizontal.decrease 대신 조절 슬라이더 — 필터로 명확히 읽힘.
+            // 36pt: 상단 그룹 행(뒤로/⋯ 버튼)과 같은 행에 배치되므로 크기 통일.
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(WGColor.inkSoft)
-                .frame(width: 44, height: 44)
+                .frame(width: 36, height: 36)
                 .background(Circle().fill(WGColor.panel))
                 .overlay(Circle().stroke(WGColor.hairline, lineWidth: 1))
                 // 필터 적용 중(전체 아님) 표식 — 우상단 주황 점(웹 active dot 동치).
@@ -77,10 +78,10 @@ struct TagFilterButton: View {
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
         .accessibilityLabel("핀 필터")
-        // C단계 D-2(FR-C1/AC-C2): 범례와 동일하게 팝업을 버튼 아래로(top +52) + trailing 앵커로 좌측 펼침(220 화면 내 유지).
+        // 팝업은 버튼 아래로(top +44) + trailing 앵커로 좌측 펼침(248 화면 내 유지).
         .overlay(alignment: .topTrailing) {
             if isOpen {
-                popup.offset(y: 44 + 8)
+                popup.offset(y: 36 + 8)
             }
         }
     }

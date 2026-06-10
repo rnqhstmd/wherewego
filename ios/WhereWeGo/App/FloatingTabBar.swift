@@ -91,22 +91,58 @@ struct FloatingTabBar: View {
                 selection = tab
             }
         } label: {
-            Image(systemName: isSelected ? fill : outline)
-                .font(.system(size: 22, weight: .regular))
+            iconView(tab, isSelected: isSelected, outline: outline, fill: fill)
                 .foregroundColor(isSelected ? WGColor.cta : WGColor.inkSoft)
-                // 미읽음 점(FR-22): 아이콘 '자체'에 부착 — 셀 프레임(maxHeight ∞)에 걸면 점이 필 상단 모서리로 떠버린다.
-                .overlay(alignment: .topTrailing) {
+                // 미읽음 점(FR-22): 아이콘 '자체' 우측 하단(인스타식). 셀 프레임에 걸면 필 모서리로 떠버린다.
+                .overlay(alignment: .bottomTrailing) {
                     if showUnread {
                         Circle()
                             .fill(WGColor.pinNew)
                             .frame(width: 8, height: 8)
-                            .offset(x: 5, y: -3)
+                            .offset(x: 5, y: 2)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// 탭 아이콘. 채팅 탭은 SF paperplane 대신 인스타그램 최신 DM 글리프(각진 종이비행기, 커스텀 Path).
+    /// 선택 상태는 채움 대신 굵은 스트로크(+cta 색)로 구분 — 인스타 원본도 외곽선 유지.
+    @ViewBuilder
+    private func iconView(_ tab: MainTab, isSelected: Bool, outline: String, fill: String) -> some View {
+        if tab == .chat {
+            InstaSendShape()
+                .stroke(style: StrokeStyle(
+                    lineWidth: isSelected ? 2.4 : 1.8,
+                    lineCap: .round,
+                    lineJoin: .round
+                ))
+                .frame(width: 21, height: 21)
+        } else {
+            Image(systemName: isSelected ? fill : outline)
+                .font(.system(size: 22, weight: .regular))
+        }
+    }
+}
+
+/// 인스타그램 최신 DM(종이비행기) 글리프 — 24×24 좌표계의 각진 send 아이콘.
+/// 대각 폴드 라인(22,2→11,13) + 외곽 폴리곤(22,2→15,22→11,13→2,9) 두 서브패스를 스트로크로 그린다.
+private struct InstaSendShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x / 24 * rect.width, y: rect.minY + y / 24 * rect.height)
+        }
+        var path = Path()
+        path.move(to: pt(22, 2))
+        path.addLine(to: pt(11, 13))
+        path.move(to: pt(22, 2))
+        path.addLine(to: pt(15, 22))
+        path.addLine(to: pt(11, 13))
+        path.addLine(to: pt(2, 9))
+        path.closeSubpath()
+        return path
     }
 }
 
