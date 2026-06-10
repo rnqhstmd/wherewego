@@ -94,16 +94,16 @@ struct FloatingTabBar: View {
             Image(systemName: isSelected ? fill : outline)
                 .font(.system(size: 22, weight: .regular))
                 .foregroundColor(isSelected ? WGColor.cta : WGColor.inkSoft)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // 미읽음 점(FR-22): 아이콘 우상단 작은 빨간 점. 건수 미표시.
+                // 미읽음 점(FR-22): 아이콘 '자체'에 부착 — 셀 프레임(maxHeight ∞)에 걸면 점이 필 상단 모서리로 떠버린다.
                 .overlay(alignment: .topTrailing) {
                     if showUnread {
                         Circle()
                             .fill(WGColor.pinNew)
                             .frame(width: 8, height: 8)
-                            .offset(x: 10, y: -6)
+                            .offset(x: 5, y: -3)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)

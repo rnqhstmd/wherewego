@@ -38,11 +38,13 @@ struct GroupMessageRow: View {
     // MARK: - TEXT(FR-GC2-2)
 
     private var textBubble: some View {
-        // 카톡식 시각 배치: 내 메시지 = 버블 왼쪽 하단 / 타인 = 닉네임(위) + 버블 오른쪽 하단.
+        // 인스타 DM식: 타인 = 아바타 + 닉네임(위) + 버블 + 오른쪽 하단 시간 / 내 메시지 = 왼쪽 하단 시간 + 버블.
         HStack(alignment: .bottom, spacing: 6) {
             if isOutgoing {
                 Spacer(minLength: 48)
                 timeLabel
+            } else {
+                senderAvatar
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing {
@@ -78,6 +80,8 @@ struct GroupMessageRow: View {
             if isOutgoing {
                 Spacer(minLength: 32)
                 timeLabel
+            } else {
+                senderAvatar
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing {
@@ -202,6 +206,21 @@ struct GroupMessageRow: View {
     private var reelHost: String {
         guard let url = frame.reelUrl, let host = URLComponents(string: url)?.host else { return "instagram.com" }
         return host
+    }
+
+    // MARK: - 아바타(인스타 DM식)
+
+    /// 타인 메시지 좌측 아바타 — 닉네임 첫 글자 틴트 원(버블 하단 정렬). 프로필 이미지 도입 시 AsyncImage 교체 지점.
+    private var senderAvatar: some View {
+        Circle()
+            .fill(WGColor.cta.opacity(0.15))
+            .frame(width: 32, height: 32)
+            .overlay(
+                Text(String(senderName.prefix(1)))
+                    .font(WGFont.sans(13))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(WGColor.cta)
+            )
     }
 
     // MARK: - 시각 라벨(카톡식)

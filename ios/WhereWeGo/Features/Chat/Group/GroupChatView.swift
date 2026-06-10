@@ -154,31 +154,38 @@ struct GroupChatView: View {
         let isOverLimit = !isReel && trimmed.count > GroupChatViewModel.messageMaxLength
         let canSend = !trimmed.isEmpty && !isOverLimit
 
+        // 플로팅 캡슐 입력바(인스타 DM·FloatingTabBar 디자인 언어 정합) — 풀폭 바+상단 구분선 대신 떠 있는 필.
+        //  전송 버튼을 필 내부 우측에 배치, 배경은 panel+그림자(콘텐츠 위에 부유).
         return VStack(spacing: 4) {
-            HStack(alignment: .bottom, spacing: 10) {
+            HStack(alignment: .bottom, spacing: 6) {
                 TextField("메시지를 입력하거나 릴스 링크를 붙여넣어 보세요", text: $viewModel.draft, axis: .vertical)
                     .font(WGFont.sans(15))
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1...4)
                     .focused($inputFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(WGColor.panel)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(isOverLimit ? WGColor.pinNew : WGColor.hairline, lineWidth: 1)
-                    )
+                    .padding(.leading, 18)
+                    .padding(.vertical, 12)
 
                 Button {
                     Task { await viewModel.send() }
                 } label: {
                     Image(systemName: isReel ? "paperplane.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 30))
+                        .font(.system(size: 31))
                         .foregroundStyle(canSend ? WGColor.cta : WGColor.inkFaint)
                 }
                 .disabled(!canSend)
+                .padding(.trailing, 6)
+                .padding(.bottom, 6)
             }
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(WGColor.panel)
+                    .shadow(color: WGColor.shadowMd, radius: 12, y: 4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(isOverLimit ? WGColor.pinNew : WGColor.hairline, lineWidth: 1)
+            )
 
             // TEXT 2000자 카운터(REEL_LINK 는 URL 이라 미표시).
             if !isReel, trimmed.count > GroupChatViewModel.messageMaxLength - 200 {
@@ -188,13 +195,12 @@ struct GroupChatView: View {
                         .font(WGFont.mono(11))
                         .foregroundStyle(isOverLimit ? WGColor.pinNew : WGColor.inkSoft)
                 }
+                .padding(.horizontal, 8)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(WGColor.bg)
-        .overlay(alignment: .top) { Rectangle().fill(WGColor.hairline).frame(height: 1) }
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     private var registerSheetBinding: Binding<Bool> {

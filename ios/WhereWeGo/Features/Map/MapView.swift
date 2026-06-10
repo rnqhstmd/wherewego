@@ -38,15 +38,8 @@ struct MapView: View {
     /// ⋯ 그룹관리 시트 표시(IA 재설계 §5, 진입점만 — 내용은 D단계).
     @State private var showGroupManage = false
 
-    private enum CornerPopup { case none, legend, filter }
-
-    /// 범례 팝업 토글 바인딩(열면 다른 팝업은 닫힘).
-    private var legendPopupBinding: Binding<Bool> {
-        Binding(
-            get: { activeCornerPopup == .legend },
-            set: { activeCornerPopup = $0 ? .legend : .none }
-        )
-    }
+    // 범례([!])는 필터 팝업에 통합(마커 안내 행 + 하단 캡션) — 상단 버튼 2개의 혼잡 해소.
+    private enum CornerPopup { case none, filter }
 
     /// 필터 팝업 토글 바인딩(열면 다른 팝업은 닫힘).
     private var filterPopupBinding: Binding<Bool> {
@@ -405,13 +398,11 @@ struct MapView: View {
 
     // MARK: - 상단 필터/범례 행(C단계 D-1, FR-C1/C2)
 
-    /// 지도 상단 필터/범례 행(C단계 D-1, FR-C1/C2). 우측 정렬 [!]범례·[▽]필터.
-    ///  좌하단(어디가지 FAB)과 자리 충돌 해소 위해 상단 이동. 팝업은 아래로 펼쳐진다(TagFilterBar D-2).
-    ///  legendPopupBinding/filterPopupBinding 으로 상호배타(범례·필터 동시표시 금지)는 그대로 유지.
+    /// 지도 상단 필터 행(C단계 D-1, FR-C1/C2). 우측 정렬 필터 버튼 1개.
+    ///  범례([!])는 필터 팝업에 통합 — 태그 행에 설명 병기 + 하단 안내 캡션(버튼 2개 혼잡 해소).
     private var mapFilterRow: some View {
         HStack(spacing: 8) {
             Spacer(minLength: 0)
-            TagLegendButton(isOpen: legendPopupBinding)
             TagFilterButton(
                 activeFilters: $viewModel.activeFilters,
                 isOpen: filterPopupBinding

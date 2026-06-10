@@ -1,12 +1,11 @@
 import SwiftUI
 
-// 좌하단 지도 컨트롤(설계 §3, FR-6/AC-4 + 웹 정합).
-// 구 TagFilterBar(상단 태그 칩)를 제거하고, 웹 map/_components 의 좌하단 2버튼을 1:1 이식한다:
-//  - TagLegendButton  : [!] 마커 의미 안내 팝업(발견/위시/추억 색·설명).
-//  - TagFilterButton  : [▽] 체크박스 드롭다운 필터(전체 + 추억/위시/발견).
+// 지도 상단 필터 컨트롤(설계 §3, FR-6/AC-4 + 웹 정합).
+//  - TagFilterButton : 체크박스 드롭다운 필터(전체 + 추억/위시/발견). 구 TagLegendButton([!] 마커 안내)은
+//    이 팝업에 통합 — 태그 행에 설명 병기 + 하단 안내 캡션(상단 버튼 2개 혼잡 해소).
 // 글리프: 웹은 별/하트 모양을 쓰지만 iOS 지도 마커는 태그별 '색 원'(MapboxMapView CircleLayer)이라,
-//  범례/필터 글리프도 마커와 동일한 '색 원'으로 맞춘다(자기정합 — 실제 지도와 시각 일치).
-// 열림/닫힘은 부모(MapView)가 isOpen 바인딩으로 상호배타 제어(범례·필터 동시표시 금지 + 바깥 탭 닫힘 공유).
+//  필터 글리프도 마커와 동일한 '색 원'으로 맞춘다(자기정합 — 실제 지도와 시각 일치).
+// 열림/닫힘은 부모(MapView)가 isOpen 바인딩으로 제어(바깥 탭 닫힘 공유).
 
 // MARK: - 공통 색 매핑
 
@@ -35,106 +34,20 @@ private struct TagDotGlyph: View {
     }
 }
 
-// MARK: - 범례 버튼([!])
+// MARK: - 필터 버튼
 
-/// 좌하단 ! 마커 범례 버튼(웹 TagLegendButton.tsx 이식). 탭 → 위로 안내 팝업.
-struct TagLegendButton: View {
-    @Binding var isOpen: Bool
-
-    private struct Stage {
-        let tag: PinTag
-        let label: String
-        let desc: String
-    }
-
-    // 웹 STAGES 순서: 발견 → 위시 → 추억.
-    private let stages: [Stage] = [
-        Stage(tag: .REEL, label: "발견", desc: "둘러본 곳"),
-        Stage(tag: .WISH, label: "위시", desc: "가고 싶다고 표시한 곳"),
-        Stage(tag: .MEMORY, label: "추억", desc: "다녀온 곳"),
-    ]
-
-    var body: some View {
-        Button {
-            isOpen.toggle()
-        } label: {
-            Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(WGColor.inkSoft)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(WGColor.panel))
-                .overlay(Circle().stroke(WGColor.hairline, lineWidth: 1))
-                .shadow(color: WGColor.shadow, radius: 8, y: 3)
-        }
-        .accessibilityLabel("아이콘 및 단계 안내")
-        // C단계 D-2(FR-C1/AC-C2): 필터/범례 상단 이동에 맞춰 팝업을 버튼 아래로 띄운다(top 기준 +52).
-        //  우측 정렬 버튼이라 trailing 앵커 — 팝업(248)이 좌측으로 펼쳐져 화면 안에 머문다(leading이면 우측 오버플로).
-        .overlay(alignment: .topTrailing) {
-            if isOpen {
-                popup.offset(y: 44 + 8)
-            }
-        }
-    }
-
-    private var popup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("지도 마커 안내")
-                .font(WGFont.sans(11))
-                .fontWeight(.bold)
-                .foregroundStyle(WGColor.inkFaint)
-                .padding(.bottom, 6)
-
-            (
-                Text("가고 싶은 곳은 ")
-                + Text("위시").fontWeight(.bold).foregroundColor(WGColor.ink)
-                + Text("로, 다녀오면 ")
-                + Text("추억").fontWeight(.bold).foregroundColor(WGColor.ink)
-                + Text("이 돼요.")
-            )
-            .font(WGFont.sans(11.5))
-            .foregroundStyle(WGColor.inkSoft)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.bottom, 12)
-
-            ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
-                HStack(spacing: 10) {
-                    TagDotGlyph(tag: stage.tag)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(stage.label)
-                            .font(WGFont.sans(12.5))
-                            .fontWeight(.bold)
-                            .foregroundStyle(WGColor.ink)
-                        Text(stage.desc)
-                            .font(WGFont.sans(11))
-                            .foregroundStyle(WGColor.inkSoft)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.bottom, index == stages.count - 1 ? 0 : 8)
-            }
-        }
-        .padding(EdgeInsets(top: 14, leading: 16, bottom: 12, trailing: 16))
-        .frame(width: 248, alignment: .leading)
-        .background(WGColor.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
-        .shadow(color: WGColor.shadowMd, radius: 14, y: 8)
-    }
-}
-
-// MARK: - 필터 버튼([▽])
-
-/// 좌하단 핀 필터 버튼(웹 TagFilterButton.tsx 이식). 깔때기 아이콘 → 탭 시 위로 체크박스 드롭다운.
+/// 지도 핀 필터 버튼(웹 TagFilterButton.tsx 이식 + 범례 통합). 탭 시 아래로 체크박스 드롭다운.
 /// activeFilters(Set<PinTag>) 바인딩. 전체 체크 시 모두 표시(기본), 일부라도 해제되면 우상단 주황 점.
+/// 각 태그 행에 마커 의미 설명을 병기하고 하단에 위시→추억 안내 캡션을 둬 구 범례([!]) 역할을 흡수한다.
 struct TagFilterButton: View {
     @Binding var activeFilters: Set<PinTag>
     @Binding var isOpen: Bool
 
-    // 웹 OPTIONS 순서: 추억 → 위시 → 발견.
-    private let options: [(tag: PinTag, label: String)] = [
-        (.MEMORY, "추억"),
-        (.WISH, "위시"),
-        (.REEL, "발견"),
+    // 웹 OPTIONS 순서: 추억 → 위시 → 발견. desc = 구 범례(TagLegendButton)의 마커 의미 설명.
+    private let options: [(tag: PinTag, label: String, desc: String)] = [
+        (.MEMORY, "추억", "다녀온 곳"),
+        (.WISH, "위시", "가고 싶다고 표시한 곳"),
+        (.REEL, "발견", "둘러본 곳"),
     ]
 
     private var allChecked: Bool { activeFilters.count == PinTag.allCases.count }
@@ -144,8 +57,9 @@ struct TagFilterButton: View {
         Button {
             isOpen.toggle()
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 17, weight: .medium))
+            // slider.horizontal.3: ≡(메뉴)로 오독되던 line.3.horizontal.decrease 대신 조절 슬라이더 — 필터로 명확히 읽힘.
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(WGColor.inkSoft)
                 .frame(width: 44, height: 44)
                 .background(Circle().fill(WGColor.panel))
@@ -193,6 +107,7 @@ struct TagFilterButton: View {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 checkboxRow(
                     label: option.label,
+                    desc: option.desc,
                     checked: activeFilters.contains(option.tag),
                     emphasize: false,
                     accent: tagColor(option.tag),
@@ -201,9 +116,28 @@ struct TagFilterButton: View {
                     toggle(option.tag)
                 }
             }
+
+            // 구 범례([!]) 안내 문장 흡수 — 위시→추억 전이 설명.
+            Rectangle()
+                .fill(WGColor.hairline)
+                .frame(height: 1)
+                .padding(.vertical, 6)
+                .padding(.horizontal, -14)
+            (
+                Text("가고 싶은 곳은 ")
+                + Text("위시").fontWeight(.bold).foregroundColor(WGColor.ink)
+                + Text("로, 다녀오면 ")
+                + Text("추억").fontWeight(.bold).foregroundColor(WGColor.ink)
+                + Text("이 돼요.")
+            )
+            .font(WGFont.sans(11))
+            .foregroundStyle(WGColor.inkSoft)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 4)
+            .padding(.bottom, 4)
         }
         .padding(EdgeInsets(top: 12, leading: 14, bottom: 8, trailing: 14))
-        .frame(width: 220, alignment: .leading)
+        .frame(width: 248, alignment: .leading)
         .background(WGColor.panel)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
@@ -215,6 +149,7 @@ struct TagFilterButton: View {
     @ViewBuilder
     private func checkboxRow(
         label: String,
+        desc: String? = nil,
         checked: Bool,
         emphasize: Bool,
         accent: Color,
@@ -240,10 +175,18 @@ struct TagFilterButton: View {
                 if let glyphTag {
                     TagDotGlyph(tag: glyphTag, halo: 22, dot: 11)
                 }
-                Text(label)
-                    .font(WGFont.sans(13))
-                    .fontWeight(emphasize ? .bold : .semibold)
-                    .foregroundStyle(WGColor.ink)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(WGFont.sans(13))
+                        .fontWeight(emphasize ? .bold : .semibold)
+                        .foregroundStyle(WGColor.ink)
+                    // 구 범례의 마커 의미 설명 병기(통합).
+                    if let desc {
+                        Text(desc)
+                            .font(WGFont.sans(10.5))
+                            .foregroundStyle(WGColor.inkSoft)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 5)

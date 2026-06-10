@@ -177,16 +177,21 @@ private struct DMRoomRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
+                // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 점).
                 Text(room.groupName)
                     .font(WGFont.sans(15))
-                    .fontWeight(isUnread ? .semibold : .regular)
+                    .fontWeight(isUnread ? .bold : .regular)
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1)
 
                 Text(previewText)
                     .font(WGFont.sans(13))
                     .fontWeight(isUnread ? .semibold : .regular)
-                    .foregroundStyle(room.lastPreview == nil ? WGColor.inkFaint : WGColor.inkSoft)
+                    .foregroundStyle(
+                        room.lastPreview == nil
+                            ? WGColor.inkFaint
+                            : (isUnread ? WGColor.ink : WGColor.inkSoft)
+                    )
                     .lineLimit(1)
             }
 
@@ -209,12 +214,12 @@ private struct DMRoomRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // 카드 스타일(그룹 목록 정합): 미읽음 = 옅은 cta 채움 + cta 테두리로 강조.
-        .background(isUnread ? WGColor.cta.opacity(0.07) : WGColor.panel)
+        // 카드 스타일(그룹 목록 정합). 미읽음 강조는 인스타식(텍스트 굵기+점)이라 배경은 항상 panel.
+        .background(WGColor.panel)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(isUnread ? WGColor.cta.opacity(0.35) : WGColor.hairline, lineWidth: 1)
+                .stroke(WGColor.hairline, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 16))
     }
