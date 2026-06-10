@@ -27,9 +27,12 @@ enum Nickname {
     }
 
     /// 허용외 문자 제거 + 12자 절단(Character 단위).
+    /// 조합 중 자모(ㄱ-ㅎ/ㅏ-ㅣ)는 통과시킨다 — 한글 IME 는 완성형(가-힣) 이전에 자모 상태를 거치므로
+    /// 여기서 지우면 onChange 가 바인딩을 되돌려 조합이 시작조차 못 한다(한글 입력 불가 버그).
+    /// 미완성 자모의 최종 차단은 validate(BR-1, 백엔드 @Pattern 정합)가 담당한다.
     static func sanitize(_ value: String) -> String {
         let filtered = value.filter { ch in
-            String(ch).range(of: "^[가-힣a-zA-Z0-9]+$", options: .regularExpression) != nil
+            String(ch).range(of: "^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]+$", options: .regularExpression) != nil
         }
         return String(filtered.prefix(12))
     }
