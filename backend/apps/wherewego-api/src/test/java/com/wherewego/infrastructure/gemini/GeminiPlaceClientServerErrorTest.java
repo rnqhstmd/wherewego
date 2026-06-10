@@ -52,7 +52,7 @@ class GeminiPlaceClientServerErrorTest {
         PlaceProperties.Scraper scraper = new PlaceProperties.Scraper(
                 new PlaceProperties.InstagramScraper(1_000), gemini);
         PlaceProperties placeProperties = new PlaceProperties(
-                new PlaceProperties.Instagram(false),
+                new PlaceProperties.Instagram(false, true, 5_000L),
                 new PlaceProperties.Search(4_500L, 5, 1_700L, 15_000L),
                 scraper);
 

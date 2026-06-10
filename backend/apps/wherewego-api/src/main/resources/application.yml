@@ -90,6 +90,9 @@ place:
     # 베타 운영 결정: 사용자 2명 규모 — true로 운영. 차단 사고 발생 시 환경변수로 false 토글 후 재기동.
     # Phase 2.6 B-2: @RefreshScope 적용 완료. application.yml 수정 후 POST /actuator/refresh 호출로 즉시 토글 가능.
     scraping-enabled: ${INSTAGRAM_SCRAPING_ENABLED:true}
+    # GC-3(FR-GC3-2): 릴스 썸네일 비동기 스크래핑. scraping-enabled(마스터)와 AND — 둘 중 하나라도 off면 thumbnailUrl null.
+    reel-thumbnail-enabled: ${REEL_THUMBNAIL_ENABLED:true}
+    reel-thumbnail-deadline-ms: 5000
   search:
     sync-deadline-ms: 4500
     kakao-local-size: 5

@@ -57,13 +57,36 @@ public class PlaceProperties {
          * 법무 미승인 환경에서는 false로 운영. {@code POST /actuator/refresh}로 즉시 토글 가능.
          */
         private final boolean scrapingEnabled;
+        /**
+         * GC-3(FR-GC3-2): 릴스 썸네일 비동기 스크래핑 활성화 여부. {@code scrapingEnabled}(마스터)와 AND 게이트로
+         * 동작한다 — 둘 중 하나라도 false면 썸네일을 채우지 않는다(thumbnailUrl 항상 null). 즉시 토글 가능.
+         */
+        private final boolean reelThumbnailEnabled;
+        /**
+         * GC-3(FR-GC3-2): 릴스 썸네일 스크래핑 데드라인(ms). 전송 트랜잭션 밖 비동기라 카카오 5초 SLA와 독립이며,
+         * og:image 1회 fetch 기준으로 짧게 둔다.
+         */
+        @Positive
+        private final long reelThumbnailDeadlineMs;
 
-        public Instagram(boolean scrapingEnabled) {
+        public Instagram(boolean scrapingEnabled,
+                         boolean reelThumbnailEnabled,
+                         @Positive long reelThumbnailDeadlineMs) {
             this.scrapingEnabled = scrapingEnabled;
+            this.reelThumbnailEnabled = reelThumbnailEnabled;
+            this.reelThumbnailDeadlineMs = reelThumbnailDeadlineMs;
         }
 
         public boolean scrapingEnabled() {
             return scrapingEnabled;
+        }
+
+        public boolean reelThumbnailEnabled() {
+            return reelThumbnailEnabled;
+        }
+
+        public long reelThumbnailDeadlineMs() {
+            return reelThumbnailDeadlineMs;
         }
     }
 

@@ -54,6 +54,8 @@ apple:
 place:
   instagram:
     scraping-enabled: true
+    reel-thumbnail-enabled: true
+    reel-thumbnail-deadline-ms: 5000
   search:
     sync-deadline-ms: 4500
     kakao-local-size: 5

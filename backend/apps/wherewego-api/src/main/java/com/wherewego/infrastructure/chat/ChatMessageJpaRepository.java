@@ -16,6 +16,9 @@ public interface ChatMessageJpaRepository extends JpaRepository<ChatMessage, Lon
     /** GC-1: 방 소속 활성 메시지 단건 조회(온디맨드 추출 대상 검증). */
     Optional<ChatMessage> findByIdAndRoomIdAndDeletedAtIsNull(Long id, Long roomId);
 
+    /** GC-3: 활성 메시지 단건 조회(비동기 썸네일 반영 — roomId 컨텍스트 없는 백그라운드 스레드용). */
+    Optional<ChatMessage> findByIdAndDeletedAtIsNull(Long id);
+
     /**
      * cursor 기반 최신순 조회. {@code cursor}가 {@code null}이면 전체 최신부터, non-null이면 {@code id < cursor}.
      * {@code deleted_at IS NULL}만 포함하며 {@code id DESC} 정렬. 반환 개수는 {@code pageable}로 제한한다.

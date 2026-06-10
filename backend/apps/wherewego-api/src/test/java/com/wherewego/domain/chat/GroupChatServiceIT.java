@@ -76,6 +76,17 @@ class GroupChatServiceIT {
     @MockBean
     private PushNotificationService pushNotificationService;
 
+    // GC-3: 실제 IG 스크래핑(외부 네트워크)이 afterCommit 비동기로 일어나지 않도록 mock 으로 대체한다.
+    // 썸네일 파생/노출은 payload 를 직접 심거나 writer 단위로 검증한다(외부 호출 무의존).
+    @MockBean
+    private ReelThumbnailService reelThumbnailService;
+
+    @Autowired
+    private ReelThumbnailWriter reelThumbnailWriter;
+
+    @Autowired
+    private ChatMessageRepository chatMessageRepository;
+
     private Long userA;
     private Long userB;
 
@@ -224,6 +235,52 @@ class GroupChatServiceIT {
         assertThat(registeredFlags(groupId)).containsExactly(false, false);
     }
 
+    // ────── FR-GC3-2: 릴스 썸네일 파생/노출 ──────
+
+    @DisplayName("thumbnailUrl - payload 에 thumbnailUrl 이 있으면 REEL_LINK 프레임 top-level thumbnailUrl 로 노출되고, 비-REEL_LINK 는 null(AC1/AC5).")
+    @Test
+    void thumbnailUrl_derivedForReelLink_nullOtherwise() {
+        Long groupId = createSharedGroup();
+        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null);
+
+        // 전송 직후: 비동기 스크래핑(mock) 미반영 → thumbnailUrl null.
+        assertThat(thumbnailOf(groupId, reelId)).isNull();
+
+        // 스크래핑 성공을 모사하여 payload 에 thumbnailUrl 을 심는다(외부 호출 무의존, writer 경로 재사용).
+        String thumb = "https://scontent.cdninstagram.com/v/thumb.jpg";
+        reelThumbnailWriter.attach(reelId, thumb);
+
+        GroupMessagesPage page = groupChatService.getMessages(userA, groupId, null, 20);
+        // REEL_LINK 프레임은 thumbnailUrl 채워지고, TEXT 프레임은 null.
+        assertThat(thumbnailOf(groupId, reelId)).isEqualTo(thumb);
+        for (GroupChatMessageFrame frame : page.frames()) {
+            if (frame.kind() != MessageKind.REEL_LINK) {
+                assertThat(frame.thumbnailUrl()).isNull();
+            }
+        }
+    }
+
+    @DisplayName("attach - 비-REEL_LINK/없는 메시지는 no-op, 기존 url 은 보존된다(M5/방어).")
+    @Test
+    void attach_noOpForNonReelOrMissing() {
+        Long groupId = createSharedGroup();
+        Long textId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null).getId();
+
+        // 비-REEL_LINK → no-op(예외 없음).
+        reelThumbnailWriter.attach(textId, "https://x/thumb.jpg");
+        // 없는 메시지 → no-op.
+        reelThumbnailWriter.attach(999_999L, "https://x/thumb.jpg");
+
+        // REEL_LINK attach 는 url 을 보존한 채 thumbnailUrl 만 채운다.
+        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
+        reelThumbnailWriter.attach(reelId, "https://x/thumb.jpg");
+
+        ChatMessage reload = chatMessageRepository.findActiveById(reelId).orElseThrow();
+        assertThat(reload.getPayloadJson()).contains(REEL_URL);
+        assertThat(reload.getPayloadJson()).contains("https://x/thumb.jpg");
+    }
+
     // ────── FR-GC1-5/6: 온디맨드 추출 + 권한 ──────
 
     @DisplayName("extractPlaces - 발신자가 호출하면 카드 목록을 동기 반환하고 메시지를 append 하지 않는다(AC-5).")
@@ -348,6 +405,15 @@ class GroupChatServiceIT {
                 .filter(f -> f.kind() == MessageKind.REEL_LINK)
                 .map(GroupChatMessageFrame::registered)
                 .toList();
+    }
+
+    /** 특정 메시지 id 프레임의 top-level thumbnailUrl(없으면 null). */
+    private String thumbnailOf(Long groupId, Long messageId) {
+        return groupChatService.getMessages(userA, groupId, null, 20).frames().stream()
+                .filter(f -> f.messageId().equals(messageId))
+                .map(GroupChatMessageFrame::thumbnailUrl)
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean unreadOf(Long userId, Long groupId) {

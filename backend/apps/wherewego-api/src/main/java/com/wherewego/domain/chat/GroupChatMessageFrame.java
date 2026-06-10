@@ -22,6 +22,9 @@ import java.time.format.DateTimeFormatter;
  * @param kind           메시지 종류(payload 스키마 결정)
  * @param payload        재파싱된 payload 객체(JsonNode). 파싱 불가 시 빈 객체.
  * @param registered     REEL_LINK 만 — 이 릴스의 핀이 그룹에 존재하면 {@code true}. 그 외 kind 는 {@code null}.
+ * @param thumbnailUrl   REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 스크래핑 전/실패/
+ *                       flag off 또는 그 외 kind 는 {@code null}. payload.thumbnailUrl 을 top-level 로 파생한 계약 필드라
+ *                       추후 S3 전환 시 파생 로직만 교체하면 iOS 계약은 무변경이다.
  * @param createdAt      ISO8601(offset) 생성 시각 문자열
  */
 public record GroupChatMessageFrame(
@@ -32,16 +35,18 @@ public record GroupChatMessageFrame(
         MessageKind kind,
         Object payload,
         Boolean registered,
+        String thumbnailUrl,
         String createdAt
 ) {
 
     private static final Logger log = LoggerFactory.getLogger(GroupChatMessageFrame.class);
 
     /**
-     * {@link ChatMessage} 엔티티를 그룹 프레임으로 변환한다({@link ChatMessageFrame#from} 동형 + 발신자/registered).
+     * {@link ChatMessage} 엔티티를 그룹 프레임으로 변환한다({@link ChatMessageFrame#from} 동형 + 발신자/registered/
+     * thumbnailUrl). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만 채워지고 그 외 kind 는 {@code null}이다.
      */
     public static GroupChatMessageFrame from(ChatMessage message, ObjectMapper objectMapper,
-                                             String senderNickname, Boolean registered) {
+                                             String senderNickname, Boolean registered, String thumbnailUrl) {
         return new GroupChatMessageFrame(
                 message.getId(),
                 message.getRoomId(),
@@ -50,6 +55,7 @@ public record GroupChatMessageFrame(
                 message.getKind(),
                 parsePayload(message.getPayloadJson(), objectMapper),
                 registered,
+                thumbnailUrl,
                 formatCreatedAt(message.getCreatedAt())
         );
     }

@@ -46,7 +46,7 @@ class InstagramContentServiceTest {
     private InstagramContentService instagramContentService;
 
     private static PlaceProperties.Instagram instagram(boolean scrapingEnabled) {
-        return new PlaceProperties.Instagram(scrapingEnabled);
+        return new PlaceProperties.Instagram(scrapingEnabled, true, 5_000L);
     }
 
     @DisplayName("인스타그램 URL 에서 장소를 추출할 때,")
