@@ -221,14 +221,24 @@ struct MapView: View {
         }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
         }
-        // 어디가지(룰렛) 시트(IA 재설계 §5). 진입 시 자동 추첨(룰렛 탭 onChange 동치 이식). RouletteView 재사용.
-        //  "지도에서 보기" → showOnMap()(flyTo+정보창) 후 시트 닫기(onShowOnMap).
-        .sheet(isPresented: $showRoulette) {
-            NavigationStack {
+        // 어디가지(룰렛) 컴팩트 팝업(IA 재설계 §5). 시스템 시트 대신 하단 오버레이로 표시 — 하단 탭바를
+        //  가리지 않도록 탭바 footprint 위에 띄운다(어떤 화면이든 탭바는 보인다). FAB 가 진입 즉시 자동 추첨.
+        .overlay(alignment: .bottom) {
+            if showRoulette {
                 RouletteView(
                     viewModel: rouletteViewModel,
-                    onShowOnMap: { showRoulette = false }
+                    onClose: { showRoulette = false }
                 )
+                .padding(.horizontal, 16)
+                .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: showRoulette)
+        // 추첨 성공 시: 결과 핀으로 지도 이동 + 핀 말풍선(상세) 자동 오픈(사용자 요청, AC-11). 팝업은 "다시 뽑기" 바로 유지.
+        .onChange(of: rouletteViewModel.state) { _, newState in
+            if case .result = newState {
+                rouletteViewModel.showOnMap()
             }
         }
         // 그룹 전환 시트(IA 재설계 §5). 내 그룹 목록에서 선택 → switchGroup(지도 재로드). 동일 그룹 선택은 no-op.
