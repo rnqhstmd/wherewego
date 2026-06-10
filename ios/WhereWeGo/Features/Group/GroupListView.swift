@@ -54,7 +54,8 @@ struct GroupListView: View {
                 addGroupRow
                     .padding(.top, 4)
             }
-            .padding(EdgeInsets(top: 70, leading: 28, bottom: 32, trailing: 28))
+            // top 16: DM·알림(ScreenHeader) 큰 제목 리듬과 일치 — 기존 70 은 상단이 휑해 보였다.
+            .padding(EdgeInsets(top: 16, leading: 28, bottom: 32, trailing: 28))
         }
     }
 
