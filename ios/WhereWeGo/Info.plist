@@ -62,6 +62,8 @@
 		<string>NotoSerifKR-Regular.otf</string>
 		<string>GowunBatang-Regular.ttf</string>
 		<string>Pretendard-Regular.otf</string>
+		<string>Pretendard-SemiBold.otf</string>
+		<string>Pretendard-Bold.otf</string>
 		<string>JetBrainsMono-Regular.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
