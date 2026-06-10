@@ -19,6 +19,12 @@ public interface InviteLinkJpaRepository extends JpaRepository<InviteLink, Long>
             + "WHERE i.slug = :slug AND i.expiresAt > :now")
     Optional<InviteLink> findActiveBySlug(@Param("slug") String slug, @Param("now") Instant now);
 
+    /**
+     * 그룹의 현재 활성(미만료) 초대 링크 조회(IC-2 후속). 재발급(BR-3)이 동일 그룹 미만료 토큰을 일괄 만료한 뒤
+     * 1건만 신규 발급하므로 활성 행은 0~1개지만, 안전하게 만료가 가장 늦은 1건을 반환한다.
+     */
+    Optional<InviteLink> findFirstByGroupIdAndExpiresAtAfterOrderByExpiresAtDesc(Long groupId, Instant now);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE InviteLink i SET i.expiresAt = :now "
             + "WHERE i.groupId = :gid AND i.expiresAt > :now")

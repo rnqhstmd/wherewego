@@ -32,6 +32,17 @@ public interface GroupV1ApiSpec {
     );
 
     @Operation(
+            summary = "현재 활성 초대 링크 조회",
+            description = "그룹의 현재 활성(미만료) 초대 링크를 조회합니다(IC-2 후속). 발급과 달리 새 코드를 만들지 않으므로 " +
+                    "그룹관리 진입 시 코드를 반복 조회해도 기존 코드가 만료되지 않습니다. " +
+                    "활성 코드가 없으면 data 는 null 입니다(클라이언트는 '초대 코드 만들기' 노출). 비멤버는 GROUP_NOT_MEMBER."
+    )
+    ApiResponse<GroupV1Dto.InviteLinkResponse> currentInviteLink(
+            @Parameter(hidden = true) Long userId,
+            Long groupId
+    );
+
+    @Operation(
             summary = "초대 링크 수락",
             description = "유효한 토큰을 수락하면 활성 멤버로 추가됩니다 (FR-GRP-3). " +
                     "IC-1: 하나의 코드는 TTL(7일) 동안 그룹 정원(10명) 한도 내에서 복수 사용자가 재사용 수락할 수 있습니다. " +

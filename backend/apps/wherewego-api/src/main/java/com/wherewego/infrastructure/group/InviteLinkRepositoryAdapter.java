@@ -32,6 +32,11 @@ public class InviteLinkRepositoryAdapter implements InviteLinkRepository {
     }
 
     @Override
+    public Optional<InviteLink> findActiveByGroupId(Long groupId, Instant now) {
+        return inviteLinkJpaRepository.findFirstByGroupIdAndExpiresAtAfterOrderByExpiresAtDesc(groupId, now);
+    }
+
+    @Override
     public int expirePendingByGroupId(Long groupId, Instant now) {
         return inviteLinkJpaRepository.expirePendingByGroupId(groupId, now);
     }

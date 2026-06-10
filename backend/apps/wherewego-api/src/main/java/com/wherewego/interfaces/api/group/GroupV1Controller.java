@@ -51,6 +51,18 @@ public class GroupV1Controller implements GroupV1ApiSpec {
                         inviteProperties.shareBaseUrl()));
     }
 
+    @GetMapping("/{groupId}/invite-links/current")
+    @Override
+    public ApiResponse<GroupV1Dto.InviteLinkResponse> currentInviteLink(
+            @AuthUser Long userId,
+            @PathVariable Long groupId
+    ) {
+        return ApiResponse.success(
+                groupMemberService.currentInviteLink(userId, groupId)
+                        .map(result -> GroupV1Dto.InviteLinkResponse.from(result, inviteProperties.shareBaseUrl()))
+                        .orElse(null));
+    }
+
     @PostMapping("/invite-links/{token}/accept")
     @Override
     public ApiResponse<GroupV1Dto.InviteAcceptResponse> acceptInviteLink(
