@@ -11,6 +11,12 @@ struct GroupMessageRow: View {
     let frame: GroupChatFrame
     /// 현재 사용자 id(발신자 구분). nil 이면 전부 타인 취급.
     let currentUserId: Int?
+    /// 묶음 첫 메시지 여부(카톡식 그루핑) — 닉네임/아바타는 묶음 첫 메시지에만.
+    var showsSender: Bool = true
+    /// 묶음 마지막 메시지 여부 — 같은 분 연속 메시지는 마지막에만 시간 표시.
+    var showsTime: Bool = true
+    /// 릴스 썸네일 탭 → 인스타그램 원본 열기.
+    @Environment(\.openURL) private var openURL
     /// 「장소 등록하기」(내 미등록 REEL_LINK) → 추출 팝업 트리거.
     var onRegister: ((_ messageId: Int, _ url: String) -> Void)?
     /// 「구경하실래요?」(등록됨 REEL_LINK) → 지도 딥링크.
@@ -38,10 +44,17 @@ struct GroupMessageRow: View {
     // MARK: - TEXT(FR-GC2-2)
 
     private var textBubble: some View {
-        HStack {
-            if isOutgoing { Spacer(minLength: 48) }
+        // 인스타 DM식: 타인 = 아바타 + 닉네임(위) + 버블 + 오른쪽 하단 시간 / 내 메시지 = 왼쪽 하단 시간 + 버블.
+        // 카톡식 그루핑: 닉네임/아바타는 묶음 첫 메시지(showsSender), 시간은 묶음 마지막(showsTime)에만.
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 48)
+                if showsTime { timeLabel }
+            } else {
+                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
+            }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
-                if !isOutgoing {
+                if !isOutgoing, showsSender {
                     Text(senderName)
                         .font(WGFont.sans(11))
                         .foregroundStyle(WGColor.inkSoft)
@@ -60,17 +73,25 @@ struct GroupMessageRow: View {
                             .stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1)
                     )
             }
-            if !isOutgoing { Spacer(minLength: 48) }
+            if !isOutgoing {
+                if showsTime { timeLabel }
+                Spacer(minLength: 48)
+            }
         }
     }
 
     // MARK: - REEL_LINK(FR-GC2-3)
 
     private var reelBubble: some View {
-        HStack {
-            if isOutgoing { Spacer(minLength: 32) }
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 32)
+                if showsTime { timeLabel }
+            } else {
+                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
+            }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
-                if !isOutgoing {
+                if !isOutgoing, showsSender {
                     Text(senderName)
                         .font(WGFont.sans(11))
                         .foregroundStyle(WGColor.inkSoft)
@@ -102,7 +123,10 @@ struct GroupMessageRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
             }
-            if !isOutgoing { Spacer(minLength: 32) }
+            if !isOutgoing {
+                if showsTime { timeLabel }
+                Spacer(minLength: 32)
+            }
         }
     }
 
@@ -131,6 +155,13 @@ struct GroupMessageRow: View {
             }
             .clipShape(shape)
             .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
+            .contentShape(shape)
+            // 썸네일 탭 → 해당 릴스 원본으로 이동(인스타 앱/브라우저).
+            .onTapGesture {
+                if let raw = frame.reelUrl, let url = URL(string: raw) {
+                    openURL(url)
+                }
+            }
     }
 
     /// 썸네일 부재·실패 폴백: 기본 회색 타일 + photo 글리프.
@@ -190,4 +221,58 @@ struct GroupMessageRow: View {
         guard let url = frame.reelUrl, let host = URLComponents(string: url)?.host else { return "instagram.com" }
         return host
     }
+
+    // MARK: - 아바타(인스타 DM식)
+
+    /// 타인 메시지 좌측 아바타 — 닉네임 첫 글자 틴트 원(버블 하단 정렬). 프로필 이미지 도입 시 AsyncImage 교체 지점.
+    private var senderAvatar: some View {
+        Circle()
+            .fill(WGColor.cta.opacity(0.15))
+            .frame(width: 32, height: 32)
+            .overlay(
+                Text(String(senderName.prefix(1)))
+                    .font(WGFont.sans(13))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(WGColor.cta)
+            )
+    }
+
+    // MARK: - 시각 라벨(카톡식)
+
+    /// 버블 옆 하단 시각. 낙관 프레임(createdAt "")·파싱 실패는 미표시 — reconcile 이 서버 값으로 교체하면 나타난다.
+    @ViewBuilder
+    private var timeLabel: some View {
+        let time = Self.displayTime(frame.createdAt)
+        if !time.isEmpty {
+            Text(time)
+                .font(WGFont.mono(10))
+                .foregroundStyle(WGColor.inkFaint)
+                .padding(.bottom, 2)
+        }
+    }
+
+    /// ISO-8601 createdAt → "오후 3:42". DMListViewModel.formatTime(상대시각)과 달리 절대시각.
+    /// 백엔드 소수초 자릿수가 가변이라(ISO_OFFSET_DATE_TIME) 두 포맷터로 폴백 파싱한다.
+    static func displayTime(_ iso: String) -> String {
+        guard !iso.isEmpty,
+              let date = isoFraction.date(from: iso) ?? isoPlain.date(from: iso) else { return "" }
+        return hourMinute.string(from: date)
+    }
+
+    private static let isoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let hourMinute: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "a h:mm"
+        return f
+    }()
 }

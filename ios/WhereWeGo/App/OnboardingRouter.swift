@@ -3,8 +3,9 @@ import SwiftUI
 // 온보딩 라우트 가드 상태머신(설계 §10, FR-10/15, BR-5/6, Q2).
 // phase=.authenticated 일 때 RootView 가 표시. 단계 전이는 이 Router 가 중앙 관리한다.
 //
-// 흐름(Q2): Location → Nickname → GroupStart(또는 그룹있음) → WelcomeWizard(2스텝)
+// 흐름(Q2): Location → Nickname → (그룹 없음) GroupStart → 생성/합류 → WelcomeWizard(초대 스텝)
 //          → 완료 직후 notifAsked==false면 Notification 1회 → Groups.
+//          (그룹 이미 있음 = 복귀 사용자, 재설치 포함) → 위저드 생략, 알림 게이트만 거쳐 바로 Groups.
 struct OnboardingRouter: View {
     enum Route: Hashable {
         case location
@@ -39,15 +40,15 @@ struct OnboardingRouter: View {
 
     /// 그룹 조회 결과 → 라우트.
     /// - group == nil → groupStart(그룹 생성/합류 유도)
-    /// - group 있음 + onboardingDone(이미 온보딩을 마친 복귀 사용자) → groups(환영/초대 위저드 건너뛰고 바로 메인 지도)
-    /// - group 있음 + !onboardingDone(온보딩 중 첫 그룹 확보) → welcome(초대 스텝)
+    /// - group 있음 → groups(바로 메인 지도)
     ///
-    /// onboardingDone 기본값 false 는 "그룹 있음 → welcome"(기존 동작)을 보존한다. 복귀 사용자 분기는
-    /// 호출처(resolveGroupRoute async)가 OnboardingFlags.notifAsked 를 전달해 활성화한다.
-    /// (매 로그인마다 초대 코드 화면이 뜨던 문제 해결 — 위저드는 첫 그룹 확보 시 1회만.)
-    static func resolveGroupRoute(group: ActiveGroup?, onboardingDone: Bool = false) -> Route {
-        if group == nil { return .groupStart }
-        return onboardingDone ? .groups : .welcome
+    /// 온보딩 "진입 시점"에 이미 활성 그룹이 있다는 것 자체가 복귀 사용자라는 뜻이다(재설치/기기 변경 포함).
+    /// 이전에는 로컬 notifAsked 플래그로 복귀를 판정해서, 재설치하면 플래그가 초기화돼 "그룹을 만든 적 없는데
+    /// 초대 화면이 뜨는" 어색한 흐름이 재발했다. 서버 상태(그룹 유무)만으로 판정하면 이 구멍이 사라진다.
+    /// 초대 위저드(.welcome)는 이 함수가 아니라 GroupStart 의 생성/합류 성공 콜백(afterGroupResolved)에서만
+    /// 진입한다 — "방금 그룹을 확보한" 첫 1회에만 노출.
+    static func resolveGroupRoute(group: ActiveGroup?) -> Route {
+        group == nil ? .groupStart : .groups
     }
 
     /// 위저드 완료/스킵(Q2): notifAsked==false면 알림 1회, 아니면 Groups(AC-17).
@@ -167,17 +168,14 @@ struct OnboardingRouter: View {
     private func resolveGroupRoute() async {
         do {
             let group = try await dependencies.groupAPI.myActiveGroup()
-            // notifAsked == true ⇒ 이미 온보딩을 마친 복귀 사용자 → 그룹이 있으면 위저드 건너뛰고 바로 메인 지도.
-            // (초대 코드 화면은 첫 그룹 생성/합류 시점의 위저드에서만 — 매 로그인 노출 문제 해결.)
-            switch Self.resolveGroupRoute(group: group, onboardingDone: OnboardingFlags.notifAsked) {
+            // 그룹 있음 = 복귀 사용자(재설치 포함) → 초대 위저드 생략. 단 알림 사전 안내(1회)는 보존:
+            // notifAsked==false(재설치 포함)면 Notification 을 먼저 거쳐 Groups 로(resolveFinishRoute 재사용).
+            // 초대 위저드는 GroupStart 생성/합류 성공 콜백(afterGroupResolved)에서만 진입한다.
+            switch Self.resolveGroupRoute(group: group) {
             case .groupStart:
                 route = .groupStart
-            case .groups:
-                route = .groups
-            case .welcome:
-                afterGroupResolved(group)
             default:
-                route = .groupStart
+                route = Self.resolveFinishRoute(notifAsked: OnboardingFlags.notifAsked)
             }
         } catch let apiError as APIError where apiError.status == 401 {
             // 401 → refresh 실패 시 logoutHandler 가 phase 전환 처리(RootView 가 LoginView 로).

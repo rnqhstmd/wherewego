@@ -8,6 +8,8 @@
 	<string>$(APP_LINKS_DOMAIN)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>우리가 갈 지도</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -62,6 +64,8 @@
 		<string>NotoSerifKR-Regular.otf</string>
 		<string>GowunBatang-Regular.ttf</string>
 		<string>Pretendard-Regular.otf</string>
+		<string>Pretendard-SemiBold.otf</string>
+		<string>Pretendard-Bold.otf</string>
 		<string>JetBrainsMono-Regular.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>

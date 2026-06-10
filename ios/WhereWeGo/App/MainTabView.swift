@@ -95,6 +95,9 @@ struct MainTabView: View {
             // 지도 탭 2레벨(IA 재설계 §3): currentGroupId==nil → GroupListView(레벨0), !=nil → MapView(레벨1).
             //  레벨1 MapView 는 외부 주입 VM 공유(딥링크 flyTo·그룹 전환 switchTo 대상). 어디가지(룰렛) FAB 로 진입.
             mapTabContent
+                // iOS 26: TabView 레벨의 .toolbar(.hidden, for:.tabBar) 가 무시되어 네이티브 Liquid Glass
+                // 탭바(라벨 없는 빈 캡슐)가 커스텀 바 뒤에 유령처럼 렌더됐다 → 탭 콘텐츠별로 걸어야 적용된다.
+                .toolbar(.hidden, for: .tabBar)
                 .tag(MainTab.map)
 
             // DM 탭(그룹별 봇방 목록, #105 소비). DMListView(레벨0 목록) → 행 탭 시 그 그룹 BotChatView 방 push(레벨1).
@@ -107,6 +110,7 @@ struct MainTabView: View {
                         GroupChatViewModel(
                             groupId: room.groupId,
                             roomId: room.roomId,
+                            initialUnreadCount: room.unreadCount ?? 0,   // 미읽음 위치부터 진입 앵커.
                             chatAPI: dependencies.chatAPI,
                             pinAPI: dependencies.pinAPI,
                             currentUser: dependencies.currentUser,
@@ -117,6 +121,7 @@ struct MainTabView: View {
                 )
             }
             .reserveFloatingTabBarSpace()   // 탭 콘텐츠가 바 footprint 회피(TabView는 safe area 전파 안 함 — PR리뷰)
+            .toolbar(.hidden, for: .tabBar)   // iOS 26: 탭 콘텐츠별 부착 필요(유령 네이티브 바 방지)
             .tag(MainTab.chat)
 
             // 알림 탭. 진입 시 NotificationInboxView.load() 가 list+readAll(읽음 처리, 설계 §14).
@@ -124,6 +129,7 @@ struct MainTabView: View {
                 NotificationInboxView(viewModel: notificationInboxViewModel)
             }
             .reserveFloatingTabBarSpace()
+            .toolbar(.hidden, for: .tabBar)   // iOS 26: 탭 콘텐츠별 부착 필요(유령 네이티브 바 방지)
             .tag(MainTab.notification)
 
             // 내정보 탭. VM 은 본 뷰가 소유(@StateObject), authAPI 는 닉네임 수정 시트용으로 전달.
@@ -134,6 +140,7 @@ struct MainTabView: View {
                 )
             }
             .reserveFloatingTabBarSpace()
+            .toolbar(.hidden, for: .tabBar)   // iOS 26: 탭 콘텐츠별 부착 필요(유령 네이티브 바 방지)
             .tag(MainTab.myInfo)
         }
         // 시스템 탭바 숨김 — 커스텀 FloatingTabBar 로 대체(설계 §1, #95 5탭 플로팅).

@@ -99,6 +99,9 @@ struct GroupMessagesResponse: Decodable {
     let messages: [GroupChatFrame]
     let hasMore: Bool
     let nextCursor: Int?
+    /// 이번 요청으로 읽음 포인터가 전진하기 "직전"의 내 포인터(서버 진실) — 미읽음 진입 앵커 기준.
+    /// 행 없음(전부 미읽음)/구버전 서버는 nil.
+    var lastReadMessageId: Int? = nil
 }
 
 // MARK: - GroupRoomSummary
@@ -113,7 +116,11 @@ struct GroupRoomSummary: Decodable, Identifiable, Equatable, Hashable {
     let lastPreview: String?
     /// 마지막 메시지 발신자. 탈퇴/메시지 없음 → nil. 내 메시지("나: …") 판정용.
     let lastSenderUserId: Int?
+    /// 마지막 발신자 닉네임("지민: …" 미리보기 병기). 탈퇴/없음/구버전 서버 → nil.
+    var lastSenderNickname: String? = nil
     let hasUnread: Bool
+    /// 안 읽은 타인 메시지 수(읽음 포인터 이후). 구버전 서버 응답엔 없을 수 있어 옵셔널(+기본 nil).
+    var unreadCount: Int? = nil
     let lastAt: String?
 
     /// 그룹당 1방 — groupId 가 안정 식별자(가상항목 roomId=nil 회피, List 식별 안정성).

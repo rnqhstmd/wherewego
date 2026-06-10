@@ -77,8 +77,10 @@ struct ChatScrollContainer: View {
             .onAppear {
                 scrollToBottom(proxy, animated: false)
             }
-            // 신규 메시지 도착 시 하단 추적(FR-15).
-            .onChange(of: messages.count) { _, _ in
+            // 신규 메시지 도착(마지막 id 변경) 시에만 하단 추적(FR-15, 버그 ① 동일 패턴).
+            //  count 추적은 상단 loadMore 의 prepend 도 증가시켜 과거 로드 중 하단으로 튀는 회귀를 유발한다 →
+            //  messages.last?.id(Int? Equatable)로 교체해 끝(append)에 새 프레임이 들어올 때만 반응.
+            .onChange(of: messages.last?.id) { _, _ in
                 scrollToBottom(proxy, animated: true)
             }
         }

@@ -21,6 +21,12 @@ public interface ChatMessageRepository {
     List<ChatMessage> findByRoomIdBefore(Long roomId, Long cursor, int limit);
 
     /**
+     * 미읽음 수(FR-GC1-7 확장): 읽음 포인터({@code afterId}, {@code null}=전부) 이후의 "타인" 활성 메시지 수.
+     * 탈퇴 발신자(sender NULL)는 타인으로 집계 — {@code isUnread} 판정 기준과 동일.
+     */
+    long countOthersAfter(Long roomId, Long afterId, Long userId);
+
+    /**
      * 계정 삭제 시 본인이 발신한 메시지의 {@code sender_user_id}를 NULL 처리한다(PR-3).
      *
      * <p>메시지 자체는 보존하고 발신자 식별만 끊는다. 벌크 갱신이라 {@code updatedAt}도 함께 갱신한다.</p>

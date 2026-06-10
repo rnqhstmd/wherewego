@@ -129,6 +129,107 @@ final class GroupChatViewModelTests: XCTestCase {
         XCTAssertEqual(vm.messages.map(\.messageId), [1, 2])
     }
 
+    // MARK: - 커서 소유권(FR-GC2-3/BR-3, AC-3/4/9)
+
+    /// AC-3/9: loadMore 로 커서를 확정한 뒤 reconcileLatest 를 반복해도 nextCursor/hasMore 가 유지된다.
+    /// (merge 경로에서 커서를 최신 페이지 값으로 되돌리던 버그 ② 회귀 차단.)
+    func test_reconcile_doesNotMutateCursorAfterLoadMore() async {
+        let api = StubChatAPI()
+        // 최신 페이지: hasMore=true, nextCursor=2(과거 더 있음).
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(3, sender: 5)], hasMore: true, nextCursor: 2))
+        let vm = makeVM(chatAPI: api)
+        await vm.load()
+
+        // loadMore: 과거 페이지(2,1) prepend + 커서 확정(더 과거 없음).
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(2, sender: 5), frame(1, sender: 5)], hasMore: false, nextCursor: nil))
+        await vm.loadMore()
+        XCTAssertEqual(vm.messages.map(\.messageId), [1, 2, 3])
+
+        // 이후 reconcile 이 최신 페이지(hasMore=true, nextCursor=2)를 다시 받아도 커서는 불변이어야 한다.
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(3, sender: 5)], hasMore: true, nextCursor: 2))
+        await vm.reconcileLatest()
+        await vm.reconcileLatest()
+
+        // 커서가 되돌아갔다면 loadMore 가드(hasMore=false)가 풀려 다시 과거 로드를 시도하게 된다 →
+        //  loadMore 호출 시 추가 조회가 발생하지 않아야(커서 유지) 함을 호출 횟수로 검증.
+        let before = api.groupMessagesCallCount
+        await vm.loadMore()
+        XCTAssertEqual(api.groupMessagesCallCount, before, "커서 유지 시 loadMore 는 hasMore=false 가드로 no-op 이어야 한다.")
+    }
+
+    /// AC-4: load/loadMore 후에는 커서가 응답값으로 정상 갱신된다(replaceAll/loadMore 경로 소유권 유지).
+    func test_loadAndLoadMore_updateCursorFromResponse() async {
+        let api = StubChatAPI()
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(2, sender: 5)], hasMore: true, nextCursor: 1))
+        let vm = makeVM(chatAPI: api)
+        await vm.load()
+
+        // hasMore=true·nextCursor=1 이므로 loadMore 가 실제 조회를 수행(커서가 정상 갱신됨을 입증).
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(1, sender: 5)], hasMore: false, nextCursor: nil))
+        let before = api.groupMessagesCallCount
+        await vm.loadMore()
+        XCTAssertEqual(api.groupMessagesCallCount, before + 1, "load 가 커서를 갱신해 loadMore 가 동작해야 한다.")
+        XCTAssertEqual(vm.messages.map(\.messageId), [1, 2])
+    }
+
+    // MARK: - send-poll 조기 종료(FR-GC2-9, AC-5/6)
+
+    /// AC-5: 전송 후 폴링 중 타인의 새 메시지가 도착하면 루프가 즉시 종료된다(추가 reconcile 없음).
+    func test_sendPolling_earlyExitOnOthersMessage() async {
+        let api = StubChatAPI()
+        api.sendGroupResult = .success(SendMessageResponse(messageId: 100, kind: .TEXT))
+        // 큐 1번(load): 타인 메시지 없는 초기 페이지. 큐 2번(send-poll 1회차): 타인(7)의 새 메시지 200 첫 등장 → 즉시 종료.
+        //  타인 메시지를 send-poll reconcile 에서 처음 append 하도록 분리해야 "조기 종료 = 1회차" 를 정확히 검증할 수 있다.
+        api.groupMessagesQueue = [
+            GroupMessagesResponse(
+                groupId: 1, messages: [frame(50, sender: 5)],
+                hasMore: false, nextCursor: nil),                                  // load
+            GroupMessagesResponse(
+                groupId: 1, messages: [frame(200, sender: 7), frame(50, sender: 5)],
+                hasMore: false, nextCursor: nil)                                   // send-poll 1회차(타인 도착)
+        ]
+        let vm = makeVM(chatAPI: api)
+        await vm.appear()       // currentUser.load → id=1 + load 1회(큐 1번 소비) + 라이브 폴링 시작.
+        await vm.disappear()    // 라이브 폴링 취소(같은 reconcileLatest 경로 격리) — send-poll 은 아직 미시작.
+        let afterAppear = api.groupMessagesCallCount
+
+        vm.draft = "hello"
+        await vm.send()         // 낙관 append + startSendPolling
+        // 폴링 1회차 reconcile 에서 타인 메시지 200 이 append 될 때까지 대기(= 조기 종료 신호).
+        await waitUntil { vm.messages.contains { $0.messageId == 200 } }
+        // waitUntil 은 타임아웃 시에도 그냥 반환하므로, 도달 여부를 먼저 명시 검증해 false negative 를 차단한다.
+        XCTAssertTrue(vm.messages.contains { $0.messageId == 200 },
+                      "타임아웃: 타인 메시지(200)가 send-poll reconcile 로 도달하지 않았다.")
+
+        // 조기 종료 → send-poll 의 reconcile 은 정확히 1회만(추가 폴링 회차 없음, AC-5).
+        XCTAssertEqual(api.groupMessagesCallCount, afterAppear + 1, "타인 메시지 수신 시 1회차 reconcile 후 종료해야 한다.")
+    }
+
+    /// AC-6: 새 메시지가 없거나 내 메시지만 보이면 폴링은 최대 10회를 채운다(조기 종료 안 함).
+    func test_sendPolling_runsMaxAttemptsWhenNoOthers() async {
+        let api = StubChatAPI()
+        api.sendGroupResult = .success(SendMessageResponse(messageId: 100, kind: .TEXT))
+        // 매 회차 동일 최신 페이지(내 메시지 100 만) → 신규 타인 append 없음 → 10회 소진.
+        api.groupMessagesResult = .success(GroupMessagesResponse(
+            groupId: 1, messages: [frame(100, sender: 1, text: "mine")], hasMore: false, nextCursor: nil))
+        let vm = makeVM(chatAPI: api)
+        await vm.appear()       // currentUser.load → id=1 + load 1회 + 라이브 폴링 시작.
+        await vm.disappear()    // 라이브 폴링 취소(같은 reconcileLatest 경로가 카운트를 오염시키므로 격리) — send-poll 은 아직 미시작.
+        let afterAppear = api.groupMessagesCallCount
+
+        vm.draft = "hello"
+        await vm.send()         // 낙관 append + startSendPolling(라이브 폴링은 꺼진 상태이므로 send-poll 만 측정됨).
+        // 폴링이 10회(maxSendPollAttempts)를 모두 소진할 때까지 대기.
+        await waitUntil { api.groupMessagesCallCount >= afterAppear + GroupChatViewModel.maxSendPollAttempts }
+        XCTAssertEqual(api.groupMessagesCallCount, afterAppear + GroupChatViewModel.maxSendPollAttempts,
+                       "조기 종료 없이 정확히 10회 폴링해야 한다.")
+    }
+
     // MARK: - 추출 상태머신(FR-GC2-4)
 
     func test_register_success_showsWizard() async {

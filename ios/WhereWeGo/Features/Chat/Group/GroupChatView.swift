@@ -17,6 +17,12 @@ struct GroupChatView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private let bottomAnchor = "group-chat-bottom"
+    /// 첫 진입 앵커 스크롤 1회 가드(미읽음 위치부터 진입).
+    @State private var didInitialScroll = false
+    /// 하단 근접 여부(하단 센티널 가시성) — 신규 도착 시 자동 스크롤 vs 배너 분기.
+    @State private var isNearBottom = true
+    /// 위로 스크롤 중 신규 메시지 도착 배너("새 메시지가 있어요").
+    @State private var showNewMessagePill = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,34 +65,101 @@ struct GroupChatView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 0) {
                         // 상단 도달 → 과거 메시지 추가 로드(FR-GC2-2).
                         Color.clear
                             .frame(height: 1)
                             .onAppear { Task { await viewModel.loadMore() } }
 
-                        ForEach(viewModel.messages) { frame in
+                        // 카톡식 그루핑: 같은 발신자+같은 분 묶음은 간격 2pt 로 붙이고,
+                        // 닉네임/아바타는 묶음 첫 메시지·시간은 묶음 마지막 메시지에만.
+                        ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, frame in
+                            let chainedWithPrev = viewModel.isChainedWithPrevious(at: index)
                             GroupMessageRow(
                                 frame: frame,
                                 currentUserId: viewModel.currentUserId,
+                                showsSender: !chainedWithPrev,
+                                showsTime: !viewModel.isChainedWithNext(at: index),
                                 onRegister: { messageId, url in viewModel.register(messageId: messageId, url: url) },
                                 onOpenReel: { url in viewModel.openReel(url: url) }
                             )
                             .id(frame.id)
+                            .padding(.top, index == 0 ? 0 : (chainedWithPrev ? 2 : 12))
                         }
 
+                        // 하단 센티널: 가시성으로 "하단 근접" 추적(신규 도착 시 자동 스크롤 vs 배너 분기).
                         Color.clear
                             .frame(height: 1)
                             .id(bottomAnchor)
+                            .onAppear {
+                                isNearBottom = true
+                                showNewMessagePill = false
+                            }
+                            .onDisappear { isNearBottom = false }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .onAppear { scrollToBottom(proxy, animated: false) }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    scrollToBottom(proxy, animated: true)
+                // 첫 진입: 미읽음이 있으면 첫 미읽음 메시지부터(앵커 상단), 없으면 맨 아래로.
+                // 앵커 진입 시 아래에 미읽음이 남으므로 "새 메시지" 필을 즉시 노출(하단 도달 시 자동 해제).
+                .onAppear {
+                    if !didInitialScroll, let anchor = viewModel.initialUnreadAnchorId {
+                        proxy.scrollTo(anchor, anchor: .top)
+                        if anchor != viewModel.messages.last?.messageId {
+                            isNearBottom = false
+                            showNewMessagePill = true
+                        }
+                    } else {
+                        scrollToBottom(proxy, animated: false)
+                    }
+                    didInitialScroll = true
                 }
+                // 키보드 등장/해제 시 하단 재고정 — 해제 후 콘텐츠가 위로 밀린 채 떠 있는 잔상(오프셋 미복원) 해소.
+                //  하단에 있던 경우에만(위로 읽는 중엔 위치 보존). 키보드 애니메이션(~0.25s) 후 재정렬.
+                .onChange(of: inputFocused) { _, _ in
+                    guard isNearBottom else { return }
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 280_000_000)
+                        scrollToBottom(proxy, animated: false)
+                    }
+                }
+                // 마지막 메시지 id 변경(신규 append)일 때만 반응(버그 ①, FR-GC2-1/BR-2 — count 추적은 prepend 에도 발화).
+                //  하단 근접/내 전송이면 자동 스크롤, 위로 스크롤해 읽는 중이면 "새 메시지" 배너만(강제 이동 금지).
+                .onChange(of: viewModel.messages.last?.messageId) { _, _ in
+                    let isMine = viewModel.currentUserId != nil
+                        && viewModel.messages.last?.senderUserId == viewModel.currentUserId
+                    if isNearBottom || isMine {
+                        scrollToBottom(proxy, animated: true)
+                        showNewMessagePill = false
+                    } else {
+                        showNewMessagePill = true
+                    }
+                }
+                // "새 메시지가 있어요" 배너 — 탭하면 맨 아래로.
+                .overlay(alignment: .bottom) {
+                    if showNewMessagePill {
+                        Button {
+                            scrollToBottom(proxy, animated: true)
+                            showNewMessagePill = false
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("새 메시지가 있어요")
+                                    .font(WGFont.sansSemiBold(12))
+                            }
+                            .foregroundStyle(WGColor.panel)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(WGColor.cta))
+                            .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
+                        }
+                        .padding(.bottom, 10)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeOut(duration: 0.18), value: showNewMessagePill)
             }
         }
     }
@@ -151,31 +224,38 @@ struct GroupChatView: View {
         let isOverLimit = !isReel && trimmed.count > GroupChatViewModel.messageMaxLength
         let canSend = !trimmed.isEmpty && !isOverLimit
 
+        // 플로팅 캡슐 입력바(인스타 DM·FloatingTabBar 디자인 언어 정합) — 풀폭 바+상단 구분선 대신 떠 있는 필.
+        //  전송 버튼을 필 내부 우측에 배치, 배경은 panel+그림자(콘텐츠 위에 부유).
         return VStack(spacing: 4) {
-            HStack(alignment: .bottom, spacing: 10) {
+            HStack(alignment: .bottom, spacing: 6) {
                 TextField("메시지를 입력하거나 릴스 링크를 붙여넣어 보세요", text: $viewModel.draft, axis: .vertical)
                     .font(WGFont.sans(15))
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1...4)
                     .focused($inputFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(WGColor.panel)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(isOverLimit ? WGColor.pinNew : WGColor.hairline, lineWidth: 1)
-                    )
+                    .padding(.leading, 18)
+                    .padding(.vertical, 12)
 
                 Button {
                     Task { await viewModel.send() }
                 } label: {
                     Image(systemName: isReel ? "paperplane.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 30))
+                        .font(.system(size: 31))
                         .foregroundStyle(canSend ? WGColor.cta : WGColor.inkFaint)
                 }
                 .disabled(!canSend)
+                .padding(.trailing, 6)
+                .padding(.bottom, 6)
             }
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(WGColor.panel)
+                    .shadow(color: WGColor.shadowMd, radius: 12, y: 4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(isOverLimit ? WGColor.pinNew : WGColor.hairline, lineWidth: 1)
+            )
 
             // TEXT 2000자 카운터(REEL_LINK 는 URL 이라 미표시).
             if !isReel, trimmed.count > GroupChatViewModel.messageMaxLength - 200 {
@@ -185,13 +265,12 @@ struct GroupChatView: View {
                         .font(WGFont.mono(11))
                         .foregroundStyle(isOverLimit ? WGColor.pinNew : WGColor.inkSoft)
                 }
+                .padding(.horizontal, 8)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(WGColor.bg)
-        .overlay(alignment: .top) { Rectangle().fill(WGColor.hairline).frame(height: 1) }
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     private var registerSheetBinding: Binding<Bool> {

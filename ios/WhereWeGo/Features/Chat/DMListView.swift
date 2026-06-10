@@ -118,8 +118,9 @@ struct DMListView: View {
     }
 
     private func listView(_ rooms: [GroupRoomSummary]) -> some View {
+        // 카드 목록(그룹 목록 optionCard 디자인 언어 정합) — hairline 구분선 평면 리스트의 밋밋함 해소.
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 10) {
                 ForEach(rooms) { room in
                     Button {
                         openedRoom = room
@@ -127,12 +128,11 @@ struct DMListView: View {
                         DMRoomRow(room: room, currentUserId: viewModel.currentUserId)
                     }
                     .buttonStyle(.plain)
-
-                    Rectangle()
-                        .fill(WGColor.hairline)
-                        .frame(height: 1)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
         }
     }
 }
@@ -168,7 +168,8 @@ private struct DMRoomRow: View {
     private var isUnread: Bool { room.hasUnread }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        // 세로 중앙 정렬: 우측 시간/배지 블록과 미리보기가 행 가운데로 — 상단 쏠림 해소.
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: "bubble.left.and.bubble.right.fill")
                 .font(.system(size: 18))
                 .foregroundStyle(WGColor.cta)
@@ -177,16 +178,20 @@ private struct DMRoomRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
+                // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 배지).
+                // Pretendard 고정 웨이트라 .fontWeight() 합성이 안 먹음 → 실제 Bold/SemiBold 페이스 사용.
                 Text(room.groupName)
-                    .font(WGFont.sans(15))
-                    .fontWeight(isUnread ? .semibold : .regular)
+                    .font(isUnread ? WGFont.sansBold(15) : WGFont.sans(15))
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1)
 
                 Text(previewText)
-                    .font(WGFont.sans(13))
-                    .fontWeight(isUnread ? .semibold : .regular)
-                    .foregroundStyle(room.lastPreview == nil ? WGColor.inkFaint : WGColor.inkSoft)
+                    .font(isUnread ? WGFont.sansSemiBold(13) : WGFont.sans(13))
+                    .foregroundStyle(
+                        room.lastPreview == nil
+                            ? WGColor.inkFaint
+                            : (isUnread ? WGColor.ink : WGColor.inkSoft)
+                    )
                     .lineLimit(1)
             }
 
@@ -198,29 +203,37 @@ private struct DMRoomRow: View {
                         .font(WGFont.mono(11))
                         .foregroundStyle(WGColor.inkSoft)
                 }
-                if isUnread {
+                // 미읽음 숫자 배지(카톡식 빨간 필). 카운트 없으면(구버전 응답) 점 폴백.
+                if let count = room.unreadCount, count > 0 {
+                    Text(count > 99 ? "99+" : "\(count)")
+                        .font(WGFont.sansBold(11))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(WGColor.pinNew))
+                } else if isUnread {
                     Circle()
                         .fill(WGColor.pinNew)
                         .frame(width: 7, height: 7)
                 }
             }
-            .padding(.top, 1)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isUnread ? WGColor.cta.opacity(0.06) : Color.clear)
-        .contentShape(Rectangle())
+        // 카드 스타일(그룹 목록 정합). 미읽음 강조는 인스타식(텍스트 굵기+점)이라 배경은 항상 panel.
+        .background(WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(WGColor.hairline, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    /// 미리보기 텍스트: 메시지 없음 → "아직 대화가 없어요". 내 메시지(lastSenderUserId == 내 id) → "나: …". 그 외 → 그대로.
+    /// 미리보기 텍스트: 프리픽스 없이 마지막 메시지 본문만(릴스는 서버가 "릴스 링크를 공유했어요"로 내림).
+    /// 메시지 없음 → "아직 대화가 없어요".
     private var previewText: String {
-        guard let preview = room.lastPreview else {
-            return "아직 대화가 없어요"
-        }
-        if let me = currentUserId, room.lastSenderUserId == me {
-            return "나: \(preview)"
-        }
-        return preview
+        room.lastPreview ?? "아직 대화가 없어요"
     }
 }
