@@ -87,12 +87,25 @@ final class GroupChatViewModel: ObservableObject {
     /// 내 userId(발신자 구분). currentUser 캐시.
     var currentUserId: Int? { currentUser.id }
 
-    /// 첫 진입 스크롤 앵커: 첫 미읽음 메시지 id(미읽음 없으면 nil → 맨 아래로).
-    /// 최신 페이지(20건)보다 미읽음이 많으면 페이지 첫 메시지부터(과거는 loadMore 로 연속 탐색).
+    /// 첫 로드 응답의 "전진 직전" 읽음 포인터(서버 진실). load()가 세팅.
+    private(set) var serverLastReadId: Int?
+
+    /// 첫 진입 스크롤 앵커: 첫 미읽음(타인) 메시지 id. 미읽음 없으면 nil → 맨 아래로.
+    /// 서버 포인터(전진 직전 스냅샷) 우선 — 목록 unreadCount 는 목록 로드 시점 값이라 재진입 시
+    /// 이미 읽은 위치로 반복 앵커되는 스테일 문제가 있다(폴백으로만 사용).
     var initialUnreadAnchorId: Int? {
-        guard initialUnreadCount > 0, !messages.isEmpty else { return nil }
+        guard !messages.isEmpty else { return nil }
+        if let lastRead = serverLastReadId {
+            return messages.first(where: { $0.messageId > lastRead && !isMine($0) })?.messageId
+        }
+        guard initialUnreadCount > 0 else { return nil }
         let index = max(0, messages.count - initialUnreadCount)
         return messages[index].messageId
+    }
+
+    private func isMine(_ frame: GroupChatFrame) -> Bool {
+        guard let me = currentUser.id, let sender = frame.senderUserId else { return false }
+        return me == sender
     }
 
     // MARK: - 메시지 묶음(카톡식: 같은 발신자 + 같은 분)
@@ -185,6 +198,9 @@ final class GroupChatViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         guard let response = try? await chatAPI.groupMessages(groupId: groupId, cursor: nil, limit: Self.pageLimit) else { return }
+        // 첫 로드 응답의 "전진 직전" 포인터(서버 진실) — 미읽음 진입 앵커 기준. reconcile 응답으로는 덮지 않는다
+        // (그 시점엔 이미 이번 진입으로 포인터가 전진해 있어 앵커 의미가 사라짐).
+        serverLastReadId = response.lastReadMessageId
         applyLatestPage(response, replaceAll: true)
     }
 

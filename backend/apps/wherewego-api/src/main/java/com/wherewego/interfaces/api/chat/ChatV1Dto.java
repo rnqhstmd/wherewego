@@ -81,10 +81,12 @@ public final class ChatV1Dto {
             Long groupId,
             List<GroupChatMessageFrame> messages,
             boolean hasMore,
-            Long nextCursor
+            Long nextCursor,
+            Long lastReadMessageId
     ) {
         public static GroupMessagesResponse from(Long groupId, GroupMessagesPage page) {
-            return new GroupMessagesResponse(groupId, page.frames(), page.hasMore(), page.nextCursor());
+            return new GroupMessagesResponse(
+                    groupId, page.frames(), page.hasMore(), page.nextCursor(), page.lastReadMessageId());
         }
     }
 
@@ -98,6 +100,7 @@ public final class ChatV1Dto {
             String groupName,
             String lastPreview,
             Long lastSenderUserId,
+            String lastSenderNickname,
             boolean hasUnread,
             int unreadCount,
             String lastAt
@@ -109,6 +112,7 @@ public final class ChatV1Dto {
                     summary.groupName(),
                     summary.lastPreview(),
                     summary.lastSenderUserId(),
+                    summary.lastSenderNickname(),
                     summary.hasUnread(),
                     summary.unreadCount(),
                     summary.lastAt()

@@ -53,7 +53,7 @@ import java.util.Set;
 public class GroupChatService {
 
     private static final String PREVIEW_PROCESSING = "답장을 준비하고 있어요";
-    private static final String PREVIEW_REEL_LINK = "릴스 링크";
+    private static final String PREVIEW_REEL_LINK = "릴스 링크를 공유했어요";
     private static final int PREVIEW_MAX_LENGTH = 40;
     private static final int TEXT_MAX_LENGTH = 2000;
     /** REEL_LINK URL 상한 — TEXT 가드와 대칭. INSTAGRAM_URL 패턴이 임의 suffix 를 허용하므로 payload 비대 차단. */
@@ -113,10 +113,14 @@ public class GroupChatService {
 
         return chatRoomRepository.findActiveGroupRoom(groupId)
                 .map(room -> {
+                    // 전진 "직전" 포인터 스냅샷 — 클라이언트의 미읽음 진입 앵커 기준(서버 진실).
+                    Long lastReadBefore = chatRoomReadRepository.findByRoomIdAndUserId(room.getId(), userId)
+                            .map(ChatRoomRead::getLastReadMessageId)
+                            .orElse(null);
                     ChatMessagePageResult page = ChatMessagePageResult.of(
                             chatMessageRepository.findByRoomIdBefore(room.getId(), cursor, limit + 1),
                             limit);
-                    GroupMessagesPage assembled = assemblePage(groupId, page);
+                    GroupMessagesPage assembled = assemblePage(groupId, page, lastReadBefore);
                     markRoomReadForUser(room.getId(), userId);
                     return assembled;
                 })
@@ -273,7 +277,7 @@ public class GroupChatService {
     /**
      * 페이지를 프레임으로 조립한다 — registered(REEL_LINK 배치 IN 쿼리 1회) + 발신자 닉네임(배치 1회).
      */
-    private GroupMessagesPage assemblePage(Long groupId, ChatMessagePageResult page) {
+    private GroupMessagesPage assemblePage(Long groupId, ChatMessagePageResult page, Long lastReadBefore) {
         List<ChatMessage> messages = page.messages();
         Set<String> registeredUrls = registeredUrlsOf(groupId, messages);
         Map<Long, String> nicknames = nicknamesOf(messages);
@@ -293,7 +297,7 @@ public class GroupChatService {
                     : nicknames.get(message.getSenderUserId());
             frames.add(GroupChatMessageFrame.from(message, objectMapper, nickname, registered, thumbnailUrl));
         }
-        return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor());
+        return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor(), lastReadBefore);
     }
 
     /**
@@ -355,22 +359,27 @@ public class GroupChatService {
         return latestMessage(room.getId())
                 .map(latest -> {
                     int unread = unreadCountOf(userId, room.getId(), latest);
+                    // 목록 미리보기에 발신자 이름 병기("지민: …") — 탈퇴/없음이면 null.
+                    String senderNickname = latest.getSenderUserId() == null
+                            ? null
+                            : nicknamesOf(List.of(latest)).get(latest.getSenderUserId());
                     return new GroupRoomSummary(
                             room.getId(),
                             group.groupId(),
                             group.name(),
                             previewOf(latest),
                             latest.getSenderUserId(),
+                            senderNickname,
                             unread > 0,
                             unread,
                             formatCreatedAt(latest.getCreatedAt()));
                 })
                 .orElseGet(() -> new GroupRoomSummary(
-                        room.getId(), group.groupId(), group.name(), null, null, false, 0, null));
+                        room.getId(), group.groupId(), group.name(), null, null, null, false, 0, null));
     }
 
     private GroupRoomSummary emptySummary(GroupSummary group) {
-        return new GroupRoomSummary(null, group.groupId(), group.name(), null, null, false, 0, null);
+        return new GroupRoomSummary(null, group.groupId(), group.name(), null, null, null, false, 0, null);
     }
 
     private Optional<ChatMessage> latestMessage(Long roomId) {

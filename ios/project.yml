@@ -38,6 +38,8 @@ targets:
     info:
       path: WhereWeGo/Info.plist
       properties:
+        # 홈 화면 표시 이름(서비스명). 타깃/번들명(WhereWeGo)은 유지하고 표시명만 한글로.
+        CFBundleDisplayName: 우리가 갈 지도
         # 스플래시(FR-24) — 크림 배경(LaunchBackground colorset, #FAF8F5 디자인 토큰).
         # 최종 로고/스플래시 에셋 교체는 P6 범위(비차단).
         UILaunchScreen:

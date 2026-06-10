@@ -102,13 +102,27 @@ struct GroupChatView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 // 첫 진입: 미읽음이 있으면 첫 미읽음 메시지부터(앵커 상단), 없으면 맨 아래로.
+                // 앵커 진입 시 아래에 미읽음이 남으므로 "새 메시지" 필을 즉시 노출(하단 도달 시 자동 해제).
                 .onAppear {
                     if !didInitialScroll, let anchor = viewModel.initialUnreadAnchorId {
                         proxy.scrollTo(anchor, anchor: .top)
+                        if anchor != viewModel.messages.last?.messageId {
+                            isNearBottom = false
+                            showNewMessagePill = true
+                        }
                     } else {
                         scrollToBottom(proxy, animated: false)
                     }
                     didInitialScroll = true
+                }
+                // 키보드 등장/해제 시 하단 재고정 — 해제 후 콘텐츠가 위로 밀린 채 떠 있는 잔상(오프셋 미복원) 해소.
+                //  하단에 있던 경우에만(위로 읽는 중엔 위치 보존). 키보드 애니메이션(~0.25s) 후 재정렬.
+                .onChange(of: inputFocused) { _, _ in
+                    guard isNearBottom else { return }
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 280_000_000)
+                        scrollToBottom(proxy, animated: false)
+                    }
                 }
                 // 마지막 메시지 id 변경(신규 append)일 때만 반응(버그 ①, FR-GC2-1/BR-2 — count 추적은 prepend 에도 발화).
                 //  하단 근접/내 전송이면 자동 스크롤, 위로 스크롤해 읽는 중이면 "새 메시지" 배너만(강제 이동 금지).

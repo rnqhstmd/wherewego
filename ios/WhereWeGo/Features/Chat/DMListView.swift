@@ -231,14 +231,9 @@ private struct DMRoomRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    /// 미리보기 텍스트: 메시지 없음 → "아직 대화가 없어요". 내 메시지(lastSenderUserId == 내 id) → "나: …". 그 외 → 그대로.
+    /// 미리보기 텍스트: 프리픽스 없이 마지막 메시지 본문만(릴스는 서버가 "릴스 링크를 공유했어요"로 내림).
+    /// 메시지 없음 → "아직 대화가 없어요".
     private var previewText: String {
-        guard let preview = room.lastPreview else {
-            return "아직 대화가 없어요"
-        }
-        if let me = currentUserId, room.lastSenderUserId == me {
-            return "나: \(preview)"
-        }
-        return preview
+        room.lastPreview ?? "아직 대화가 없어요"
     }
 }
