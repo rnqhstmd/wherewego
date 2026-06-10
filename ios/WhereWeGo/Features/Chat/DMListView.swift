@@ -118,8 +118,9 @@ struct DMListView: View {
     }
 
     private func listView(_ rooms: [GroupRoomSummary]) -> some View {
+        // 카드 목록(그룹 목록 optionCard 디자인 언어 정합) — hairline 구분선 평면 리스트의 밋밋함 해소.
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 10) {
                 ForEach(rooms) { room in
                     Button {
                         openedRoom = room
@@ -127,12 +128,11 @@ struct DMListView: View {
                         DMRoomRow(room: room, currentUserId: viewModel.currentUserId)
                     }
                     .buttonStyle(.plain)
-
-                    Rectangle()
-                        .fill(WGColor.hairline)
-                        .frame(height: 1)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
         }
     }
 }
@@ -207,10 +207,16 @@ private struct DMRoomRow: View {
             .padding(.top, 1)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isUnread ? WGColor.cta.opacity(0.06) : Color.clear)
-        .contentShape(Rectangle())
+        // 카드 스타일(그룹 목록 정합): 미읽음 = 옅은 cta 채움 + cta 테두리로 강조.
+        .background(isUnread ? WGColor.cta.opacity(0.07) : WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isUnread ? WGColor.cta.opacity(0.35) : WGColor.hairline, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// 미리보기 텍스트: 메시지 없음 → "아직 대화가 없어요". 내 메시지(lastSenderUserId == 내 id) → "나: …". 그 외 → 그대로.

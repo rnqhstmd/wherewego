@@ -122,8 +122,9 @@ struct NotificationInboxView: View {
     // MARK: - 목록
 
     private func listView(_ items: [NotificationItem]) -> some View {
+        // 카드 목록(그룹 목록/채팅 목록 디자인 언어 정합) — hairline 구분선 평면 리스트의 밋밋함 해소.
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 10) {
                 ForEach(items) { item in
                     Button {
                         Task { await viewModel.selectItem(item) }
@@ -131,12 +132,11 @@ struct NotificationInboxView: View {
                         NotificationRow(item: item)
                     }
                     .buttonStyle(.plain)
-
-                    Rectangle()
-                        .fill(WGColor.hairline)
-                        .frame(height: 1)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
         }
     }
 
@@ -215,11 +215,13 @@ private struct NotificationRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            // 종류 아이콘을 틴트 원 안에(채팅 목록 아바타와 동일 패턴) — 평면 글리프의 밋밋함 해소.
             Image(systemName: Self.icon(for: item.type))
-                .font(.system(size: 18))
+                .font(.system(size: 17))
                 .foregroundStyle(WGColor.cta)
-                .frame(width: 24, alignment: .center)
-                .padding(.top, 1)
+                .frame(width: 40, height: 40)
+                .background(WGColor.cta.opacity(0.10))
+                .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(Self.message(for: item))
@@ -255,10 +257,16 @@ private struct NotificationRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isUnread ? WGColor.cta.opacity(0.06) : Color.clear)
-        .contentShape(Rectangle())
+        // 카드 스타일(채팅 목록 정합): 미읽음 = 옅은 cta 채움 + cta 테두리.
+        .background(isUnread ? WGColor.cta.opacity(0.07) : WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isUnread ? WGColor.cta.opacity(0.35) : WGColor.hairline, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// 종류별 SF Symbol(설계 §7).

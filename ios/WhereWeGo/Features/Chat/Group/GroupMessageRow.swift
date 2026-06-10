@@ -38,8 +38,12 @@ struct GroupMessageRow: View {
     // MARK: - TEXT(FR-GC2-2)
 
     private var textBubble: some View {
-        HStack {
-            if isOutgoing { Spacer(minLength: 48) }
+        // 카톡식 시각 배치: 내 메시지 = 버블 왼쪽 하단 / 타인 = 닉네임(위) + 버블 오른쪽 하단.
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 48)
+                timeLabel
+            }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing {
                     Text(senderName)
@@ -60,15 +64,21 @@ struct GroupMessageRow: View {
                             .stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1)
                     )
             }
-            if !isOutgoing { Spacer(minLength: 48) }
+            if !isOutgoing {
+                timeLabel
+                Spacer(minLength: 48)
+            }
         }
     }
 
     // MARK: - REEL_LINK(FR-GC2-3)
 
     private var reelBubble: some View {
-        HStack {
-            if isOutgoing { Spacer(minLength: 32) }
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 32)
+                timeLabel
+            }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing {
                     Text(senderName)
@@ -102,7 +112,10 @@ struct GroupMessageRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
             }
-            if !isOutgoing { Spacer(minLength: 32) }
+            if !isOutgoing {
+                timeLabel
+                Spacer(minLength: 32)
+            }
         }
     }
 
@@ -190,4 +203,43 @@ struct GroupMessageRow: View {
         guard let url = frame.reelUrl, let host = URLComponents(string: url)?.host else { return "instagram.com" }
         return host
     }
+
+    // MARK: - 시각 라벨(카톡식)
+
+    /// 버블 옆 하단 시각. 낙관 프레임(createdAt "")·파싱 실패는 미표시 — reconcile 이 서버 값으로 교체하면 나타난다.
+    @ViewBuilder
+    private var timeLabel: some View {
+        let time = Self.displayTime(frame.createdAt)
+        if !time.isEmpty {
+            Text(time)
+                .font(WGFont.mono(10))
+                .foregroundStyle(WGColor.inkFaint)
+                .padding(.bottom, 2)
+        }
+    }
+
+    /// ISO-8601 createdAt → "오후 3:42". DMListViewModel.formatTime(상대시각)과 달리 절대시각.
+    /// 백엔드 소수초 자릿수가 가변이라(ISO_OFFSET_DATE_TIME) 두 포맷터로 폴백 파싱한다.
+    static func displayTime(_ iso: String) -> String {
+        guard !iso.isEmpty,
+              let date = isoFraction.date(from: iso) ?? isoPlain.date(from: iso) else { return "" }
+        return hourMinute.string(from: date)
+    }
+
+    private static let isoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let hourMinute: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "a h:mm"
+        return f
+    }()
 }
