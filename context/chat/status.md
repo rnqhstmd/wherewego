@@ -26,11 +26,11 @@
 | ID | 요구사항 | 상태 | PR/커밋 |
 |----|----------|------|---------|
 | FR-GC2-1 | DM 탭 → 그룹 채팅방 목록 — 그룹별 1방, 멤버별 unread(인스타식 읽음 표시 유지), `DMListView` 구조 재사용 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
-| FR-GC2-2 | 멀티유저 채팅방 — TEXT 송수신, 발신자 구분(내/남 정렬 + 닉네임 표시), 기존 `ChatScrollContainer`/커서 페이징 재사용 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
+| FR-GC2-2 | 멀티유저 채팅방 — TEXT 송수신, 발신자 구분(내/남 정렬 + 닉네임 표시), 기존 `ChatScrollContainer`/커서 페이징 재사용 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119), 버그픽스 [#122](https://github.com/rnqhstmd/wherewego/pull/122)(loadMore 스크롤 튕김·커서 덮어쓰기) |
 | FR-GC2-3 | REEL_LINK 버블 + 3상태 버튼 — ①내 메시지+미등록=「장소 등록하기」 활성 ②남 메시지+미등록=「장소 등록전이에요」 비활성 ③등록됨(전원)=「장소가 등록되었어요. 구경하실래요?」. 상태는 서버 `registered` 플래그만 신뢰 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
 | FR-GC2-4 | 장소 등록 팝업 — 「장소 등록하기」→ "장소 추출 중…" 애니메이션(추출 API 호출) → `ReelSaveWizard`(위시 체크→메모) → 저장(`savePlaceCards` 재사용, 409 흡수) → 저장 안내 배너(시트 자동 닫힘). 취소=전체 취소(핀 0개, 상태 유지). 추출 0곳/좌표 없음은 안내 후 닫기(재시도 가능) | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
 | FR-GC2-5 | 딥링크 확장 — `.reelFocus(groupId:instagramUrl:)`. 「구경하실래요?」→ 지도 탭 + **해당 그룹 전환** + `focusReel` 필터/fitBounds | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
-| FR-GC2-6 | 수신 배선 — 전송 직후 제한 폴링(기존 2초×10 재사용) + APNs 포그라운드 `willPresent` 시 현재 방이면 배너 억제·재조회 트리거(신규, ChatPushSignal) + scenePhase 복귀 재조회 + 방 표시 중 8초 폴링 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
+| FR-GC2-6 | 수신 배선 — 전송 직후 제한 폴링(기존 2초×10 재사용) + APNs 포그라운드 `willPresent` 시 현재 방이면 배너 억제·재조회 트리거(신규, ChatPushSignal) + scenePhase 복귀 재조회 + 방 표시 중 8초 폴링 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119), 버그픽스 [#122](https://github.com/rnqhstmd/wherewego/pull/122)(send-poll 조기 종료) |
 | FR-GC2-7 | ShareExtension 전환 — 봇방 전송 → 그룹챗 REEL_LINK 전송(그룹 멀티선택 UI 유지, 엔드포인트만 교체) | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
 | FR-GC2-8 | 인앱 URL 감지 — 채팅 입력창에 인스타 URL **단독** 전송 시 REEL_LINK 로 전송(혼합 텍스트는 TEXT, `InstagramURL` 백엔드 정규식 동치) | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |
 | FR-GC2-9 | (셸 정리) 봇 전제 문구 교체 — 빈 상태·입력 placeholder·헤더 부제를 그룹챗 맥락으로 | ✅ | [#119](https://github.com/rnqhstmd/wherewego/pull/119) |

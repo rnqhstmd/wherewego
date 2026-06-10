@@ -1,6 +1,6 @@
 ```yaml
-phase: implement
-status: in_progress
+phase: complete
+status: completed
 branch: fix/group-chat-polling-scroll
 base: develop
 project-type: ios-xcodegen (멀티: java-spring backend, node frontend — 본 작업은 ios만)
@@ -12,12 +12,12 @@ intent-source: user-selection
 started: 2026-06-10T20:20:00+09:00
 auto-stashed: false
 last-known-head: 4ab9c88d75fb83bef660fbd67664e55e252e16de
-current-step: "hotfix 긴급 감사 재호출 대기"
+current-step: "완료 — PR #122"
 phases:
   setup: completed
   requirements: completed
-  implement: in_progress
-  complete: pending
+  implement: completed
+  complete: completed
 steps:
   implement:
     - coder 구현: completed
