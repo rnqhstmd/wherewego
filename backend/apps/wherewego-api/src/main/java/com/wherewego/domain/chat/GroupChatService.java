@@ -24,6 +24,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -123,8 +124,10 @@ public class GroupChatService {
     /**
      * 그룹 채팅방 목록 — 사용자의 활성 그룹별 방 요약(FR-GC1-7).
      *
-     * <p>{@code listMyGroups}(가입 순)를 순회하여 그룹마다 1개 항목을 만든다. V021 백필 + 그룹 생성 훅으로
-     * 통상은 방이 존재하며, 방이 없는 그룹은 가상 항목(roomId=null)으로 내린다(안전망 — AC-7 선례).</p>
+     * <p>{@code listMyGroups}로 그룹마다 1개 항목을 만든 뒤 <b>마지막 메시지 시각(lastAt) 내림차순</b>으로
+     * 정렬한다(메신저 통념 — 최근 대화가 위로). 메시지가 없는 방(lastAt=null)은 끝으로 보낸다. lastAt 은
+     * ISO-8601 offset 문자열이며 단일 타임존(KST, 동일 offset)이라 사전식 비교가 시각 순서와 일치한다.
+     * V021 백필 + 그룹 생성 훅으로 통상은 방이 존재하며, 방이 없는 그룹은 가상 항목(roomId=null)으로 내린다.</p>
      */
     @Transactional(readOnly = true)
     public List<GroupRoomSummary> getRooms(Long userId) {
@@ -135,6 +138,9 @@ public class GroupChatService {
                     .map(room -> summarizeRoom(userId, group, room))
                     .orElseGet(() -> emptySummary(group)));
         }
+        result.sort(Comparator.comparing(
+                GroupRoomSummary::lastAt,
+                Comparator.nullsLast(Comparator.<String>reverseOrder())));
         return result;
     }
 
