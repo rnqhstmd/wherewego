@@ -37,9 +37,17 @@ struct OnboardingRouter: View {
         return nil
     }
 
-    /// 그룹 조회 결과 → 라우트. nil → groupStart, 있음 → welcome(위저드 자동스킵).
-    static func resolveGroupRoute(group: ActiveGroup?) -> Route {
-        group == nil ? .groupStart : .welcome
+    /// 그룹 조회 결과 → 라우트.
+    /// - group == nil → groupStart(그룹 생성/합류 유도)
+    /// - group 있음 + onboardingDone(이미 온보딩을 마친 복귀 사용자) → groups(환영/초대 위저드 건너뛰고 바로 메인 지도)
+    /// - group 있음 + !onboardingDone(온보딩 중 첫 그룹 확보) → welcome(초대 스텝)
+    ///
+    /// onboardingDone 기본값 false 는 "그룹 있음 → welcome"(기존 동작)을 보존한다. 복귀 사용자 분기는
+    /// 호출처(resolveGroupRoute async)가 OnboardingFlags.notifAsked 를 전달해 활성화한다.
+    /// (매 로그인마다 초대 코드 화면이 뜨던 문제 해결 — 위저드는 첫 그룹 확보 시 1회만.)
+    static func resolveGroupRoute(group: ActiveGroup?, onboardingDone: Bool = false) -> Route {
+        if group == nil { return .groupStart }
+        return onboardingDone ? .groups : .welcome
     }
 
     /// 위저드 완료/스킵(Q2): notifAsked==false면 알림 1회, 아니면 Groups(AC-17).
@@ -159,10 +167,17 @@ struct OnboardingRouter: View {
     private func resolveGroupRoute() async {
         do {
             let group = try await dependencies.groupAPI.myActiveGroup()
-            if Self.resolveGroupRoute(group: group) == .groupStart {
+            // notifAsked == true ⇒ 이미 온보딩을 마친 복귀 사용자 → 그룹이 있으면 위저드 건너뛰고 바로 메인 지도.
+            // (초대 코드 화면은 첫 그룹 생성/합류 시점의 위저드에서만 — 매 로그인 노출 문제 해결.)
+            switch Self.resolveGroupRoute(group: group, onboardingDone: OnboardingFlags.notifAsked) {
+            case .groupStart:
                 route = .groupStart
-            } else {
+            case .groups:
+                route = .groups
+            case .welcome:
                 afterGroupResolved(group)
+            default:
+                route = .groupStart
             }
         } catch let apiError as APIError where apiError.status == 401 {
             // 401 → refresh 실패 시 logoutHandler 가 phase 전환 처리(RootView 가 LoginView 로).

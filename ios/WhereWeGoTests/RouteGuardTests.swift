@@ -68,9 +68,21 @@ final class RouteGuardTests: XCTestCase {
     }
 
     func test_groupRoute_hasGroup_returnsWelcome() {
-        // AC-21/AC-19: 그룹 있음 → welcome(위저드 자동스킵)
+        // AC-21/AC-19: 온보딩 중(onboardingDone 기본 false) 그룹 있음 → welcome(첫 그룹 확보 시 초대 스텝)
         let group = ActiveGroup(groupId: 1, name: "팀", memberCount: 2)
         XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: group), .welcome)
+    }
+
+    func test_groupRoute_hasGroup_onboardingDone_returnsGroups() {
+        // 복귀 사용자(온보딩 완료=notifAsked) + 그룹 있음 → 위저드 건너뛰고 바로 메인 지도.
+        // (매 로그인마다 초대 코드 화면이 뜨던 문제 해결)
+        let group = ActiveGroup(groupId: 1, name: "팀", memberCount: 2)
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: group, onboardingDone: true), .groups)
+    }
+
+    func test_groupRoute_nilGroup_onboardingDone_returnsGroupStart() {
+        // 그룹 없음이면 온보딩 완료 여부와 무관하게 groupStart(그룹 생성/합류 유도).
+        XCTAssertEqual(OnboardingRouter.resolveGroupRoute(group: nil, onboardingDone: true), .groupStart)
     }
 
     // MARK: - resolveFinishRoute (위저드 완료)
