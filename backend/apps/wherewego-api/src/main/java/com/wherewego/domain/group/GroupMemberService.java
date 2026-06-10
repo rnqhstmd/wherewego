@@ -78,6 +78,18 @@ public class GroupMemberService {
         return new InviteLinkIssueResult(saved.getToken(), saved.getSlug(), saved.getExpiresAt());
     }
 
+    /**
+     * 그룹의 현재 활성(미만료) 초대 링크 조회(IC-2 후속, 읽기 전용). 발급(재발급)과 달리 새 코드를 만들지 않으므로
+     * '그룹관리 진입 시 코드 자동 표시' 에서 반복 호출해도 기존 공유 코드가 만료되지 않는다(BR-3 회피).
+     * 활성 코드가 없으면 empty(클라이언트는 '초대 코드 만들기' 노출). 비멤버는 GROUP_NOT_MEMBER 로 거부.
+     */
+    @Transactional(readOnly = true)
+    public Optional<InviteLinkIssueResult> currentInviteLink(Long userId, Long groupId) {
+        requireActiveMembership(userId, groupId);
+        return inviteLinkRepository.findActiveByGroupId(groupId, Instant.now())
+                .map(link -> new InviteLinkIssueResult(link.getToken(), link.getSlug(), link.getExpiresAt()));
+    }
+
     private InviteLink saveWithSlugRetry(Long groupId, Long userId, String token, Instant now) {
         for (int attempt = 0; attempt < SLUG_GENERATION_MAX_RETRIES; attempt++) {
             String slug = slugGenerator.generate();

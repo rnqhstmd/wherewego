@@ -235,6 +235,57 @@ class GroupMemberServiceIT {
         assertThat(secondExpiresAt).isAfter(beforeSecond.plusSeconds(60));
     }
 
+    @DisplayName("currentInviteLink - 발급된 활성 코드를 조회하며 새 코드를 만들지 않는다 (IC-2 후속).")
+    @Test
+    void currentInviteLink_returnsActiveCode_withoutCreatingNew() {
+        // arrange : 그룹 + 코드 1개 발급
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        InviteLinkIssueResult issued = groupMemberService.issueInviteLink(userA, group.groupId());
+
+        // act
+        var current = groupMemberService.currentInviteLink(userA, group.groupId());
+
+        // assert : 발급된 코드와 동일 + 조회는 새 행을 만들지 않음(여전히 1행)
+        assertThat(current).isPresent();
+        assertThat(current.get().slug()).isEqualTo(issued.slug());
+        assertThat(current.get().token()).isEqualTo(issued.token());
+        assertThat(inviteLinkJpaRepository.findAll()).hasSize(1);
+    }
+
+    @DisplayName("currentInviteLink - 활성 코드가 없으면 empty (IC-2 후속).")
+    @Test
+    void currentInviteLink_emptyWhenNoActiveCode() {
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+
+        var current = groupMemberService.currentInviteLink(userA, group.groupId());
+
+        assertThat(current).isEmpty();
+    }
+
+    @DisplayName("currentInviteLink - 재발급 후에는 만료된 이전 코드가 아닌 현재 활성 코드를 반환한다 (IC-2 후속).")
+    @Test
+    void currentInviteLink_returnsLatestAfterReissue() {
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        groupMemberService.issueInviteLink(userA, group.groupId());            // 만료될 첫 코드
+        InviteLinkIssueResult second = groupMemberService.issueInviteLink(userA, group.groupId());
+
+        var current = groupMemberService.currentInviteLink(userA, group.groupId());
+
+        assertThat(current).isPresent();
+        assertThat(current.get().slug()).isEqualTo(second.slug());
+    }
+
+    @DisplayName("currentInviteLink - 비멤버는 GROUP_NOT_MEMBER 로 거부된다 (IC-2 후속).")
+    @Test
+    void currentInviteLink_nonMemberRejected() {
+        GroupCreatedResult group = groupMemberService.createGroup(userA, "우리 지도");
+        groupMemberService.issueInviteLink(userA, group.groupId());
+
+        assertThatThrownBy(() -> groupMemberService.currentInviteLink(userB, group.groupId()))
+                .satisfies(e -> assertThat(((CoreException) e).getErrorType())
+                        .isEqualTo(ErrorType.GROUP_NOT_MEMBER));
+    }
+
     @DisplayName("IC-1(AC-1): 동일 코드를 서로 다른 2명이 각각 수락하면 둘 다 활성 멤버가 되고 코드는 TTL 까지 유지된다.")
     @Test
     void acceptInviteLink_sameTokenTwoUsers_bothJoinAndCodeStaysActive() {

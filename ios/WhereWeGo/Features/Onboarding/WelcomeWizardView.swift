@@ -165,18 +165,8 @@ struct WelcomeWizardView: View {
             Spacer(minLength: 40)
 
             VStack(spacing: 10) {
-                Button {
-                    viewModel.copyLink { UIPasteboard.general.string = $0 }
-                } label: {
-                    Text(viewModel.copied ? "복사됨" : "링크 복사")
-                        .font(WGFont.sans(15))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canCopy ? WGColor.cta : WGColor.inkFaint)
-                        .foregroundStyle(WGColor.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .disabled(!canCopy)
+                // 초대하기 = 시스템 공유창(카톡/메신저 선택 → 링크 전송). 복사 단계 없이 바로 공유.
+                inviteShareButton
 
                 Button(action: onFinish) {
                     Text("다음 단계")
@@ -202,8 +192,32 @@ struct WelcomeWizardView: View {
         .frame(minHeight: 400)
     }
 
-    private var canCopy: Bool {
-        !viewModel.isLoading && (viewModel.shareText?.isEmpty == false)
+    /// 초대하기 버튼 — 링크가 준비되면 ShareLink(공유창), 준비 전/실패면 비활성 라벨.
+    @ViewBuilder
+    private var inviteShareButton: some View {
+        let label = Text("초대하기")
+            .font(WGFont.sans(15))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(WGColor.cta)
+            .foregroundStyle(WGColor.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+        if let shareText = viewModel.shareText, !shareText.isEmpty {
+            if let url = URL(string: shareText), url.scheme != nil {
+                ShareLink(item: url) { label }
+            } else {
+                ShareLink(item: shareText) { label }
+            }
+        } else {
+            Text(viewModel.isLoading ? "초대 링크 준비 중…" : "초대하기")
+                .font(WGFont.sans(15))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(WGColor.inkFaint)
+                .foregroundStyle(WGColor.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     private var linkBox: some View {
