@@ -17,7 +17,7 @@
 | FR-GC1-4 | registered 파생 — 메시지 페이지 응답에서 REEL_LINK URL 배치 IN 쿼리로 `registered: Bool` 계산(`EXISTS pins WHERE group_id+instagram_url AND deleted_at IS NULL`). 상태 컬럼 금지 | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
 | FR-GC1-5 | 온디맨드 추출 API — `POST /api/v1/chat/groups/{groupId}/messages/{messageId}/extract`. `BotChatProcessor.extractHits` 파이프라인 재사용(메시지 append 없음), 동기 카드 목록 반환. deadline 10~15초로 완화(카카오 5초 SLA 비적용) | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
 | FR-GC1-6 | 추출/등록 권한 — REEL_LINK 발신자만(`sender_user_id == userId`, 위반 403). 발신자 탈퇴(NULL) 시 영구 등록전(MVP 정책) | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
-| FR-GC1-7 | 그룹 채팅방 목록 API — 활성 그룹별 방 요약(미생성 그룹은 가상항목, `BotRoomSummary` AC-7 선례) + 멤버별 unread + 마지막 메시지 preview(REEL_LINK → "릴스 링크" 등 kind 별 규칙) | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
+| FR-GC1-7 | 그룹 채팅방 목록 API — 활성 그룹별 방 요약(미생성 그룹은 가상항목, `BotRoomSummary` AC-7 선례) + 멤버별 unread + 마지막 메시지 preview(REEL_LINK → "릴스 링크" 등 kind 별 규칙) | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118), 버그픽스 [#121](https://github.com/rnqhstmd/wherewego/pull/121)(목록 최근 메시지 순 정렬) |
 | FR-GC1-8 | 푸시 일반화 — `pushGroupMessage`(발신자 제외 전 활성 멤버, afterCommit best-effort, 1인 그룹 생략). TEXT/REEL_LINK 문구 분기 | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
 | BR-GC1-1 | 봇 흐름 무변경 — 기존 BOT 방·`/chat/bot/*`·카카오 웹훅 챗봇은 본 Phase에서 건드리지 않음(병행 운영, 제거는 GC-3) | ✅ | [#118](https://github.com/rnqhstmd/wherewego/pull/118) |
 
@@ -42,8 +42,8 @@
 | ID | 요구사항 | 상태 | PR/커밋 |
 |----|----------|------|---------|
 | FR-GC3-1 | 봇 티키타카 제거 — 레거시 BOT 방 soft delete 마이그레이션(V020 선례), deprecated `/chat/bot/*` 제거, `BotChatService`/`BotChatProcessor` 채팅 결합부 정리(추출 파이프라인은 FR-GC1-5 가 사용하므로 보존), iOS `BotChatView`/`PlaceCardsBubble` 제거. **카카오 웹훅 챗봇([[chatbot]]) 무변경** | ⬜ | |
-| FR-GC3-2 | 릴스 썸네일 — 메시지 생성 시 og:image 비동기 스크래핑 → S3 캐시(`thumbnailKey` 기록, IG CDN URL 직참조 금지) → 버블에 썸네일 표시. feature flag 격리, 실패 시 링크 카드 폴백 | ⬜ | |
-| FR-GC3-3 | PLACE_CARDS/PROCESSING/MEMO_PROMPT kind 레거시 처리 — 과거 메시지 렌더 폴백(또는 봇방 soft delete 로 자연 소멸 확인) | ⬜ | |
+| FR-GC3-2 | 릴스 썸네일 — 메시지 생성 시 og:image 비동기 스크래핑 → S3 캐시(`thumbnailKey` 기록, IG CDN URL 직참조 금지) → 버블에 썸네일 표시. feature flag 격리, 실패 시 링크 카드 폴백 | ✅ | [#120](https://github.com/rnqhstmd/wherewego/pull/120)(백엔드 파이프라인 + iOS 표시) |
+| FR-GC3-3 | PLACE_CARDS/PROCESSING/MEMO_PROMPT kind 레거시 처리 — 과거 메시지 렌더 폴백(또는 봇방 soft delete 로 자연 소멸 확인) | ⬜ | 부분: 그룹방 렌더 폴백(EmptyView)은 [#119](https://github.com/rnqhstmd/wherewego/pull/119) 구현. soft delete 자연 소멸 확인은 FR-GC3-1 대기 |
 
 ## 확정 정책 (2026-06-10, GC-1 PRD Q&A 확정 — [PR #118](https://github.com/rnqhstmd/wherewego/pull/118))
 
