@@ -95,4 +95,13 @@ public interface PinRepository {
      * @return 이번 호출이 실제로 삭제 처리한 행 수 (이미 삭제됐던 행 제외)
      */
     int softDeleteAll(Collection<Long> pinIds);
+
+    /**
+     * GC-1(FR-GC1-4): 그룹의 활성 핀 중 주어진 인스타 URL 집합에 존재하는 URL 만 distinct 로 반환한다.
+     * <p>메시지 페이지의 REEL_LINK {@code registered} 파생 계산용 — 페이지당 IN 쿼리 1회.
+     * {@code uq_pins_group_instagram_place(group_id, instagram_url, place_name)} prefix 인덱스가 커버한다.</p>
+     *
+     * @param urls 비어 있으면 빈 리스트를 반환한다(쿼리 생략은 호출자 책임).
+     */
+    List<String> findActiveInstagramUrlsIn(Long groupId, Collection<String> urls);
 }

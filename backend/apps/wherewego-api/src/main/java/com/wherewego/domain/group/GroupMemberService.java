@@ -2,6 +2,8 @@ package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
 import com.wherewego.domain.bot.BotUserMappingService;
+import com.wherewego.domain.chat.ChatRoom;
+import com.wherewego.domain.chat.ChatRoomRepository;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -30,6 +32,7 @@ public class GroupMemberService {
     private final InviteLinkSlugGenerator slugGenerator;
     private final UserRepository userRepository;
     private final InviteProperties inviteProperties;
+    private final ChatRoomRepository chatRoomRepository;
 
     /**
      * 사용자의 최근 활성 그룹 ID 를 반환한다. 활성 그룹이 없으면 {@link Optional#empty()}.
@@ -55,6 +58,9 @@ public class GroupMemberService {
         }
         Group saved = groupRepository.save(Group.create(name));
         groupMemberRepository.save(GroupMember.createActive(saved.getId(), userId, Instant.now()));
+        // GC-1(FR-GC1-1): 그룹 채팅방을 그룹 생성 시 함께 생성한다(기존 그룹은 V021 백필,
+        // 누락 시 GroupChatService 의 get-or-create 안전망). 새 그룹이라 부분 UNIQUE 충돌이 구조적으로 없다.
+        chatRoomRepository.save(ChatRoom.createGroupRoom(saved.getId()));
         return new GroupCreatedResult(saved.getId(), saved.getName(), saved.getCreatedAt());
     }
 

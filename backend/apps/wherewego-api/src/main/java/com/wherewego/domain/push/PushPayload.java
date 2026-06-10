@@ -1,7 +1,9 @@
 package com.wherewego.domain.push;
 
+import com.wherewego.domain.chat.MessageKind;
+
 /**
- * P2 PR-2: APNs 푸시 트리거별 페이로드(FR-17/18). 트리거 3종에 대응하는 정적 팩토리를 제공한다.
+ * P2 PR-2 / GC-1: APNs 푸시 트리거별 페이로드(FR-17/18). 트리거 3종에 대응하는 정적 팩토리를 제공한다.
  *
  * <p>{@code type}은 클라이언트 라우팅용 커스텀 프로퍼티이며, {@code roomId}는 채팅 트리거에서만
  * 채워지고 핀 저장 트리거에서는 {@code null}이다. {@link com.wherewego.infrastructure.push.apns.ApnsPushSender}
@@ -12,8 +14,8 @@ public record PushPayload(String title, String body, String type, Long roomId) {
     /** FR-17①: 파트너가 새 장소를 저장. roomId 없음. */
     public static final String TYPE_PIN_SAVED = "PIN_SAVED";
 
-    /** FR-17②: 파트너가 커플 채팅 메시지를 전송. */
-    public static final String TYPE_COUPLE_MESSAGE = "COUPLE_MESSAGE";
+    /** FR-GC1-8: 그룹 채팅 새 메시지(GC-1: COUPLE_MESSAGE 대체 — iOS 배선은 GC-2). */
+    public static final String TYPE_GROUP_MESSAGE = "GROUP_MESSAGE";
 
     /** FR-17③: 봇 장소 추천 결과 도착. */
     public static final String TYPE_BOT_RESULT = "BOT_RESULT";
@@ -26,10 +28,13 @@ public record PushPayload(String title, String body, String type, Long roomId) {
     }
 
     /**
-     * FR-17②: 커플 채팅 새 메시지 알림.
+     * FR-GC1-8: 그룹 채팅 새 메시지 알림. kind 별 문구 분기(TEXT/REEL_LINK).
      */
-    public static PushPayload coupleMessage(Long roomId) {
-        return new PushPayload("새 메시지", "파트너가 메시지를 보냈어요.", TYPE_COUPLE_MESSAGE, roomId);
+    public static PushPayload groupMessage(Long roomId, MessageKind kind) {
+        String body = kind == MessageKind.REEL_LINK
+                ? "멤버가 릴스를 공유했어요."
+                : "멤버가 메시지를 보냈어요.";
+        return new PushPayload("새 메시지", body, TYPE_GROUP_MESSAGE, roomId);
     }
 
     /**

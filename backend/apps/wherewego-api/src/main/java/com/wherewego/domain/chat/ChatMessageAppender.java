@@ -67,12 +67,22 @@ public class ChatMessageAppender {
     }
 
     /**
-     * 커플 방 사용자 텍스트 메시지. kind=TEXT, senderType=USER.
+     * 그룹 방 사용자 텍스트 메시지(GC-1: 커플 방 일반화). kind=TEXT, senderType=USER.
      *
      * <p>봇 방 사용자 텍스트와 payload 형태가 동일하므로 {@link #appendUserText}를 재사용한다(의미 구분용 별칭).</p>
      */
-    public ChatMessage appendCoupleText(Long roomId, Long userId, String text) {
+    public ChatMessage appendGroupText(Long roomId, Long userId, String text) {
         return appendUserText(roomId, userId, text);
+    }
+
+    /**
+     * 그룹 방 릴스 링크 메시지(GC-1, FR-GC1-3). kind=REEL_LINK, senderType=USER.
+     *
+     * @param url 검증된 인스타 릴스 URL. payload {@code {"url": url, "thumbnailKey": null}}로 직렬화된다
+     *            (thumbnailKey 는 GC-3 썸네일 단계에서 채워질 예약 필드).
+     */
+    public ChatMessage appendReelLink(Long roomId, Long userId, String url) {
+        return save(roomId, SenderType.USER, userId, MessageKind.REEL_LINK, new ReelLinkPayload(url, null));
     }
 
     private ChatMessage save(Long roomId, SenderType senderType, Long senderUserId,
@@ -103,4 +113,12 @@ public class ChatMessageAppender {
      * @param text 메시지 본문
      */
     private record TextPayload(String text) { }
+
+    /**
+     * 릴스 링크 payload 루트(GC-1). {@code {"url": ..., "thumbnailKey": null}} JSON 객체로 직렬화된다.
+     *
+     * @param url          인스타 릴스 URL
+     * @param thumbnailKey S3 썸네일 키(GC-3 예약 — GC-1 에서는 항상 {@code null})
+     */
+    private record ReelLinkPayload(String url, String thumbnailKey) { }
 }

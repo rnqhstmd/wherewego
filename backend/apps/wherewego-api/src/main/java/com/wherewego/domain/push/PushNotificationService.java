@@ -1,5 +1,6 @@
 package com.wherewego.domain.push;
 
+import com.wherewego.domain.chat.MessageKind;
 import com.wherewego.domain.device.Device;
 import com.wherewego.domain.device.DeviceRepository;
 import com.wherewego.domain.group.GroupMemberRepository;
@@ -14,7 +15,7 @@ import java.util.List;
  * P2 PR-2: APNs 푸시 트리거 진입점(FR-17 트리거 3종, FR-20 fan-out). 전체 best-effort.
  *
  * <p>자체 트랜잭션을 갖지 않는다. 호출자가 트랜잭션 밖(PinV1Controller try-catch /
- * CoupleChatService·BotChatProcessor afterCommit)에서 best-effort로 호출하므로, 이 서비스의
+ * GroupChatService·BotChatProcessor afterCommit)에서 best-effort로 호출하므로, 이 서비스의
  * 어떤 메서드도 예외를 전파하지 않는다. {@link ApnsPushSender#send}는 이미 best-effort이나,
  * {@link DeviceRepository}/{@link GroupMemberRepository} 조회 실패도 내부 try-catch로 격리하여
  * 핀 저장/채팅 흐름을 깨지 않도록 한다.</p>
@@ -71,10 +72,11 @@ public class PushNotificationService {
     }
 
     /**
-     * FR-17②: 커플 채팅 새 메시지 트리거. 상대 사용자에게 푸시한다.
+     * FR-GC1-8: 그룹 채팅 새 메시지 트리거(GC-1: 커플 트리거 대체). 멤버 1명에게 푸시한다.
+     * fan-out(발신자 제외 전 활성 멤버 순회)은 호출자(GroupChatService afterCommit)가 담당한다.
      */
-    public void pushCoupleMessage(Long partnerUserId, Long roomId) {
-        pushToUser(partnerUserId, PushPayload.coupleMessage(roomId));
+    public void pushGroupMessage(Long memberUserId, Long roomId, MessageKind kind) {
+        pushToUser(memberUserId, PushPayload.groupMessage(roomId, kind));
     }
 
     /**

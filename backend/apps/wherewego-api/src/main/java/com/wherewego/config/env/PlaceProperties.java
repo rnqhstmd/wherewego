@@ -5,6 +5,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.validation.annotation.Validated;
 
@@ -73,15 +74,23 @@ public class PlaceProperties {
         private final int kakaoLocalSize;
         @Positive
         private final long googleSyncThresholdMs;
+        /**
+         * GC-1: 그룹 채팅 온디맨드 추출 API 데드라인(FR-GC1-5). 카카오 웹훅 5초 SLA({@code syncDeadlineMs})와
+         * 독립 — 팝업에 "추출 중" 표시가 있어 더 길게 허용한다.
+         */
+        @Positive
+        private final long extractDeadlineMs;
 
         public Search(
                 @Positive long syncDeadlineMs,
                 @Positive int kakaoLocalSize,
-                @Positive long googleSyncThresholdMs
+                @Positive long googleSyncThresholdMs,
+                @Positive @DefaultValue("15000") long extractDeadlineMs
         ) {
             this.syncDeadlineMs = syncDeadlineMs;
             this.kakaoLocalSize = kakaoLocalSize;
             this.googleSyncThresholdMs = googleSyncThresholdMs;
+            this.extractDeadlineMs = extractDeadlineMs;
         }
 
         public long syncDeadlineMs() {
@@ -94,6 +103,10 @@ public class PlaceProperties {
 
         public long googleSyncThresholdMs() {
             return googleSyncThresholdMs;
+        }
+
+        public long extractDeadlineMs() {
+            return extractDeadlineMs;
         }
     }
 

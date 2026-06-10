@@ -94,6 +94,8 @@ place:
     sync-deadline-ms: 4500
     kakao-local-size: 5
     google-sync-threshold-ms: 1700
+    # GC-1: 그룹 채팅 온디맨드 추출 API 데드라인. 카카오 5초 SLA 비적용 — 팝업 "추출 중" 표시로 완화(FR-GC1-5).
+    extract-deadline-ms: 15000
   scraper:
     instagram:
       # sync-deadline-ms(4500)보다 작게 유지하여 stage별 컷오프가 데드라인 내에 동작하도록 한다.

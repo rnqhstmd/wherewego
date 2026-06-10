@@ -86,10 +86,11 @@ class UserDeletionServiceMultiGroupIT {
         InviteLinkIssueResult invite = groupMemberService.issueInviteLink(userA, sharedGroup.groupId());
         groupMemberService.acceptInviteLink(userB, invite.token());
 
-        // 각 그룹의 커플 방(type=COUPLE) 을 직접 생성하여 softDeleteByGroup 동작도 검증한다.
-        insertCoupleRoom(soloGroup1.groupId());
-        insertCoupleRoom(soloGroup2.groupId());
-        insertCoupleRoom(sharedGroup.groupId());
+        // 각 그룹의 그룹 방(type=GROUP, GC-1: 커플 방 일반화) 존재를 보장하여 softDeleteByGroup 동작도 검증한다.
+        // (그룹 생성 시 자동 생성 훅과 충돌하지 않도록 멱등 — 없을 때만 insert.)
+        ensureGroupRoom(soloGroup1.groupId());
+        ensureGroupRoom(soloGroup2.groupId());
+        ensureGroupRoom(sharedGroup.groupId());
 
         // userA 가 3개 그룹 모두 활성인지 사전 확인
         Integer activeBefore = jdbcTemplate.queryForObject(
@@ -117,20 +118,22 @@ class UserDeletionServiceMultiGroupIT {
                 Integer.class, userB, sharedGroup.groupId());
         assertThat(userBActiveInShared).isEqualTo(1);
 
-        // assert : 단독 그룹 커플 방은 soft delete, 공유 그룹 커플 방은 유지
-        assertThat(coupleRoomActiveCount(soloGroup1.groupId())).isZero();
-        assertThat(coupleRoomActiveCount(soloGroup2.groupId())).isZero();
-        assertThat(coupleRoomActiveCount(sharedGroup.groupId())).isEqualTo(1);
+        // assert : 단독 그룹 그룹 방은 soft delete, 공유 그룹 그룹 방은 유지
+        assertThat(groupRoomActiveCount(soloGroup1.groupId())).isZero();
+        assertThat(groupRoomActiveCount(soloGroup2.groupId())).isZero();
+        assertThat(groupRoomActiveCount(sharedGroup.groupId())).isEqualTo(1);
 
         // assert : userA 본인 soft delete
         UserModel reloaded = userJpaRepository.findById(userA).orElseThrow();
         assertThat(reloaded.getDeletedAt()).isNotNull();
     }
 
-    private void insertCoupleRoom(Long groupId) {
-        jdbcTemplate.update(
-                "INSERT INTO chat_room (type, group_id, owner_user_id) VALUES ('COUPLE', ?, NULL)",
-                groupId);
+    private void ensureGroupRoom(Long groupId) {
+        if (groupRoomActiveCount(groupId) == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO chat_room (type, group_id, owner_user_id) VALUES ('GROUP', ?, NULL)",
+                    groupId);
+        }
     }
 
     private Object groupDeletedAt(Long groupId) {
@@ -139,9 +142,9 @@ class UserDeletionServiceMultiGroupIT {
         return row.get("deleted_at");
     }
 
-    private Integer coupleRoomActiveCount(Long groupId) {
+    private Integer groupRoomActiveCount(Long groupId) {
         return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM chat_room WHERE group_id = ? AND type = 'COUPLE' AND deleted_at IS NULL",
+                "SELECT COUNT(*) FROM chat_room WHERE group_id = ? AND type = 'GROUP' AND deleted_at IS NULL",
                 Integer.class, groupId);
     }
 }

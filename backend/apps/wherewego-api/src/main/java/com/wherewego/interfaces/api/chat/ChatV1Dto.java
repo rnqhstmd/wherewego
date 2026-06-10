@@ -5,6 +5,9 @@ import com.wherewego.domain.chat.BotRoomSummary;
 import com.wherewego.domain.chat.ChatMessage;
 import com.wherewego.domain.chat.ChatMessageFrame;
 import com.wherewego.domain.chat.ChatMessagePageResult;
+import com.wherewego.domain.chat.GroupChatMessageFrame;
+import com.wherewego.domain.chat.GroupMessagesPage;
+import com.wherewego.domain.chat.GroupRoomSummary;
 import com.wherewego.domain.chat.MessageKind;
 import com.wherewego.domain.chat.SenderType;
 import jakarta.validation.constraints.NotBlank;
@@ -24,12 +27,8 @@ public final class ChatV1Dto {
     public record BotMessageRequest(@NotBlank @Size(max = 2000) String text) {
     }
 
-    /** 커플 방 메시지 전송 요청(FR-8). */
-    public record CoupleMessageRequest(@NotBlank @Size(max = 1000) String text) {
-    }
-
     /**
-     * 메시지 전송 응답(봇/커플 공통). 봇 방은 PROCESSING 플레이스홀더 id/kind를 돌려준다.
+     * 메시지 전송 응답(봇/그룹 공통). 봇 방은 PROCESSING 플레이스홀더 id/kind를 돌려준다.
      */
     public record SendMessageResponse(Long messageId, MessageKind kind) {
         public static SendMessageResponse from(ChatMessage message) {
@@ -62,6 +61,55 @@ public final class ChatV1Dto {
                             .toList(),
                     result.hasMore(),
                     result.nextCursor()
+            );
+        }
+    }
+
+    /**
+     * GC-1: 그룹 메시지 전송 요청(FR-GC1-3). kind 분기 — TEXT 는 {@code text}(1~2000자),
+     * REEL_LINK 는 {@code url}(https + 인스타 패턴)만 사용한다. kind 조건부 검증은 서비스가 수행한다
+     * (CHAT_KIND_INVALID / CHAT_TEXT_INVALID / CHAT_REEL_URL_INVALID 400).
+     */
+    public record GroupMessageRequest(MessageKind kind, String text, String url) {
+    }
+
+    /**
+     * GC-1: 그룹 메시지 페이지 응답(FR-GC1-4). 프레임은 {@link GroupChatMessageFrame} —
+     * 발신자(senderUserId/senderNickname)와 REEL_LINK {@code registered}(pins 파생)가 합성되어 있다.
+     */
+    public record GroupMessagesResponse(
+            Long groupId,
+            List<GroupChatMessageFrame> messages,
+            boolean hasMore,
+            Long nextCursor
+    ) {
+        public static GroupMessagesResponse from(Long groupId, GroupMessagesPage page) {
+            return new GroupMessagesResponse(groupId, page.frames(), page.hasMore(), page.nextCursor());
+        }
+    }
+
+    /**
+     * GC-1: 그룹 채팅방 목록 항목 응답(FR-GC1-7). 도메인 {@link GroupRoomSummary}를 그대로 노출한다.
+     * 방이 없는 활성 그룹은 가상 항목(roomId/lastPreview/lastSenderUserId/lastAt=null, hasUnread=false)이다.
+     */
+    public record GroupRoomSummaryResponse(
+            Long roomId,
+            Long groupId,
+            String groupName,
+            String lastPreview,
+            Long lastSenderUserId,
+            boolean hasUnread,
+            String lastAt
+    ) {
+        public static GroupRoomSummaryResponse from(GroupRoomSummary summary) {
+            return new GroupRoomSummaryResponse(
+                    summary.roomId(),
+                    summary.groupId(),
+                    summary.groupName(),
+                    summary.lastPreview(),
+                    summary.lastSenderUserId(),
+                    summary.hasUnread(),
+                    summary.lastAt()
             );
         }
     }

@@ -27,8 +27,8 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
     }
 
     @Override
-    public Optional<ChatRoom> findActiveCoupleRoom(Long groupId) {
-        return chatRoomJpa.findFirstByGroupIdAndTypeAndDeletedAtIsNull(groupId, ChatRoomType.COUPLE);
+    public Optional<ChatRoom> findActiveGroupRoom(Long groupId) {
+        return chatRoomJpa.findFirstByGroupIdAndTypeAndDeletedAtIsNull(groupId, ChatRoomType.GROUP);
     }
 
     @Override
@@ -43,6 +43,6 @@ public class ChatRoomRepositoryAdapter implements ChatRoomRepository {
 
     @Override
     public void softDeleteByGroup(Long groupId) {
-        chatRoomJpa.softDeleteByGroup(groupId, ChatRoomType.COUPLE, ZonedDateTime.now());
+        chatRoomJpa.softDeleteByGroup(groupId, ChatRoomType.GROUP, ZonedDateTime.now());
     }
 }

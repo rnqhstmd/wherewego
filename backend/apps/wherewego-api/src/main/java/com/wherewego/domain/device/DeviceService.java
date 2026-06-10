@@ -18,7 +18,7 @@ import java.util.List;
  * 해제하여 "토큰은 한 사용자 소유" 불변식을 유지한다.</p>
  *
  * <p>동시 등록 race로 부분 UNIQUE(uq_devices_user_token)가 위반되면 {@link DataIntegrityViolationException}을
- * 잡아 승자가 만든 활성 행을 재조회하여 반환한다(CoupleChatService의 conflict 폴백 패턴과 동일).</p>
+ * 잡아 승자가 만든 활성 행을 재조회하여 반환한다(GroupChatService의 conflict 폴백 패턴과 동일).</p>
  */
 @Slf4j
 @Service

@@ -11,11 +11,11 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 
 /**
- * P2: 채팅 방. V015 스키마 {@code chat_room} 테이블 매핑.
+ * P2 / GC-1: 채팅 방. V015 스키마 {@code chat_room} 테이블 매핑.
  *
  * <p>유형(type)에 따라 식별자가 분기된다: BOT 은 {@code ownerUserId} + {@code groupId}(GM-2 그룹별 봇 방),
- * COUPLE 은 {@code groupId} 만 보유한다. 활성 방 1개 강제는 부분 UNIQUE 인덱스
- * (V020 uq_chat_room_bot_owner_group / V015 uq_chat_room_couple_group)와 결합한다.
+ * GROUP 은 {@code groupId} 만 보유한다(GC-1: COUPLE 일반화). 활성 방 1개 강제는 부분 UNIQUE 인덱스
+ * (V020 uq_chat_room_bot_owner_group / V021 uq_chat_room_group_group)와 결합한다.
  * 불변식은 {@link #guard()}에서 검증한다.</p>
  *
  * <p>GM-2: 봇 방은 owner 1명 전용이므로 읽음 추적을 {@code lastReadMessageId} 단일 컬럼(V020)으로 보유한다.</p>
@@ -61,12 +61,12 @@ public class ChatRoom extends BaseEntity {
                 throw new CoreException(ErrorType.BAD_REQUEST, "봇 방은 groupId가 필요합니다.");
             }
         }
-        if (type == ChatRoomType.COUPLE) {
+        if (type == ChatRoomType.GROUP) {
             if (groupId == null) {
-                throw new CoreException(ErrorType.BAD_REQUEST, "커플 방은 groupId가 필요합니다.");
+                throw new CoreException(ErrorType.BAD_REQUEST, "그룹 방은 groupId가 필요합니다.");
             }
             if (ownerUserId != null) {
-                throw new CoreException(ErrorType.BAD_REQUEST, "커플 방은 ownerUserId를 가질 수 없습니다.");
+                throw new CoreException(ErrorType.BAD_REQUEST, "그룹 방은 ownerUserId를 가질 수 없습니다.");
             }
         }
     }
@@ -75,8 +75,8 @@ public class ChatRoom extends BaseEntity {
         return new ChatRoom(ChatRoomType.BOT, groupId, ownerUserId);
     }
 
-    public static ChatRoom createCoupleRoom(Long groupId) {
-        return new ChatRoom(ChatRoomType.COUPLE, groupId, null);
+    public static ChatRoom createGroupRoom(Long groupId) {
+        return new ChatRoom(ChatRoomType.GROUP, groupId, null);
     }
 
     public boolean isActive() {

@@ -9,6 +9,7 @@
 | auth | 카카오 OAuth2 로그인 + JWT 세션 | [상세](auth/README.md) |
 | group | 그룹 매칭 (MVP: 2인 커플 / 스키마: N:M 확장 가능) | [상세](group/README.md) |
 | chatbot | 카카오톡 Skill Webhook (6자리 연동 코드 TTL 10분) | [상세](chatbot/README.md) |
+| **chat** | **2026-06-10 신설**: 그룹 채팅방 + 릴스 공유·온디맨드 장소 등록 — 봇 티키타카(모아보기) 대체. GC-1(백엔드)/GC-2(iOS)/GC-3(정리+썸네일) 3 Phase, 설계 확정·구현 미착수 | [상세](chat/README.md) |
 | place | 외부 장소 API 연동 + 인스타 메타 파싱 | [상세](place/README.md) |
 | pin | 핀 CRUD + 중복 방지 (visited 제거, tag 도입) | [상세](pin/README.md) |
 | memo | 메모 (2초 룰, 수동 우선) | [상세](memo/README.md) |
@@ -61,6 +62,9 @@
 | ~~Phase 11~~ | ~~**우리 기록 (마이페이지)**: 커플 저장 핀 전체를 월별 타임라인으로 조회~~. **폐기**(2026-05-28) — 별도 마이페이지 타임라인 미진행. [폐기된 설계](map/phase-11-our-records.md) | ❌ 폐기 | — |
 | **Phase 12** | **Pin Experience v2**: 출처/상태 분리(REEL/WISH/MEMORY 의미 명확화), `pin_events.WANT` 누적 + 과반 자동 WISH 전환(인앱 알림), 마커 3단계(하늘/진보라 `#7B68EE`/노랑별 + 크기 1.0→1.1→1.2 + WISH 펄스). 챗봇 v2 재설계(토글 UX 불가 → 콤마 번호 입력, 31개+ BULK, 3분 고정 TTL). 오래된 REEL 핀 일괄 정리 배너(`/pins` 하단, DB snooze). V012 단일 마이그레이션. [상세](pin/phase-12-pin-experience-v2.md) | ✅ 완료 | [#76](https://github.com/rnqhstmd/wherewego/pull/76) |
 | **Phase 13** | **추억핀 사진 업로드**: MEMORY 핀 한정 사진 1장(선택). 신규 S3 버킷(공개+UUID 키, `immutable` 캐싱), 프론트 압축(canvas 1600px)→백엔드 검증+썸네일(256px WebP) 생성→원본/썸네일 2객체 저장. 말풍선 메모 우측 원형 썸네일→클릭 시 옆으로 원본 뷰어(blur-up). 방문 전환·신규 등록·수정 3곳 업로더 재사용. 멀티파트 `POST/DELETE .../photo` 엔드포인트, V013 nullable 컬럼 4개. 4명 규모 프리티어 무과금. [상세](pin/phase-13-memory-pin-photo.md) | ✅ 완료 | [#77](https://github.com/rnqhstmd/wherewego/pull/77) |
+| **GC-1** | **그룹 채팅 백엔드 기반**([chat](chat/README.md)): `chat_room` GROUP 일반화 + `REEL_LINK` kind + 멤버별 읽음(`chat_room_reads`, V021) + **registered 파생**(pins EXISTS 배치) + 온디맨드 추출 API(deadline 완화) + 방 목록 API + 푸시 일반화. 봇 흐름 무변경(병행 운영). FR 상세: [chat/status.md](chat/status.md) | ⬜ 대기 | |
+| **GC-2** | **그룹 채팅 iOS**([chat](chat/README.md)): DM탭→그룹 채팅 목록 + 멀티유저 채팅방 + REEL_LINK 버블·3상태 버튼 + 장소 등록 팝업(추출중→위시 체크→메모, `ReelSaveWizard` 확장) + `.reelFocus(groupId:)` 딥링크(그룹 전환) + ShareExtension 전환 + 수신 배선(APNs willPresent 재조회) | ⬜ 대기 | |
+| **GC-3** | **레거시 정리 + 썸네일**([chat](chat/README.md)): 봇 티키타카 제거(봇방 soft delete·deprecated `/chat/bot/*`·iOS Bot 화면 — 카카오 웹훅 무변경) + og:image→S3 릴스 썸네일(feature flag) | ⬜ 대기 | |
 
 도메인별 구현 상태는 각 `context/{도메인}/status.md` 참조.
 

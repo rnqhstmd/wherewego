@@ -26,6 +26,8 @@
 
 ## 후속 작업
 
+- **⚠️ 인앱 봇 채팅 → 그룹 채팅 전환 확정 (2026-06-10, [[chat]] 도메인 신설)**: 인앱 봇 방(BOT 룸·티키타카·PROCESSING/PLACE_CARDS 흐름)은 [chat](../chat/README.md) 도메인의 그룹 채팅방으로 대체된다(GC-1~GC-3, 설계 확정·구현 미착수). 릴스 추출은 전송 즉시가 아닌 발신자의 「장소 등록하기」 온디맨드로 변경, 추출 파이프라인(`BotChatProcessor.extractHits`)은 chat 의 추출 API 가 재사용. 봇 코드 제거는 GC-3. **카카오 웹훅 챗봇(본 도메인의 카카오 i 오픈빌더 흐름)은 무변경.**
+
 - **봇 채팅 STOMP→이벤트 전환 완료 (2026-06-04, iOS hotfix)**: iOS 인앱 봇 채팅의 실시간 수신을 WebSocket(STOMP) → 이벤트(전송 직후 폴링 2초·최대 10회 + APNs 푸시 + scenePhase 재조회)로 전환. [[notification]] 옵션B(SSE/WS→fetch 트리거, 운영 단순성 우선) 정책과 정합 — 봇 채팅은 "요청→@Async(SLA 4.5초)→결과 1건" 패턴이라 상시 소켓이 과잉이었음. STOMP 스택 제거(iOS Core/Realtime 4파일 + 백엔드 `WebSocketStompConfig`/`StompAuthChannelInterceptor`/`ChatStompPublisher`), `publishBot`/`publishCouple` 제거(`pushBotResult` APNs 유지), `spring-boot-starter-websocket` 의존 제거. "재연결중" 배너 지속 장애 근본 해소. 백엔드 compile 성공, iOS DoD-B(Mac) 잔여. [PR #94](https://github.com/rnqhstmd/wherewego/pull/94)
 
 - **Phase 12 완료 (2026-05-27)**: 챗봇 v2 재설계 — 카카오 i 오픈빌더 버튼 토글 UX 불가(클릭 = 즉시 발화 + 메시지 수정 불가)로 인해 v2 원안의 "버튼 토글 + 완료" 모델 폐기. **콤마 번호 직접 입력** 모델로 전환(1라운드 완결). `ReelSavedSelectionSession` 단일 record(SINGLE_WANT / MULTI_SELECTING / BULK_SAVE / MEMO_WAITING) + 3분 TTL Caffeine 캐시. 분기: 0개→IDLE, 1개→SINGLE_WANT(QR 가고싶어요/발견저장), 2~30개→MULTI_SELECTING(콤마 숫자 직접 입력 + "전부"/"건너뛰기" QR), 31개+→BULK_SAVE(메모만). 파싱 규칙: 콤마 split + trim + `^\d+$` + 1~N 범위 + LinkedHashSet dedup. 폐기: `PendingInstagramSession`, `TwoSecondMemoHandler`, `InstagramPendingMemoHandler`. 신규 MessageType: `REEL_PLACE_SELECTION`, `SINGLE_WANT_YES/NO`. SELECTION/MEMO 중 룰렛/공유 액션은 거부 + 세션 유지(D-7). 상세: [pin/phase-12-pin-experience-v2.md](../pin/phase-12-pin-experience-v2.md) §챗봇 v2 재설계 — [PR #76](https://github.com/rnqhstmd/wherewego/pull/76)
