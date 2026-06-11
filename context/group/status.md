@@ -60,6 +60,7 @@
 - **Phase 4 완료**: Pin REST API([#9](https://github.com/rnqhstmd/wherewego/pull/9), [#13](https://github.com/rnqhstmd/wherewego/pull/13))에 `requireActiveMembership` 통합 완료
 - **Phase 2.7 완료**: 동시성 통합 테스트 3종 (createGroup/acceptInviteLink/leaveGroup 각각 5스레드 race) — [#20](https://github.com/rnqhstmd/wherewego/pull/20)
 - **GM-1 완료**: 1인 다중 활성 그룹 (제약 해제·정원10·목록 API·다중 순회 탈퇴·토큰 동시성) — [#99](https://github.com/rnqhstmd/wherewego/pull/99)
+- **GP-1 완료**: 그룹 대표 이미지·프로필 사진 — [#123](https://github.com/rnqhstmd/wherewego/pull/123). V022(이미지 키 4컬럼)+`AvatarStorage`(S3+webp 썸네일)+업로드/삭제 API 4종(그룹=활성 멤버 누구나, 프사=본인). 그룹 목록에 `imageUrl`+`members[]` 프리뷰(IN 1회) 동봉, 채팅 프레임 `senderProfileImageUrl` 추가. **정원 10→8 축소**(기존 초과 그룹은 신규 가입만 차단)·**카카오 재로그인 프로필 동기화 중단**(FR-7). iOS: AvatarView/GroupAvatarView(이니셜·콜라주 폴백)+원형 크롭+6화면 배선. 잔여: Mac 시각 QA(DoD-B)
 - **별도 작업(미착수)**: 초대 링크 → **초대 코드 시스템** 전환 (1코드 N명 재사용, 앱 코드 입력 + 랜딩 페이지). `accepted_at` 재설계 + iOS + 웹
 - **장기**: 재가입 허용 정책 검토 (uq_group_members_pair 변경 필요, 별도 PRD)
 
