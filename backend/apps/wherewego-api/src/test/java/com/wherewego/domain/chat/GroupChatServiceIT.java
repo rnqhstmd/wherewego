@@ -156,6 +156,26 @@ class GroupChatServiceIT {
         assertThat(frame.registered()).isNull();
     }
 
+    @DisplayName("GP-1 FR-6: 프레임에 발신자 유효 프사 URL 이 합성된다 — 프사 없는 발신자는 null, 발신자 NULL(탈퇴)도 null(BR-6).")
+    @Test
+    void postMessage_frameCarriesSenderProfileImageUrl() {
+        Long groupId = createSharedGroup();
+        Long messageId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "안녕", null).getId();
+
+        // userA 는 프사 키/카카오 URL 모두 없음(create(..., null)) → senderProfileImageUrl null, 닉네임은 존재.
+        GroupChatMessageFrame frame = frameOf(groupId, messageId);
+        assertThat(frame.senderUserId()).isEqualTo(userA);
+        assertThat(frame.senderNickname()).isEqualTo("userA");
+        assertThat(frame.senderProfileImageUrl()).isNull();
+
+        // 발신자 탈퇴(sender_user_id NULL) → 닉네임/프사 모두 null(클라 "(알 수 없음)" 이니셜).
+        jdbcTemplate.update("UPDATE chat_message SET sender_user_id = NULL WHERE id = ?", messageId);
+        GroupChatMessageFrame anon = frameOf(groupId, messageId);
+        assertThat(anon.senderUserId()).isNull();
+        assertThat(anon.senderNickname()).isNull();
+        assertThat(anon.senderProfileImageUrl()).isNull();
+    }
+
     @DisplayName("postMessage/getMessages - 비멤버는 GROUP_NOT_MEMBER(403).")
     @Test
     void nonMember_forbidden() {
@@ -414,6 +434,14 @@ class GroupChatServiceIT {
                 .map(GroupChatMessageFrame::thumbnailUrl)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /** 특정 메시지 id 프레임(없으면 예외). userA 조회 기준. */
+    private GroupChatMessageFrame frameOf(Long groupId, Long messageId) {
+        return groupChatService.getMessages(userA, groupId, null, 20).frames().stream()
+                .filter(f -> f.messageId().equals(messageId))
+                .findFirst()
+                .orElseThrow();
     }
 
     private boolean unreadOf(Long userId, Long groupId) {

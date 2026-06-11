@@ -23,6 +23,17 @@ public class Group extends BaseEntity {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    /**
+     * GP-1: 그룹 대표 이미지 원본 S3 객체 키 (V022). NULL = 이미지 없음.
+     * 공개 URL 은 서비스에서 S3Properties 와 조합한다(PinService.toPublicUrl 동일 규칙).
+     */
+    @Column(name = "image_key")
+    private String imageKey;
+
+    /** GP-1: 그룹 대표 이미지 썸네일 S3 객체 키 (V022). 원본과 uuid 공유. */
+    @Column(name = "image_thumb_key")
+    private String imageThumbKey;
+
     private Group(String name) {
         this.name = name;
     }
@@ -36,6 +47,22 @@ public class Group extends BaseEntity {
      */
     public void rename(String name) {
         this.name = name;
+    }
+
+    /**
+     * GP-1: 그룹 대표 이미지 키 갱신(업로드/교체). 검증/S3 저장은 서비스가 마친 정상 키를 받는다.
+     */
+    public void updateImage(String key, String thumbKey) {
+        this.imageKey = key;
+        this.imageThumbKey = thumbKey;
+    }
+
+    /**
+     * GP-1: 그룹 대표 이미지 제거 — 두 키를 모두 null 로 비운다(= "이미지 없음" 상태).
+     */
+    public void clearImage() {
+        this.imageKey = null;
+        this.imageThumbKey = null;
     }
 
     /**

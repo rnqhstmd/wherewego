@@ -471,6 +471,15 @@ struct MapView: View {
         return group.name
     }
 
+    /// 현재 진입한 그룹 대표 이미지 URL(groupContext 조인, GP-1 FR-2). 그룹관리 시트 초기값. 미지정/미매칭 → nil(콜라주).
+    private var currentGroupImageUrl: String? {
+        guard let id = groupContext.currentGroupId,
+              let group = groupContext.groups.first(where: { $0.groupId == id }) else {
+            return nil
+        }
+        return group.imageUrl
+    }
+
     // MARK: - 그룹 전환 시트(IA 재설계 §5)
 
     /// 내 그룹 목록 — 선택 시 switchGroup(지도 재로드) 후 시트 닫기. 현재 그룹은 체크 표시.
@@ -511,12 +520,17 @@ struct MapView: View {
                 currentUser: currentUser,
                 groupId: groupId,
                 groupName: currentGroupName,
+                imageUrl: currentGroupImageUrl,   // GP-1 FR-2: 그룹관리 진입 시 현재 대표 이미지(콜라주 폴백).
                 onRenamed: {
                     Task { await groupContext.refresh() }
                 },
                 onExit: {
                     showGroupManage = false
                     Task { await groupContext.exitGroup(groupId) }
+                },
+                onImageChanged: {
+                    // 이미지 변경/제거 → 목록 썸네일 갱신(groups[*].imageUrl·members 최신화).
+                    Task { await groupContext.refresh() }
                 }
             )
         }

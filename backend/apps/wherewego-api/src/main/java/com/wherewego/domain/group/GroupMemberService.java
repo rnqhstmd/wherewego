@@ -1,9 +1,12 @@
 package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
+import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chat.ChatRoom;
 import com.wherewego.domain.chat.ChatRoomRepository;
+import com.wherewego.domain.image.AvatarStorage;
+import com.wherewego.domain.image.AvatarStorage.StoredAvatar;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -14,7 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,7 +28,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GroupMemberService {
 
-    private static final int MAX_GROUP_MEMBERS = 10;
+    // GP-1 FR-8: 그룹 정원 8. >= 검사라 기존 9~10명 그룹은 신규 가입만 자동 차단(강제 퇴장 없음).
+    private static final int MAX_GROUP_MEMBERS = 8;
     private static final int SLUG_GENERATION_MAX_RETRIES = 5;
 
     private final GroupMemberRepository groupMemberRepository;
@@ -33,6 +40,8 @@ public class GroupMemberService {
     private final UserRepository userRepository;
     private final InviteProperties inviteProperties;
     private final ChatRoomRepository chatRoomRepository;
+    private final S3Properties s3Properties;
+    private final AvatarStorage avatarStorage;
 
     /**
      * 사용자의 최근 활성 그룹 ID 를 반환한다. 활성 그룹이 없으면 {@link Optional#empty()}.
@@ -170,14 +179,14 @@ public class GroupMemberService {
         }
         // IC-1(Option A): 정원 도달 후처리(expirePendingByGroupId)를 호출하지 않는다.
         //   정원 도달은 만료가 아니라 가입 차단이며, 코드는 TTL 까지 유지되어 by-slug 가
-        //   count>=10 으로 GROUP_CAPACITY_EXCEEDED 를 구분 응답할 수 있게 한다(D4).
+        //   count>=MAX_GROUP_MEMBERS 로 GROUP_CAPACITY_EXCEEDED 를 구분 응답할 수 있게 한다(D4).
         return new InviteAcceptResult(group.getId(), now);
     }
 
     /**
      * slug 로 초대 링크 미리보기. 공개 GET by-slug API 의 진입점.
      * 만료/존재하지 않음/그룹 삭제됨 모두 INVITE_LINK_NOT_FOUND 로 통일한다 (정보 노출 방지).
-     * <p>IC-1(D4): 코드가 유효(TTL 미만료)하되 그룹 정원(10) 도달이면 NOT_FOUND 가 아니라
+     * <p>IC-1(D4): 코드가 유효(TTL 미만료)하되 그룹 정원(8) 도달이면 NOT_FOUND 가 아니라
      * GROUP_CAPACITY_EXCEEDED 로 구분 응답한다 — IC-3 웹 랜딩의 "정원 가득" vs "만료" 안내용.</p>
      */
     @Transactional(readOnly = true)
@@ -265,10 +274,87 @@ public class GroupMemberService {
 
     /**
      * 사용자의 활성 그룹 목록 (GM-1, FR-4/FR-5). 가입 순(joined_at ASC) 정렬, 없으면 빈 리스트.
+     * <p>GP-1: 리포지토리 projection 은 그룹 대표 이미지의 S3 <b>키</b>를 담아 오므로, 여기서 공개 URL 로
+     * 치환한다(PinService.toPublicUrl 와 동일한 "서비스가 변환" 패턴).</p>
      */
     @Transactional(readOnly = true)
     public List<GroupSummary> listMyGroups(Long userId) {
-        return groupMemberRepository.listActiveGroupSummariesByUserId(userId);
+        List<GroupSummary> rows = groupMemberRepository.listActiveGroupSummariesByUserId(userId);
+        List<GroupSummary> result = new ArrayList<>(rows.size());
+        for (GroupSummary row : rows) {
+            result.add(new GroupSummary(
+                    row.groupId(),
+                    row.name(),
+                    row.createdAt(),
+                    row.memberCount(),
+                    toPublicUrl(row.imageUrl()),
+                    toPublicUrl(row.imageThumbUrl())));
+        }
+        return result;
+    }
+
+    /**
+     * 내 그룹 목록 + 멤버 프리뷰 조립 (GP-1 FR-4, 컨트롤러용). 그룹 목록(이미지 URL 포함)을 가져온 뒤,
+     * 해당 그룹들의 활성 멤버 아바타를 IN 쿼리 1회로 묶어({@link #previewMembersByGroupIds}) 그룹별로 합친다.
+     * <p>채팅 방 목록({@code GroupChatService.getRooms})은 멤버 프리뷰가 불필요하므로 기존 {@link #listMyGroups}
+     * (그룹 요약만)를 그대로 소비한다 — 채팅 응답 무변경(설계 §1.5). 멤버가 없는 그룹(이론상)은 빈 리스트로 둔다.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<GroupListItem> listMyGroupsWithMembers(Long userId) {
+        List<GroupSummary> summaries = listMyGroups(userId);
+        if (summaries.isEmpty()) {
+            return List.of();
+        }
+        List<Long> groupIds = summaries.stream().map(GroupSummary::groupId).toList();
+        Map<Long, List<GroupMemberPreview>> membersByGroup = previewMembersByGroupIds(groupIds);
+        List<GroupListItem> result = new ArrayList<>(summaries.size());
+        for (GroupSummary summary : summaries) {
+            result.add(new GroupListItem(
+                    summary,
+                    membersByGroup.getOrDefault(summary.groupId(), List.of())));
+        }
+        return result;
+    }
+
+    /**
+     * 여러 그룹의 멤버 프리뷰(가입순 아바타)를 IN 쿼리 1회로 조회해 그룹별로 그룹핑한다 (GP-1).
+     * <p>각 멤버의 {@code profileImageUrl} 은 유효 프사 URL 규칙(프사 썸네일 키 → 카카오 URL 폴백 → null)을
+     * 적용한 값이다. 반환 맵의 순서/리스트 순서 모두 가입순(joined_at ASC, id ASC)을 보존한다.
+     * 활성 그룹별로 항상 엔트리를 두기 위해 빈 입력이 아닌 한 멤버가 없는 그룹은 호출자가 빈 리스트로 처리한다.</p>
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, List<GroupMemberPreview>> previewMembersByGroupIds(java.util.Collection<Long> groupIds) {
+        List<GroupMemberAvatarRow> rows = groupMemberRepository.listActiveMembersByGroupIds(groupIds);
+        Map<Long, List<GroupMemberPreview>> grouped = new LinkedHashMap<>();
+        for (GroupMemberAvatarRow row : rows) {
+            grouped.computeIfAbsent(row.groupId(), k -> new ArrayList<>())
+                    .add(new GroupMemberPreview(
+                            row.userId(),
+                            row.nickname(),
+                            effectiveProfileImageUrl(row.profileImageThumbKey(), row.profileImageUrl())));
+        }
+        return grouped;
+    }
+
+    /**
+     * 유효 프사 URL 규칙(GP-1): 프사 썸네일 키가 있으면 그 공개 URL, 없으면 카카오 profileImageUrl 폴백,
+     * 둘 다 없으면 null. UserRepository.findProfilesByIds 의 규칙과 동일하다.
+     */
+    private String effectiveProfileImageUrl(String thumbKey, String kakaoUrl) {
+        if (thumbKey != null && !thumbKey.isBlank()) {
+            return toPublicUrl(thumbKey);
+        }
+        return kakaoUrl;
+    }
+
+    /**
+     * S3 객체 키 → 공개 URL 조합 (PinService.toPublicUrl 동일). 키가 없으면 null.
+     * publicBaseUrl 끝 슬래시를 제거해 "//" 이중 슬래시 broken URL 을 방지한다.
+     */
+    private String toPublicUrl(String key) {
+        if (key == null) return null;
+        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        return base + "/" + key;
     }
 
     /**
@@ -283,9 +369,70 @@ public class GroupMemberService {
         List<GroupMemberResult> results = new java.util.ArrayList<>(members.size());
         for (int i = 0; i < members.size(); i++) {
             GroupMemberInfo m = members.get(i);
-            results.add(new GroupMemberResult(m.userId(), m.nickname(), m.joinedAt(), i == 0));
+            // GP-1 FR-9: 유효 프사 URL(thumb 키 우선 → 카카오 URL 폴백 → null)을 응답에 합성한다.
+            results.add(new GroupMemberResult(
+                    m.userId(),
+                    m.nickname(),
+                    m.joinedAt(),
+                    i == 0,
+                    effectiveProfileImageUrl(m.profileImageThumbKey(), m.profileImageUrl())));
         }
         return results;
+    }
+
+    /**
+     * 그룹 대표 이미지 업로드/교체 (GP-1 FR-1/FR-2/BR-2). 권한은 활성 멤버(그룹명 수정과 동일 경로),
+     * findByIdForUpdate 로 락을 잡아 삭제/탈퇴/이름수정과 직렬화한다.
+     * <p>검증된 원본 bytes → S3 저장({@code groups/{groupId}/avatar}) → 이전 키 백업 → {@code updateImage} →
+     * 이전 키가 있었으면 best-effort 회수(교체 시 고아 방지) → 갱신 URL 반환. imageBytes/contentType 은
+     * 컨트롤러({@code ImageUploadGuard})가 타입/크기/매직을 검증한 값이며, 픽셀 상한은 어댑터가 검증한다.</p>
+     */
+    @Transactional
+    public GroupImageResult updateGroupImage(Long userId, Long groupId, byte[] imageBytes, String contentType) {
+        Group group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.GROUP_NOT_MEMBER));
+        if (group.getDeletedAt() != null) {
+            throw new CoreException(ErrorType.GROUP_NOT_MEMBER);
+        }
+        requireActiveMembership(userId, groupId);
+
+        String oldImageKey = group.getImageKey();
+        String oldThumbKey = group.getImageThumbKey();
+        boolean hadImage = oldImageKey != null;
+
+        StoredAvatar stored = avatarStorage.store("groups/" + groupId + "/avatar", imageBytes, contentType);
+        group.updateImage(stored.imageKey(), stored.thumbKey());
+        groupRepository.save(group);
+
+        if (hadImage) {
+            // 교체: 기존 객체 best-effort 회수(실패해도 새 이미지는 유효, BR-3).
+            avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+        }
+        return new GroupImageResult(toPublicUrl(stored.imageKey()), toPublicUrl(stored.thumbKey()));
+    }
+
+    /**
+     * 그룹 대표 이미지 제거 (GP-1 FR-2/Q4). 권한은 활성 멤버(그룹명 수정과 동일). 키를 비운 뒤 S3 2객체를
+     * best-effort 삭제한다. 이미지가 없던 그룹은 멱등 성공(S3 호출 불필요). 응답은 두 URL 모두 null.
+     */
+    @Transactional
+    public GroupImageResult clearGroupImage(Long userId, Long groupId) {
+        Group group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.GROUP_NOT_MEMBER));
+        if (group.getDeletedAt() != null) {
+            throw new CoreException(ErrorType.GROUP_NOT_MEMBER);
+        }
+        requireActiveMembership(userId, groupId);
+
+        String oldImageKey = group.getImageKey();
+        if (oldImageKey == null) {
+            return new GroupImageResult(null, null); // 이미지 없는 그룹: 멱등 성공.
+        }
+        String oldThumbKey = group.getImageThumbKey();
+        group.clearImage();
+        groupRepository.save(group);
+        avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+        return new GroupImageResult(null, null);
     }
 
     /**
@@ -348,11 +495,21 @@ public class GroupMemberService {
 
     /**
      * 그룹원 목록 항목 결과 (GM-2). 정렬된 첫 항목만 {@code isOwner=true}.
+     * <p>GP-1 FR-9: {@code profileImageUrl} 은 유효 프사 URL(thumb 키 우선 → 카카오 URL 폴백 → null)이다.</p>
      */
     public record GroupMemberResult(
             Long userId,
             String nickname,
             Instant joinedAt,
-            boolean isOwner
+            boolean isOwner,
+            String profileImageUrl
+    ) {}
+
+    /**
+     * 그룹 대표 이미지 업로드/제거 결과 (GP-1). 두 URL 은 공개 URL(키→toPublicUrl)이며, 제거 시 모두 null.
+     */
+    public record GroupImageResult(
+            String imageUrl,
+            String imageThumbUrl
     ) {}
 }

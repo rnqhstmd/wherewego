@@ -81,7 +81,11 @@ struct OnboardingRouter: View {
                             onCancel: { path.removeLast() }
                         )
                     case .groupCreate:
-                        GroupCreateView()
+                        GroupCreateView(
+                            groupAPI: dependencies.groupAPI,
+                            // 온보딩: 그룹 생성 성공 → 위저드(초대 스텝)로 진행(.inviteCode onJoined 패턴 동치, groupId 무시).
+                            onCreated: { _ in afterGroupResolved() }
+                        )
                     }
                 }
         }

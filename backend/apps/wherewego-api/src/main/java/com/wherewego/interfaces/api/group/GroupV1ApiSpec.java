@@ -4,6 +4,7 @@ import com.wherewego.interfaces.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -85,6 +86,8 @@ public interface GroupV1ApiSpec {
     @Operation(
             summary = "내 그룹 목록 조회",
             description = "현재 로그인 사용자의 활성 그룹 목록을 가입 순으로 반환합니다 (GM-1). " +
+                    "GP-1(FR-4): 각 그룹에 대표 이미지 공개 URL(imageUrl/imageThumbUrl, 미지정 시 null)과 " +
+                    "활성 멤버 프리뷰(members[{userId, nickname, profileImageUrl}], 가입순 아바타)를 함께 내려줍니다. " +
                     "활성 그룹이 없으면 data 는 빈 배열입니다."
     )
     ApiResponse<List<GroupV1Dto.GroupSummaryResponse>> listMyGroups(
@@ -94,7 +97,8 @@ public interface GroupV1ApiSpec {
     @Operation(
             summary = "그룹원 목록 조회",
             description = "활성 멤버가 그룹의 멤버 목록을 가입 순으로 조회합니다 (GM-2). " +
-                    "방장(joined_at 최소)은 isOwner=true 로 표시됩니다. 비멤버는 GROUP_NOT_MEMBER 로 거부됩니다."
+                    "방장(joined_at 최소)은 isOwner=true 로 표시됩니다. 비멤버는 GROUP_NOT_MEMBER 로 거부됩니다. " +
+                    "GP-1(FR-9): 각 멤버에 유효 프사 URL(profileImageUrl, 없으면 null)이 포함됩니다."
     )
     ApiResponse<List<GroupV1Dto.MemberResponse>> listMembers(
             @Parameter(hidden = true) Long userId,
@@ -119,6 +123,28 @@ public interface GroupV1ApiSpec {
                     "비방장은 GROUP_OWNER_REQUIRED 로 거부됩니다."
     )
     ApiResponse<Object> deleteGroup(
+            @Parameter(hidden = true) Long userId,
+            Long groupId
+    );
+
+    @Operation(
+            summary = "그룹 대표 이미지 업로드/교체",
+            description = "활성 멤버(그룹명 수정과 동일 권한, 방장 제한 없음)가 멀티파트 file 로 그룹 대표 이미지를 올립니다 (GP-1 FR-1/FR-2). " +
+                    "JPEG/PNG/WebP·2MB 이하만 허용하며(IMAGE_TYPE_INVALID/IMAGE_SIZE_EXCEEDED/IMAGE_FILE_REQUIRED), " +
+                    "교체 시 이전 객체는 best-effort 회수됩니다. 응답은 imageUrl/imageThumbUrl 공개 URL. 비멤버는 GROUP_NOT_MEMBER."
+    )
+    ApiResponse<GroupV1Dto.GroupImageResponse> uploadGroupImage(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            MultipartFile file
+    );
+
+    @Operation(
+            summary = "그룹 대표 이미지 제거",
+            description = "활성 멤버가 그룹 대표 이미지를 제거합니다 (GP-1 FR-2). 키를 비우고 S3 객체를 best-effort 삭제하며, " +
+                    "응답의 imageUrl/imageThumbUrl 은 모두 null 입니다(클라는 멤버 프사 콜라주로 복귀). 비멤버는 GROUP_NOT_MEMBER."
+    )
+    ApiResponse<GroupV1Dto.GroupImageResponse> deleteGroupImage(
             @Parameter(hidden = true) Long userId,
             Long groupId
     );

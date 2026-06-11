@@ -224,17 +224,10 @@ struct GroupMessageRow: View {
 
     // MARK: - 아바타(인스타 DM식)
 
-    /// 타인 메시지 좌측 아바타 — 닉네임 첫 글자 틴트 원(버블 하단 정렬). 프로필 이미지 도입 시 AsyncImage 교체 지점.
+    /// 타인 메시지 좌측 아바타 — 발신자 프사(GP-1 FR-6) 원형, 없으면 닉네임 이니셜 틴트 원 폴백(AvatarView 일반화).
+    /// 발신자 NULL(탈퇴) 이면 senderName="(알 수 없음)" → "(" 이니셜. 32pt 는 기존 자리 크기 유지(레이아웃 무변경).
     private var senderAvatar: some View {
-        Circle()
-            .fill(WGColor.cta.opacity(0.15))
-            .frame(width: 32, height: 32)
-            .overlay(
-                Text(String(senderName.prefix(1)))
-                    .font(WGFont.sans(13))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(WGColor.cta)
-            )
+        AvatarView(imageUrl: frame.senderProfileImageUrl, name: senderName, size: 32)
     }
 
     // MARK: - 시각 라벨(카톡식)

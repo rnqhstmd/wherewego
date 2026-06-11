@@ -2,6 +2,9 @@ package com.wherewego.interfaces.api.group;
 
 import com.wherewego.domain.group.ActiveGroupInfo;
 import com.wherewego.domain.group.GroupCreatedResult;
+import com.wherewego.domain.group.GroupListItem;
+import com.wherewego.domain.group.GroupMemberPreview;
+import com.wherewego.domain.group.GroupMemberService.GroupImageResult;
 import com.wherewego.domain.group.GroupMemberService.GroupMemberResult;
 import com.wherewego.domain.group.GroupSummary;
 import com.wherewego.domain.group.InviteAcceptResult;
@@ -10,6 +13,7 @@ import com.wherewego.domain.group.InviteLinkPreviewResult;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 public class GroupV1Dto {
 
@@ -88,38 +92,82 @@ public class GroupV1Dto {
         }
     }
 
+    /**
+     * 내 그룹 목록 항목 (GM-1 + GP-1 FR-4).
+     * <p>{@code imageUrl}/{@code imageThumbUrl} 은 그룹 대표 이미지 공개 URL(미지정 시 null — 클라가 콜라주 렌더).
+     * {@code members} 는 활성 멤버 프리뷰(가입순 아바타 일렬). 채팅 방 목록 응답은 별도이며 무변경이다.</p>
+     */
     public record GroupSummaryResponse(
             Long groupId,
             String name,
             ZonedDateTime createdAt,
-            long memberCount
+            long memberCount,
+            String imageUrl,
+            String imageThumbUrl,
+            List<MemberPreviewResponse> members
     ) {
-        public static GroupSummaryResponse from(GroupSummary summary) {
+        public static GroupSummaryResponse from(GroupListItem item) {
+            GroupSummary summary = item.summary();
             return new GroupSummaryResponse(
                     summary.groupId(),
                     summary.name(),
                     summary.createdAt(),
-                    summary.memberCount()
+                    summary.memberCount(),
+                    summary.imageUrl(),
+                    summary.imageThumbUrl(),
+                    item.members().stream().map(MemberPreviewResponse::from).toList()
+            );
+        }
+    }
+
+    /**
+     * 그룹 목록 멤버 프리뷰 항목 (GP-1 FR-4). {@code profileImageUrl} 은 유효 프사 URL(없으면 null → 클라 이니셜).
+     */
+    public record MemberPreviewResponse(
+            Long userId,
+            String nickname,
+            String profileImageUrl
+    ) {
+        public static MemberPreviewResponse from(GroupMemberPreview preview) {
+            return new MemberPreviewResponse(
+                    preview.userId(),
+                    preview.nickname(),
+                    preview.profileImageUrl()
             );
         }
     }
 
     /**
      * 그룹원 목록 항목 (GM-2 그룹관리). {@code isOwner} 는 방장(joined_at 최소) 여부.
+     * <p>GP-1 FR-9: {@code profileImageUrl} 은 유효 프사 URL(없으면 null → 클라 이니셜 폴백).</p>
      */
     public record MemberResponse(
             Long userId,
             String nickname,
             Instant joinedAt,
-            boolean isOwner
+            boolean isOwner,
+            String profileImageUrl
     ) {
         public static MemberResponse from(GroupMemberResult result) {
             return new MemberResponse(
                     result.userId(),
                     result.nickname(),
                     result.joinedAt(),
-                    result.isOwner()
+                    result.isOwner(),
+                    result.profileImageUrl()
             );
+        }
+    }
+
+    /**
+     * 그룹 대표 이미지 업로드/제거 응답 (GP-1 FR-1/FR-2). 제거 시 두 필드 모두 null.
+     */
+    public record GroupImageResponse(
+            String imageUrl,
+            String imageThumbUrl
+    ) {
+        public static GroupImageResponse from(GroupImageResult result) {
+            return new GroupImageResponse(result.imageUrl(), result.imageThumbUrl());
         }
     }
 

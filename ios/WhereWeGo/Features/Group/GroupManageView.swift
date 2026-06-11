@@ -11,8 +11,10 @@ struct GroupManageHost: View {
         currentUser: CurrentUser,
         groupId: Int,
         groupName: String,
+        imageUrl: String? = nil,
         onRenamed: @escaping () -> Void,
-        onExit: @escaping () -> Void
+        onExit: @escaping () -> Void,
+        onImageChanged: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(
             wrappedValue: GroupManageViewModel(
@@ -20,8 +22,10 @@ struct GroupManageHost: View {
                 currentUser: currentUser,
                 groupId: groupId,
                 groupName: groupName,
+                imageUrl: imageUrl,
                 onRenamed: onRenamed,
-                onExit: onExit
+                onExit: onExit,
+                onImageChanged: onImageChanged
             )
         )
     }
@@ -40,6 +44,12 @@ struct GroupManageView: View {
 
     @State private var showLeaveConfirm = false
     @State private var showDeleteConfirm = false
+    /// 그룹 이미지 액션시트(변경 / 제거) 트리거(GP-1 FR-2).
+    @State private var showImageOptions = false
+    /// 사진 피커 시트 트리거.
+    @State private var showPhotoPicker = false
+    /// 피커에서 고른 원본(크롭 fullScreenCover 트리거).
+    @State private var pickedImage: PickedManageImage?
     /// 그룹명 TextField 포커스(저장 후 키보드 내림).
     @FocusState private var nameFieldFocused: Bool
 
@@ -53,6 +63,7 @@ struct GroupManageView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    imageSection
                     nameSection
                     membersSection
                     inviteSection
@@ -95,6 +106,98 @@ struct GroupManageView: View {
         } message: {
             Text("그룹의 모든 핀과 정보가 사라지고 되돌릴 수 없어요.")
         }
+        // 그룹 이미지 액션시트(GP-1 FR-2): 변경 / (이미지 있으면) 제거.
+        .confirmationDialog(
+            "그룹 대표 이미지",
+            isPresented: $showImageOptions,
+            titleVisibility: .visible
+        ) {
+            Button("이미지 변경") { showPhotoPicker = true }
+            if viewModel.imageUrl != nil {
+                Button("이미지 제거", role: .destructive) {
+                    Task { await viewModel.removeImage() }
+                }
+            }
+            Button("취소", role: .cancel) {}
+        }
+        // 사진 피커 → 원형 크롭(PinDetailContent 선례). 크롭 완료 시 업로드.
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPickerView(
+                onPicked: { pickedImage = PickedManageImage(image: $0) },
+                onDismiss: { showPhotoPicker = false }
+            )
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(item: $pickedImage) { picked in
+            SquareCropView(
+                image: picked.image,
+                maskShape: .circle,   // 프사·그룹 이미지는 원형 가이드(BR-1, 결과물은 1:1 정사각).
+                onCropped: { cropped in
+                    pickedImage = nil
+                    Task { await viewModel.uploadImage(cropped) }
+                },
+                onCancel: { pickedImage = nil }
+            )
+        }
+    }
+
+    // MARK: - 0) 그룹 대표 이미지(GP-1 FR-2, 활성 멤버 누구나 — isOwner 게이트 없음)
+
+    private var imageSection: some View {
+        section(label: "대표 이미지") {
+            VStack(spacing: 14) {
+                // GroupAvatarView 80pt(대표 이미지/멤버 콜라주). 업로드 중엔 로딩 오버레이.
+                GroupAvatarView(
+                    imageUrl: viewModel.imageUrl,
+                    members: viewModel.memberPreviews,
+                    size: 80
+                )
+                .overlay {
+                    if viewModel.isUploadingImage {
+                        Circle().fill(.black.opacity(0.35))
+                            .overlay(ProgressView().tint(.white))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                HStack(spacing: 10) {
+                    // 변경 — 멤버 누구나(권한은 백엔드). 제거 — 이미지 있을 때만 노출.
+                    imageActionChip(label: "변경", icon: "camera.fill") {
+                        showPhotoPicker = true
+                    }
+                    if viewModel.imageUrl != nil {
+                        imageActionChip(label: "제거", icon: "trash", danger: true) {
+                            Task { await viewModel.removeImage() }
+                        }
+                    }
+                }
+                .disabled(viewModel.isUploadingImage)
+                .opacity(viewModel.isUploadingImage ? 0.5 : 1)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// 이미지 변경/제거 칩 — 그룹 추가행 칩 톤(아이콘+라벨, hairline 테두리).
+    private func imageActionChip(
+        label: String,
+        icon: String,
+        danger: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(label)
+                    .font(WGFont.sans(13))
+            }
+            .foregroundStyle(danger ? WGColor.cta : WGColor.ctaSub)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.hairline, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 1) 그룹 이름(모든 멤버 수정 가능)
@@ -161,14 +264,8 @@ struct GroupManageView: View {
 
     private func memberRow(_ member: GroupMemberItem) -> some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(WGColor.bg)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(WGColor.inkSoft)
-                )
+            // 멤버 프사(GP-1 FR-9) — 없으면 닉네임 이니셜 폴백(AvatarView). 36pt 자리 유지.
+            AvatarView(imageUrl: member.profileImageUrl, name: member.nickname, size: 36)
             Text(member.nickname)
                 .font(WGFont.sans(15))
                 .foregroundStyle(WGColor.ink)
@@ -333,4 +430,10 @@ struct GroupManageView: View {
         .disabled(disabled)
         .opacity(disabled ? 0.5 : 1)
     }
+}
+
+/// .fullScreenCover(item:) 용 Identifiable 래퍼(UIImage 자체는 Identifiable 아님). PinDetailContent.PickedImage 동치.
+private struct PickedManageImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }

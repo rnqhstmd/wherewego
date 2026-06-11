@@ -25,4 +25,18 @@ public interface UserRepository {
      * 핀 목록 응답에 작성자 닉네임을 N+1 없이 매핑하기 위함.
      */
     Map<Long, String> findNicknamesByIds(Collection<Long> ids);
+
+    /**
+     * 주어진 user id 집합에 대한 프로필(닉네임 + 유효 프사 URL) 맵을 조회한다 (GP-1).
+     * <p>채팅 메시지 프레임의 발신자 프사 등에 N+1 없이 배치 매핑하기 위함.
+     * {@link UserProfile#profileImageUrl()} 은 유효 프사 URL 규칙(프사 썸네일 키 → 카카오 URL 폴백 → null)을
+     * 적용한 값이며, 규칙/URL 조합은 어댑터가 수행한다(S3Properties 의존).</p>
+     */
+    Map<Long, UserProfile> findProfilesByIds(Collection<Long> ids);
+
+    /**
+     * 배치 프로필 조회 결과 (GP-1). {@code profileImageUrl} 은 유효 프사 URL(키 우선→카카오 폴백→null).
+     */
+    record UserProfile(String nickname, String profileImageUrl) {
+    }
 }

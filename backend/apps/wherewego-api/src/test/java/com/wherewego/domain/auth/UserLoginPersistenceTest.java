@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,19 +77,22 @@ class UserLoginPersistenceTest {
             assertThat(result.nickname()).isEqualTo("닉네임");
         }
 
-        @DisplayName("기존 활성 사용자면, 프로필을 갱신하고 토큰을 발급한다.")
+        @DisplayName("GP-1 FR-7: 기존 활성 사용자면, 프로필을 갱신하지 않고(재로그인 동기화 중단) 기존 값을 보존한 채 토큰만 발급한다.")
         @Test
-        void existingActiveUser_updatesProfileAndIssuesTokens() {
+        void existingActiveUser_doesNotUpdateProfileAndIssuesTokens() {
             // arrange
             UserModel existing = spy(UserModel.create(12345L, "OldName", "old.png"));
             when(userRepository.findByKakaoUserIdAndDeletedAtIsNull(12345L)).thenReturn(Optional.of(existing));
             when(userRepository.save(any())).thenReturn(existing);
 
-            // act
+            // act : 카카오가 새 닉/프사를 보내와도 동기화하지 않는다(사용자 지정 프로필 보존).
             persistence.upsertAndIssueTokens(12345L, "NewName", "new.png");
 
-            // assert
-            verify(existing).updateProfile("NewName", "new.png");
+            // assert : updateProfile 미호출 + 기존 닉/프사 보존, 토큰만 발급(refresh hash replace).
+            verify(existing, never()).updateProfile(anyString(), anyString());
+            assertThat(existing.getNickname()).isEqualTo("OldName");
+            assertThat(existing.getProfileImageUrl()).isEqualTo("old.png");
+            verify(existing).replaceRefreshTokenHash(anyString());
         }
 
         @DisplayName("활성 조회가 (조회-삭제 race 로) 비활성 행을 반환하면, 방어적 가드가 AUTH_USER_DEACTIVATED 예외를 던진다.")

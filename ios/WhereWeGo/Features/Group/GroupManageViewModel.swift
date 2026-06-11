@@ -1,4 +1,5 @@
 import Foundation
+import UIKit   // GP-1 FR-2: 그룹 이미지 업로드 입력(UIImage) + ImageCropper.resizeAndCompress 전처리.
 
 // 그룹 관리 ViewModel(D단계, IA 재설계 §3.4). MapView 상단 ⋯ → 그룹관리 시트의 상태/액션 소유.
 // 그룹원 목록 조회 · 그룹명 수정(모든 멤버) · 그룹 탈퇴(모든 멤버) · 그룹 삭제(방장만)를 주입 의존(groupAPI)에 위임한다.
@@ -28,10 +29,21 @@ final class GroupManageViewModel: ObservableObject {
     /// 이름수정/삭제/탈퇴 진행 중. 중복 호출 가드 + 버튼 비활성에 사용.
     @Published private(set) var isBusy = false
     @Published var errorMessage: String?
+    /// 그룹 대표 이미지 현재 URL(GP-1 FR-2). 초기값은 주입(GroupContext 조인). 업로드/제거 응답으로 갱신. nil = 콜라주 폴백.
+    @Published private(set) var imageUrl: String?
+    /// 그룹 이미지 업로드/제거 진행 중(중복 가드 + 아바타 로딩 오버레이). isBusy(이름/삭제/탈퇴)와 분리.
+    @Published private(set) var isUploadingImage = false
+
+    /// 콜라주 입력(GroupAvatarView) — 멤버 목록을 가입순 프리뷰로 매핑. listMembers 응답이 가입순(첫=방장)이라 정렬 보존.
+    var memberPreviews: [GroupMemberPreview] {
+        members.map { GroupMemberPreview(userId: $0.userId, nickname: $0.nickname, profileImageUrl: $0.profileImageUrl) }
+    }
 
     private let groupAPI: GroupAPIProtocol
     private let currentUser: CurrentUser
     let groupId: Int
+    /// 이미지 변경/제거 성공 시 호출(MapView 가 groupContext.refresh 로 목록 썸네일 갱신). 미배선이면 no-op.
+    private let onImageChanged: () -> Void
 
     /// 이름 수정 성공 시 호출(MapView 가 groupContext.refresh 로 상단 그룹명 갱신).
     private let onRenamed: () -> Void
@@ -43,15 +55,19 @@ final class GroupManageViewModel: ObservableObject {
         currentUser: CurrentUser,
         groupId: Int,
         groupName: String,
+        imageUrl: String? = nil,
         onRenamed: @escaping () -> Void = {},
-        onExit: @escaping () -> Void = {}
+        onExit: @escaping () -> Void = {},
+        onImageChanged: @escaping () -> Void = {}
     ) {
         self.groupAPI = groupAPI
         self.currentUser = currentUser
         self.groupId = groupId
         self.groupNameDraft = groupName
+        self.imageUrl = imageUrl
         self.onRenamed = onRenamed
         self.onExit = onExit
+        self.onImageChanged = onImageChanged
     }
 
     /// 내가 방장인지(삭제 버튼 노출 분기). 멤버 목록에서 내 userId 가 isOwner 인지로 판단.
@@ -127,6 +143,43 @@ final class GroupManageViewModel: ObservableObject {
             onExit()
         } catch {
             errorMessage = "그룹 탈퇴에 실패했어요. 잠시 후 다시 시도해 주세요."
+        }
+    }
+
+    // MARK: - 그룹 대표 이미지(GP-1 FR-2, 활성 멤버 누구나)
+
+    /// 그룹 이미지 변경(크롭된 1:1 이미지). resizeAndCompress(2MB 게이트) → POST → 로컬·콜백 갱신.
+    /// 권한은 백엔드(활성 멤버) — 비멤버 403 은 에러 표출. 성공 시 onImageChanged(목록 썸네일 갱신).
+    func uploadImage(_ image: UIImage) async {
+        guard !isUploadingImage else { return }
+        isUploadingImage = true
+        errorMessage = nil
+        defer { isUploadingImage = false }
+        guard let jpeg = ImageCropper.resizeAndCompress(image) else {
+            errorMessage = "사진이 너무 커서 올리지 못했어요. 다른 사진을 선택해 주세요."
+            return
+        }
+        do {
+            let response = try await groupAPI.uploadGroupImage(groupId: groupId, jpegData: jpeg)
+            imageUrl = response.imageUrl
+            onImageChanged()
+        } catch {
+            errorMessage = "이미지를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요."
+        }
+    }
+
+    /// 그룹 이미지 제거(DELETE, GP-1 FR-2). 성공 시 imageUrl=nil(콜라주 폴백) + onImageChanged.
+    func removeImage() async {
+        guard !isUploadingImage else { return }
+        isUploadingImage = true
+        errorMessage = nil
+        defer { isUploadingImage = false }
+        do {
+            let response = try await groupAPI.deleteGroupImage(groupId: groupId)
+            imageUrl = response.imageUrl   // 응답 두 필드 모두 null → nil → 콜라주.
+            onImageChanged()
+        } catch {
+            errorMessage = "이미지를 제거하지 못했어요. 잠시 후 다시 시도해 주세요."
         }
     }
 

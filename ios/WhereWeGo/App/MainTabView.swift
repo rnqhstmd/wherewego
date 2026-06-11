@@ -105,6 +105,7 @@ struct MainTabView: View {
             NavigationStack {
                 DMListView(
                     viewModel: dmListViewModel,
+                    groupContext: groupContext,   // GP-1 FR-5: 방 썸네일 그룹 조인(대표 이미지/콜라주).
                     pushSignal: dependencies.chatPushSignal,
                     makeRoomViewModel: { room in
                         GroupChatViewModel(
@@ -229,7 +230,15 @@ struct MainTabView: View {
             NavigationStack {
                 switch entry {
                 case .create:
-                    GroupCreateView()
+                    GroupCreateView(
+                        groupAPI: dependencies.groupAPI,
+                        onCreated: { groupId in
+                            // 생성 성공: 그 그룹으로 진입(레벨1) + 목록 갱신(이미지·멤버 동봉) + 시트 닫기(.invite 패턴 동치).
+                            groupContext.enterGroup(groupId)
+                            Task { await groupContext.refresh() }
+                            groupEntrySheet = nil
+                        }
+                    )
                 case .invite:
                     InviteCodeView(
                         groupAPI: dependencies.groupAPI,

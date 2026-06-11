@@ -4,8 +4,10 @@ import com.wherewego.config.env.InviteProperties;
 import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.interfaces.api.ApiResponse;
+import com.wherewego.interfaces.api.support.ImageUploadGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -13,8 +15,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -107,7 +111,7 @@ public class GroupV1Controller implements GroupV1ApiSpec {
     @Override
     public ApiResponse<List<GroupV1Dto.GroupSummaryResponse>> listMyGroups(@AuthUser Long userId) {
         return ApiResponse.success(
-                groupMemberService.listMyGroups(userId).stream()
+                groupMemberService.listMyGroupsWithMembers(userId).stream()
                         .map(GroupV1Dto.GroupSummaryResponse::from)
                         .toList());
     }
@@ -143,5 +147,28 @@ public class GroupV1Controller implements GroupV1ApiSpec {
     ) {
         groupMemberService.deleteGroup(userId, groupId);
         return ApiResponse.success();
+    }
+
+    @PostMapping(value = "/{groupId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Override
+    public ApiResponse<GroupV1Dto.GroupImageResponse> uploadGroupImage(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        // GP-1: 3중 검증(타입/크기/매직바이트)을 ImageUploadGuard 로 위임. 범용 IMAGE_* 에러타입.
+        byte[] imageBytes = ImageUploadGuard.readValidatedImage(file);
+        return ApiResponse.success(GroupV1Dto.GroupImageResponse.from(
+                groupMemberService.updateGroupImage(userId, groupId, imageBytes, file.getContentType())));
+    }
+
+    @DeleteMapping("/{groupId}/image")
+    @Override
+    public ApiResponse<GroupV1Dto.GroupImageResponse> deleteGroupImage(
+            @AuthUser Long userId,
+            @PathVariable Long groupId
+    ) {
+        return ApiResponse.success(GroupV1Dto.GroupImageResponse.from(
+                groupMemberService.clearGroupImage(userId, groupId)));
     }
 }
