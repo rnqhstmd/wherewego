@@ -64,12 +64,14 @@ final class MainTabTests: XCTestCase {
 
     func test_floatingTabBar_isFourTabNavigationWithoutPlusParameter() {
         // IA 재설계: FloatingTabBar 는 4탭 순수 네비게이션 바. ＋(onPlusTap) 파라미터를 받지 않는다.
-        // 생성 시그니처가 selection/hasUnread/onReselectMap 으로 정합하고, selection 바인딩 초기값을 보존함을 확인.
+        // 생성 시그니처가 selection/hasUnread/currentUser/onReselectMap 으로 정합하고(IG-1: 내정보 탭 프사용
+        // currentUser 추가), selection 바인딩 초기값을 보존함을 확인.
         var selection: MainTab = .chat
 
         let bar = FloatingTabBar(
             selection: Binding(get: { selection }, set: { selection = $0 }),
-            hasUnread: false
+            hasUnread: false,
+            currentUser: makeCurrentUser()
         )
 
         // FloatingTabBar 는 View 라 body 를 구동하진 않지만, 생성 시그니처 정합(＋ 파라미터 부재) +

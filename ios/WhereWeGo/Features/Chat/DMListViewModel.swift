@@ -4,7 +4,7 @@ import Foundation
 //  - 탭 진입 시 groupRooms → 내 활성 그룹별 그룹 채팅방 요약(인스타그램 DM 스타일).
 //  - 멤버별 unread(FR-GC2-1): 백엔드 hasUnread 그대로 신뢰. 하단 탭 빨간 점(배지) 소스.
 //  - 빈/로딩/에러: 그룹 0개는 .loaded([])(에러 아님). 조회 실패(목록 없음)는 .error(재시도).
-//  - currentUser: 미리보기 "나: …" 판정(lastSenderUserId == 내 id).
+//  - currentUser: 방 진입(isMine 판정)·탭바 프사(IG-1) 대비 워밍업 로드(미리보기 "나:" 프리픽스는 IG-1 에서 제거).
 //
 // NotificationInboxViewModel.LoadState/formatTime 선례를 미러한다(상태 분기·상대시각 표현 동일).
 @MainActor
@@ -30,9 +30,6 @@ final class DMListViewModel: ObservableObject {
         return false
     }
 
-    /// 내 userId(미리보기 "나:" 판정용). View(DMRoomRow)가 참조.
-    var currentUserId: Int? { currentUser.id }
-
     // MARK: - 의존성
 
     private let chatAPI: ChatAPIProtocol
@@ -55,13 +52,14 @@ final class DMListViewModel: ObservableObject {
     /// 방 복귀·포그라운드·배지 갱신(무음): 스피너 없이 rooms 갱신, 실패 시 기존 목록 유지.
     func refresh() async { await fetch(showLoading: false) }
 
-    /// groupRooms 조회 → loadState 갱신. 미리보기 판정 위해 currentUser.id 선행 확보.
+    /// groupRooms 조회 → loadState 갱신. 방 진입(isMine 판정)·탭바 프사 대비 currentUser 선행 확보.
     private func fetch(showLoading: Bool) async {
         if isFetching { return }
         isFetching = true
         defer { isFetching = false }
 
-        // 미리보기 "나:" 판정에 내 id 가 필요 — 미확보면 1회 로드(실패해도 목록 로드는 진행).
+        // 방 화면(GroupChatViewModel)의 isMine 판정과 탭바 내 프사(IG-1)에 내 id/프사가 필요 —
+        // 미확보면 1회 로드(워밍업, 실패해도 목록 로드는 진행).
         if currentUser.id == nil {
             await currentUser.load()
         }

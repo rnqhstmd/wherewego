@@ -1,10 +1,10 @@
 import SwiftUI
 
-// 그룹 목록(지도 탭 레벨0, 설계 §2·§3, GM-2 FR-2/FR-5).
-// 2레벨 지도 탭의 레벨0 — 내가 속한 그룹들을 카드로 나열하고, 탭하면 enterGroup(그 그룹 지도로 진입, AC-2).
-//  - 그룹 카드: 이름 + 인원 수. 탭 → GroupContext.enterGroup(레벨1 전환 + 지도 재로드 트리거).
-//  - 빈 상태(그룹 0개): 생성/합류 유도(GroupStartView 와 동일 멘탈모델 — 새 그룹/초대 코드). 콜백으로 시트/네비 위임.
-// GroupStartView 카드 톤(optionCard) 이식 — 동일 디자인 언어 유지(WGColor/WGFont).
+// 그룹 목록(지도 탭 레벨0, 설계 §2·§3, GM-2 FR-2/FR-5 / IG-1 인스타 리디자인).
+// 2레벨 지도 탭의 레벨0 — 내가 속한 그룹들을 플랫 행으로 나열하고, 탭하면 enterGroup(그 그룹 지도로 진입, AC-2).
+//  - 상단: InstaNavBar("우리가 갈 지도") + 우측 ＋ 메뉴(새 그룹 만들기 / 초대 코드로 들어가기). 빈 상태에서도 상단바 노출.
+//  - 그룹 행(IG-1 플랫화): 카드/테두리 제거 → 아바타 54 + 그룹명 + 멤버 일렬 + chevron. 여백이 행을 구분(구분선/카드 없음).
+//  - 빈 상태(그룹 0개): 고운바탕 큰 제목 유지(브랜드 모먼트 허용) — 생성/합류 유도. 콜백으로 시트/네비 위임.
 struct GroupListView: View {
     @ObservedObject var groupContext: GroupContext
     /// "새 그룹 만들기" 탭 — 상위(MainTabView)가 그룹 생성 진입(시트/네비)으로 위임.
@@ -13,14 +13,39 @@ struct GroupListView: View {
     let onJoin: () -> Void
 
     var body: some View {
+        // 빈 상태에서도 상단 InstaNavBar(＋ 메뉴)가 보이도록 VStack 최상단에 고정 + 아래 분기(IG-1).
         ZStack {
             WGColor.bg.ignoresSafeArea()
 
-            if groupContext.groups.isEmpty {
-                emptyState
-            } else {
-                groupList
+            VStack(spacing: 0) {
+                InstaNavBar(title: "우리가 갈 지도") {
+                    addMenu
+                }
+
+                if groupContext.groups.isEmpty {
+                    emptyState
+                } else {
+                    groupList
+                }
             }
+        }
+    }
+
+    // MARK: - 상단 ＋ 메뉴(새 그룹 / 초대 코드)
+
+    /// InstaNavBar 우측 ＋ — SwiftUI Menu 2항목(새 그룹 만들기 / 초대 코드로 들어가기). 하단 칩 행을 대체(IG-1).
+    private var addMenu: some View {
+        Menu {
+            Button(action: onCreateGroup) {
+                Label("새 그룹 만들기", systemImage: "plus")
+            }
+            Button(action: onJoin) {
+                Label("초대 코드로 들어가기", systemImage: "person.badge.plus")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(WGColor.ink)
         }
     }
 
@@ -28,104 +53,67 @@ struct GroupListView: View {
 
     private var groupList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                // 섹션 라벨(목업 ① "내 그룹"). 큰 제목/부제는 제거(IG-1 — 경량 상단바가 타이틀 담당).
                 Text("내 그룹")
-                    .font(WGFont.emo(28))
-                    .tracking(-1)   // 웹 letterSpacing:-1 정합(AC-7 동치)
-                    .foregroundStyle(WGColor.ink)
-                    .padding(.bottom, 4)
-
-                Text("들어갈 그룹을 골라주세요")
-                    .font(WGFont.sans(14))
+                    .font(WGFont.sansSemiBold(12))
                     .foregroundStyle(WGColor.inkSoft)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
 
                 ForEach(groupContext.groups) { group in
                     Button {
                         groupContext.enterGroup(group.groupId)
                     } label: {
-                        groupCard(group)
+                        groupRow(group)
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, 12)
                 }
-
-                // 그룹 추가 진입(새 그룹/합류). 목록 하단에 보조 액션으로 둔다.
-                addGroupRow
-                    .padding(.top, 4)
             }
-            // top 16: DM·알림(ScreenHeader) 큰 제목 리듬과 일치 — 기존 70 은 상단이 휑해 보였다.
-            .padding(EdgeInsets(top: 16, leading: 28, bottom: 32, trailing: 28))
+            .padding(.bottom, 16)
         }
     }
 
-    /// 그룹 카드 — 좌측 그룹 아바타 + 이름 + 멤버 프사 일렬(GP-1 FR-4). GroupStartView.optionCard 톤 이식.
-    //  좌측 14pt 점 → GroupAvatarView(44pt, 대표 이미지 미지정 시 멤버 콜라주 폴백).
-    //  "멤버 N명" 텍스트 → 활성 멤버 전원 프사를 가입순 가로 일렬(살짝 겹침)로 나열, 인원 수 텍스트 제거(설계 §2.3).
-    private func groupCard(_ group: GroupSummary) -> some View {
+    /// 그룹 행(IG-1 플랫화) — 카드/테두리/clip 제거. 아바타 54 + 그룹명 + 멤버 일렬 + chevron. 여백이 행을 구분.
+    private func groupRow(_ group: GroupSummary) -> some View {
         HStack(spacing: 12) {
             GroupAvatarView(
                 imageUrl: group.imageThumbUrl ?? group.imageUrl,
                 members: group.members,
-                size: 44
+                size: 54
             )
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                // Pretendard 고정 웨이트라 .fontWeight() 미적용 → 강조는 실제 SemiBold 페이스 사용.
                 Text(group.name)
-                    .font(WGFont.emo(17))
+                    .font(WGFont.sansSemiBold(15))
                     .foregroundStyle(WGColor.ink)
+                    .lineLimit(1)
                 memberStrip(group.members)
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(WGColor.inkFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(EdgeInsets(top: 20, leading: 22, bottom: 20, trailing: 22))
-        .background(WGColor.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
-    }
-
-    /// 활성 멤버 전원 프사 가입순 일렬(FR-4). -6pt 겹침 HStack. 각 셀 20pt AvatarView(프사/이니셜 폴백).
-    /// 멤버 미로딩(구서버·빈 배열)이면 빈 자리(EmptyView) — 카드 높이 리듬 유지를 위해 최소 높이 확보.
-    private func memberStrip(_ members: [GroupMemberPreview]) -> some View {
-        HStack(spacing: -6) {
-            ForEach(members) { member in
-                AvatarView(imageUrl: member.profileImageUrl, name: member.nickname, size: 20)
-                    // 겹침 경계 식별을 위해 panel 색 테두리 링(카톡식 스택 아바타).
-                    .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
-            }
-        }
-        .frame(height: 20, alignment: .leading)
-    }
-
-    /// 그룹 추가 진입 행(새 그룹 만들기 / 초대 코드로 합류). 목록 하단 보조 액션.
-    private var addGroupRow: some View {
-        HStack(spacing: 10) {
-            Button(action: onCreateGroup) {
-                addGroupChip(icon: "plus", label: "새 그룹")
-            }
-            .buttonStyle(.plain)
-
-            Button(action: onJoin) {
-                addGroupChip(icon: "person.badge.plus", label: "초대 코드로 합류")
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func addGroupChip(icon: String, label: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-            Text(label)
-                .font(WGFont.sans(13))
-        }
-        .foregroundStyle(WGColor.ctaSub)
         .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.hairline, lineWidth: 1.5))
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    /// 활성 멤버 전원 프사 가입순 일렬(FR-4). -5pt 겹침 HStack. 각 셀 18pt AvatarView(프사/이니셜 폴백).
+    /// 테두리 링은 플랫 행이라 panel → bg(배경색)로 겹침 경계 식별.
+    /// 멤버 미로딩(구서버·빈 배열)이면 빈 자리(EmptyView) — 행 높이 리듬 유지를 위해 최소 높이 확보.
+    private func memberStrip(_ members: [GroupMemberPreview]) -> some View {
+        HStack(spacing: -5) {
+            ForEach(members) { member in
+                AvatarView(imageUrl: member.profileImageUrl, name: member.nickname, size: 18)
+                    // 겹침 경계 식별을 위해 bg 색 테두리 링(플랫 행 정합).
+                    .overlay(Circle().stroke(WGColor.bg, lineWidth: 1.5))
+            }
+        }
+        .frame(height: 18, alignment: .leading)
     }
 
     // MARK: - 빈 상태(그룹 0개, GroupStartView 동치 유도)
@@ -174,7 +162,8 @@ struct GroupListView: View {
 
             Spacer()
         }
-        .padding(EdgeInsets(top: 70, leading: 28, bottom: 32, trailing: 28))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 40, leading: 28, bottom: 32, trailing: 28))
     }
 
     /// 빈 상태 카드 — GroupStartView.optionCard 1:1 이식(동일 디자인 언어).
