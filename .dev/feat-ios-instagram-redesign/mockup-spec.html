@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>우리가 갈 지도 · 인스타그램 스타일 리디자인 제안</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#FAF8F5; --panel:#FFFFFF;
+    --pinReel:#7BB3E8; --pinWish:#F4C842; --pinMemory:#FFB3C6; --pinNew:#E05A5A;
+    --cta:#C4622D; --ctaHover:#A84E23; --ctaSub:#8B8B9E;
+    --ink:#1A1A2E; --inkSoft:#8B8B9E; --inkFaint:#C5C5D0;
+    --hairline:#E8E4DE; --shadow:rgba(26,26,46,.08);
+    --emo:'Gowun Batang',serif;
+    --sans:'Pretendard','Pretendard Variable',-apple-system,sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  body{background:#1d1d24;color:#e8e8ee;font-family:var(--sans);padding:40px 24px 80px;}
+  .page-head{max-width:1280px;margin:0 auto 14px;}
+  .page-head h1{font-family:var(--emo);font-size:30px;font-weight:700;letter-spacing:-1px;color:#fff;}
+  .page-head p{margin-top:8px;color:#9a9aa6;font-size:14px;line-height:1.7;max-width:880px;}
+  .principles{max-width:1280px;margin:0 auto 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;}
+  .pr{background:#26262e;border:1px solid #36363f;border-radius:12px;padding:14px 16px;}
+  .pr b{display:block;font-size:13px;color:#fff;margin-bottom:5px;}
+  .pr span{font-size:12px;color:#9a9aa6;line-height:1.6;}
+  .pr i{font-style:normal;color:#e9a87c;}
+  .gallery{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:36px;justify-content:center;}
+  .shot{width:300px;}
+  .shot h2{font-size:15px;color:#fff;margin-bottom:4px;}
+  .shot .sub{font-size:11.5px;color:#8e8e9a;line-height:1.55;margin-bottom:12px;min-height:36px;}
+  .notes{margin-top:12px;display:flex;flex-direction:column;gap:6px;}
+  .note{font-size:11.5px;color:#b9b9c4;line-height:1.5;display:flex;gap:7px;}
+  .note .n{flex:0 0 16px;height:16px;border-radius:50%;background:var(--cta);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+
+  /* ── phone frame ── */
+  .phone{width:300px;height:620px;background:var(--bg);border-radius:38px;border:7px solid #0c0c10;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5);}
+  .statusbar{flex:0 0 34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 2px;font:600 11px var(--sans);color:var(--ink);}
+  .content{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column;}
+
+  /* 인스타식 경량 상단바 */
+  .navbar{flex:0 0 48px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--bg);}
+  .navbar .title{font:700 21px var(--sans);color:var(--ink);letter-spacing:-.5px;}
+  .navbar .title small{font-weight:400;color:var(--inkSoft);font-size:13px;margin-left:2px;}
+  .navbar .spacer{flex:1;}
+  .navbar .icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:19px;color:var(--ink);}
+  .navbar .back{font-size:20px;color:var(--ink);margin-right:2px;}
+
+  /* 아바타 */
+  .av{border-radius:50%;background:#ddd;display:flex;align-items:center;justify-content:center;font-weight:600;color:#fff;flex-shrink:0;background-size:cover;background-position:center;}
+  .grad1{background:linear-gradient(135deg,#E8B04B,#C4622D);}
+  .grad2{background:linear-gradient(135deg,#7BB3E8,#5A8BC4);}
+  .grad3{background:linear-gradient(135deg,#FFB3C6,#E05A5A);}
+  .grad4{background:linear-gradient(135deg,#8B8B9E,#5E5E72);}
+  .grad5{background:linear-gradient(135deg,#F4C842,#C4622D);}
+  /* 콜라주(2×2) */
+  .collage{border-radius:50%;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;flex-shrink:0;}
+  .collage div{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;}
+
+  /* ── ① 스토리식 그룹 행 ── */
+  .stories{display:flex;gap:14px;padding:10px 16px 14px;overflow:hidden;}
+  .story{display:flex;flex-direction:column;align-items:center;gap:5px;width:62px;flex-shrink:0;}
+  .story .ring{width:60px;height:60px;border-radius:50%;padding:2.5px;background:linear-gradient(45deg,var(--pinWish),var(--cta),var(--pinNew));}
+  .story .ring.quiet{background:var(--hairline);}
+  .story .ring .inner{width:100%;height:100%;border-radius:50%;border:2.5px solid var(--bg);overflow:hidden;display:flex;}
+  .story .ring .inner .av,.story .ring .inner .collage{width:100%;height:100%;border-radius:50%;}
+  .story .lb{font-size:10.5px;color:var(--ink);max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .story.add .ring{background:var(--hairline);}
+  .story.add .plus{width:100%;height:100%;border-radius:50%;background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--cta);font-size:22px;font-weight:300;border:1.5px dashed var(--inkFaint);}
+
+  /* 플랫 행 (카드 제거) */
+  .rows{flex:1;overflow:hidden;}
+  .row{display:flex;align-items:center;gap:12px;padding:8px 16px;}
+  .row .body{flex:1;min-width:0;}
+  .row .l1{font:600 14.5px var(--sans);color:var(--ink);display:flex;align-items:center;gap:6px;}
+  .row .l2{font:400 12.5px var(--sans);color:var(--inkSoft);margin-top:2px;display:flex;align-items:center;gap:6px;}
+  .row .l1.unread,.row .l2.unread{font-weight:700;color:var(--ink);}
+  .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px;}
+  .row .time{font:500 10.5px var(--mono);color:var(--inkFaint);}
+  .row .dot{width:8px;height:8px;border-radius:50%;background:var(--cta);}
+  .row .chip{font:600 10.5px var(--sans);color:#fff;background:var(--pinNew);border-radius:10px;padding:2px 7px;}
+  .miniavs{display:flex;margin-top:5px;}
+  .miniavs .av{width:18px;height:18px;font-size:8px;border:1.5px solid var(--bg);margin-left:-5px;}
+  .miniavs .av:first-child{margin-left:0;}
+  .sect{font:600 12px var(--sans);color:var(--inkSoft);padding:14px 16px 6px;}
+
+  /* ── 채팅방 ── */
+  .chat{flex:1;display:flex;flex-direction:column;gap:3px;padding:12px 12px 8px;overflow:hidden;}
+  .daychip{align-self:center;font:500 10px var(--mono);color:var(--inkSoft);background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:3px 10px;margin:4px 0 8px;}
+  .mline{display:flex;align-items:flex-end;gap:7px;max-width:84%;}
+  .mline.me{align-self:flex-end;flex-direction:row-reverse;}
+  .mline .av{width:28px;height:28px;font-size:11px;}
+  .mline .stack{display:flex;flex-direction:column;gap:3px;}
+  .mline .name{font:500 11px var(--sans);color:var(--inkSoft);margin:0 0 1px 4px;}
+  .bub{padding:8px 13px;border-radius:20px;font:400 13.5px var(--sans);line-height:1.45;max-width:100%;}
+  .them .bub{background:var(--panel);color:var(--ink);border:1px solid var(--hairline);border-bottom-left-radius:6px;}
+  .me .bub{background:var(--cta);color:#fff;border-bottom-right-radius:6px;}
+  .mline .t{font:400 9.5px var(--mono);color:var(--inkFaint);flex-shrink:0;margin-bottom:2px;}
+  /* 릴스 카드 버블 */
+  .reel{width:188px;border-radius:18px;overflow:hidden;border:1px solid var(--hairline);background:var(--panel);}
+  .reel .thumb{height:96px;background:linear-gradient(135deg,#2a2a35,#4a4a5a);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;}
+  .reel .cap{padding:8px 11px 4px;font:500 12px var(--sans);color:var(--ink);}
+  .reel .host{padding:0 11px 8px;font:400 10px var(--mono);color:var(--inkSoft);}
+  .reel .btn{margin:0 9px 9px;border-radius:12px;background:var(--cta);color:#fff;text-align:center;font:600 12px var(--sans);padding:7px 0;}
+  .reel .btn.done{background:var(--bg);color:var(--inkSoft);border:1px solid var(--hairline);}
+  /* 입력바 */
+  .inputbar{flex:0 0 56px;display:flex;align-items:center;gap:8px;padding:0 12px 8px;}
+  .pill{flex:1;height:40px;border-radius:22px;background:var(--panel);border:1px solid var(--hairline);display:flex;align-items:center;padding:0 6px 0 14px;gap:8px;}
+  .pill .ph{flex:1;font:400 13px var(--sans);color:var(--inkFaint);}
+  .pill .send{width:30px;height:30px;border-radius:50%;background:var(--cta);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;}
+
+  /* ── 프로필 ── */
+  .profile{padding:14px 16px 0;}
+  .phead{display:flex;align-items:center;gap:22px;}
+  .phead .av{width:84px;height:84px;font-size:30px;position:relative;}
+  .phead .av .edit{position:absolute;right:-1px;bottom:-1px;width:26px;height:26px;border-radius:50%;background:var(--cta);border:2.5px solid var(--bg);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;}
+  .stats{flex:1;display:flex;justify-content:space-around;}
+  .stat{text-align:center;}
+  .stat b{display:block;font:700 17px var(--sans);color:var(--ink);}
+  .stat span{font:400 11.5px var(--sans);color:var(--inkSoft);}
+  .pname{margin-top:12px;font:600 14.5px var(--sans);color:var(--ink);}
+  .pbio{margin-top:2px;font:400 12px var(--sans);color:var(--inkSoft);}
+  .pbtns{display:flex;gap:8px;margin-top:12px;}
+  .pbtn{flex:1;text-align:center;font:600 12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--hairline);border-radius:10px;padding:8px 0;}
+  .plist{margin-top:18px;}
+  .pitem{display:flex;align-items:center;gap:12px;padding:13px 16px;font:400 14px var(--sans);color:var(--ink);}
+  .pitem .ic{width:24px;text-align:center;font-size:16px;}
+  .pitem .chev{margin-left:auto;color:var(--inkFaint);}
+  .pitem.danger{color:var(--pinNew);}
+
+  /* 탭바 */
+  .tabbar{flex:0 0 54px;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--hairline);background:rgba(255,255,255,.85);backdrop-filter:blur(10px);}
+  .tab{font-size:20px;color:var(--inkFaint);position:relative;}
+  .tab.on{color:var(--ink);}
+  .tab .avtab{width:24px;height:24px;border-radius:50%;border:2px solid var(--ink);}
+  .tab .bdg{position:absolute;top:-2px;right:-7px;width:7px;height:7px;border-radius:50%;background:var(--pinNew);}
+
+  .asis{margin-top:10px;border-top:1px dashed #3a3a44;padding-top:10px;}
+  .asis b{font-size:11px;color:#777784;}
+  .asis span{font-size:11px;color:#66666f;line-height:1.5;display:block;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>인스타그램 스타일 리디자인 제안</h1>
+  <p>색·폰트 토큰(WGColor/WGFont)은 100% 유지하고, <b style="color:#fff">레이아웃 문법만 인스타그램으로</b> 교체한 제안입니다.
+  인스타의 파랑 자리는 전부 테라코타(<span style="color:#e9a87c">cta #C4622D</span>)가 대신합니다.
+  GP-1(그룹 대표 이미지·프사·콜라주)이 모든 화면의 시각 중심이 됩니다.</p>
+</div>
+
+<div class="principles">
+  <div class="pr"><b>1. 카드 → 플랫 행</b><span>흰 카드+테두리+그림자를 버리고, 인스타식 <i>풀-블리드 행</i>(아바타 56pt + 2줄 텍스트 + 여백 분리). 구분선도 없앰 — 여백이 곧 구분.</span></div>
+  <div class="pr"><b>2. 큰 제목 → 경량 상단바</b><span>ScreenHeader(고운바탕 큰 제목) 대신 인스타식 48pt 상단바: <i>좌측 Pretendard Bold 21 타이틀 + 우측 액션 아이콘</i>. 고운바탕(emo)은 온보딩·빈 화면 등 브랜드 모먼트에만 남김.</span></div>
+  <div class="pr"><b>3. 프사가 모든 행의 주인공</b><span>GP-1 아바타/콜라주를 행 좌측 고정 슬롯으로. 그룹·채팅·알림·프로필 모든 행이 같은 아바타 문법을 공유.</span></div>
+  <div class="pr"><b>4. 채팅 = 인스타 DM 문법</b><span>수신=흰 필(테두리)+프사 하단정렬, 발신=<i>cta 단색 필</i>(꼬리 없는 라운드 20). 입력바는 둥근 필 + 필 안쪽 원형 전송 버튼.</span></div>
+  <div class="pr"><b>5. 내정보 = 인스타 프로필</b><span>큰 아바타(84pt, 카메라 배지) + <i>그룹·핀·함께한 날 통계</i> + 풀폭 라이트 버튼 2개. 설정은 아이콘+라벨 플랫 리스트.</span></div>
+</div>
+
+<div class="gallery">
+
+  <!-- ① 지도탭 레벨1: 그룹 목록 -->
+  <div class="shot">
+    <h2>① 그룹 목록 (지도탭 레벨1)</h2>
+    <div class="sub">플랫 행(카드 제거). 우상단 ＋ = 새 그룹/초대 코드 합류.</div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="navbar"><span class="title">우리가 갈 지도</span><span class="spacer"></span><span class="icon">＋</span></div>
+        <div class="sect">내 그룹</div>
+        <div class="rows">
+          <div class="row">
+            <div class="av grad1" style="width:54px;height:54px;font-size:19px">가</div>
+            <div class="body">
+              <div class="l1">우리 가족</div>
+              <div class="miniavs"><div class="av grad2">지</div><div class="av grad3">민</div><div class="av grad4">본</div><div class="av grad5">엄</div></div>
+            </div>
+            <div class="meta"><span class="time">›</span></div>
+          </div>
+          <div class="row">
+            <div class="collage" style="width:54px;height:54px"><div class="grad2" style="font-size:10px">지</div><div class="grad3" style="font-size:10px">민</div><div class="grad4" style="font-size:10px">본</div><div class="grad5" style="font-size:10px">수</div></div>
+            <div class="body">
+              <div class="l1">맛집탐방대</div>
+              <div class="miniavs"><div class="av grad2">지</div><div class="av grad3">민</div><div class="av grad4">본</div><div class="av grad5">수</div><div class="av grad1">현</div><div class="av grad2">아</div><div class="av grad3">준</div></div>
+            </div>
+            <div class="meta"><span class="time">›</span></div>
+          </div>
+          <div class="row">
+            <div class="av grad2" style="width:54px;height:54px;font-size:19px">동</div>
+            <div class="body">
+              <div class="l1">동기모임</div>
+              <div class="miniavs"><div class="av grad4">본</div><div class="av grad5">철</div><div class="av grad1">영</div></div>
+            </div>
+            <div class="meta"><span class="time">›</span></div>
+          </div>
+        </div>
+        <div class="tabbar"><span class="tab on">🗺️</span><span class="tab">✈️</span><span class="tab">🔔<span class="bdg"></span></span><span class="tab"><span class="avtab grad4" style="display:inline-block"></span></span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="n">1</span>카드·테두리 전부 제거 → 아바타 54pt 플랫 행. GP-1 멤버 일렬은 행 2번째 줄로 이동(18pt 겹침)</div>
+      <div class="note"><span class="n">2</span>탭바 4탭(지도·채팅·알림·내정보 프사) — 어디가지 룰렛은 합의대로 지도 화면 플로팅 버튼, 탭바에서 제외</div>
+      <div class="note"><span class="n">3</span>우상단 ＋ 탭 → 메뉴 2항목: <b>"새 그룹 만들기"</b> / <b>"초대 코드로 들어가기"</b>(기존 IC-2 슬러그 입력 화면 재사용). 하단 칩 행은 제거</div>
+      <div class="asis"><b>As-Is:</b><span>고운바탕 큰 제목 + 흰 카드(테두리 16r) + 14pt 노란 점 + "멤버 N명"</span></div>
+    </div>
+  </div>
+
+  <!-- ② 채팅 탭 -->
+  <div class="shot">
+    <h2>② 채팅 탭 (DM 목록)</h2>
+    <div class="sub">인스타 DM 목록 그대로: 플랫 행 + 미읽음은 굵기·잉크 + 우측 점.</div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="navbar"><span class="title">채팅</span><span class="spacer"></span></div>
+        <div class="rows" style="padding-top:6px">
+          <div class="row">
+            <div class="av grad1" style="width:56px;height:56px;font-size:20px">가</div>
+            <div class="body">
+              <div class="l1 unread">우리 가족</div>
+              <div class="l2 unread">새 메시지 3개 · 12:30</div>
+            </div>
+            <div class="meta"><span class="dot"></span></div>
+          </div>
+          <div class="row">
+            <div class="collage" style="width:56px;height:56px"><div class="grad2" style="font-size:10px">지</div><div class="grad3" style="font-size:10px">민</div><div class="grad4" style="font-size:10px">본</div><div class="grad5" style="font-size:10px">수</div></div>
+            <div class="body">
+              <div class="l1">맛집탐방대</div>
+              <div class="l2">여기 가보자! · 어제</div>
+            </div>
+            <div class="meta"></div>
+          </div>
+          <div class="row">
+            <div class="av grad2" style="width:56px;height:56px;font-size:20px">동</div>
+            <div class="body">
+              <div class="l1">동기모임</div>
+              <div class="l2">아직 대화가 없어요</div>
+            </div>
+            <div class="meta"></div>
+          </div>
+        </div>
+        <div class="tabbar"><span class="tab">🗺️</span><span class="tab on">✈️</span><span class="tab">🔔</span><span class="tab"><span class="avtab grad4" style="display:inline-block"></span></span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="n">1</span>카드 제거 → 56pt 아바타 플랫 행. 발신자 프리픽스 제거 — 미읽음이면 <b>"새 메시지 N개"</b>(검정 잉크·Bold), 읽었으면 마지막 메시지 내용만 + · 시각(인스타 문법)</div>
+      <div class="note"><span class="n">2</span>미읽음 = 텍스트 Bold + 우측 cta 점 8pt(현행 빨강 카운트 캡슐 제거 — 개수는 "새 메시지 N개"가 전달)</div>
+      <div class="note"><span class="n">3</span>우상단 액션 없음(편집 버튼 제거) — 그룹 추가는 그룹 목록의 ＋가 담당</div>
+      <div class="asis"><b>As-Is:</b><span>카드 행 + 말풍선 아이콘 + "지민: …" 프리픽스 + 빨간 카운트 캡슐 + 2단 시각 표시</span></div>
+    </div>
+  </div>
+
+  <!-- ③ 채팅방 -->
+  <div class="shot">
+    <h2>③ 채팅방 (그룹 채팅)</h2>
+    <div class="sub">인스타 DM 버블 문법 + 릴스 링크는 DM 공유 카드 모양으로.</div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="navbar">
+          <span class="back">‹</span>
+          <div class="av grad1" style="width:30px;height:30px;font-size:12px">가</div>
+          <div><div style="font:600 14px var(--sans);color:var(--ink)">우리 가족</div><div style="font:400 10.5px var(--sans);color:var(--inkSoft)">멤버 4명</div></div>
+          <span class="spacer"></span><span class="icon">⋯</span>
+        </div>
+        <div class="chat">
+          <div class="daychip">6월 11일 수요일</div>
+          <div class="mline them">
+            <div class="av grad2">지</div>
+            <div class="stack">
+              <div class="name">지민</div>
+              <div class="reel">
+                <div class="thumb">▶</div>
+                <div class="cap">성수동 파스타 맛집</div>
+                <div class="host">instagram.com · 릴스</div>
+                <div class="btn">장소 등록하기</div>
+              </div>
+            </div>
+            <span class="t">12:01</span>
+          </div>
+          <div class="mline them">
+            <div class="av grad2">지</div>
+            <div class="stack"><div class="bub">여기 주말에 가보자!</div></div>
+            <span class="t">12:01</span>
+          </div>
+          <div class="mline me">
+            <div class="stack"><div class="bub">좋아 토요일 어때</div></div>
+            <span class="t">12:03</span>
+          </div>
+          <div class="mline me">
+            <div class="stack"><div class="bub">내가 핀 찍어둘게 📍</div></div>
+            <span class="t">12:03</span>
+          </div>
+          <div class="mline them">
+            <div class="av grad3">민</div>
+            <div class="stack">
+              <div class="name">민수</div>
+              <div class="bub">오 나도 갈래~</div>
+            </div>
+            <span class="t">12:05</span>
+          </div>
+        </div>
+        <div class="inputbar">
+          <div class="pill"><span class="ph">메시지 보내기…</span><span class="send">➤</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="n">1</span>수신 = 흰 필+헤어라인(좌하단만 6r — 인스타 꼬리), 발신 = cta 단색 필. 현행 panel/cta 색 그대로, 모양만 인스타 라운드 20</div>
+      <div class="note"><span class="n">2</span>프사(GP-1)는 버블 하단 정렬 28pt — 연속 메시지는 마지막 버블에만(이미 구현된 카톡식 그루핑 유지)</div>
+      <div class="note"><span class="n">3</span>REEL_LINK = 인스타 DM '게시물 공유 카드' 문법(썸네일+캡션+버튼). 3상태 버튼은 카드 하단 풀폭으로</div>
+      <div class="note"><span class="n">4</span>입력바 = 둥근 필 + 필 안 원형 전송(cta)만 — 카메라 버튼 없음(채팅 사진 전송 미지원, 기능 추가 시 그 자리에 도입). 헤더는 그룹 아바타+이름+멤버 수(인스타 DM 헤더)</div>
+      <div class="note"><span class="n">5</span><b>진입 = 무조건 최신 메시지(확정)</b>: 미읽음 앵커 진입·진입 시 "새 메시지" 필 제거(클라 앵커 계산·서버 포인터 스냅샷 로직 삭제 — 단순화). 위로 읽는 중 도착 배너("새 메시지가 있어요")와 채팅 목록 미읽음 표시(굵기+점)는 유지</div>
+      <div class="asis"><b>As-Is:</b><span>각진 패널 버블 + 분리형 입력창 + 큰 제목 헤더</span></div>
+    </div>
+  </div>
+
+  <!-- ④ 내정보 -->
+  <div class="shot">
+    <h2>④ 내정보 (프로필)</h2>
+    <div class="sub">인스타 프로필 헤더 문법: 큰 아바타 + 통계 + 라이트 버튼 2개 + 플랫 설정 리스트.</div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="navbar"><span class="title">본승<small>님</small></span><span class="spacer"></span><span class="icon">☰</span></div>
+        <div class="profile">
+          <div class="phead">
+            <div class="av grad4">본<span class="edit">📷</span></div>
+            <div class="stats">
+              <div class="stat"><b>3</b><span>그룹</span></div>
+              <div class="stat"><b>47</b><span>등록한 핀</span></div>
+            </div>
+          </div>
+          <div class="pname">본승</div>
+          <div class="pbio">카카오로 로그인 · 우리가 갈 지도와 128일째</div>
+          <div class="pbtns"><div class="pbtn">프로필 편집</div><div class="pbtn">프로필 공유</div></div>
+        </div>
+        <div class="plist">
+          <div class="sect" style="padding-left:16px">설정</div>
+          <div class="pitem"><span class="ic">🔔</span>알림 설정 <span style="font:600 9px var(--sans);color:#fff;background:var(--ctaSub);border-radius:8px;padding:2px 6px;margin-left:4px">신규</span><span class="chev">›</span></div>
+          <div class="pitem"><span class="ic">👥</span>내 그룹 관리<span class="chev">›</span></div>
+          <div class="pitem"><span class="ic">📄</span>약관·개인정보<span class="chev">›</span></div>
+          <div class="pitem"><span class="ic">🚪</span>로그아웃<span class="chev">›</span></div>
+          <div class="pitem danger"><span class="ic">⚠️</span>계정 삭제<span class="chev">›</span></div>
+        </div>
+        <div class="tabbar"><span class="tab">🗺️</span><span class="tab">✈️</span><span class="tab">🔔</span><span class="tab on"><span class="avtab grad4" style="display:inline-block"></span></span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="n">1</span>아바타 84pt + 우하단 카메라 배지(탭 = GP-1 원형 크롭 플로우 그대로)</div>
+      <div class="note"><span class="n">2</span>통계 2종(그룹 수·등록한 핀 수)만 — 기존 API로 산출 가능. 인스타 게시물/팔로워 자리</div>
+      <div class="note"><span class="n">3</span>풀폭 라이트 버튼(프로필 편집=닉네임+프사 / 프로필 공유=초대 연계). 설정은 아이콘+플랫 행</div>
+      <div class="note"><span class="n">4</span><b>알림 설정은 현재 미구현(신규)</b> — 온보딩 푸시 권한 요청만 존재. 1차는 시스템 설정 딥링크(openSettingsURLString)로 가볍게, 알림 유형별 on/off는 후속</div>
+      <div class="asis"><b>As-Is:</b><span>섹션 카드 + person 아이콘 + 단순 리스트</span></div>
+    </div>
+  </div>
+
+  <!-- ⑤ 알림 -->
+  <div class="shot">
+    <h2>⑤ 알림 탭</h2>
+    <div class="sub">인스타 활동 피드 문법: 행위자 프사 + 본문 인라인 강조 + 우측 컨텍스트 썸네일.</div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="navbar"><span class="title">알림</span><span class="spacer"></span></div>
+        <div class="sect">오늘</div>
+        <div class="rows">
+          <div class="row">
+            <div class="av grad2" style="width:44px;height:44px;font-size:16px">지</div>
+            <div class="body"><div class="l2" style="font-size:13px;color:var(--ink)"><span><b>지민</b>님이 <b>성수동 파스타</b> 핀을 등록했어요. <span style="color:var(--inkFaint)">2시간</span></span></div></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--pinWish);flex-shrink:0;display:flex;align-items:center;justify-content:center">📍</div>
+          </div>
+          <div class="row">
+            <div class="av grad3" style="width:44px;height:44px;font-size:16px">민</div>
+            <div class="body"><div class="l2" style="font-size:13px;color:var(--ink)"><span><b>민수</b>님이 <b>맛집탐방대</b>에 합류했어요. <span style="color:var(--inkFaint)">5시간</span></span></div></div>
+          </div>
+        </div>
+        <div class="sect">이번 주</div>
+        <div class="rows">
+          <div class="row">
+            <div class="av grad1" style="width:44px;height:44px;font-size:16px">가</div>
+            <div class="body"><div class="l2" style="font-size:13px;color:var(--ink)"><span><b>우리 가족</b>의 추억이 1년 전 오늘 기록됐어요. <span style="color:var(--inkFaint)">2일</span></span></div></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--pinMemory);flex-shrink:0;display:flex;align-items:center;justify-content:center">📷</div>
+          </div>
+        </div>
+        <div class="tabbar"><span class="tab">🗺️</span><span class="tab">✈️</span><span class="tab on">🔔</span><span class="tab"><span class="avtab grad4" style="display:inline-block"></span></span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="n">1</span>행위자 프사(GP-1) 좌측 + "누가 무엇을" 인라인 Bold + 상대 시각 잉크페인트(인스타 활동 피드 문법)</div>
+      <div class="note"><span class="n">2</span>우측 36pt 라운드 사각 = 컨텍스트(핀 종류 색/추억 썸네일) — 인스타의 게시물 썸네일 자리</div>
+      <div class="note"><span class="n">3</span>오늘/이번 주 섹션 그루핑(인스타 동일)</div>
+      <div class="note"><span class="n">4</span><b>알림 탭 동작(신규 요구)</b>: 핀 알림 탭 → 지도탭 전환 → 해당 그룹 맵으로 전환 → 해당 핀으로 카메라 이동 → 핀 상세 말풍선 자동 오픈 (.reelFocus 딥링크 선례의 핀 버전)</div>
+      <div class="asis"><b>As-Is:</b><span>큰 제목 + 카드형 알림 행</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
