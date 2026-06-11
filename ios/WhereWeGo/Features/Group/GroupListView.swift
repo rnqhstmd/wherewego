@@ -46,6 +46,9 @@ struct GroupListView: View {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .regular))
                 .foregroundStyle(WGColor.ink)
+                // HIG 최소 터치 영역 44pt(PR#124 리뷰) — 아이콘은 우측 정렬로 시각 위치 유지.
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
         }
     }
 

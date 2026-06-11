@@ -59,9 +59,12 @@ final class DMListViewModel: ObservableObject {
         defer { isFetching = false }
 
         // 방 화면(GroupChatViewModel)의 isMine 판정과 탭바 내 프사(IG-1)에 내 id/프사가 필요 —
-        // 미확보면 1회 로드(워밍업, 실패해도 목록 로드는 진행).
+        // 미확보면 1회 로드. 목록 조회와 무관한 워밍업이라 비동기 분리(PR#124 리뷰 — 목록 렌더 병목 방지).
+        // currentUser 는 앱 수명 싱글톤이라 fire-and-forget Task 가 VM 수명과 무관하게 안전하다.
         if currentUser.id == nil {
-            await currentUser.load()
+            Task {
+                await currentUser.load()
+            }
         }
 
         // 이미 목록을 보여주는 중이면 .loading 으로 덮지 않는다(재진입/무음 갱신 깜빡임 방지).
