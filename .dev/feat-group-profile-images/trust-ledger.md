@@ -16,7 +16,7 @@
 - 없음
 
 ### LOW / 관찰
-- [LOW/일관] UserService·GroupMemberService의 S3 `deleteQuietly`(이전 키 회수)가 트랜잭션 내부에서 실행 — 커밋 전 롤백 시 이전 이미지 객체가 먼저 사라질 수 있음. 핀 사진(`PinService`)과 동일한 기존 패턴이라 일관성 유지로 수용 (best-effort 명세, BR-3)
+- [LOW/일관→**해소**] UserService·GroupMemberService의 S3 `deleteQuietly` 트랜잭션 내부 실행 — PR #123 gemini 리뷰 반영(2026-06-12)으로 `deleteAvatarAfterCommit`(TransactionSynchronization.afterCommit, 미활성 시 즉시 삭제 폴백) 전환. cross-review.md 재검증 통과
 - [LOW/UX] ios AvatarView: AsyncImage `.empty`(로딩 중)에 이니셜 폴백 렌더 → 로드 완료 시 이니셜→이미지 전환 깜빡임 가능. AC-8(깨진 이미지 금지) 우선으로 수용
 
 ### 검증된 방어

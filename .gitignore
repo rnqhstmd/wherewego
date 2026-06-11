@@ -72,3 +72,4 @@ dist/
 
 # Claude Code worktrees (별도 git 워크트리 — 레포에 포함 금지)
 .claude/worktrees/
+.playwright-mcp/

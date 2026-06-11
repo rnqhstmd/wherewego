@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -350,11 +352,36 @@ public class GroupMemberService {
     /**
      * S3 객체 키 → 공개 URL 조합 (PinService.toPublicUrl 동일). 키가 없으면 null.
      * publicBaseUrl 끝 슬래시를 제거해 "//" 이중 슬래시 broken URL 을 방지한다.
+     * 끝 슬래시 제거 결과는 불변(설정값)이라 1회 계산 후 캐싱한다(목록 조회 대량 호출 — PR#123 리뷰).
      */
+    private volatile String cachedPublicUrlBase;
+
     private String toPublicUrl(String key) {
         if (key == null) return null;
-        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        String base = cachedPublicUrlBase;
+        if (base == null) {
+            base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+            cachedPublicUrlBase = base;   // 동시 진입해도 같은 값 — 멱등이라 락 불필요.
+        }
         return base + "/" + key;
+    }
+
+    /**
+     * 이전 아바타 객체를 트랜잭션 커밋 후 best-effort 회수한다(PR#123 리뷰 — DB/S3 정합).
+     * 트랜잭션 내에서 즉시 삭제하면 롤백 시 DB 키는 남고 S3 객체만 사라져 깨진 링크가 된다.
+     * 활성 트랜잭션이 없으면(테스트 등) 즉시 삭제로 폴백.
+     */
+    private void deleteAvatarAfterCommit(String imageKey, String thumbKey) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    avatarStorage.deleteQuietly(imageKey, thumbKey);
+                }
+            });
+        } else {
+            avatarStorage.deleteQuietly(imageKey, thumbKey);
+        }
     }
 
     /**
@@ -405,8 +432,8 @@ public class GroupMemberService {
         groupRepository.save(group);
 
         if (hadImage) {
-            // 교체: 기존 객체 best-effort 회수(실패해도 새 이미지는 유효, BR-3).
-            avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+            // 교체: 기존 객체 best-effort 회수(실패해도 새 이미지는 유효, BR-3). 커밋 후 실행(롤백 시 보존).
+            deleteAvatarAfterCommit(oldImageKey, oldThumbKey);
         }
         return new GroupImageResult(toPublicUrl(stored.imageKey()), toPublicUrl(stored.thumbKey()));
     }
@@ -431,7 +458,8 @@ public class GroupMemberService {
         String oldThumbKey = group.getImageThumbKey();
         group.clearImage();
         groupRepository.save(group);
-        avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+        // 커밋 후 회수(PR#123 리뷰) — 롤백 시 키가 남으므로 객체도 보존돼야 정합.
+        deleteAvatarAfterCommit(oldImageKey, oldThumbKey);
         return new GroupImageResult(null, null);
     }
 

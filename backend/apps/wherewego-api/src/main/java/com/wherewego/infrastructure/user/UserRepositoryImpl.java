@@ -74,10 +74,19 @@ public class UserRepositoryImpl implements UserRepository {
         return kakaoUrl;
     }
 
-    /** S3 객체 키 → 공개 URL (PinService.toPublicUrl 동일). 끝 슬래시 중복 방지. */
+    /**
+     * S3 객체 키 → 공개 URL (PinService.toPublicUrl 동일). 끝 슬래시 중복 방지.
+     * 끝 슬래시 제거 결과는 불변(설정값)이라 1회 계산 후 캐싱한다(배치 프로필 조회 대량 호출 — PR#123 리뷰).
+     */
+    private volatile String cachedPublicUrlBase;
+
     private String toPublicUrl(String key) {
         if (key == null) return null;
-        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        String base = cachedPublicUrlBase;
+        if (base == null) {
+            base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+            cachedPublicUrlBase = base;   // 동시 진입해도 같은 값 — 멱등이라 락 불필요.
+        }
         return base + "/" + key;
     }
 }

@@ -9,6 +9,8 @@ import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Set;
 
@@ -51,8 +53,8 @@ public class UserService {
         user.updateProfileImage(stored.imageKey(), stored.thumbKey());
 
         if (hadImage) {
-            // 교체: 기존 객체 best-effort 회수(실패해도 새 사진은 유효, BR-3).
-            avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+            // 교체: 기존 객체 best-effort 회수(실패해도 새 사진은 유효, BR-3). 커밋 후 실행(롤백 시 보존).
+            deleteAvatarAfterCommit(oldImageKey, oldThumbKey);
         }
         return toResponse(user);
     }
@@ -70,9 +72,28 @@ public class UserService {
         String oldThumbKey = user.getProfileImageThumbKey();
         user.clearProfileImage();
         if (oldImageKey != null) {
-            avatarStorage.deleteQuietly(oldImageKey, oldThumbKey);
+            // 커밋 후 회수(PR#123 리뷰) — 롤백 시 키가 남으므로 객체도 보존돼야 정합.
+            deleteAvatarAfterCommit(oldImageKey, oldThumbKey);
         }
         return toResponse(user);
+    }
+
+    /**
+     * 이전 아바타 객체를 트랜잭션 커밋 후 best-effort 회수한다(PR#123 리뷰 — DB/S3 정합).
+     * 트랜잭션 내에서 즉시 삭제하면 롤백 시 DB 키는 남고 S3 객체만 사라져 깨진 링크가 된다.
+     * 활성 트랜잭션이 없으면(테스트 등) 즉시 삭제로 폴백. GroupMemberService 와 동일 패턴.
+     */
+    private void deleteAvatarAfterCommit(String imageKey, String thumbKey) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    avatarStorage.deleteQuietly(imageKey, thumbKey);
+                }
+            });
+        } else {
+            avatarStorage.deleteQuietly(imageKey, thumbKey);
+        }
     }
 
     /**

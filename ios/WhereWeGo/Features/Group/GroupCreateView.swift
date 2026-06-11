@@ -19,6 +19,8 @@ struct GroupCreateView: View {
     @State private var showPhotoPicker = false
     /// 피커에서 고른 원본(크롭 fullScreenCover 트리거).
     @State private var pickedImage: PickedGroupImage?
+    /// 이미지 업로드만 실패한 그룹 id(PR#123 리뷰). alert 확인 후 onCreated 호출 — 즉시 닫으면 안내를 못 본다.
+    @State private var imageFailedGroupId: Int?
 
     init(groupAPI: GroupAPIProtocol, onCreated: @escaping (Int) -> Void) {
         self.groupAPI = groupAPI
@@ -116,6 +118,24 @@ struct GroupCreateView: View {
                 onCancel: { pickedImage = nil }
             )
         }
+        // 이미지 업로드만 실패(그룹은 생성됨, PR#123 리뷰): 즉시 닫지 않고 alert 로 안내 → 확인 시 진입 진행.
+        //  (기존엔 errorMessage 설정 직후 onCreated 로 dismiss 되어 사용자가 안내를 못 봤다.)
+        //  presenting 패턴(cross-review): dismiss 가 버튼 액션보다 먼저 state 를 nil 로 만들어도
+        //  groupId 가 액션 클로저 파라미터로 캡처되어 onCreated 가 유실되지 않는다.
+        .alert(
+            "그룹은 만들어졌어요",
+            isPresented: Binding(
+                get: { imageFailedGroupId != nil },
+                set: { if !$0 { imageFailedGroupId = nil } }
+            ),
+            presenting: imageFailedGroupId
+        ) { groupId in
+            Button("확인") {
+                onCreated(groupId)
+            }
+        } message: { _ in
+            Text("대표 이미지는 올리지 못했어요.\n그룹 관리에서 다시 올릴 수 있어요.")
+        }
     }
 
     // MARK: - 대표 이미지 자리(120pt)
@@ -149,20 +169,22 @@ struct GroupCreateView: View {
 
     // MARK: - 생성(2단계)
 
-    /// ① 그룹 생성(POST) ② 크롭 이미지 있으면 업로드. ② 실패는 안내만(그룹 진입은 정상 진행). 성공 시 onCreated(groupId).
+    /// ① 그룹 생성(POST) ② 크롭 이미지 있으면 업로드. ② 실패는 alert 안내 후 진입(PR#123 리뷰 — 즉시 dismiss 금지).
     private func submit() async {
         guard canSubmit else { return }
         submitting = true
         errorMessage = nil
         do {
             let created = try await groupAPI.createGroup(name: trimmed)
-            // ② 대표 이미지 업로드(선택). 실패해도 그룹은 만들어졌으므로 진입 진행 + 안내.
+            // ② 대표 이미지 업로드(선택). 실패해도 그룹은 만들어졌으므로 진입은 진행하되,
+            //    바로 onCreated(dismiss)하면 안내를 못 보므로 alert 확인 후 진입(설계 §2.3 + PR#123 리뷰).
             if let croppedImage, let jpeg = ImageCropper.resizeAndCompress(croppedImage) {
                 do {
                     _ = try await groupAPI.uploadGroupImage(groupId: created.groupId, jpegData: jpeg)
                 } catch {
-                    // 이미지만 실패 — 그룹은 생성됨. 진입은 진행하되 안내(설계 §2.3).
-                    errorMessage = "그룹은 만들어졌어요. 이미지는 그룹 관리에서 다시 올릴 수 있어요."
+                    submitting = false   // alert 대기 동안 버튼 재활성 방지 해제는 불필요하나 상태 정합 유지.
+                    imageFailedGroupId = created.groupId
+                    return
                 }
             }
             onCreated(created.groupId)
