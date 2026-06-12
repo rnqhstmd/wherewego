@@ -70,9 +70,9 @@ final class MapViewModel: ObservableObject {
     /// 장소명 최대 길이(BR-4 클라이언트 검증). 백엔드 검증(≤200자)과 동치.
     nonisolated static let placeNameMaxLength = 200
 
-    /// 메모 최대 길이(API 계층 방어 검증). 백엔드 검증(≤500자)과 동치.
+    /// 메모 최대 길이(API 계층 방어 검증). 백엔드 검증(≤100자)과 동치(2026-06-12 500→100 축소 — 공유 카드 5줄 표시 정합).
     /// 호출부 UI(PinDetailContent/VisitMemoSheet)가 이미 절단하지만 PATCH 직전 한 번 더 절단해 방어한다.
-    nonisolated static let memoMaxLength = 500
+    nonisolated static let memoMaxLength = 100
 
     /// 위도 허용 범위(BR-4, -90~90). 좌표 범위 클라이언트 검증.
     nonisolated static let latitudeRange: ClosedRange<Double> = -90...90

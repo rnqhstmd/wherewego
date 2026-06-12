@@ -45,7 +45,7 @@ struct PinDetailContent: View {
     /// 핀 답장 시트(PIN_REPLY → 그룹 채팅방) 표시 여부. 답장 버튼이 true 로 트리거.
     @State private var showReplySheet = false
 
-    private let memoLimit = 500
+    private let memoLimit = 100
     private let placeNameLimit = 200
 
     init(

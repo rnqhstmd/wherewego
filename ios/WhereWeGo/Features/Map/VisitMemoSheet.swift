@@ -18,7 +18,7 @@ struct VisitMemoSheet: View {
     @State private var isSaving = false
     @State private var inlineError: String?
 
-    private let memoLimit = 500
+    private let memoLimit = 100
 
     var body: some View {
         NavigationStack {

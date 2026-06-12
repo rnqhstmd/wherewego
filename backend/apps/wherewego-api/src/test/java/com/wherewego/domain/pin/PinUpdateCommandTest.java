@@ -57,11 +57,11 @@ class PinUpdateCommandTest {
     @Nested
     class MemoLengthValidation {
 
-        @DisplayName("500 자는 정상 통과한다 (AC-12).")
+        @DisplayName("100 자는 정상 통과한다 (AC-12).")
         @Test
-        void memo500Chars_passes() {
+        void memo100Chars_passes() {
             // arrange
-            String memo = "a".repeat(500);
+            String memo = "a".repeat(100);
 
             // act
             PinUpdateCommand cmd = PinUpdateCommand.of(true, memo, false, null,
@@ -70,14 +70,14 @@ class PinUpdateCommandTest {
             // assert
             assertThat(cmd.memoProvided()).isTrue();
             assertThat(cmd.memo()).isEqualTo(memo);
-            assertThat(cmd.memo()).hasSize(500);
+            assertThat(cmd.memo()).hasSize(100);
         }
 
-        @DisplayName("501 자는 PIN_MEMO_TOO_LONG 으로 거부된다 (AC-12, BR-4).")
+        @DisplayName("101 자는 PIN_MEMO_TOO_LONG 으로 거부된다 (AC-12, BR-4).")
         @Test
-        void memo501Chars_throwsPinMemoTooLong() {
+        void memo101Chars_throwsPinMemoTooLong() {
             // arrange
-            String memo = "a".repeat(501);
+            String memo = "a".repeat(101);
 
             // act & assert
             assertThatThrownBy(() -> PinUpdateCommand.of(true, memo, false, null,

@@ -9,7 +9,7 @@ public class UserV1Dto {
 
     public record UpdateNicknameRequest(
             @NotBlank
-            @Size(min = 2, max = 12)
+            @Size(min = 2, max = 5)
             @Pattern(regexp = "^[가-힣a-zA-Z0-9]+$", message = "한글/영문/숫자만 사용 가능합니다.")
             String nickname
     ) { }
