@@ -16,7 +16,8 @@
   - `oauth_provider` (VARCHAR(20), NOT NULL, KAKAO\|APPLE) **(P1)** + `oauth_id` (VARCHAR(255), NOT NULL) — `(oauth_provider, oauth_id)` UNIQUE
   - `email` (VARCHAR(255), nullable) **(P1)** — Apple 최초 로그인 1회 저장, Kakao 미수집
   - `nickname` (VARCHAR(100), NOT NULL)
-  - `profile_image_url` (TEXT, nullable)
+  - `profile_image_url` (TEXT, nullable) — 카카오 가입 시 1회 수집. **GP-1 FR-7([#123](https://github.com/rnqhstmd/wherewego/pull/123)): 재로그인 시 카카오 프로필 동기화 전면 중단**(기존엔 매 로그인 `updateProfile` 덮어쓰기) — 사용자 지정 프사·닉네임 보존. 프사 제거 시 이 컬럼도 null(자동 복원 없음)
+  - `profile_image_key` / `profile_image_thumb_key` (VARCHAR(255), nullable, V022) **(GP-1)** — 사용자 업로드 프사 S3 키. **유효 프사 URL = thumb 키 우선 → profile_image_url(카카오) 폴백 → null** (`UserRepository.findProfilesByIds` resolver 단일 규칙)
   - `refresh_token` (TEXT, nullable) — **JWT 원본이 아닌 SHA-256 해시(hex) 저장**
   - `created_at`, `updated_at`, `deleted_at` (TIMESTAMPTZ, BaseEntity 자동 관리)
 - **네이티브 로그인 엔드포인트 (P1)**: `POST /auth/kakao/native`(Kakao access token + app_id 검증), `POST /auth/apple/native`(Apple identityToken JWKS 검증), `POST /auth/refresh`(body 기반). 전부 Set-Cookie 미설정·body 토큰 반환. 기존 `/auth/kakao/callback`·`/auth/token/refresh`(쿠키)는 무변경 병행

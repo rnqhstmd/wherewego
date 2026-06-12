@@ -18,6 +18,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
     let senderUserId: Int?
     /// 발신자 닉네임(서버 배치 조회). 발신자 NULL 이면 nil.
     let senderNickname: String?
+    /// 발신자 유효 프사 URL(서버 배치 조회, GP-1 §2.2). 발신자 NULL/구서버 → nil → AvatarView 이니셜 폴백.
+    let senderProfileImageUrl: String?
     let kind: MessageKind
     let createdAt: String
     /// REEL_LINK payload.url(그 외 kind 는 nil).
@@ -31,7 +33,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
     let text: String?
 
     private enum CodingKeys: String, CodingKey {
-        case messageId, roomId, senderUserId, senderNickname, kind, payload, registered, thumbnailUrl, createdAt
+        case messageId, roomId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, createdAt
     }
     private enum TextKeys: String, CodingKey { case text }
     private enum ReelKeys: String, CodingKey { case url }
@@ -42,6 +44,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.roomId = try c.decode(Int.self, forKey: .roomId)
         self.senderUserId = try c.decodeIfPresent(Int.self, forKey: .senderUserId)
         self.senderNickname = try c.decodeIfPresent(String.self, forKey: .senderNickname)
+        // 발신자 프사 — additive 계약(구서버엔 키 부재) → decodeIfPresent 로 하위호환.
+        self.senderProfileImageUrl = try c.decodeIfPresent(String.self, forKey: .senderProfileImageUrl)
         self.kind = try c.decode(MessageKind.self, forKey: .kind)
         self.createdAt = try c.decode(String.self, forKey: .createdAt)
         self.registered = try c.decodeIfPresent(Bool.self, forKey: .registered)
@@ -71,6 +75,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         roomId: Int,
         senderUserId: Int?,
         senderNickname: String?,
+        senderProfileImageUrl: String? = nil,
         kind: MessageKind,
         createdAt: String,
         reelUrl: String? = nil,
@@ -82,6 +87,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.roomId = roomId
         self.senderUserId = senderUserId
         self.senderNickname = senderNickname
+        self.senderProfileImageUrl = senderProfileImageUrl
         self.kind = kind
         self.createdAt = createdAt
         self.reelUrl = reelUrl

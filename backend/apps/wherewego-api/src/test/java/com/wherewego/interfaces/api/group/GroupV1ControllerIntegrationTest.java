@@ -3,6 +3,7 @@ package com.wherewego.interfaces.api.group;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
 import com.wherewego.domain.group.GroupMember;
+import com.wherewego.domain.image.AvatarStorage;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.infrastructure.group.GroupJpaRepository;
 import com.wherewego.infrastructure.group.GroupMemberJpaRepository;
@@ -15,8 +16,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -25,10 +29,17 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -55,6 +66,10 @@ class GroupV1ControllerIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    // GP-1: 그룹 이미지 업로드 시 실제 S3 호출을 피하기 위해 저장 포트를 mock 으로 대체한다.
+    @MockBean
+    private AvatarStorage avatarStorage;
 
     private Long userAId;
     private Long userBId;
@@ -177,6 +192,41 @@ class GroupV1ControllerIntegrationTest {
     private ResponseEntity<JsonNode> deleteGroup(String accessToken, Long groupId) {
         return restTemplate.exchange(
                 "/api/v1/groups/" + groupId,
+                HttpMethod.DELETE,
+                new HttpEntity<>(authHeaders(accessToken)),
+                JsonNode.class);
+    }
+
+    /** 멀티파트 그룹 이미지 업로드(JPEG 매직바이트로 시작하는 최소 바이트). */
+    private ResponseEntity<JsonNode> uploadGroupImage(String accessToken, Long groupId) {
+        HttpHeaders headers = new HttpHeaders();
+        if (accessToken != null) {
+            headers.add(HttpHeaders.COOKIE, "access_token=" + accessToken);
+        }
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        // JPEG 매직(FF D8 FF) 으로 시작해야 ImageUploadGuard 의 매직바이트 게이트를 통과한다.
+        byte[] jpeg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10};
+        Resource file = new ByteArrayResource(jpeg) {
+            @Override
+            public String getFilename() {
+                return "avatar.jpg";
+            }
+        };
+        HttpHeaders fileHeaders = new HttpHeaders();
+        fileHeaders.setContentType(MediaType.IMAGE_JPEG);
+        HttpEntity<Resource> filePart = new HttpEntity<>(file, fileHeaders);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", filePart);
+        return restTemplate.exchange(
+                "/api/v1/groups/" + groupId + "/image",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                JsonNode.class);
+    }
+
+    private ResponseEntity<JsonNode> deleteGroupImage(String accessToken, Long groupId) {
+        return restTemplate.exchange(
+                "/api/v1/groups/" + groupId + "/image",
                 HttpMethod.DELETE,
                 new HttpEntity<>(authHeaders(accessToken)),
                 JsonNode.class);
@@ -318,24 +368,24 @@ class GroupV1ControllerIntegrationTest {
         assertThat(data.get("acceptedAt").asText()).isNotBlank();
     }
 
-    @DisplayName("IC-1(AC-6): GET /api/v1/groups/invite-links/by-slug/{slug} - 유효 코드이지만 정원(10) 도달이면 409 GROUP_CAPACITY_EXCEEDED 를 반환한다.")
+    @DisplayName("IC-1(AC-6)+GP-1 FR-8: GET /api/v1/groups/invite-links/by-slug/{slug} - 유효 코드이지만 정원(8) 도달이면 409 GROUP_CAPACITY_EXCEEDED 를 반환한다.")
     @Test
     void previewBySlug_capacityReached_returns409() {
-        // arrange : userA 생성(1명) + 코드 발급. 동일 코드를 재사용해 정원 10 을 채운다.
+        // arrange : userA 생성(1명) + 코드 발급. 동일 코드를 재사용해 정원 8 을 채운다(정원 10→8 축소).
         ResponseEntity<JsonNode> created = createGroup(tokenA, "정원그룹");
         Long groupId = created.getBody().get("data").get("groupId").asLong();
         JsonNode inviteData = issueInviteLink(tokenA, groupId).getBody().get("data");
         String token = inviteData.get("token").asText();
         String slug = inviteData.get("slug").asText();
 
-        // 서로 다른 9명을 동일 코드로 가입시켜 정원 10 도달
-        for (int i = 0; i < 9; i++) {
+        // 서로 다른 7명을 동일 코드로 가입시켜 정원 8 도달
+        for (int i = 0; i < 7; i++) {
             UserModel member = userJpaRepository.save(
                     UserModel.create(20000100L + i, "member" + i, null));
             String memberToken = jwtTokenProvider.issueAccessToken(member.getId());
             acceptInviteLink(memberToken, token);
         }
-        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(10L);
+        assertThat(groupMemberJpaRepository.countActiveByGroupId(groupId)).isEqualTo(8L);
 
         // act : 정원 도달 후 by-slug 미리보기
         ResponseEntity<JsonNode> response = previewBySlug(slug);
@@ -657,5 +707,123 @@ class GroupV1ControllerIntegrationTest {
         assertThat(data).isNotNull();
         assertThat(data.get("groupId").asLong()).isEqualTo(secondGroupId);
         assertThat(data.get("name").asText()).isEqualTo("맛집팀");
+    }
+
+    @DisplayName("GP-1 FR-4: GET /api/v1/groups - 각 그룹에 imageUrl/imageThumbUrl(미지정 null)과 멤버 프리뷰(가입순)를 포함한다.")
+    @Test
+    void getMyGroups_includesImageAndMemberPreviews() {
+        // arrange : userA 그룹 + userB 합류(가입순 A→B). 이미지는 미지정.
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        String inviteToken = issueInviteLink(tokenA, groupId).getBody().get("data").get("token").asText();
+        acceptInviteLink(tokenB, inviteToken);
+
+        // act
+        ResponseEntity<JsonNode> response = getMyGroups(tokenA);
+
+        // assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode item = response.getBody().get("data").get(0);
+        // 이미지 미지정 → null(클라가 콜라주 렌더).
+        assertThat(item.get("imageUrl").isNull()).isTrue();
+        assertThat(item.get("imageThumbUrl").isNull()).isTrue();
+        // 멤버 프리뷰 가입순(A→B), 프사 없으면 profileImageUrl null.
+        JsonNode members = item.get("members");
+        assertThat(members.isArray()).isTrue();
+        assertThat(members).hasSize(2);
+        assertThat(members.get(0).get("userId").asLong()).isEqualTo(userAId);
+        assertThat(members.get(0).get("nickname").asText()).isEqualTo("userA");
+        assertThat(members.get(0).get("profileImageUrl").isNull()).isTrue();
+        assertThat(members.get(1).get("userId").asLong()).isEqualTo(userBId);
+    }
+
+    @DisplayName("GP-1 FR-9: GET /api/v1/groups/{groupId}/members - 각 멤버에 profileImageUrl(없으면 null) 필드가 포함된다.")
+    @Test
+    void listMembers_includesProfileImageUrl() {
+        // arrange
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = listMembers(tokenA, groupId);
+
+        // assert : 프사 없는 사용자는 profileImageUrl null 키 존재.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode member = response.getBody().get("data").get(0);
+        assertThat(member.has("profileImageUrl")).isTrue();
+        assertThat(member.get("profileImageUrl").isNull()).isTrue();
+    }
+
+    @DisplayName("GP-1 FR-1/FR-2: POST /api/v1/groups/{groupId}/image - 활성 멤버가 업로드하면 200 과 공개 URL + DB 키가 갱신된다.")
+    @Test
+    void uploadGroupImage_member_updatesKeyAndReturnsUrls() {
+        // arrange : userA 그룹 + 저장 포트 mock.
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        when(avatarStorage.store(eq("groups/" + groupId + "/avatar"), any(byte[].class), anyString()))
+                .thenReturn(new AvatarStorage.StoredAvatar(
+                        "groups/" + groupId + "/avatar/u.jpg", "groups/" + groupId + "/avatar/u_thumb.webp"));
+
+        // act
+        ResponseEntity<JsonNode> response = uploadGroupImage(tokenA, groupId);
+
+        // assert : 200 + 공개 URL 응답 + DB image_key 갱신.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("imageUrl").asText()).endsWith("/groups/" + groupId + "/avatar/u.jpg");
+        assertThat(data.get("imageThumbUrl").asText()).endsWith("_thumb.webp");
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getImageKey())
+                .isEqualTo("groups/" + groupId + "/avatar/u.jpg");
+    }
+
+    @DisplayName("GP-1(AC-2): POST /api/v1/groups/{groupId}/image - 비멤버가 업로드하면 403 GROUP_NOT_MEMBER 이고 저장은 호출되지 않는다.")
+    @Test
+    void uploadGroupImage_notMember_returns403() {
+        // arrange : userA 그룹, userB 비멤버.
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+
+        // act
+        ResponseEntity<JsonNode> response = uploadGroupImage(tokenB, groupId);
+
+        // assert : 403 + 저장 미호출(권한 검증이 store 앞).
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().get("meta").get("errorCode").asText()).isEqualTo("GROUP_NOT_MEMBER");
+    }
+
+    @DisplayName("GP-1 FR-2: 업로드 후 재업로드(교체) 시 이전 키가 best-effort 회수되고 새 키로 갱신된다.")
+    @Test
+    void uploadGroupImage_replace_recoversOldKeys() {
+        // arrange : 첫 업로드로 키를 채운다.
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        when(avatarStorage.store(anyString(), any(byte[].class), anyString()))
+                .thenReturn(new AvatarStorage.StoredAvatar("groups/x/old.jpg", "groups/x/old_thumb.webp"))
+                .thenReturn(new AvatarStorage.StoredAvatar("groups/x/new.jpg", "groups/x/new_thumb.webp"));
+        uploadGroupImage(tokenA, groupId);
+
+        // act : 교체 업로드.
+        ResponseEntity<JsonNode> response = uploadGroupImage(tokenA, groupId);
+
+        // assert : 새 키로 갱신 + 이전 키 회수(deleteQuietly).
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getImageKey()).isEqualTo("groups/x/new.jpg");
+        verify(avatarStorage).deleteQuietly("groups/x/old.jpg", "groups/x/old_thumb.webp");
+    }
+
+    @DisplayName("GP-1 FR-2: DELETE /api/v1/groups/{groupId}/image - 활성 멤버가 제거하면 200, null URL, DB 키 비움 + S3 회수.")
+    @Test
+    void deleteGroupImage_member_clearsKeyAndReturnsNulls() {
+        // arrange : 업로드로 키를 채운 뒤 제거.
+        Long groupId = createGroup(tokenA, "여행팀").getBody().get("data").get("groupId").asLong();
+        when(avatarStorage.store(anyString(), any(byte[].class), anyString()))
+                .thenReturn(new AvatarStorage.StoredAvatar("groups/x/u.jpg", "groups/x/u_thumb.webp"));
+        uploadGroupImage(tokenA, groupId);
+
+        // act
+        ResponseEntity<JsonNode> response = deleteGroupImage(tokenA, groupId);
+
+        // assert : 200 + null URL + DB 키 비움 + 회수.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = response.getBody().get("data");
+        assertThat(data.get("imageUrl").isNull()).isTrue();
+        assertThat(data.get("imageThumbUrl").isNull()).isTrue();
+        assertThat(groupJpaRepository.findById(groupId).orElseThrow().getImageKey()).isNull();
+        verify(avatarStorage).deleteQuietly("groups/x/u.jpg", "groups/x/u_thumb.webp");
     }
 }

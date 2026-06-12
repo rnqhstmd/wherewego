@@ -1,6 +1,7 @@
 package com.wherewego.infrastructure.group;
 
 import com.wherewego.domain.group.GroupMember;
+import com.wherewego.domain.group.GroupMemberAvatarRow;
 import com.wherewego.domain.group.GroupMemberInfo;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupSummary;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +40,15 @@ public class GroupMemberRepositoryImpl implements GroupMemberRepository {
     @Override
     public List<GroupMemberInfo> listActiveMembersByGroupId(Long groupId) {
         return jpaRepository.findActiveMembersByGroupId(groupId);
+    }
+
+    @Override
+    public List<GroupMemberAvatarRow> listActiveMembersByGroupIds(Collection<Long> groupIds) {
+        // 빈 IN 절은 일부 DB 에서 오류/전체스캔이라 호출 전 차단.
+        if (groupIds == null || groupIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findActiveMembersByGroupIds(groupIds);
     }
 
     @Override

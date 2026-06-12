@@ -9,12 +9,11 @@ import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateResult;
 import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.interfaces.api.ApiResponse;
+import com.wherewego.interfaces.api.support.ImageUploadGuard;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +39,6 @@ public class PinV1Controller implements PinV1ApiSpec {
     private static final Logger log = LoggerFactory.getLogger(PinV1Controller.class);
 
     private static final int MAX_PAGE_SIZE = 100;
-
-    /** 추억핀 사진 허용 contentType (AC-5). */
-    private static final Set<String> ALLOWED_PHOTO_TYPES =
-            Set.of("image/jpeg", "image/png", "image/webp");
-
-    /** 추억핀 사진 최대 크기 2MB (AC-4). */
-    private static final long MAX_PHOTO_SIZE = 2L * 1024 * 1024;
 
     private final PinService pinService;
     private final NotificationService notificationService;
@@ -178,65 +170,16 @@ public class PinV1Controller implements PinV1ApiSpec {
             @PathVariable Long pinId,
             @RequestParam("file") MultipartFile file
     ) {
-        if (file == null || file.isEmpty()) {
-            throw new CoreException(ErrorType.PIN_PHOTO_FILE_REQUIRED);
-        }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_PHOTO_TYPES.contains(contentType)) {
-            throw new CoreException(ErrorType.PIN_PHOTO_TYPE_INVALID);
-        }
-        if (file.getSize() > MAX_PHOTO_SIZE) {
-            throw new CoreException(ErrorType.PIN_PHOTO_SIZE_EXCEEDED);
-        }
-        byte[] imageBytes;
-        try {
-            imageBytes = file.getBytes();
-        } catch (IOException e) {
-            log.warn("multipart read failed groupId={} pinId={}", groupId, pinId, e);
-            throw new CoreException(ErrorType.PIN_PHOTO_STORAGE_FAILED);
-        }
-        // 2차 게이트: Content-Type 헤더는 위조 가능하므로 실제 매직바이트로 이미지 여부 검증.
-        if (!isAllowedImageMagic(imageBytes)) {
-            throw new CoreException(ErrorType.PIN_PHOTO_TYPE_INVALID);
-        }
-        PinSummary summary = pinService.uploadPhoto(userId, groupId, pinId, imageBytes, contentType);
+        // GP-1: 3중 검증(타입/크기/매직바이트)을 ImageUploadGuard 로 위임. 기존 PIN_PHOTO_* 에러타입을
+        // 그대로 전달해 클라이언트 응답 코드 계약을 보존한다(동작 무변경).
+        byte[] imageBytes = ImageUploadGuard.readValidatedImage(
+                file,
+                ErrorType.PIN_PHOTO_FILE_REQUIRED,
+                ErrorType.PIN_PHOTO_TYPE_INVALID,
+                ErrorType.PIN_PHOTO_SIZE_EXCEEDED,
+                ErrorType.PIN_PHOTO_STORAGE_FAILED);
+        PinSummary summary = pinService.uploadPhoto(userId, groupId, pinId, imageBytes, file.getContentType());
         return ApiResponse.success(PinV1Dto.PinSummaryResponse.from(summary));
-    }
-
-    /**
-     * 업로드 파일의 시작 매직바이트가 실제 허용 이미지(JPEG/PNG/WebP)인지 검증한다 (Content-Type 헤더 보완).
-     * 길이가 부족한(짧은) 파일은 거부한다.
-     */
-    private static boolean isAllowedImageMagic(byte[] bytes) {
-        if (bytes == null) {
-            return false;
-        }
-        // JPEG: FF D8 FF
-        if (bytes.length >= 3
-                && (bytes[0] & 0xFF) == 0xFF
-                && (bytes[1] & 0xFF) == 0xD8
-                && (bytes[2] & 0xFF) == 0xFF) {
-            return true;
-        }
-        // PNG: 89 50 4E 47 0D 0A 1A 0A
-        if (bytes.length >= 8
-                && (bytes[0] & 0xFF) == 0x89
-                && (bytes[1] & 0xFF) == 0x50
-                && (bytes[2] & 0xFF) == 0x4E
-                && (bytes[3] & 0xFF) == 0x47
-                && (bytes[4] & 0xFF) == 0x0D
-                && (bytes[5] & 0xFF) == 0x0A
-                && (bytes[6] & 0xFF) == 0x1A
-                && (bytes[7] & 0xFF) == 0x0A) {
-            return true;
-        }
-        // WebP: 바이트 0~3 = "RIFF", 바이트 8~11 = "WEBP"
-        if (bytes.length >= 12
-                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
-                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
-            return true;
-        }
-        return false;
     }
 
     @DeleteMapping("/{groupId}/pins/{pinId}/photo")

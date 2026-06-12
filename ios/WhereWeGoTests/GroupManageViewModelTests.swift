@@ -29,8 +29,8 @@ final class GroupManageViewModelTests: XCTestCase {
 
     func test_load_populatesMembers_andLoadedState() async {
         let members = [
-            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: "2026-01-01T00:00:00Z", isOwner: true),
-            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: "2026-02-01T00:00:00Z", isOwner: false),
+            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: "2026-01-01T00:00:00Z", isOwner: true, profileImageUrl: nil),
+            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: "2026-02-01T00:00:00Z", isOwner: false, profileImageUrl: nil),
         ]
         let vm = await makeViewModel(api: StubGroupManageAPI(members: members), currentUserId: 2)
 
@@ -57,8 +57,8 @@ final class GroupManageViewModelTests: XCTestCase {
 
     func test_isOwner_trueWhenCurrentUserIsOwner() async {
         let members = [
-            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: nil, isOwner: true),
-            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: nil, isOwner: false),
+            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: nil, isOwner: true, profileImageUrl: nil),
+            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: nil, isOwner: false, profileImageUrl: nil),
         ]
         // 내 id == 1(방장).
         let vm = await makeViewModel(api: StubGroupManageAPI(members: members), currentUserId: 1)
@@ -69,8 +69,8 @@ final class GroupManageViewModelTests: XCTestCase {
 
     func test_isOwner_falseWhenCurrentUserIsNotOwner() async {
         let members = [
-            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: nil, isOwner: true),
-            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: nil, isOwner: false),
+            GroupMemberItem(userId: 1, nickname: "보승", joinedAt: nil, isOwner: true, profileImageUrl: nil),
+            GroupMemberItem(userId: 2, nickname: "지은", joinedAt: nil, isOwner: false, profileImageUrl: nil),
         ]
         // 내 id == 2(비방장).
         let vm = await makeViewModel(api: StubGroupManageAPI(members: members), currentUserId: 2)

@@ -7,11 +7,18 @@ import java.time.ZonedDateTime;
  *
  * <p>{@code createdAt} 은 그룹 생성 시각(Group.createdAt = BaseEntity ZonedDateTime) 기준이다.
  * GroupMember.joinedAt(Instant) 과 다른 컬럼임에 유의.</p>
+ *
+ * <p>GP-1: {@code imageUrl}/{@code imageThumbUrl} 는 그룹 대표 이미지의 공개 URL 이다.
+ * JPQL projection 단계에서는 S3 객체 <b>키</b>가 채워지고, 서비스({@code GroupMemberService.listMyGroups})가
+ * S3Properties 와 조합해 공개 URL 로 치환한다(PinService.toPublicUrl 와 동일한 "서비스가 변환" 패턴).
+ * 이미지가 없으면 두 필드 모두 null.</p>
  */
 public record GroupSummary(
         Long groupId,
         String name,
         ZonedDateTime createdAt,
-        long memberCount
+        long memberCount,
+        String imageUrl,
+        String imageThumbUrl
 ) {
 }

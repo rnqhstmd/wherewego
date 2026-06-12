@@ -93,6 +93,25 @@ final class AuthAPI: Sendable {
         try await client.request("/users/me", type: UserResponse.self)
     }
 
+    /// POST /users/me/profile-image (multipart, image/jpeg) — 내 프로필 사진 업로드(GP-1 §2.2).
+    /// 핀 uploadPhoto 패턴(client.upload, fieldName "file"). 응답 UserResponse.profileImageUrl 로 CurrentUser 갱신은 B4 배선.
+    func uploadProfileImage(jpegData: Data) async throws -> UserResponse {
+        try await client.upload(
+            "/users/me/profile-image",
+            fileData: jpegData,
+            fileName: "profile.jpg",
+            fieldName: "file",
+            mimeType: "image/jpeg",
+            type: UserResponse.self
+        )
+    }
+
+    /// DELETE /users/me/profile-image — 내 프로필 사진 제거(GP-1 §2.2, 카카오 URL 포함 전부 null).
+    /// 응답 UserResponse(profileImageUrl=null) 디코드.
+    func deleteProfileImage() async throws -> UserResponse {
+        try await client.request("/users/me/profile-image", method: "DELETE", type: UserResponse.self)
+    }
+
     /// DELETE /users/me. 계정 삭제(FR-26).
     // 204(빈 본문) 정상 성공 — APIClient.decodeEnvelope 는 data 키 부재로 NO_CONTENT 를 throw.
     // 204 자체는 성공이므로 NO_CONTENT 만 정상 흡수하고 나머지는 전파(PinAPI.delete 패턴).

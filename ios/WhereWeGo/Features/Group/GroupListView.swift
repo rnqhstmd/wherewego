@@ -59,17 +59,21 @@ struct GroupListView: View {
         }
     }
 
-    /// 그룹 카드 — 좌측 점 + 이름 + 인원 수. GroupStartView.optionCard 톤 이식.
+    /// 그룹 카드 — 좌측 그룹 아바타 + 이름 + 멤버 프사 일렬(GP-1 FR-4). GroupStartView.optionCard 톤 이식.
+    //  좌측 14pt 점 → GroupAvatarView(44pt, 대표 이미지 미지정 시 멤버 콜라주 폴백).
+    //  "멤버 N명" 텍스트 → 활성 멤버 전원 프사를 가입순 가로 일렬(살짝 겹침)로 나열, 인원 수 텍스트 제거(설계 §2.3).
     private func groupCard(_ group: GroupSummary) -> some View {
         HStack(spacing: 12) {
-            Circle().fill(WGColor.pinWish).frame(width: 14, height: 14)
-            VStack(alignment: .leading, spacing: 4) {
+            GroupAvatarView(
+                imageUrl: group.imageThumbUrl ?? group.imageUrl,
+                members: group.members,
+                size: 44
+            )
+            VStack(alignment: .leading, spacing: 6) {
                 Text(group.name)
                     .font(WGFont.emo(17))
                     .foregroundStyle(WGColor.ink)
-                Text("멤버 \(group.memberCount)명")
-                    .font(WGFont.sans(13))
-                    .foregroundStyle(WGColor.inkSoft)
+                memberStrip(group.members)
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
@@ -81,6 +85,19 @@ struct GroupListView: View {
         .background(WGColor.panel)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
+    }
+
+    /// 활성 멤버 전원 프사 가입순 일렬(FR-4). -6pt 겹침 HStack. 각 셀 20pt AvatarView(프사/이니셜 폴백).
+    /// 멤버 미로딩(구서버·빈 배열)이면 빈 자리(EmptyView) — 카드 높이 리듬 유지를 위해 최소 높이 확보.
+    private func memberStrip(_ members: [GroupMemberPreview]) -> some View {
+        HStack(spacing: -6) {
+            ForEach(members) { member in
+                AvatarView(imageUrl: member.profileImageUrl, name: member.nickname, size: 20)
+                    // 겹침 경계 식별을 위해 panel 색 테두리 링(카톡식 스택 아바타).
+                    .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+            }
+        }
+        .frame(height: 20, alignment: .leading)
     }
 
     /// 그룹 추가 진입 행(새 그룹 만들기 / 초대 코드로 합류). 목록 하단 보조 액션.

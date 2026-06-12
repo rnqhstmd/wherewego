@@ -10,6 +10,9 @@ import SwiftUI
 struct DMListView: View {
     // MainTabView 가 @StateObject 로 소유한 VM 을 그대로 주입받는다(소유 금지 — 배지 정합).
     @ObservedObject var viewModel: DMListViewModel
+    /// 그룹 컨텍스트(GP-1 FR-5). 방 썸네일을 room.groupId 로 groups 조인해 대표 이미지/콜라주를 그린다.
+    ///  MainTabView 가 @StateObject 로 소유한 단일 인스턴스를 주입(목록 부트스트랩 시 이미지·멤버 동봉).
+    @ObservedObject var groupContext: GroupContext
     /// 포그라운드 수신 신호(willPresent 현재 방). 방 화면(GroupChatView)에 전달.
     let pushSignal: ChatPushSignal
     /// room → 방 VM 팩토리(MainTabView 가 dependencies 캡처). 방 진입 시 @StateObject 로 1회 생성.
@@ -125,7 +128,12 @@ struct DMListView: View {
                     Button {
                         openedRoom = room
                     } label: {
-                        DMRoomRow(room: room, currentUserId: viewModel.currentUserId)
+                        // room.groupId 로 그룹 목록 조인(GP-1 FR-5) — 대표 이미지/콜라주 입력. 미로딩 시 nil → 현행 아이콘 폴백.
+                        DMRoomRow(
+                            room: room,
+                            group: groupContext.groups.first { $0.groupId == room.groupId },
+                            currentUserId: viewModel.currentUserId
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -162,6 +170,8 @@ struct GroupChatRoomView: View {
 /// unread → 그룹명·미리보기 굵게 + 우측 강조점 + 옅은 cta 배경.
 private struct DMRoomRow: View {
     let room: GroupRoomSummary
+    /// room.groupId 조인 그룹(GP-1 FR-5). 대표 이미지/멤버 콜라주 입력. nil = 미로딩 → 현행 bubble 아이콘 폴백.
+    let group: GroupSummary?
     /// 미리보기 "나:" 판정용 내 id.
     let currentUserId: Int?
 
@@ -170,12 +180,7 @@ private struct DMRoomRow: View {
     var body: some View {
         // 세로 중앙 정렬: 우측 시간/배지 블록과 미리보기가 행 가운데로 — 상단 쏠림 해소.
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "bubble.left.and.bubble.right.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(WGColor.cta)
-                .frame(width: 44, height: 44)
-                .background(WGColor.cta.opacity(0.10))
-                .clipShape(Circle())
+            roomAvatar
 
             VStack(alignment: .leading, spacing: 3) {
                 // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 배지).
@@ -229,6 +234,22 @@ private struct DMRoomRow: View {
                 .stroke(WGColor.hairline, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// 방 썸네일(GP-1 FR-5) — 그룹 조인 성공 시 GroupAvatarView(대표 이미지/멤버 콜라주).
+    /// 미로딩(목록 부트스트랩 전)엔 그룹명 이니셜 원형 — 아바타 외형을 유지해 로딩 전후 모양이 튀지 않는다(QA 확인 반영).
+    /// 44pt 자리 크기는 기존과 동일(레이아웃 무변경).
+    @ViewBuilder
+    private var roomAvatar: some View {
+        if let group {
+            GroupAvatarView(
+                imageUrl: group.imageThumbUrl ?? group.imageUrl,
+                members: group.members,
+                size: 44
+            )
+        } else {
+            AvatarView(imageUrl: nil, name: room.groupName, size: 44)
+        }
     }
 
     /// 미리보기 텍스트: 프리픽스 없이 마지막 메시지 본문만(릴스는 서버가 "릴스 링크를 공유했어요"로 내림).

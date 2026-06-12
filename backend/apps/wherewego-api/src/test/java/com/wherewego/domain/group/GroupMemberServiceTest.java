@@ -1,9 +1,11 @@
 package com.wherewego.domain.group;
 
 import com.wherewego.config.env.InviteProperties;
+import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.bot.BotUserMappingService;
 import com.wherewego.domain.chat.ChatRoom;
 import com.wherewego.domain.chat.ChatRoomRepository;
+import com.wherewego.domain.image.AvatarStorage;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -67,11 +69,19 @@ class GroupMemberServiceTest {
     @Mock
     private ChatRoomRepository chatRoomRepository;
 
+    // GP-1: 그룹 이미지 업로드/삭제 시 S3 저장 포트.
+    @Mock
+    private AvatarStorage avatarStorage;
+
     // record 는 mock 어렵기 때문에 실제 인스턴스를 직접 주입한다.
     private final InviteProperties inviteProperties = new InviteProperties(
             Duration.ofDays(7),
             "http://localhost:3000",
             new InviteProperties.RateLimit(30, 60, 10000));
+
+    // GP-1: S3Properties 도 record 라 @InjectMocks 가 null 주입 → ReflectionTestUtils 로 수동 주입(listMyGroups 의 toPublicUrl).
+    private final S3Properties s3Properties = new S3Properties(
+            "test-bucket", "ap-northeast-2", "https://cdn.example.com");
 
     @InjectMocks
     private GroupMemberService groupMemberService;
@@ -87,6 +97,7 @@ class GroupMemberServiceTest {
         // @RequiredArgsConstructor 가 전체 필드 생성자를 만들고 inviteProperties 도 그 자리에 포함되므로,
         // Mockito 가 매칭 타입을 찾지 못해 null 주입한다. ReflectionTestUtils 로 수동 주입한다.
         ReflectionTestUtils.setField(groupMemberService, "inviteProperties", inviteProperties);
+        ReflectionTestUtils.setField(groupMemberService, "s3Properties", s3Properties);
     }
 
     /** 테스트용 Group 생성 + id 강제 주입. BaseEntity.id 가 final 이라 ReflectionTestUtils 로는 set 불가하므로
@@ -336,10 +347,10 @@ class GroupMemberServiceTest {
                     .isEqualTo(ErrorType.INVITE_LINK_SELF_ACCEPT);
         }
 
-        @DisplayName("GM-1: 정원 10명에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-16).")
+        @DisplayName("GP-1 FR-8: 정원 8명에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-16, 정원 10→8 축소).")
         @Test
         void acceptInviteLink_capacityReached_throwsCapacityExceeded() {
-            // arrange
+            // arrange : 정원 8(MAX_GROUP_MEMBERS) 도달 — count==8 이면 >= 검사로 가입 차단.
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
             Group group = newGroup("우리커플");
@@ -347,7 +358,7 @@ class GroupMemberServiceTest {
             when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
                     .thenReturn(Optional.empty());
-            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(10L);
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(8L);
 
             // act & assert
             assertThatThrownBy(() -> groupMemberService.acceptInviteLink(USER_ID, TOKEN))
@@ -431,22 +442,43 @@ class GroupMemberServiceTest {
             assertThat(result.expiresAt()).isNotNull();
         }
 
-        @DisplayName("IC-1(D4): 유효 코드이지만 그룹 정원(10)에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-6).")
+        @DisplayName("IC-1(D4)+GP-1 FR-8: 유효 코드이지만 그룹 정원(8)에 도달했으면 GROUP_CAPACITY_EXCEEDED 가 발생한다 (AC-6, 정원 10→8 축소).")
         @Test
         void previewBySlug_capacityReached_throwsCapacityExceeded() {
-            // arrange
+            // arrange : 정원 8(MAX_GROUP_MEMBERS) 도달.
             Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
             InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofDays(7));
             Group group = newGroup("우리커플");
             when(inviteLinkRepository.findActiveBySlug(eq(SLUG), any(Instant.class))).thenReturn(Optional.of(link));
             when(groupRepository.findById(link.getGroupId())).thenReturn(Optional.of(group));
-            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(10L);
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(8L);
 
             // act & assert : 만료/없음의 NOT_FOUND 가 아니라 정원 초과로 구분 응답한다.
             assertThatThrownBy(() -> groupMemberService.previewBySlug(SLUG))
                     .isInstanceOf(CoreException.class)
                     .extracting("errorType")
                     .isEqualTo(ErrorType.GROUP_CAPACITY_EXCEEDED);
+        }
+
+        @DisplayName("GP-1 FR-8: 정원 경계 — 활성 7명(정원 8 미만)이면 수락이 성공한다 (7명 그룹 가입 가능, AC-6).")
+        @Test
+        void acceptInviteLink_sevenMembers_succeeds() {
+            // arrange : count==7 < MAX(8) → 가입 허용.
+            Instant issuedAt = Instant.now().minus(Duration.ofMinutes(10));
+            InviteLink link = InviteLink.issue(GROUP_ID, OTHER_USER_ID, TOKEN, SLUG, issuedAt, Duration.ofHours(24));
+            Group group = newGroup("우리커플");
+            when(inviteLinkRepository.findByToken(TOKEN)).thenReturn(Optional.of(link));
+            when(groupRepository.findByIdForUpdate(link.getGroupId())).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(group.getId(), USER_ID))
+                    .thenReturn(Optional.empty());
+            when(groupMemberRepository.countActiveByGroupId(group.getId())).thenReturn(7L);
+
+            // act
+            InviteAcceptResult result = groupMemberService.acceptInviteLink(USER_ID, TOKEN);
+
+            // assert : 정원 미달이므로 가입(멤버 저장) 성공.
+            verify(groupMemberRepository).save(any(GroupMember.class));
+            assertThat(result.groupId()).isEqualTo(group.getId());
         }
 
         @DisplayName("IC-1: 만료/존재하지 않는 코드이면 INVITE_LINK_NOT_FOUND 가 발생한다.")
@@ -639,16 +671,18 @@ class GroupMemberServiceTest {
     @Nested
     class ListMembers {
 
-        @DisplayName("정렬된 첫 항목(joined_at 최소)만 방장(isOwner=true)으로 마킹하고 나머지는 false 다 (GM-2).")
+        @DisplayName("정렬된 첫 항목(joined_at 최소)만 방장(isOwner=true)으로 마킹하고 나머지는 false 다 (GM-2). "
+                + "GP-1 FR-9: 프사 썸네일 키 우선 → 카카오 URL 폴백 → null 의 유효 프사 URL 이 합성된다.")
         @Test
         void listMembers_marksFirstAsOwner() {
             // arrange : repo 가 joined_at ASC, id ASC 정렬된 목록을 반환(첫 항목 = 방장).
+            //   방장 = 업로드 썸네일 키 보유(→ 공개 URL), 멤버 = 키 없이 카카오 URL 만(→ 카카오 URL 폴백).
             Instant base = Instant.now();
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
                     .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, base)));
             when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
-                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
-                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L, "users/7/avatar/x_thumb.webp", "https://kakao/p.png"),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L, null, "https://kakao/q.png")));
 
             // act
             List<GroupMemberService.GroupMemberResult> result =
@@ -658,8 +692,13 @@ class GroupMemberServiceTest {
             assertThat(result).hasSize(2);
             assertThat(result.get(0).userId()).isEqualTo(USER_ID);
             assertThat(result.get(0).isOwner()).isTrue();
+            // 썸네일 키가 있으면 그 공개 URL(s3Properties.publicBaseUrl + key).
+            assertThat(result.get(0).profileImageUrl())
+                    .isEqualTo("https://cdn.example.com/users/7/avatar/x_thumb.webp");
             assertThat(result.get(1).userId()).isEqualTo(OTHER_USER_ID);
             assertThat(result.get(1).isOwner()).isFalse();
+            // 썸네일 키가 없으면 카카오 URL 폴백.
+            assertThat(result.get(1).profileImageUrl()).isEqualTo("https://kakao/q.png");
         }
 
         @DisplayName("비멤버가 조회하면 GROUP_NOT_MEMBER 가 발생한다.")
@@ -776,8 +815,8 @@ class GroupMemberServiceTest {
             GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
             when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
             when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
-                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
-                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L, null, null),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L, null, null)));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
                     .thenReturn(Optional.of(ownerMember));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
@@ -807,8 +846,8 @@ class GroupMemberServiceTest {
             Group group = newGroup("우리커플");
             when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
             when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
-                    new GroupMemberInfo(OTHER_USER_ID, "방장", base, 1L),
-                    new GroupMemberInfo(USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+                    new GroupMemberInfo(OTHER_USER_ID, "방장", base, 1L, null, null),
+                    new GroupMemberInfo(USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L, null, null)));
 
             // act & assert
             assertThatThrownBy(() -> groupMemberService.deleteGroup(USER_ID, GROUP_ID))
@@ -830,7 +869,7 @@ class GroupMemberServiceTest {
             GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
             when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
             when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
-                    new GroupMemberInfo(OTHER_USER_ID, "승계방장", base.plus(Duration.ofDays(1)), 2L)));
+                    new GroupMemberInfo(OTHER_USER_ID, "승계방장", base.plus(Duration.ofDays(1)), 2L, null, null)));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
                     .thenReturn(Optional.of(otherMember));
             when(groupMemberRepository.listActiveGroupIdsByUserId(OTHER_USER_ID)).thenReturn(List.of());
@@ -868,8 +907,8 @@ class GroupMemberServiceTest {
             GroupMember otherMember = GroupMember.createActive(GROUP_ID, OTHER_USER_ID, base.plus(Duration.ofDays(1)));
             when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
             when(groupMemberRepository.listActiveMembersByGroupId(GROUP_ID)).thenReturn(List.of(
-                    new GroupMemberInfo(USER_ID, "방장", base, 1L),
-                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L)));
+                    new GroupMemberInfo(USER_ID, "방장", base, 1L, null, null),
+                    new GroupMemberInfo(OTHER_USER_ID, "멤버", base.plus(Duration.ofDays(1)), 2L, null, null)));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
                     .thenReturn(Optional.of(ownerMember));
             when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, OTHER_USER_ID))
@@ -909,9 +948,10 @@ class GroupMemberServiceTest {
         @Test
         void listMyGroups_multipleGroups_delegatesPortResult() {
             // arrange
+            // GP-1: GroupSummary 에 imageUrl/imageThumbUrl 추가(null = 이미지 없음 → toPublicUrl 미접근).
             List<GroupSummary> summaries = List.of(
-                    new GroupSummary(10L, "여행팀", ZonedDateTime.now(), 3L),
-                    new GroupSummary(20L, "맛집팀", ZonedDateTime.now(), 2L));
+                    new GroupSummary(10L, "여행팀", ZonedDateTime.now(), 3L, null, null),
+                    new GroupSummary(20L, "맛집팀", ZonedDateTime.now(), 2L, null, null));
             when(groupMemberRepository.listActiveGroupSummariesByUserId(USER_ID))
                     .thenReturn(summaries);
 
@@ -921,6 +961,156 @@ class GroupMemberServiceTest {
             // assert
             assertThat(result).hasSize(2);
             assertThat(result).extracting(GroupSummary::groupId).containsExactly(10L, 20L);
+        }
+    }
+
+    @DisplayName("listMyGroupsWithMembers 호출 시,")
+    @Nested
+    class ListMyGroupsWithMembers {
+
+        @DisplayName("GP-1 FR-4: 그룹 목록(이미지 URL)과 멤버 프리뷰(가입순)를 조립한다 — 멤버 IN 쿼리 1회.")
+        @Test
+        void listMyGroupsWithMembers_assemblesSummariesAndMembers() {
+            // arrange : 그룹 1개 + 활성 멤버 2명(가입순 ASC). 멤버 IN 쿼리는 가입순 정렬된 raw 행을 반환.
+            when(groupMemberRepository.listActiveGroupSummariesByUserId(USER_ID)).thenReturn(List.of(
+                    new GroupSummary(10L, "여행팀", ZonedDateTime.now(), 2L,
+                            "groups/10/avatar/x.jpg", "groups/10/avatar/x_thumb.webp")));
+            when(groupMemberRepository.listActiveMembersByGroupIds(List.of(10L))).thenReturn(List.of(
+                    new GroupMemberAvatarRow(10L, USER_ID, "지민", "users/7/avatar/p_thumb.webp", "https://kakao/p.png"),
+                    new GroupMemberAvatarRow(10L, OTHER_USER_ID, "수아", null, "https://kakao/q.png")));
+
+            // act
+            List<GroupListItem> result = groupMemberService.listMyGroupsWithMembers(USER_ID);
+
+            // assert : 그룹 1개 + 이미지 공개 URL + 멤버 가입순 + 유효 프사 URL 규칙(키>카카오).
+            assertThat(result).hasSize(1);
+            GroupListItem item = result.get(0);
+            assertThat(item.summary().groupId()).isEqualTo(10L);
+            assertThat(item.summary().imageThumbUrl())
+                    .isEqualTo("https://cdn.example.com/groups/10/avatar/x_thumb.webp");
+            assertThat(item.members()).extracting(GroupMemberPreview::userId)
+                    .containsExactly(USER_ID, OTHER_USER_ID); // 가입순 보존
+            assertThat(item.members().get(0).profileImageUrl())
+                    .isEqualTo("https://cdn.example.com/users/7/avatar/p_thumb.webp");
+            assertThat(item.members().get(1).profileImageUrl()).isEqualTo("https://kakao/q.png");
+        }
+
+        @DisplayName("GP-1: 활성 그룹이 없으면 빈 리스트를 반환하고 멤버 IN 쿼리를 호출하지 않는다.")
+        @Test
+        void listMyGroupsWithMembers_noGroups_returnsEmptyAndSkipsMemberQuery() {
+            // arrange
+            when(groupMemberRepository.listActiveGroupSummariesByUserId(USER_ID)).thenReturn(List.of());
+
+            // act
+            List<GroupListItem> result = groupMemberService.listMyGroupsWithMembers(USER_ID);
+
+            // assert
+            assertThat(result).isEmpty();
+            verify(groupMemberRepository, never()).listActiveMembersByGroupIds(any());
+        }
+    }
+
+    @DisplayName("그룹 대표 이미지를 업로드/제거할 때,")
+    @Nested
+    class GroupImage {
+
+        @DisplayName("GP-1 FR-1/FR-2: 활성 멤버가 업로드하면 S3 저장 + updateImage + 공개 URL 응답이다(이전 이미지 없으면 회수 미호출).")
+        @Test
+        void updateGroupImage_member_storesAndReturnsUrls() {
+            // arrange : 이미지 없던 그룹.
+            Group group = newGroup("여행팀");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+            when(avatarStorage.store(eq("groups/" + GROUP_ID + "/avatar"), any(byte[].class), eq("image/jpeg")))
+                    .thenReturn(new AvatarStorage.StoredAvatar(
+                            "groups/10/avatar/u.jpg", "groups/10/avatar/u_thumb.webp"));
+
+            // act
+            GroupMemberService.GroupImageResult result =
+                    groupMemberService.updateGroupImage(USER_ID, GROUP_ID, new byte[]{1, 2, 3}, "image/jpeg");
+
+            // assert : 엔티티 키 갱신 + 공개 URL + 이전 키 없으니 회수 미호출.
+            assertThat(group.getImageKey()).isEqualTo("groups/10/avatar/u.jpg");
+            assertThat(result.imageThumbUrl()).isEqualTo("https://cdn.example.com/groups/10/avatar/u_thumb.webp");
+            verify(groupRepository).save(group);
+            verify(avatarStorage, never()).deleteQuietly(any(), any());
+        }
+
+        @DisplayName("GP-1 FR-2: 기존 이미지가 있으면 교체 후 이전 객체를 best-effort 회수한다(키 교체).")
+        @Test
+        void updateGroupImage_replacesAndDeletesOldKeys() {
+            // arrange : 이미 이미지가 있던 그룹.
+            Group group = newGroup("여행팀");
+            group.updateImage("groups/10/avatar/old.jpg", "groups/10/avatar/old_thumb.webp");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+            when(avatarStorage.store(any(), any(byte[].class), any()))
+                    .thenReturn(new AvatarStorage.StoredAvatar(
+                            "groups/10/avatar/new.jpg", "groups/10/avatar/new_thumb.webp"));
+
+            // act
+            groupMemberService.updateGroupImage(USER_ID, GROUP_ID, new byte[]{1}, "image/png");
+
+            // assert : 새 키로 갱신 + 이전 키 회수.
+            assertThat(group.getImageKey()).isEqualTo("groups/10/avatar/new.jpg");
+            verify(avatarStorage).deleteQuietly("groups/10/avatar/old.jpg", "groups/10/avatar/old_thumb.webp");
+        }
+
+        @DisplayName("GP-1: 비멤버가 업로드하면 GROUP_NOT_MEMBER 이고 S3 저장은 호출되지 않는다.")
+        @Test
+        void updateGroupImage_notMember_throwsAndSkipsStore() {
+            // arrange
+            Group group = newGroup("여행팀");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.empty());
+
+            // act & assert
+            assertThatThrownBy(() -> groupMemberService.updateGroupImage(USER_ID, GROUP_ID, new byte[]{1}, "image/jpeg"))
+                    .isInstanceOf(CoreException.class)
+                    .extracting("errorType")
+                    .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
+            verify(avatarStorage, never()).store(any(), any(), any());
+        }
+
+        @DisplayName("GP-1 FR-2: 활성 멤버가 제거하면 clearImage + S3 객체 회수 + 두 URL null 응답이다.")
+        @Test
+        void clearGroupImage_member_clearsAndDeletes() {
+            // arrange : 이미지 보유 그룹.
+            Group group = newGroup("여행팀");
+            group.updateImage("groups/10/avatar/old.jpg", "groups/10/avatar/old_thumb.webp");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+
+            // act
+            GroupMemberService.GroupImageResult result = groupMemberService.clearGroupImage(USER_ID, GROUP_ID);
+
+            // assert : 키 비움 + 회수 + null 응답.
+            assertThat(group.getImageKey()).isNull();
+            assertThat(result.imageUrl()).isNull();
+            assertThat(result.imageThumbUrl()).isNull();
+            verify(avatarStorage).deleteQuietly("groups/10/avatar/old.jpg", "groups/10/avatar/old_thumb.webp");
+            verify(groupRepository).save(group);
+        }
+
+        @DisplayName("GP-1: 이미지가 없던 그룹을 제거하면 멱등 성공(S3 회수 미호출).")
+        @Test
+        void clearGroupImage_noImage_isIdempotent() {
+            // arrange : 이미지 없는 그룹.
+            Group group = newGroup("여행팀");
+            when(groupRepository.findByIdForUpdate(GROUP_ID)).thenReturn(Optional.of(group));
+            when(groupMemberRepository.findActiveByGroupIdAndUserId(GROUP_ID, USER_ID))
+                    .thenReturn(Optional.of(GroupMember.createActive(GROUP_ID, USER_ID, Instant.now())));
+
+            // act
+            GroupMemberService.GroupImageResult result = groupMemberService.clearGroupImage(USER_ID, GROUP_ID);
+
+            // assert : null 응답 + S3 호출 없음.
+            assertThat(result.imageUrl()).isNull();
+            verify(avatarStorage, never()).deleteQuietly(any(), any());
         }
     }
 }

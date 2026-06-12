@@ -15,23 +15,26 @@ import java.time.format.DateTimeFormatter;
  * <p>멀티유저 방이므로 발신자 식별({@code senderUserId} + 배치 조회된 {@code senderNickname})을 포함하고,
  * REEL_LINK 에는 pins 파생 {@code registered} 를 내린다 — 상태 컬럼 없이 어떤 재조회로도 자기치유된다.</p>
  *
- * @param messageId      메시지 PK
- * @param roomId         소속 방 ID
- * @param senderUserId   발신 사용자. 계정 삭제로 NULL 처리된 메시지는 {@code null}.
- * @param senderNickname 발신자 닉네임(서버 배치 조회). 발신자 NULL 이면 {@code null} — 클라가 "(알 수 없음)" 처리.
- * @param kind           메시지 종류(payload 스키마 결정)
- * @param payload        재파싱된 payload 객체(JsonNode). 파싱 불가 시 빈 객체.
- * @param registered     REEL_LINK 만 — 이 릴스의 핀이 그룹에 존재하면 {@code true}. 그 외 kind 는 {@code null}.
- * @param thumbnailUrl   REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 스크래핑 전/실패/
- *                       flag off 또는 그 외 kind 는 {@code null}. payload.thumbnailUrl 을 top-level 로 파생한 계약 필드라
- *                       추후 S3 전환 시 파생 로직만 교체하면 iOS 계약은 무변경이다.
- * @param createdAt      ISO8601(offset) 생성 시각 문자열
+ * @param messageId             메시지 PK
+ * @param roomId                소속 방 ID
+ * @param senderUserId          발신 사용자. 계정 삭제로 NULL 처리된 메시지는 {@code null}.
+ * @param senderNickname        발신자 닉네임(서버 배치 조회). 발신자 NULL 이면 {@code null} — 클라가 "(알 수 없음)" 처리.
+ * @param senderProfileImageUrl 발신자 유효 프사 URL(GP-1 FR-6, 서버 배치 조회). 발신자 NULL 또는 프사 없음이면
+ *                              {@code null} — 클라가 이니셜 원형 폴백(BR-6). additive 계약(iOS decodeIfPresent 하위호환).
+ * @param kind                  메시지 종류(payload 스키마 결정)
+ * @param payload               재파싱된 payload 객체(JsonNode). 파싱 불가 시 빈 객체.
+ * @param registered            REEL_LINK 만 — 이 릴스의 핀이 그룹에 존재하면 {@code true}. 그 외 kind 는 {@code null}.
+ * @param thumbnailUrl          REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 스크래핑 전/실패/
+ *                              flag off 또는 그 외 kind 는 {@code null}. payload.thumbnailUrl 을 top-level 로 파생한 계약 필드라
+ *                              추후 S3 전환 시 파생 로직만 교체하면 iOS 계약은 무변경이다.
+ * @param createdAt             ISO8601(offset) 생성 시각 문자열
  */
 public record GroupChatMessageFrame(
         Long messageId,
         Long roomId,
         Long senderUserId,
         String senderNickname,
+        String senderProfileImageUrl,
         MessageKind kind,
         Object payload,
         Boolean registered,
@@ -44,14 +47,17 @@ public record GroupChatMessageFrame(
     /**
      * {@link ChatMessage} 엔티티를 그룹 프레임으로 변환한다({@link ChatMessageFrame#from} 동형 + 발신자/registered/
      * thumbnailUrl). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만 채워지고 그 외 kind 는 {@code null}이다.
+     * {@code senderNickname}/{@code senderProfileImageUrl} 은 서버 배치 조회값으로, 발신자 NULL 이면 둘 다 {@code null}이다(GP-1).
      */
     public static GroupChatMessageFrame from(ChatMessage message, ObjectMapper objectMapper,
-                                             String senderNickname, Boolean registered, String thumbnailUrl) {
+                                             String senderNickname, String senderProfileImageUrl,
+                                             Boolean registered, String thumbnailUrl) {
         return new GroupChatMessageFrame(
                 message.getId(),
                 message.getRoomId(),
                 message.getSenderUserId(),
                 senderNickname,
+                senderProfileImageUrl,
                 message.getKind(),
                 parsePayload(message.getPayloadJson(), objectMapper),
                 registered,

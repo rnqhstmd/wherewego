@@ -48,6 +48,17 @@ public class UserModel extends BaseEntity {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
+    /**
+     * GP-1: 사용자 프로필 사진 원본 S3 객체 키 (V022). NULL = 업로드 사진 없음(profileImageUrl 폴백).
+     * 공개 URL 은 서비스/어댑터에서 S3Properties 와 조합한다.
+     */
+    @Column(name = "profile_image_key")
+    private String profileImageKey;
+
+    /** GP-1: 프로필 사진 썸네일 S3 객체 키 (V022). 유효 프사 URL 의 1순위 소스. 원본과 uuid 공유. */
+    @Column(name = "profile_image_thumb_key")
+    private String profileImageThumbKey;
+
     @Column(name = "refresh_token")
     private String refreshTokenHash;
 
@@ -113,11 +124,35 @@ public class UserModel extends BaseEntity {
         return new UserModel(oauthProvider, oauthId, nickname, profileImageUrl, email);
     }
 
+    /**
+     * 닉네임/프사 URL 갱신. {@code UserService.updateNickname}(닉네임 변경 API)이 사용한다.
+     * <p>GP-1 FR-7: 카카오 재로그인 시 자동 프로필 동기화는 중단됐다(UserLoginPersistence 호출 제거).
+     * 본 메서드는 사용자 명시 닉네임 변경에만 남으며, 호출자는 profileImageUrl 에 기존 값을 그대로 전달한다.</p>
+     */
     public void updateProfile(String nickname, String profileImageUrl) {
         if (nickname != null && !nickname.isBlank()) {
             this.nickname = nickname;
         }
         this.profileImageUrl = profileImageUrl;
+    }
+
+    /**
+     * GP-1: 프로필 사진 키 갱신(업로드/교체). 검증/S3 저장은 서비스가 마친 정상 키를 받는다.
+     */
+    public void updateProfileImage(String key, String thumbKey) {
+        this.profileImageKey = key;
+        this.profileImageThumbKey = thumbKey;
+    }
+
+    /**
+     * GP-1: 프로필 사진 제거 — 업로드 키 2개와 함께 카카오 profileImageUrl 도 null 로 비운다.
+     * <p>동기화 중단(FR-7)으로 카카오 URL 이 자동 복원되지 않으므로, "제거"는 키·URL 전부를 비워
+     * "프사 없음" 상태를 확정한다(이후 새 업로드로만 재설정).</p>
+     */
+    public void clearProfileImage() {
+        this.profileImageKey = null;
+        this.profileImageThumbKey = null;
+        this.profileImageUrl = null;
     }
 
     public void replaceRefreshTokenHash(String hash) {

@@ -12,6 +12,7 @@ import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.place.ReelPlaceExtractor;
 import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.domain.user.UserRepository;
+import com.wherewego.domain.user.UserRepository.UserProfile;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -275,12 +276,12 @@ public class GroupChatService {
     // ────── 조회 내부 ──────
 
     /**
-     * 페이지를 프레임으로 조립한다 — registered(REEL_LINK 배치 IN 쿼리 1회) + 발신자 닉네임(배치 1회).
+     * 페이지를 프레임으로 조립한다 — registered(REEL_LINK 배치 IN 쿼리 1회) + 발신자 프로필(닉네임+유효 프사 URL, 배치 1회).
      */
     private GroupMessagesPage assemblePage(Long groupId, ChatMessagePageResult page, Long lastReadBefore) {
         List<ChatMessage> messages = page.messages();
         Set<String> registeredUrls = registeredUrlsOf(groupId, messages);
-        Map<Long, String> nicknames = nicknamesOf(messages);
+        Map<Long, UserProfile> profiles = profilesOf(messages);
 
         List<GroupChatMessageFrame> frames = new ArrayList<>(messages.size());
         for (ChatMessage message : messages) {
@@ -292,10 +293,14 @@ public class GroupChatService {
                 // GC-3(FR-GC3-2): payload.thumbnailUrl 을 top-level 계약 필드로 파생(registered 와 동형).
                 thumbnailUrl = readPayloadText(message.getPayloadJson(), "thumbnailUrl");
             }
-            String nickname = message.getSenderUserId() == null
+            // GP-1 FR-6: 발신자 프로필(닉네임+유효 프사 URL). 발신자 NULL 이면 둘 다 null(BR-6).
+            UserProfile profile = message.getSenderUserId() == null
                     ? null
-                    : nicknames.get(message.getSenderUserId());
-            frames.add(GroupChatMessageFrame.from(message, objectMapper, nickname, registered, thumbnailUrl));
+                    : profiles.get(message.getSenderUserId());
+            String nickname = profile == null ? null : profile.nickname();
+            String profileImageUrl = profile == null ? null : profile.profileImageUrl();
+            frames.add(GroupChatMessageFrame.from(
+                    message, objectMapper, nickname, profileImageUrl, registered, thumbnailUrl));
         }
         return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor(), lastReadBefore);
     }
@@ -319,7 +324,11 @@ public class GroupChatService {
         return Set.copyOf(pinRepository.findActiveInstagramUrlsIn(groupId, urls));
     }
 
-    private Map<Long, String> nicknamesOf(List<ChatMessage> messages) {
+    /**
+     * 발신자 프로필(닉네임 + 유효 프사 URL)을 배치 조회한다 (GP-1 FR-6). 닉네임만 쓰던 기존 nicknamesOf 를
+     * 일반화한 것으로, 프사 URL 합산에도 쿼리 수가 늘지 않는다(findProfilesByIds 단일 IN). 발신자 NULL 은 제외.
+     */
+    private Map<Long, UserProfile> profilesOf(List<ChatMessage> messages) {
         LinkedHashSet<Long> senderIds = new LinkedHashSet<>();
         for (ChatMessage message : messages) {
             if (message.getSenderUserId() != null) {
@@ -329,7 +338,7 @@ public class GroupChatService {
         if (senderIds.isEmpty()) {
             return Map.of();
         }
-        return userRepository.findNicknamesByIds(senderIds);
+        return userRepository.findProfilesByIds(senderIds);
     }
 
     /**
@@ -360,9 +369,10 @@ public class GroupChatService {
                 .map(latest -> {
                     int unread = unreadCountOf(userId, room.getId(), latest);
                     // 목록 미리보기에 발신자 이름 병기("지민: …") — 탈퇴/없음이면 null.
-                    String senderNickname = latest.getSenderUserId() == null
+                    UserProfile senderProfile = latest.getSenderUserId() == null
                             ? null
-                            : nicknamesOf(List.of(latest)).get(latest.getSenderUserId());
+                            : profilesOf(List.of(latest)).get(latest.getSenderUserId());
+                    String senderNickname = senderProfile == null ? null : senderProfile.nickname();
                     return new GroupRoomSummary(
                             room.getId(),
                             group.groupId(),

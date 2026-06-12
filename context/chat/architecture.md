@@ -54,7 +54,7 @@
 - `MessageKind.REEL_LINK` — payload `{"url": "...", "thumbnailKey": null}`. URL 은 `https://` + 인스타 패턴 + **2000자 상한**(감사 반영) 검증
 - 상태 컬럼 없음 — registered 는 파생(§핵심 설계 결정 1, 페이지당 IN 쿼리 1회 배치)
 - 추출 deadline 확정: `place.search.extract-deadline-ms=15000`(신설 노브 — 기존 `sync-deadline-ms=4500` 무변경). 추출 파이프라인은 `ReelPlaceExtractor`(domain/place) 로 분리 — `BotChatProcessor` 는 위임(동작 무변경), GC-3 봇 제거 후에도 보존되는 경로
-- GC-2 의존 계약: 푸시 type `GROUP_MESSAGE`(roomId 포함) / `GroupChatMessageFrame(messageId, senderUserId, senderNickname, kind, payload, registered, createdAt)` / extract 응답 = `PlaceCardsPayload` 모양(`ReelSaveWizard` 디코더 호환)
+- GC-2 의존 계약: 푸시 type `GROUP_MESSAGE`(roomId 포함) / `GroupChatMessageFrame(messageId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, createdAt)` — `senderProfileImageUrl`은 GP-1([#123](https://github.com/rnqhstmd/wherewego/pull/123))이 추가한 발신자 유효 프사 URL(닉네임 배치 조회에 합산, 발신자 NULL이면 null → iOS 이니셜 폴백) / extract 응답 = `PlaceCardsPayload` 모양(`ReelSaveWizard` 디코더 호환)
 
 ## Phase 분할 (구현 단위 — gx-dev 파이프라인 1회 = 1 Phase)
 

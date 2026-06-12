@@ -9,6 +9,8 @@ final class CurrentUser: ObservableObject {
 
     @Published private(set) var id: Int?
     @Published private(set) var nickname: String?
+    /// 내 유효 프사 URL(GP-1 §2.2). 없음/카카오만 → nil/카카오 URL. me() 응답으로 갱신, clear 시 비움.
+    @Published private(set) var profileImageUrl: String?
 
     private let authAPI: AuthAPI
 
@@ -16,16 +18,18 @@ final class CurrentUser: ObservableObject {
         self.authAPI = authAPI
     }
 
-    /// GET /users/me 호출로 id/nickname 채움. 실패 시 기존 값 유지(조용히 무시).
+    /// GET /users/me 호출로 id/nickname/프사 채움. 실패 시 기존 값 유지(조용히 무시).
     func load() async {
         guard let user = try? await authAPI.me() else { return }
         id = user.id
         nickname = user.nickname
+        profileImageUrl = user.profileImageUrl
     }
 
     /// 로그아웃 시 캐시 비움(다음 사용자 정보 오염 방지).
     func clear() {
         id = nil
         nickname = nil
+        profileImageUrl = nil
     }
 }

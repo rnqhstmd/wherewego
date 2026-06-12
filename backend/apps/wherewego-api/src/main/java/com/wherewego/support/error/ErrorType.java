@@ -79,6 +79,12 @@ public enum ErrorType {
     PIN_PHOTO_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "PIN_PHOTO_FILE_REQUIRED", "업로드할 사진 파일이 없어요."),
     PIN_PHOTO_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "PIN_PHOTO_STORAGE_FAILED", "사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요."),
 
+    /** 이미지 업로드 공용 (GP-1) — 그룹 대표 이미지 · 프로필 사진. HTTP 의미는 PIN_PHOTO_* 와 동일. */
+    IMAGE_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "IMAGE_FILE_REQUIRED", "업로드할 이미지 파일이 없어요."),
+    IMAGE_TYPE_INVALID(HttpStatus.BAD_REQUEST, "IMAGE_TYPE_INVALID", "JPEG, PNG, WebP 이미지만 업로드할 수 있어요."),
+    IMAGE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "IMAGE_SIZE_EXCEEDED", "이미지는 2MB 이하만 업로드할 수 있어요."),
+    IMAGE_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "IMAGE_STORAGE_FAILED", "이미지 저장에 실패했어요. 잠시 후 다시 시도해 주세요."),
+
     /** 그룹 채팅 (GC-1) */
     CHAT_KIND_INVALID(HttpStatus.BAD_REQUEST, "CHAT_KIND_INVALID", "지원하지 않는 메시지 종류예요."),
     CHAT_TEXT_INVALID(HttpStatus.BAD_REQUEST, "CHAT_TEXT_INVALID", "메시지는 1~2000자여야 해요."),

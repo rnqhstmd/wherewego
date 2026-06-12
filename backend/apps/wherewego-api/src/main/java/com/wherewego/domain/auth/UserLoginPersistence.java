@@ -3,7 +3,6 @@ package com.wherewego.domain.auth;
 import com.wherewego.application.auth.AuthResultInfo;
 import com.wherewego.domain.auth.jwt.JwtTokenProvider;
 import com.wherewego.domain.auth.jwt.RefreshTokenHasher;
-import com.wherewego.domain.user.OauthProvider;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
 import com.wherewego.support.error.CoreException;
@@ -62,7 +61,7 @@ public class UserLoginPersistence {
                     if (!existing.isActive()) {
                         throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED);
                     }
-                    existing.updateProfile(nickname, profileImageUrl);
+                    // GP-1 FR-7: 가입 시 1회만 수집 — 재로그인 시 카카오 프로필 동기화를 하지 않아 사용자 지정 프로필을 보존한다.
                     return existing;
                 })
                 // saveAndFlush로 즉시 flush → 동시 최초 로그인 race 시 DataIntegrityViolationException 조기 감지.
@@ -83,7 +82,7 @@ public class UserLoginPersistence {
      *
      * <p>P2 FR-24(재가입 허용): 활성(deleted_at IS NULL) 조회 미스 시 신규 생성(재가입). 비활성 분기는
      *    동시성(조회-삭제 race) 대비 방어용으로, 활성 조회상 사실상 도달 불가.
-     * <p>Apple 기존 계정은 updateProfile 미호출 → email/nickname 불변. Kakao 만 프로필 갱신.
+     * <p>GP-1 FR-7: 기존 계정(Kakao/Apple 무관)은 재로그인 시 프로필을 갱신하지 않는다 — 가입 시 1회만 수집.
      * <p>AC-7: 동시 최초 로그인 race → DataIntegrityViolation → @Retryable 재시도.
      */
     @Retryable(
@@ -101,10 +100,7 @@ public class UserLoginPersistence {
                     if (!existing.isActive()) {
                         throw new CoreException(ErrorType.AUTH_USER_DEACTIVATED); // 동시성 방어(FR-24상 도달 불가)
                     }
-                    if (cmd.provider() == OauthProvider.KAKAO) {
-                        existing.updateProfile(cmd.nickname(), cmd.profileImageUrl());
-                    }
-                    // BR-9: Apple 기존 계정은 갱신하지 않는다 (email/nickname 최초 1회만).
+                    // GP-1 FR-7: 가입 시 1회만 수집 — 재로그인 시 카카오/애플 프로필 동기화를 하지 않아 사용자 지정 프로필을 보존한다.
                     return existing;
                 })
                 // P2 FR-24: 삭제 계정 재로그인 시 활성 조회 미스 → 신규 생성(재가입). partial unique index(V017)가

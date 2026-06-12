@@ -7,9 +7,21 @@ import SwiftUI
 // 좌표 모델: 정사각 크롭 프레임(한 변 = cropSide)을 화면 중앙에 고정한다.
 // 이미지는 "aspect fill" 기준 base 스케일로 프레임을 가득 채운 뒤, 사용자 scale/offset 으로 추가 변형한다.
 // 확인 시 프레임이 덮는 이미지 표시 좌표 → base 스케일 역산으로 원본 픽셀 rect 를 구한다.
+//
+// maskShape(GP-1 BR-1): 가이드 마스크·테두리 모양만 바꾼다(.square 핀 / .circle 프사·그룹). 크롭 rect 계산
+// (makeCroppedImage)은 양쪽 모두 정사각 프레임 기준이므로 결과물은 항상 1:1 정사각 UIImage 다(서버 webp 썸네일이 원형 클립).
+
+/// 크롭 가이드 마스크 모양(GP-1 §2.1). 결과물 크롭 영역은 동일하며 가이드/테두리 시각만 분기.
+enum CropMask {
+    case square
+    case circle
+}
+
 struct SquareCropView: View {
     /// 크롭 대상 원본 이미지.
     let image: UIImage
+    /// 가이드 마스크 모양. 기본 .square(기존 핀 호출부 무변경). .circle 은 프사·그룹 이미지용.
+    var maskShape: CropMask = .square
     /// 크롭 완료 콜백(1:1 결과 UIImage).
     let onCropped: (UIImage) -> Void
     /// 취소 콜백.
@@ -68,7 +80,8 @@ struct SquareCropView: View {
                 .mask(
                     ZStack {
                         Rectangle()
-                        RoundedRectangle(cornerRadius: 8)
+                        // 가이드 구멍 — .circle 이면 원, .square 면 라운드 사각(크롭 영역 자체는 동일).
+                        guideShape
                             .frame(width: cropSide, height: cropSide)
                             .blendMode(.destinationOut)
                     }
@@ -77,10 +90,18 @@ struct SquareCropView: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
-            RoundedRectangle(cornerRadius: 8)
+            guideShape
                 .stroke(Color.white.opacity(0.9), lineWidth: 2)
                 .frame(width: cropSide, height: cropSide)
                 .allowsHitTesting(false)
+        }
+    }
+
+    /// 가이드 마스크·테두리 모양(maskShape 분기). 둘 다 InsettableShape 라 .stroke 가능하도록 AnyShape 로 통일.
+    private var guideShape: AnyShape {
+        switch maskShape {
+        case .square: return AnyShape(RoundedRectangle(cornerRadius: 8))
+        case .circle: return AnyShape(Circle())
         }
     }
 
