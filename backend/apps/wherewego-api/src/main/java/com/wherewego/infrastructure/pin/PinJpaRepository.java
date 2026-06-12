@@ -108,4 +108,7 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
             + "AND p.deletedAt IS NULL")
     List<String> findActiveInstagramUrlsIn(@Param("groupId") Long groupId,
                                            @Param("urls") Collection<String> urls);
+
+    // PIN_REPLY 프레임 pinSnapshot 합성용 batch 조회 — soft-delete 포함(삭제 핀도 메타 노출).
+    List<Pin> findByIdIn(Collection<Long> pinIds);
 }

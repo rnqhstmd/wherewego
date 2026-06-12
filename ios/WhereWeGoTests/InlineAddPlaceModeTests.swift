@@ -273,6 +273,7 @@ final class InlineAddPlaceModeTests: XCTestCase {
             pinAPI: pinAPI ?? StubPinAPI(listResult: .success([])),
             placeAPI: placeAPI ?? StubPlaceAPI(),
             groupAPI: groupAPI ?? StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: location ?? StubLocationService(status: .denied)
         )
     }

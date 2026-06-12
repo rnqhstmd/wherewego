@@ -27,6 +27,8 @@ import java.time.format.DateTimeFormatter;
  * @param thumbnailUrl          REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 스크래핑 전/실패/
  *                              flag off 또는 그 외 kind 는 {@code null}. payload.thumbnailUrl 을 top-level 로 파생한 계약 필드라
  *                              추후 S3 전환 시 파생 로직만 교체하면 iOS 계약은 무변경이다.
+ * @param pinSnapshot           PIN_REPLY 만 — payload.pinId 를 배치 조회하여 합성한 핀 카드 스냅샷(registered 파생과 동형,
+ *                              자기치유). 그 외 kind 는 {@code null}. additive 계약(iOS decodeIfPresent 하위호환).
  * @param createdAt             ISO8601(offset) 생성 시각 문자열
  */
 public record GroupChatMessageFrame(
@@ -39,19 +41,45 @@ public record GroupChatMessageFrame(
         Object payload,
         Boolean registered,
         String thumbnailUrl,
+        PinSnapshot pinSnapshot,
         String createdAt
 ) {
+
+    /**
+     * PIN_REPLY 핀 카드 스냅샷(GroupChatService 가 payload.pinId 배치 조회로 합성).
+     *
+     * <p>핀 soft-delete 시 {@code deleted=true} + placeName 유지 + 사진/메모 null. 핀 row 자체 미존재
+     * (정합 깨짐) 시 {@code deleted=true} + placeName null. 정상 핀은 {@code deleted=false} + 전체 메타.</p>
+     *
+     * @param pinId               핀 ID(payload 보존값)
+     * @param placeName           장소명. 핀 미존재면 {@code null}, 그 외(정상/삭제)는 유지.
+     * @param tag                 핀 태그(REEL/WISH/MEMORY). 삭제/미존재면 {@code null}.
+     * @param memo                핀 메모. 삭제/미존재면 {@code null}.
+     * @param photoThumbnailUrl   핀 사진 썸네일 public URL(키→URL 조합). 삭제/미존재/사진 없음이면 {@code null}.
+     * @param photoUrl            핀 사진 원본 public URL(키→URL 조합). 삭제/미존재/사진 없음이면 {@code null}.
+     * @param deleted             핀이 soft-delete 됐거나 row 가 사라졌으면 {@code true}.
+     */
+    public record PinSnapshot(
+            Long pinId,
+            String placeName,
+            String tag,
+            String memo,
+            String photoThumbnailUrl,
+            String photoUrl,
+            boolean deleted
+    ) { }
 
     private static final Logger log = LoggerFactory.getLogger(GroupChatMessageFrame.class);
 
     /**
      * {@link ChatMessage} 엔티티를 그룹 프레임으로 변환한다({@link ChatMessageFrame#from} 동형 + 발신자/registered/
-     * thumbnailUrl). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만 채워지고 그 외 kind 는 {@code null}이다.
+     * thumbnailUrl/pinSnapshot). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만, {@code pinSnapshot} 은
+     * PIN_REPLY 에서만 채워지고 그 외 kind 는 {@code null}이다.
      * {@code senderNickname}/{@code senderProfileImageUrl} 은 서버 배치 조회값으로, 발신자 NULL 이면 둘 다 {@code null}이다(GP-1).
      */
     public static GroupChatMessageFrame from(ChatMessage message, ObjectMapper objectMapper,
                                              String senderNickname, String senderProfileImageUrl,
-                                             Boolean registered, String thumbnailUrl) {
+                                             Boolean registered, String thumbnailUrl, PinSnapshot pinSnapshot) {
         return new GroupChatMessageFrame(
                 message.getId(),
                 message.getRoomId(),
@@ -62,6 +90,7 @@ public record GroupChatMessageFrame(
                 parsePayload(message.getPayloadJson(), objectMapper),
                 registered,
                 thumbnailUrl,
+                pinSnapshot,
                 formatCreatedAt(message.getCreatedAt())
         );
     }

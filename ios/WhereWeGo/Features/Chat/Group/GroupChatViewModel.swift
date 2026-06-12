@@ -265,7 +265,8 @@ final class GroupChatViewModel: ObservableObject {
                 groupId: groupId,
                 kind: kind,
                 text: isReel ? nil : trimmed,
-                url: isReel ? trimmed : nil
+                url: isReel ? trimmed : nil,
+                pinId: nil   // 입력바 전송은 TEXT/REEL_LINK 만 — PIN_REPLY 는 지도 답장(MapViewModel.sendPinReply)에서만.
             )
             appendOptimistic(messageId: response.messageId, kind: kind, text: isReel ? nil : trimmed, url: isReel ? trimmed : nil)
             startSendPolling()
@@ -460,5 +461,10 @@ final class GroupChatViewModel: ObservableObject {
     /// 「구경하실래요?」(등록됨 REEL_LINK) → 지도 탭 + 해당 그룹 전환 + 릴스 핀 포커스.
     func openReel(url: String) {
         deepLinkRouter.pending = .reelFocus(groupId: groupId, instagramUrl: url)
+    }
+
+    /// PIN_REPLY 핀 카드 탭 → 지도 탭 + 해당 그룹 전환 + 그 핀 포커스(말풍선 자동 오픈, openReel 선례).
+    func openPin(pinId: Int) {
+        deepLinkRouter.pending = .pinFocus(groupId: groupId, pinIds: [pinId])
     }
 }

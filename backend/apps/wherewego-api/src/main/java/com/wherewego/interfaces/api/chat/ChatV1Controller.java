@@ -56,7 +56,7 @@ public class ChatV1Controller implements ChatV1ApiSpec {
             @RequestBody ChatV1Dto.GroupMessageRequest request
     ) {
         ChatMessage saved = groupChatService.postMessage(
-                userId, groupId, request.kind(), request.text(), request.url());
+                userId, groupId, request.kind(), request.text(), request.url(), request.pinId());
         return ApiResponse.success(ChatV1Dto.SendMessageResponse.from(saved));
     }
 

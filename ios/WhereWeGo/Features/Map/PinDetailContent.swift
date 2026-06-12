@@ -42,6 +42,8 @@ struct PinDetailContent: View {
     @State private var pickedImage: PickedImage?
     /// 공유 카드 시트 표시 여부(웹 PinPopup shareOpen 동치).
     @State private var showShareCard = false
+    /// 핀 답장 시트(PIN_REPLY → 그룹 채팅방) 표시 여부. 답장 버튼이 true 로 트리거.
+    @State private var showReplySheet = false
 
     private let memoLimit = 500
     private let placeNameLimit = 200
@@ -111,6 +113,14 @@ struct PinDetailContent: View {
                 pin: live,
                 groupPins: mapViewModel.pins,
                 onClose: { showShareCard = false }
+            )
+        }
+        // 핀 답장 시트(PIN_REPLY → 그룹 채팅방). 경량 시트(220pt) — 미니 핀 카드 + 한마디 입력 + 전송.
+        .sheet(isPresented: $showReplySheet) {
+            PinReplySheet(
+                pin: live,
+                mapViewModel: mapViewModel,
+                onClose: { showReplySheet = false }
             )
         }
         // 다른 사용자/낙관 삭제로 pins 에서 사라지면 말풍선 닫기.
@@ -187,6 +197,7 @@ struct PinDetailContent: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
+                replyButton
                 shareButton
                 Menu {
                     Button("수정") { withAnimation(.easeOut(duration: 0.25)) { isEditing = true } }
@@ -290,6 +301,18 @@ struct PinDetailContent: View {
                 .foregroundStyle(WGColor.inkSoft)
         }
         .accessibilityLabel("공유")
+    }
+
+    /// 핀 답장 버튼(PIN_REPLY → 그룹 채팅방). 공유 버튼 왼쪽. 탭 시 답장 시트를 띄운다.
+    private var replyButton: some View {
+        Button {
+            showReplySheet = true
+        } label: {
+            Image(systemName: "arrowshape.turn.up.left")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+        }
+        .accessibilityLabel("채팅방에 답장")
     }
 
     private func addressRow(_ address: String) -> some View {
@@ -626,7 +649,8 @@ struct PinDetailContent: View {
 
 /// 말풍선 메모 영역을 대체해 펼쳐지는 풀폭 1:1 사진. 캐시 썸네일을 blur-up placeholder 로 즉시 깔고
 /// 원본 로드 성공 시 0→1 페이드로 드러낸다(스피너 없음). 탭→복귀는 호출처가 onTapGesture 로 처리한다.
-private struct ExpandedPinPhoto: View {
+/// internal(파일 외 GroupMessageRow 의 PIN_REPLY 썸네일 펼침에서도 재사용 — 설계 §3 승격).
+struct ExpandedPinPhoto: View {
     let thumbnailURL: URL
     let photoURL: URL
 

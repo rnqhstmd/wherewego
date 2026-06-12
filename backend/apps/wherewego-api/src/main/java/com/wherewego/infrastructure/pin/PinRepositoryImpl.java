@@ -148,4 +148,12 @@ public class PinRepositoryImpl implements PinRepository {
         }
         return jpaRepository.findActiveInstagramUrlsIn(groupId, urls);
     }
+
+    @Override
+    public List<Pin> findByIdIn(Collection<Long> pinIds) {
+        if (pinIds == null || pinIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByIdIn(pinIds);
+    }
 }

@@ -19,12 +19,14 @@ struct SendMessageRequest: Encodable {
     let text: String
 }
 
-/// GC-2 그룹 메시지 전송 요청(설계 §0). kind 분기 — TEXT 는 text(1~2000자), REEL_LINK 는 url(https+인스타).
+/// GC-2 그룹 메시지 전송 요청(설계 §0). kind 분기 — TEXT 는 text(1~2000자), REEL_LINK 는 url(https+인스타),
+/// PIN_REPLY 는 text(1~2000자)+pinId(답장 대상 핀, 백엔드 ChatV1Dto.GroupMessageRequest).
 /// 미사용 필드는 자동 합성 Encodable 의 encodeIfPresent 로 생략된다(nil → 키 누락 → 백엔드 record null).
 struct GroupMessageRequest: Encodable {
     let kind: MessageKind
     let text: String?
     let url: String?
+    let pinId: Int?
 }
 
 // MARK: - ChatAPIProtocol
@@ -47,8 +49,9 @@ protocol ChatAPIProtocol: Sendable {
     func groupRooms() async throws -> [GroupRoomSummary]
     /// GET /chat/groups/{groupId}/messages — 그룹 방 메시지 페이지(최신순, id DESC). cursor=nil 이면 최신 N건.
     func groupMessages(groupId: Int, cursor: Int?, limit: Int) async throws -> GroupMessagesResponse
-    /// POST /chat/groups/{groupId}/messages — TEXT/REEL_LINK 전송. 저장 메시지 {messageId, kind} 반환.
-    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse
+    /// POST /chat/groups/{groupId}/messages — TEXT/REEL_LINK/PIN_REPLY 전송. 저장 메시지 {messageId, kind} 반환.
+    /// pinId 는 PIN_REPLY 전용(그 외 nil) — 답장 대상 핀(백엔드 GroupMessageRequest.pinId).
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?, pinId: Int?) async throws -> SendMessageResponse
     /// POST /chat/groups/{groupId}/messages/{messageId}/extract — 발신자 온디맨드 릴스 장소 추출(동기, 15s).
     func extractGroupReelPlaces(groupId: Int, messageId: Int) async throws -> PlaceCardsPayload
 }
@@ -130,8 +133,8 @@ final class ChatAPI: ChatAPIProtocol {
         )
     }
 
-    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse {
-        let body = try JSONEncoder().encode(GroupMessageRequest(kind: kind, text: text, url: url))
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?, pinId: Int?) async throws -> SendMessageResponse {
+        let body = try JSONEncoder().encode(GroupMessageRequest(kind: kind, text: text, url: url, pinId: pinId))
         return try await client.request(
             "/chat/groups/\(groupId)/messages",
             method: "POST",
