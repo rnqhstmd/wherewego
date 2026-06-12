@@ -163,9 +163,10 @@ struct MyInfoView: View {
                 .foregroundStyle(WGColor.ink)
 
             // 통계 2종(중앙, spacing 32): 그룹 수 / 핀 수.
+            // 핀 수는 구서버(pinCount 미응답) 기간에 0 으로 오인되지 않도록 nil 이면 "–" 표시.
             HStack(spacing: 32) {
-                statItem(value: groupContext.groups.count, label: "그룹")
-                statItem(value: viewModel.pinCount ?? 0, label: "핀")
+                statItem(value: "\(groupContext.groups.count)", label: "그룹")
+                statItem(value: viewModel.pinCount.map(String.init) ?? "–", label: "핀")
             }
         }
         .frame(maxWidth: .infinity)
@@ -184,10 +185,10 @@ struct MyInfoView: View {
             .shadow(color: WGColor.shadow, radius: 3, y: 1)
     }
 
-    /// 통계 1개(숫자 + 라벨, 세로 중앙).
-    private func statItem(value: Int, label: String) -> some View {
+    /// 통계 1개(숫자 + 라벨, 세로 중앙). value 는 표시 문자열 — 미응답(nil)은 호출부가 "–" 로 전달.
+    private func statItem(value: String, label: String) -> some View {
         VStack(spacing: 3) {
-            Text("\(value)")
+            Text(value)
                 .font(WGFont.sansBold(17))
                 .foregroundStyle(WGColor.ink)
             Text(label)
