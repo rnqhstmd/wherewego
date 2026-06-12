@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 mode: normal
 intent-source: user-selection
 vcs-type: git
@@ -11,14 +11,14 @@ project-root: ./
 args: "IG-2 기능 구현 — 채팅방 인스타 DM화·진입 단순화·내정보 프로필화·알림 피드화+핀 딥링크·백엔드 소규모 (SSOT: context/ig-redesign-plan.md)"
 flags: ""
 started: 2026-06-12
-current-step: "complete 진입"
+current-step: "완료 — PR #125 (base develop), 인수 ACCEPT, context 환류 완료"
 phases:
   setup: completed
   requirements: completed
   design: completed
   implement: completed
   review: completed
-  complete: in_progress
+  complete: completed
 execution-log:
   - { phase: implement, agent: "coder (B1 백엔드)", result: "8+2 파일, compile EXIT=0 직접 검증" }
   - { phase: implement, agent: "coder (B2 채팅방)", result: "5 파일, 앵커 제거 grep 검증 + disappear await 하드닝(직접)" }
