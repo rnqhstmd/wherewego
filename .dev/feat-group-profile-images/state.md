@@ -1,5 +1,5 @@
 phase: complete
-status: in_progress
+status: completed
 vcs-type: git
 branch: feat/group-profile-images
 base: develop
@@ -11,7 +11,8 @@ flags:
 mode: normal
 intent-source: user-selection
 started: 2026-06-11T00:00:00
-current-step: "인수 검증·커밋·PR"
+current-step: "완료 — PR #123, context 환류 커밋 599dfc8"
+phases-complete-note: "인수 ACCEPT(AC-9는 CI 조건부) · 커밋 42c537f · PR #123(base develop) · status.md GP-1 기록 · context 환류 5파일"
 phases:
   setup: completed
   requirements: completed

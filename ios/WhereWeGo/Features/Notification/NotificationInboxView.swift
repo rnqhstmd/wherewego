@@ -22,9 +22,9 @@ struct NotificationInboxView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 큰 제목 헤더(그룹목록/마이페이지 디자인 언어 정합). 상세(핀 목록)에는 자체 "← 목록" 헤더가 있어 제외.
+            // 경량 상단바(IG-1). 상세(핀 목록)에는 자체 "← 목록" 헤더가 있어 제외.
             if viewModel.activeDetail == nil {
-                ScreenHeader(title: "알림", subtitle: "새 소식을 모았어요")
+                InstaNavBar(title: "알림")
             }
             content
         }

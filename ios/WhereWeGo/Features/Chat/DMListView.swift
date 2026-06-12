@@ -1,8 +1,8 @@
 import SwiftUI
 
-// 채팅 목록 화면(GC-2 FR-GC2-1). 인스타그램 DM 스타일 — 내 활성 그룹별 그룹 채팅방 목록.
-//  - 상태별: 로딩 ProgressView / 빈 "참여 중인 그룹이 없어요" / 에러+재시도 / 목록.
-//  - 목록 행(DMRoomRow): 그룹 아바타 + 그룹명 + 마지막 미리보기 + 시각 + 미읽음 강조(hasUnread).
+// 채팅 목록 화면(GC-2 FR-GC2-1 / IG-1 인스타 리디자인). 인스타그램 DM 스타일 — 내 활성 그룹별 그룹 채팅방 목록.
+//  - 상단: InstaNavBar("채팅")(편집 버튼 없음). 카드 → 플랫 행 56pt(IG-1).
+//  - 행(DMRoomRow): 그룹 아바타 56 + 그룹명 + 미리보기(시각 인라인) + 미읽음 강조(굵기 + 우측 cta 점).
 //  - 행 탭 → openedRoom → navigationDestination 으로 그 그룹 채팅방 push.
 //  - 읽음 갱신: 방 pop(openedRoom==nil) 시 refresh — 백엔드가 방 GET 시 읽음처리 → 목록 최신화.
 //
@@ -22,8 +22,8 @@ struct DMListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 큰 제목 헤더(그룹목록/마이페이지 디자인 언어 정합).
-            ScreenHeader(title: "채팅", subtitle: "그룹별 대화방")
+            // 경량 상단바(IG-1). 편집(✏️) 버튼 없음(trailing 미지정).
+            InstaNavBar(title: "채팅")
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -121,24 +121,22 @@ struct DMListView: View {
     }
 
     private func listView(_ rooms: [GroupRoomSummary]) -> some View {
-        // 카드 목록(그룹 목록 optionCard 디자인 언어 정합) — hairline 구분선 평면 리스트의 밋밋함 해소.
+        // 플랫 행 목록(IG-1) — 카드/구분선 제거. 여백(.vertical 8)이 행을 구분.
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 0) {
                 ForEach(rooms) { room in
                     Button {
                         openedRoom = room
                     } label: {
-                        // room.groupId 로 그룹 목록 조인(GP-1 FR-5) — 대표 이미지/콜라주 입력. 미로딩 시 nil → 현행 아이콘 폴백.
+                        // room.groupId 로 그룹 목록 조인(GP-1 FR-5) — 대표 이미지/콜라주 입력. 미로딩 시 nil → 이니셜 폴백.
                         DMRoomRow(
                             room: room,
-                            group: groupContext.groups.first { $0.groupId == room.groupId },
-                            currentUserId: viewModel.currentUserId
+                            group: groupContext.groups.first { $0.groupId == room.groupId }
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
             .padding(.top, 4)
             .padding(.bottom, 16)
         }
@@ -166,95 +164,87 @@ struct GroupChatRoomView: View {
 
 // MARK: - 채팅 방 행
 
-/// 채팅 목록 1건 행. 그룹 아바타 + 그룹명 + 미리보기 + 시각/미읽음(hasUnread).
-/// unread → 그룹명·미리보기 굵게 + 우측 강조점 + 옅은 cta 배경.
+/// 채팅 목록 1건 행(IG-1 플랫화). 그룹 아바타 56 + 그룹명 + 미리보기(시각 인라인) + 미읽음(굵기 + 우측 cta 점).
+/// 인스타식 미읽음: 카운트 캡슐·시간 컬럼 제거 → 미읽음일 때만 우측 cta 점 8pt. 미리보기 한 줄에 시각을 인라인 병기.
 private struct DMRoomRow: View {
     let room: GroupRoomSummary
-    /// room.groupId 조인 그룹(GP-1 FR-5). 대표 이미지/멤버 콜라주 입력. nil = 미로딩 → 현행 bubble 아이콘 폴백.
+    /// room.groupId 조인 그룹(GP-1 FR-5). 대표 이미지/멤버 콜라주 입력. nil = 미로딩 → 그룹명 이니셜 폴백.
     let group: GroupSummary?
-    /// 미리보기 "나:" 판정용 내 id.
-    let currentUserId: Int?
 
     private var isUnread: Bool { room.hasUnread }
 
     var body: some View {
-        // 세로 중앙 정렬: 우측 시간/배지 블록과 미리보기가 행 가운데로 — 상단 쏠림 해소.
+        // 세로 중앙 정렬: 우측 점과 미리보기가 행 가운데로.
         HStack(alignment: .center, spacing: 12) {
             roomAvatar
 
             VStack(alignment: .leading, spacing: 3) {
-                // 인스타식 미읽음: 배경 틴트 없이 텍스트만 굵고 진하게(+ 우측 배지).
-                // Pretendard 고정 웨이트라 .fontWeight() 합성이 안 먹음 → 실제 Bold/SemiBold 페이스 사용.
+                // 그룹명: 미읽음 Bold / 읽음 SemiBold(Pretendard 고정 웨이트라 실제 페이스 사용).
                 Text(room.groupName)
-                    .font(isUnread ? WGFont.sansBold(15) : WGFont.sans(15))
+                    .font(isUnread ? WGFont.sansBold(15) : WGFont.sansSemiBold(15))
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1)
 
+                // 미리보기 한 줄에 시각 인라인(IG-1). 미읽음=ink Bold, 읽음=inkSoft/inkFaint.
                 Text(previewText)
-                    .font(isUnread ? WGFont.sansSemiBold(13) : WGFont.sans(13))
-                    .foregroundStyle(
-                        room.lastPreview == nil
-                            ? WGColor.inkFaint
-                            : (isUnread ? WGColor.ink : WGColor.inkSoft)
-                    )
+                    .font(isUnread ? WGFont.sansBold(13) : WGFont.sans(13))
+                    .foregroundStyle(previewColor)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 6) {
-                if let lastAt = room.lastAt {
-                    Text(DMListViewModel.formatTime(lastAt))
-                        .font(WGFont.mono(11))
-                        .foregroundStyle(WGColor.inkSoft)
-                }
-                // 미읽음 숫자 배지(카톡식 빨간 필). 카운트 없으면(구버전 응답) 점 폴백.
-                if let count = room.unreadCount, count > 0 {
-                    Text(count > 99 ? "99+" : "\(count)")
-                        .font(WGFont.sansBold(11))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(WGColor.pinNew))
-                } else if isUnread {
-                    Circle()
-                        .fill(WGColor.pinNew)
-                        .frame(width: 7, height: 7)
-                }
+            // 인스타식 미읽음 점(빨간 카운트 캡슐 대신 cta 점 1개). 읽음이면 우측 비움.
+            if isUnread {
+                Circle()
+                    .fill(WGColor.cta)
+                    .frame(width: 8, height: 8)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // 카드 스타일(그룹 목록 정합). 미읽음 강조는 인스타식(텍스트 굵기+점)이라 배경은 항상 panel.
-        .background(WGColor.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(WGColor.hairline, lineWidth: 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .contentShape(Rectangle())
     }
 
-    /// 방 썸네일(GP-1 FR-5) — 그룹 조인 성공 시 GroupAvatarView(대표 이미지/멤버 콜라주).
-    /// 미로딩(목록 부트스트랩 전)엔 그룹명 이니셜 원형 — 아바타 외형을 유지해 로딩 전후 모양이 튀지 않는다(QA 확인 반영).
-    /// 44pt 자리 크기는 기존과 동일(레이아웃 무변경).
+    /// 방 썸네일(GP-1 FR-5) — 그룹 조인 성공 시 GroupAvatarView(대표 이미지/멤버 콜라주). 56pt(IG-1).
+    /// 미로딩(목록 부트스트랩 전)엔 그룹명 이니셜 원형 — 아바타 외형을 유지해 로딩 전후 모양이 튀지 않는다.
     @ViewBuilder
     private var roomAvatar: some View {
         if let group {
             GroupAvatarView(
                 imageUrl: group.imageThumbUrl ?? group.imageUrl,
                 members: group.members,
-                size: 44
+                size: 56
             )
         } else {
-            AvatarView(imageUrl: nil, name: room.groupName, size: 44)
+            AvatarView(imageUrl: nil, name: room.groupName, size: 56)
         }
     }
 
-    /// 미리보기 텍스트: 프리픽스 없이 마지막 메시지 본문만(릴스는 서버가 "릴스 링크를 공유했어요"로 내림).
-    /// 메시지 없음 → "아직 대화가 없어요".
+    /// 미리보기 시각(인라인 병기) — lastAt 있으면 " · 상대시각", 없으면 빈 문자열(시각 생략).
+    private var timeSuffix: String {
+        guard let lastAt = room.lastAt else { return "" }
+        return " · \(DMListViewModel.formatTime(lastAt))"
+    }
+
+    /// 미리보기 텍스트(IG-1 규칙):
+    ///  - 미읽음 + count>0 → "새 메시지 N개 · 시각", count nil/0 인데 hasUnread → "새 메시지 · 시각".
+    ///  - 읽음 → "(마지막 메시지 or '아직 대화가 없어요') · 시각". lastAt nil 이면 " · 시각" 생략.
     private var previewText: String {
-        room.lastPreview ?? "아직 대화가 없어요"
+        if isUnread {
+            if let count = room.unreadCount, count > 0 {
+                return "새 메시지 \(count)개\(timeSuffix)"
+            }
+            return "새 메시지\(timeSuffix)"
+        }
+        let body = room.lastPreview ?? "아직 대화가 없어요"
+        return "\(body)\(timeSuffix)"
+    }
+
+    /// 미리보기 색: 미읽음=ink, 읽음=메시지 있으면 inkSoft / 없으면 inkFaint(IG-1).
+    private var previewColor: Color {
+        if isUnread { return WGColor.ink }
+        return room.lastPreview == nil ? WGColor.inkFaint : WGColor.inkSoft
     }
 }

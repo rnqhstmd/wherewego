@@ -42,16 +42,20 @@ struct FloatingTabBar: View {
     private let hasChatUnread: Bool
     /// 지도 탭 재탭(이미 .map 선택 중) 콜백(IA 재설계 FR-3/AC-4) → 그룹 목록(레벨0). 미배선이면 no-op.
     private let onReselectMap: () -> Void
+    /// 내정보 탭 아이콘 = 내 프사 원형(IG-1). 프사/닉네임 변경을 관찰해 탭 아이콘을 갱신.
+    @ObservedObject private var currentUser: CurrentUser
 
     init(
         selection: Binding<MainTab>,
         hasUnread: Bool,
         hasChatUnread: Bool = false,
+        currentUser: CurrentUser,
         onReselectMap: @escaping () -> Void = {}
     ) {
         self._selection = selection
         self.hasUnread = hasUnread
         self.hasChatUnread = hasChatUnread
+        self._currentUser = ObservedObject(wrappedValue: currentUser)
         self.onReselectMap = onReselectMap
     }
 
@@ -109,10 +113,23 @@ struct FloatingTabBar: View {
     }
 
     /// 탭 아이콘. 채팅 탭은 SF paperplane 대신 인스타그램 최신 DM 글리프(각진 종이비행기, 커스텀 Path).
-    /// 선택 상태는 채움 대신 굵은 스트로크(+cta 색)로 구분 — 인스타 원본도 외곽선 유지.
+    /// 내정보 탭(IG-1)은 SF person 대신 내 프사 원형(AvatarView) — 선택 시 cta 링(인스타 문법).
+    /// 그 외는 외곽선↔채움 쌍. 선택 상태는 채움 대신 굵은 스트로크(+cta 색)로 구분.
     @ViewBuilder
     private func iconView(_ tab: MainTab, isSelected: Bool, outline: String, fill: String) -> some View {
-        if tab == .chat {
+        if tab == .myInfo {
+            // 내 프사 원형(프사/이니셜 폴백). 선택 시 cta 링, 미선택 시 링 없음(인스타식).
+            AvatarView(
+                imageUrl: currentUser.profileImageUrl,
+                name: currentUser.nickname ?? "나",
+                size: 25
+            )
+            .overlay {
+                if isSelected {
+                    Circle().stroke(WGColor.cta, lineWidth: 2)
+                }
+            }
+        } else if tab == .chat {
             InstaSendShape()
                 .stroke(style: StrokeStyle(
                     lineWidth: isSelected ? 2.4 : 1.8,

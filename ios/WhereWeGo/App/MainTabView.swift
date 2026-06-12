@@ -159,6 +159,8 @@ struct MainTabView: View {
                 hasUnread: notificationInboxViewModel.unreadCount > 0,
                 // DM 탭 미읽음 배지(FR-10/AC-9): 안 읽은 봇 방 1개 이상이면 빨간 점.
                 hasChatUnread: dmListViewModel.hasUnread,
+                // 내정보 탭 아이콘 = 내 프사 원형(IG-1) — 프사/닉네임 변경 관찰.
+                currentUser: dependencies.currentUser,
                 // 지도 탭 재탭(이미 .map 선택 중) → 그룹 목록(레벨0)(IA 재설계 FR-3/AC-4).
                 onReselectMap: { groupContext.backToList() }
             )
