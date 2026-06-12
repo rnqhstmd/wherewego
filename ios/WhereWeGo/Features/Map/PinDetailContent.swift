@@ -125,35 +125,68 @@ struct PinDetailContent: View {
 
     // MARK: - 보기 모드(웹 SpeechBubblePopup/PinPopup 보기 동치, B영역)
 
-    /// 기본 표시 화면: 헤더(태그·장소명·공유·⋯) + 주소 + 메모↔사진 펼침 + 인스타 + 에러.
+    /// 기본 표시 화면 — 웹과 동일한 세로 순서:
+    /// ① 메모↔사진 펼침(맨 위 — 사진이 장소 "위로" 열린다) ② 글리프+장소명 ③ 주소 ④ 인스타
+    /// ⑤ 하단 행(hairline 구분: 날짜·written by 작성자 | 공유·⋯ 메뉴).
     /// 편집용 입력 버퍼/상태(isEditingMemo 등)는 보기 모드에서 사용하지 않는다.
     @ViewBuilder
     private func viewContent(_ live: PinSummary) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            viewHeader(live)
+        VStack(alignment: .leading, spacing: 12) {
+            memoOrPhotoRow(live)
+            placeRow(live)
             if let address = live.address, !address.isEmpty {
                 addressRow(address)
             }
-            memoOrPhotoRow(live)
             if let url = instagramLink(live) {
                 instagramRow(url)
             }
             if let error = inlineError ?? detailVM.photoError {
                 errorBanner(error)
             }
+            bottomRow(live)
         }
     }
 
-    /// 보기 모드 헤더 — 태그 배지 + 장소명 + 공유 + ⋯ 메뉴(수정/삭제). 등록자 부제 포함.
-    private func viewHeader(_ live: PinSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                tagBadge(live.tag)
-                Text(live.placeName)
-                    .font(WGFont.emo(18))
-                    .foregroundStyle(WGColor.ink)
-                    .lineLimit(2)
-                Spacer(minLength: 0)
+    /// 장소 행(웹 Place row 동치) — 마커 미니 글리프(원/별/하트, PinMarkerGlyphs 재사용) + 장소명.
+    /// 글리프 이미지는 그림자 여백(shadowPad)을 포함하므로 프레임을 약간 키워 실모양 크기를 웹(8/11px)에 맞춘다.
+    private func placeRow(_ live: PinSummary) -> some View {
+        HStack(alignment: .center, spacing: 7) {
+            Image(uiImage: PinMarkerGlyphs.image(for: live.tag))
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    width: live.tag == .MEMORY ? 16 : 12,
+                    height: live.tag == .MEMORY ? 16 : 12
+                )
+            Text(live.placeName)
+                .font(WGFont.emo(16))
+                .foregroundStyle(WGColor.ink)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// 하단 행(웹 Bottom row 동치) — hairline 윗줄 + 날짜·written by 작성자(좌) / 공유·⋯ 메뉴(우).
+    private func bottomRow(_ live: PinSummary) -> some View {
+        VStack(spacing: 8) {
+            Divider().overlay(WGColor.hairline)
+            HStack(alignment: .center, spacing: 4) {
+                Text(VisitToastView.formatDate(live.createdAt))
+                    .font(WGFont.mono(11))
+                    .italic()
+                    .foregroundStyle(WGColor.inkSoft)
+                if let nickname = live.createdByNickname, !nickname.isEmpty {
+                    Text("written by")
+                        .font(WGFont.sans(10))
+                        .italic()
+                        .foregroundStyle(WGColor.inkSoft)
+                        .padding(.leading, 4)
+                    Text(nickname)
+                        .font(WGFont.sansSemiBold(11))
+                        .foregroundStyle(WGColor.ink)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
                 shareButton
                 Menu {
                     Button("수정") { withAnimation(.easeOut(duration: 0.25)) { isEditing = true } }
@@ -165,11 +198,6 @@ struct PinDetailContent: View {
                         .frame(width: 28, height: 28)
                 }
                 .accessibilityLabel("더 보기")
-            }
-            if let nickname = live.createdByNickname, !nickname.isEmpty {
-                Text("\(nickname) 님이 추가")
-                    .font(WGFont.sans(12))
-                    .foregroundStyle(WGColor.inkSoft)
             }
         }
     }
@@ -493,19 +521,6 @@ struct PinDetailContent: View {
         Text(text)
             .font(WGFont.sans(12))
             .foregroundStyle(WGColor.inkSoft)
-    }
-
-    private func tagBadge(_ tag: PinTag) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(tagColor(tag)).frame(width: 7, height: 7)
-            Text(tagLabel(tag))
-                .font(WGFont.sans(12))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(tagColor(tag).opacity(0.16))
-        .foregroundStyle(WGColor.ink)
-        .clipShape(Capsule())
     }
 
     private func editToggle(isEditing: Bool, action: @escaping () -> Void) -> some View {
