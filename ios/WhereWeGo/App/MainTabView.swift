@@ -56,14 +56,14 @@ struct MainTabView: View {
         _mapViewModel = StateObject(wrappedValue: map)
         // 그룹 컨텍스트(IA 재설계 §1). 그룹 진입/전환 시 mapViewModel.switchTo 로 지도 재로드를 약결합 배선.
         //  map 로컬 인스턴스를 클로저가 캡처(StateObject wrappedValue 와 동일 인스턴스) — 그룹 변경 시 그 지도 VM 이 재로드된다.
-        _groupContext = StateObject(
-            wrappedValue: GroupContext(
-                groupAPI: dependencies.groupAPI,
-                onGroupChanged: { groupId in
-                    Task { await map.switchTo(groupId: groupId) }
-                }
-            )
+        //  ctx 로컬 인스턴스는 알림 VM 의 isGroupAccessible 클로저에도 캡처된다(StateObject 와 동일 인스턴스).
+        let ctx = GroupContext(
+            groupAPI: dependencies.groupAPI,
+            onGroupChanged: { groupId in
+                Task { await map.switchTo(groupId: groupId) }
+            }
         )
+        _groupContext = StateObject(wrappedValue: ctx)
         _rouletteViewModel = StateObject(
             wrappedValue: RouletteViewModel(
                 mapViewModel: map,
@@ -76,7 +76,12 @@ struct MainTabView: View {
         _notificationInboxViewModel = StateObject(
             wrappedValue: NotificationInboxViewModel(
                 api: dependencies.notificationAPI,
-                deepLinkRouter: dependencies.deepLinkRouter
+                deepLinkRouter: dependencies.deepLinkRouter,
+                // IG-2 FR-4: 행 탭 시 그룹 접근 가능 여부를 GroupContext 그룹 목록으로 판정(떠난 그룹 가드).
+                //  GroupContext 직접 주입 대신 클로저 — 단위 테스트에서 GroupContext 구성 부담 제거.
+                isGroupAccessible: { [weak ctx] groupId in
+                    ctx?.groups.contains(where: { $0.groupId == groupId }) ?? false
+                }
             )
         )
         _myInfoViewModel = StateObject(
@@ -111,7 +116,6 @@ struct MainTabView: View {
                         GroupChatViewModel(
                             groupId: room.groupId,
                             roomId: room.roomId,
-                            initialUnreadCount: room.unreadCount ?? 0,   // 미읽음 위치부터 진입 앵커.
                             chatAPI: dependencies.chatAPI,
                             pinAPI: dependencies.pinAPI,
                             currentUser: dependencies.currentUser,
@@ -137,7 +141,8 @@ struct MainTabView: View {
             NavigationStack {
                 MyInfoView(
                     authAPI: dependencies.authAPI,
-                    viewModel: myInfoViewModel
+                    viewModel: myInfoViewModel,
+                    groupContext: groupContext   // FR-3 프로필 통계 "그룹" 수.
                 )
             }
             .reserveFloatingTabBarSpace()
@@ -340,6 +345,12 @@ struct MainTabView: View {
             selection = .map
             groupContext.enterGroup(groupId)
             Task { await mapViewModel.focusReel(groupId: groupId, instagramUrl: url) }
+        case .pinFocus(let groupId, let pinIds):
+            // 알림 행 탭(IG-2 FR-4): 지도 탭 + 해당 그룹 전환(레벨1) + 대상 핀 포커스(1개=말풍선/N개=fitBounds).
+            //  enterGroup 으로 UI 레벨1 정합을 맞추고, 그룹 핀 로드+포커스는 focusPins 가 일임한다(reelFocus 패턴 동치).
+            selection = .map
+            groupContext.enterGroup(groupId)
+            Task { await mapViewModel.focusPins(groupId: groupId, pinIds: pinIds) }
         case .invite(let slug):
             inviteSlug = slug
         }

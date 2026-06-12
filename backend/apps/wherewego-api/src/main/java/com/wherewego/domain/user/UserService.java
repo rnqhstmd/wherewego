@@ -2,6 +2,7 @@ package com.wherewego.domain.user;
 
 import com.wherewego.domain.image.AvatarStorage;
 import com.wherewego.domain.image.AvatarStorage.StoredAvatar;
+import com.wherewego.domain.pin.PinRepository;
 import com.wherewego.domain.user.UserRepository.UserProfile;
 import com.wherewego.interfaces.api.user.UserV1Dto;
 import com.wherewego.support.error.CoreException;
@@ -20,6 +21,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AvatarStorage avatarStorage;
+    private final PinRepository pinRepository;
 
     @Transactional(readOnly = true)
     public UserV1Dto.UserResponse getCurrentUser(Long userId) {
@@ -103,7 +105,9 @@ public class UserService {
     private UserV1Dto.UserResponse toResponse(UserModel user) {
         UserProfile profile = userRepository.findProfilesByIds(Set.of(user.getId())).get(user.getId());
         String profileImageUrl = profile != null ? profile.profileImageUrl() : user.getProfileImageUrl();
-        return UserV1Dto.UserResponse.from(user, profileImageUrl);
+        // IG-2 FR-5: 내가 등록한 활성 핀(soft-delete 제외) 전 그룹 합산.
+        long pinCount = pinRepository.countActiveByCreatedBy(user.getId());
+        return UserV1Dto.UserResponse.from(user, profileImageUrl, pinCount);
     }
 
     private UserModel findActiveUserById(Long userId) {

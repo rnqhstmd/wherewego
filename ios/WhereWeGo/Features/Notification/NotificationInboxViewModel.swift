@@ -9,8 +9,8 @@ import Foundation
 //  - 미읽음 수는 서버 unreadCount 사용(>0 → 빨간 점, FR-22).
 //  - onForeground(): list 만 재조회(read-all 미호출, FR-19).
 //  - in-flight 가드(isLoading): load()/onForeground() 동시 호출 시 list 중복 차단(cross-review #1).
-//  - selectItem(_): detail(id:) 로드 → 핀 목록 표시.
-//  - flyToPin(_): deepLinkRouter.pending=.pin(pinId)(FR-20). soft delete 핀은 flyTo 비활성(호출 안 함).
+//  - selectItem(_): 상세 화면 폐기(IG-2 FR-4). detail(id:) 로 유효 핀을 추려 .pinFocus 딥링크 → 지도 탭 직행.
+//      접근 불가 그룹/삭제된 장소/조회 실패는 infoMessage 토스트로 안내(딥링크 미발화).
 //  - 목록 조회 실패 → loadState=.error(재시도 버튼, BR-6).
 @MainActor
 final class NotificationInboxViewModel: ObservableObject {
@@ -29,15 +29,17 @@ final class NotificationInboxViewModel: ObservableObject {
     @Published private(set) var loadState: LoadState = .idle
     /// 서버 미읽음 수(FR-22). >0 → 탭 빨간 점. read-all 성공 시 0 낙관 갱신.
     @Published private(set) var unreadCount = 0
-    /// 선택된 알림 상세(연결 핀 목록). nil 이면 목록 표시.
-    @Published private(set) var activeDetail: NotificationDetail?
-    /// 상세 로드 진행 중(인디케이터). 진입 직후 true.
-    @Published private(set) var isDetailLoading = false
+    /// 행 탭 안내 토스트 문구(IG-2 FR-4). 접근 불가 그룹/삭제된 장소/조회 실패 시 세팅. View 가 하단 캡슐로 표시 후 nil 리셋.
+    @Published var infoMessage: String?
+    /// 행 탭 라우팅 진행 중(IG-2 FR-4). 중복 탭 가드 겸 인디케이터(detail 조회 동안 true).
+    @Published private(set) var isRouting = false
 
     // MARK: - 의존성
 
     private let api: NotificationAPIProtocol
     private let deepLinkRouter: DeepLinkRouter
+    /// 그룹 접근 가능 여부 판정(IG-2 FR-4). GroupContext 직접 주입 대신 클로저 — 단위 테스트 구성 부담 제거.
+    private let isGroupAccessible: (Int) -> Bool
 
     // MARK: - 내부 상태
 
@@ -46,9 +48,14 @@ final class NotificationInboxViewModel: ObservableObject {
     /// list 조회 in-flight 가드(cross-review #1). load()/onForeground() 동시 진입 시 중복 list 차단.
     private var isLoading = false
 
-    init(api: NotificationAPIProtocol, deepLinkRouter: DeepLinkRouter) {
+    init(
+        api: NotificationAPIProtocol,
+        deepLinkRouter: DeepLinkRouter,
+        isGroupAccessible: @escaping (Int) -> Bool = { _ in true }
+    ) {
         self.api = api
         self.deepLinkRouter = deepLinkRouter
+        self.isGroupAccessible = isGroupAccessible
     }
 
     // MARK: - 진입 로드(FR-19/FR-21, BR-4)
@@ -106,32 +113,74 @@ final class NotificationInboxViewModel: ObservableObject {
         }
     }
 
-    // MARK: - 상세 선택(FR-20)
+    // MARK: - 행 탭 라우팅(IG-2 FR-4)
 
-    /// 알림 행 탭: detail(id:) 로드 → activeDetail 세팅(핀 목록 표시).
-    /// 실패 시 activeDetail 미세팅(목록 유지).
+    /// 알림 행 탭: 그룹 접근 가드 → detail(id:) 로 유효 핀 추출 → .pinFocus 딥링크(지도 탭 직행).
+    ///  접근 불가 그룹/유효 핀 0개/조회 실패는 infoMessage 토스트로 안내(딥링크 미발화). 상세 화면 폐기.
     func selectItem(_ item: NotificationItem) async {
-        isDetailLoading = true
-        defer { isDetailLoading = false }
+        // 중복 탭 가드(라우팅 인디케이터 겸용).
+        guard !isRouting else { return }
+        isRouting = true
+        defer { isRouting = false }
+
+        // 1) 그룹 접근 가드: groupId 부재(구서버) 또는 떠난 그룹 → 안내.
+        guard let groupId = item.groupId, isGroupAccessible(groupId) else {
+            infoMessage = "더 이상 함께하지 않는 그룹이에요"
+            return
+        }
+
+        // 2) detail 조회 → 유효(미삭제·좌표 보유) 핀만 추출.
+        let pinIds: [Int]
         do {
-            activeDetail = try await api.detail(id: item.id)
+            let detail = try await api.detail(id: item.id)
+            pinIds = detail.pins
+                .filter { !$0.deleted && $0.latitude != nil && $0.longitude != nil }
+                .map { $0.pinId }
         } catch {
-            activeDetail = nil
+            infoMessage = "알림을 여는 데 실패했어요. 다시 시도해 주세요"
+            return
+        }
+
+        // 3) 유효 핀 0개 → 안내. ≥1 → .pinFocus 딥링크(MainTabView 가 지도 탭 전환 + 그룹 + 포커스).
+        guard !pinIds.isEmpty else {
+            infoMessage = "삭제된 장소예요"
+            return
+        }
+        deepLinkRouter.pending = .pinFocus(groupId: groupId, pinIds: pinIds)
+    }
+
+    // MARK: - 섹션 그룹핑(IG-2 FR-4)
+
+    /// 피드 섹션 구분(오늘/이번 주/이전). createdAt 파싱 실패 시 .earlier(맨 아래)로 폴백.
+    enum Section: Int {
+        case today
+        case thisWeek
+        case earlier
+
+        /// 섹션 헤더 표기.
+        var title: String {
+            switch self {
+            case .today: return "오늘"
+            case .thisWeek: return "이번 주"
+            case .earlier: return "이전"
+            }
         }
     }
 
-    /// 상세 → 목록 복귀.
-    func clearDetail() {
-        activeDetail = nil
-    }
-
-    // MARK: - 핀 이동(FR-20)
-
-    /// 핀 선택 → 딥링크 pending 세팅(MainTabView 가 지도 탭 전환 + flyTo).
-    /// soft delete 핀은 좌표가 유효하지 않으므로 flyTo 비활성(호출 안 함).
-    func flyToPin(_ pin: NotificationPinItem) {
-        guard !pin.deleted else { return }
-        deepLinkRouter.pending = .pin(pinId: pin.pinId)
+    /// ISO-8601 createdAt → 섹션 키. 오늘(같은 달력일) / 이번 주(7일 이내) / 이전.
+    /// 파싱 실패 시 .earlier(맨 아래). View 가 ForEach 그룹핑 + 빈 섹션 헤더 생략에 사용.
+    static func sectionKey(_ iso: String, now: Date = Date()) -> Section {
+        guard let date = isoFormatter.date(from: iso) ?? isoFormatterNoFraction.date(from: iso) else {
+            return .earlier
+        }
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            return .today
+        }
+        if now.timeIntervalSince(date) < 7 * 24 * 60 * 60 {
+            return .thisWeek
+        }
+        return .earlier
     }
 
     // MARK: - 시간 포맷(웹 formatTime 이식)

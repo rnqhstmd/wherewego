@@ -515,6 +515,31 @@ final class MapViewModel: ObservableObject {
         fitBounds(markers: targets)
     }
 
+    /// 알림 핀 포커스(IG-2 FR-4). focusReel 미러 — 그룹 전환/재로드 후 대상 핀으로 카메라.
+    /// 1개 = flyTo(pinFocusZoom) + selectedPinId(말풍선 자동 오픈) / N개 = fitBounds(말풍선 없음) / 0개 = no-op.
+    /// focusedInstagramUrl 은 건드리지 않는다(릴스 배너 미발화).
+    func focusPins(groupId targetGroupId: Int, pinIds: [Int]) async {
+        if groupId != targetGroupId {
+            await switchTo(groupId: targetGroupId)
+        } else {
+            await reloadPinsAppendOnly()
+        }
+        // switchTo 가 selectedPinId 를 nil 로 정리한 뒤에 세팅되도록 전환/재로드 이후에 타깃을 구한다(순서 보장).
+        let targets = pins.filter { pinIds.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        if targets.count == 1, let pin = targets.first {
+            // 단일 핀: 카메라 이동 + 말풍선 자동 오픈(selectedPinId). 기존 flyTo 경로 재사용(MUST-1 규약 포함).
+            flyTo(lat: pin.latitude, lng: pin.longitude)
+            selectedPinId = pin.id
+        } else {
+            // N개: fitBounds(말풍선 없음, focusReel 라인 패턴 동치).
+            let markers = targets.map {
+                MapMarker(id: $0.id, latitude: $0.latitude, longitude: $0.longitude, tag: $0.tag)
+            }
+            fitBounds(markers: markers)
+        }
+    }
+
     /// 릴스 포커스 해제(FR-I13/BR-4). 지도 배너 ✕로만 호출된다(탭 전환·재진입으로는 해제 안 함).
     func clearReelFocus() {
         focusedInstagramUrl = nil

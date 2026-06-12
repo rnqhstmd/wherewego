@@ -1,5 +1,6 @@
 package com.wherewego.domain.notification;
 
+import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.group.Group;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupRepository;
@@ -7,6 +8,7 @@ import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinRepository;
 import com.wherewego.domain.user.UserModel;
 import com.wherewego.domain.user.UserRepository;
+import com.wherewego.domain.user.UserRepository.UserProfile;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +54,7 @@ public class NotificationService {
     private final PinRepository pinRepository;
     private final UserRepository userRepository;
     private final NotificationVisitWriter visitWriter;
+    private final S3Properties s3Properties;
 
     /**
      * 웹/모바일 직접 등록 트리거 (PinV1Controller.createPin에서 트랜잭션 밖에서 호출).
@@ -167,13 +170,13 @@ public class NotificationService {
         }
         Map<Long, Pin> pinById = loadPinsByIds(pinIdsToLoad);
 
-        // 등록자 닉네임 batch 조회 (UserRepository.findNicknamesByIds 활용)
+        // 등록자 프로필 batch 조회 (GP-1 findProfilesByIds — 닉네임 + 유효 프사 URL 동시 확보, IG-2 FR-5).
         Set<Long> registeredByIds = notifications.stream()
                 .map(Notification::getRegisteredBy)
                 .collect(Collectors.toSet());
-        Map<Long, String> nicknameById = registeredByIds.isEmpty()
+        Map<Long, UserProfile> profileById = registeredByIds.isEmpty()
                 ? Map.of()
-                : userRepository.findNicknamesByIds(registeredByIds);
+                : userRepository.findProfilesByIds(registeredByIds);
 
         // GM-2: 알림의 groupId 집합 → 그룹명 batch (findById 반복, loadPinsByIds 선례 — MVP 규모 N+1 허용).
         Set<Long> groupIds = notifications.stream()
@@ -185,6 +188,10 @@ public class NotificationService {
             List<NotificationPin> links = pinsMap.getOrDefault(n.getId(), List.of());
             Pin firstPin = links.isEmpty() ? null : pinById.get(links.get(0).getPinId());
             String firstPlaceName = firstPin != null ? firstPin.getPlaceName() : FALLBACK_PLACE_NAME;
+            // IG-2 FR-5: 첫 핀 썸네일 키 → public URL. 첫 핀 없거나 키 null 이면 null
+            // (핀 soft-delete 여부는 무관 — 썸네일만 노출). PinService.toSummary 와 동일한 키→URL 조합.
+            String thumbnailUrl = firstPin != null ? toPublicUrl(firstPin.getPhotoThumbnailKey()) : null;
+            UserProfile registeredByProfile = profileById.get(n.getRegisteredBy());
 
             // Phase 13: CHATBOT_PINS 만 연결 핀 tag 를 집계해 위시/발견 카운트를 채운다.
             // 다른 타입(MANUAL_PIN/VISIT_DETECTED)은 0 (프론트는 totalPinCount 사용).
@@ -206,9 +213,12 @@ public class NotificationService {
                     n.getId(),
                     n.getType(),
                     n.getRegisteredBy(),
-                    nicknameById.getOrDefault(n.getRegisteredBy(), FALLBACK_NICKNAME),
+                    registeredByProfile != null ? registeredByProfile.nickname() : FALLBACK_NICKNAME,
+                    registeredByProfile != null ? registeredByProfile.profileImageUrl() : null,
+                    n.getGroupId(),
                     groupNameById.get(n.getGroupId()),
                     firstPlaceName,
+                    thumbnailUrl,
                     links.size(),
                     wishCount,
                     reelCount,
@@ -312,14 +322,30 @@ public class NotificationService {
         return zdt == null ? null : zdt.toInstant();
     }
 
+    /**
+     * S3 객체 키 → 공개 URL 조합 (IG-2 FR-5). 키가 없으면 null.
+     * {@code PinService.toPublicUrl} 과 동일 규칙 — publicBaseUrl 끝 슬래시 제거로 "//" 이중 슬래시 방지.
+     */
+    private String toPublicUrl(String key) {
+        if (key == null) return null;
+        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        return base + "/" + key;
+    }
+
     public record NotificationItemResult(
             Long id,
             NotificationType type,
             Long registeredBy,
             String registeredByNickname,
+            /** IG-2 FR-5: 등록자의 유효 프사 URL(키 우선→카카오 폴백→null). GP-1 findProfilesByIds 결과. */
+            String registeredByProfileImageUrl,
+            /** IG-2 FR-5: 알림이 속한 그룹 id. Notification.getGroupId() 그대로 노출. */
+            Long groupId,
             /** GM-2: 알림이 속한 그룹명. soft-delete 그룹도 노출, 미존재 시 null. */
             String groupName,
             String firstPlaceName,
+            /** IG-2 FR-5: 첫 핀 썸네일 public URL. 첫 핀 없거나 키 null 이면 null. */
+            String thumbnailUrl,
             int totalPinCount,
             /**
              * Phase 13: CHATBOT_PINS 알림에 연결된 핀 중 WISH 태그 핀 수. 다른 타입은 0.

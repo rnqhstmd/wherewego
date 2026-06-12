@@ -84,6 +84,11 @@ public class PinRepositoryImpl implements PinRepository {
     }
 
     @Override
+    public long countActiveByCreatedBy(Long createdBy) {
+        return jpaRepository.countByCreatedByAndDeletedAtIsNull(createdBy);
+    }
+
+    @Override
     public Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId) {
         return jpaRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId);
     }

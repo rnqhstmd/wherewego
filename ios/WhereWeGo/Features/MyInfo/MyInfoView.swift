@@ -1,16 +1,21 @@
 import SwiftUI
 
-// 내정보 화면(설계 §8 / IA 재설계 D단계 내정보 축소, FR-23~27, BR-5, AC-11).
-// frontend/src/app/settings/SettingsClient.tsx 이식 — 단 "챗봇 연동" 섹션은 제외(FR-27, AC-11).
-// IA 재설계: 그룹(활성그룹·탈퇴)은 지도 탭 ⋯ 그룹관리(GroupManageView)로 이전 → 내정보는 사용자+계정 2섹션.
-// 섹션: 1) 사용자(닉네임 + 닉네임 수정) 2) 계정(로그아웃 + 계정 삭제).
+// 내정보 화면(설계 §8 / FR-3 인스타 프로필화). 인스타그램 프로필 문법으로 재구성.
+//  - 상단: InstaNavBar("내 정보")(다른 탭 루트와 동일 — 경량 상단바).
+//  - 프로필 헤더(중앙): 아바타 84 + 우하단 카메라 배지(프사 액션시트) + 닉네임 + 통계 2종(그룹·핀).
+//  - 프로필 편집 풀폭 라이트 버튼 → ProfileEditView 시트(닉네임/프사 편집).
+//  - 설정 플랫 리스트(hairline 구분 행): 알림 설정 · 로그아웃 · 계정 삭제(danger).
+// 프사(GP-1 FR-3)·로그아웃·계정삭제 로직은 기존 그대로 유지(배선만 새 레이아웃에).
 struct MyInfoView: View {
     // VM 수명은 MainTabView 가 @StateObject 로 소유(탭 전환·body 재계산에도 단일 인스턴스 유지).
     // 본 뷰는 @ObservedObject 로 관찰만 한다(NotificationInboxView 와 동일 패턴).
     @ObservedObject var viewModel: MyInfoViewModel
+    /// 그룹 수 표기용(FR-3 통계). MainTabView 가 @StateObject 로 소유한 단일 인스턴스를 주입(DMListView 선례).
+    @ObservedObject var groupContext: GroupContext
     private let authAPI: AuthAPI
 
-    @State private var showNicknameEdit = false
+    /// 프로필 편집 시트 트리거(닉네임/프사). 기존 닉네임 수정 시트 대체.
+    @State private var showProfileEdit = false
     @State private var showDeleteConfirm = false
     /// 프사 액션시트(앨범에서 선택 / 사진 제거) 트리거(GP-1 FR-3).
     @State private var showPhotoOptions = false
@@ -19,52 +24,64 @@ struct MyInfoView: View {
     /// 피커에서 고른 원본(크롭 fullScreenCover 트리거). nil = 크롭 미진행.
     @State private var pickedImage: PickedProfileImage?
 
-    init(authAPI: AuthAPI, viewModel: MyInfoViewModel) {
+    init(authAPI: AuthAPI, viewModel: MyInfoViewModel, groupContext: GroupContext) {
         self.authAPI = authAPI
         self.viewModel = viewModel
+        self.groupContext = groupContext
     }
 
     var body: some View {
-        ZStack {
-            WGColor.bg.ignoresSafeArea()
+        VStack(spacing: 0) {
+            // 경량 상단바(IG-1, 다른 탭 루트 정합).
+            InstaNavBar(title: "내 정보")
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("마이페이지")
-                        .font(WGFont.emo(32))
-                        .tracking(-1)
-                        .foregroundStyle(WGColor.ink)
+                VStack(spacing: 0) {
+                    profileHeader
 
-                    Text("계정과 그룹을 관리할 수 있어요")
-                        .font(WGFont.sans(14))
-                        .foregroundStyle(WGColor.inkSoft)
-                        .padding(.top, 12)
-
-                    VStack(alignment: .leading, spacing: 18) {
-                        userSection
-                        accountSection
-
-                        if let message = viewModel.errorMessage {
-                            Text(message)
-                                .font(WGFont.sans(13))
-                                .foregroundStyle(WGColor.cta)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
+                    // 프로필 편집 풀폭 라이트 버튼.
+                    Button {
+                        showProfileEdit = true
+                    } label: {
+                        Text("프로필 편집")
+                            .font(WGFont.sansSemiBold(14))
+                            .foregroundStyle(WGColor.ink)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(WGColor.bg)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(WGColor.hairline, lineWidth: 1)
+                            )
                     }
-                    .padding(.top, 32)
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+
+                    settingsList
+                        .padding(.top, 28)
+
+                    if let message = viewModel.errorMessage {
+                        Text(message)
+                            .font(WGFont.sans(13))
+                            .foregroundStyle(WGColor.cta)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 16)
+                    }
                 }
-                .padding(EdgeInsets(top: 80, leading: 32, bottom: 40, trailing: 32))
+                .padding(.bottom, 40)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(WGColor.bg)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
-        .sheet(isPresented: $showNicknameEdit) {
+        // 프로필 편집 시트(닉네임/프사). 기존 닉네임 수정 시트 대체.
+        .sheet(isPresented: $showProfileEdit) {
             NavigationStack {
-                NicknameView(authAPI: authAPI) {
-                    showNicknameEdit = false
-                    Task { await viewModel.refreshNickname() }
-                }
+                ProfileEditView(authAPI: authAPI, viewModel: viewModel)
             }
         }
         .confirmationDialog(
@@ -114,92 +131,98 @@ struct MyInfoView: View {
         }
     }
 
-    // MARK: - 1) 사용자
+    // MARK: - 프로필 헤더(중앙 정렬)
 
-    private var userSection: some View {
-        section(label: "사용자") {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 12) {
-                    // 탭 → 액션시트(앨범에서 선택 / 사진 제거). 업로드 중엔 위에 로딩 오버레이(GP-1 FR-3).
-                    Button {
-                        showPhotoOptions = true
-                    } label: {
-                        AvatarView(
-                            imageUrl: viewModel.profileImageUrl,
-                            name: viewModel.nickname ?? "",
-                            size: 44
-                        )
-                        .overlay {
-                            if viewModel.isUploadingPhoto {
-                                Circle().fill(.black.opacity(0.35))
-                                    .overlay(ProgressView().tint(.white))
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isUploadingPhoto)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(viewModel.nickname ?? "사용자")
-                            .font(WGFont.emo(18))
-                            .foregroundStyle(WGColor.ink)
-                        Text("님")
-                            .font(WGFont.sans(12))
-                            .foregroundStyle(WGColor.inkSoft)
+    /// 아바타(우하단 카메라 배지) + 닉네임 + 통계 2종(그룹·핀).
+    private var profileHeader: some View {
+        VStack(spacing: 14) {
+            // 아바타 + 카메라 배지(우하단). 배지/아바타 탭 = 프사 액션시트. 업로드 중 로딩 오버레이.
+            Button {
+                showPhotoOptions = true
+            } label: {
+                AvatarView(
+                    imageUrl: viewModel.profileImageUrl,
+                    name: viewModel.nickname ?? "",
+                    size: 84
+                )
+                .overlay {
+                    if viewModel.isUploadingPhoto {
+                        Circle().fill(.black.opacity(0.35))
+                            .overlay(ProgressView().tint(.white))
                     }
                 }
-                rowButton(label: "닉네임 수정") {
-                    showNicknameEdit = true
-                }
-                .padding(.top, 14)
-            }
-        }
-    }
-
-    // MARK: - 2) 계정
-
-    private var accountSection: some View {
-        section(label: "계정") {
-            VStack(alignment: .leading, spacing: 0) {
-                rowButton(label: "로그아웃", disabled: viewModel.isBusy) {
-                    Task { await viewModel.logout() }
-                }
-                Rectangle()
-                    .fill(WGColor.hairline)
-                    .frame(height: 1)
-                    .padding(.vertical, 2)
-                rowButton(label: "계정 삭제", danger: true, disabled: viewModel.isBusy) {
-                    showDeleteConfirm = true
+                .overlay(alignment: .bottomTrailing) {
+                    cameraBadge
                 }
             }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isUploadingPhoto)
+
+            Text(viewModel.nickname ?? "사용자")
+                .font(WGFont.emo(20))
+                .foregroundStyle(WGColor.ink)
+
+            // 통계 2종(중앙, spacing 32): 그룹 수 / 핀 수.
+            HStack(spacing: 32) {
+                statItem(value: groupContext.groups.count, label: "그룹")
+                statItem(value: viewModel.pinCount ?? 0, label: "핀")
+            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
     }
 
-    // MARK: - 공통 컴포넌트
+    /// 우하단 카메라 배지(26pt Circle, panel 배경 + hairline 스트로크 + 그림자).
+    private var cameraBadge: some View {
+        Image(systemName: "camera.fill")
+            .font(.system(size: 12))
+            .foregroundStyle(WGColor.ink)
+            .frame(width: 26, height: 26)
+            .background(WGColor.panel)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(WGColor.hairline, lineWidth: 1))
+            .shadow(color: WGColor.shadow, radius: 3, y: 1)
+    }
 
-    private func section<Content: View>(
-        label: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    /// 통계 1개(숫자 + 라벨, 세로 중앙).
+    private func statItem(value: Int, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text("\(value)")
+                .font(WGFont.sansBold(17))
+                .foregroundStyle(WGColor.ink)
             Text(label)
                 .font(WGFont.sans(12))
                 .foregroundStyle(WGColor.inkSoft)
-                .padding(.leading, 4)
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(EdgeInsets(top: 18, leading: 22, bottom: 18, trailing: 22))
-                .background(WGColor.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(WGColor.hairline, lineWidth: 1)
-                )
-                .shadow(color: WGColor.shadow, radius: 4, y: 2)
         }
     }
 
-    /// 섹션 카드 내부 단일 행(라벨 + 우측 chevron). 웹 Row 이식.
+    // MARK: - 설정 플랫 리스트
+
+    /// 알림 설정 · 로그아웃 · 계정 삭제(danger). hairline 구분 플랫 행.
+    private var settingsList: some View {
+        VStack(spacing: 0) {
+            rowButton(label: "알림 설정") {
+                openSystemSettings()
+            }
+            divider
+            rowButton(label: "로그아웃", disabled: viewModel.isBusy) {
+                Task { await viewModel.logout() }
+            }
+            divider
+            rowButton(label: "계정 삭제", danger: true, disabled: viewModel.isBusy) {
+                showDeleteConfirm = true
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(WGColor.hairline)
+            .frame(height: 1)
+    }
+
+    /// 설정 플랫 행(라벨 + 우측 chevron). danger 면 cta 색.
     private func rowButton(
         label: String,
         danger: Bool = false,
@@ -217,11 +240,19 @@ struct MyInfoView: View {
                     .foregroundStyle(WGColor.inkFaint)
             }
             .contentShape(Rectangle())
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled ? 0.5 : 1)
+    }
+
+    // MARK: - 시스템 설정
+
+    /// 시스템 설정의 본 앱 페이지로 이동(알림 권한 등). URL 생성 실패 시 무동작(안전 처리).
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 

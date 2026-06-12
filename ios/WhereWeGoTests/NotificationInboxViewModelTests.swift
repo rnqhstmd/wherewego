@@ -110,36 +110,130 @@ final class NotificationInboxViewModelTests: XCTestCase {
         XCTAssertEqual(api.readAllCount, 0)
     }
 
-    // MARK: - flyToPin: soft delete 핀은 pending 미세팅(FR-20)
+    // MARK: - selectItem 라우팅(IG-2 FR-4)
 
-    func test_flyToPin_deletedPin_doesNotSetPending() {
+    /// 접근 불가 그룹(목록에 없음/groupId 부재) → infoMessage 안내, 딥링크 미발화.
+    func test_selectItem_inaccessibleGroup_setsInfoMessage_noPending() async {
         let router = DeepLinkRouter()
         let api = MockNotificationAPI(unreadCount: 0)
-        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router)
+        // isGroupAccessible 가 항상 false → 떠난 그룹 시나리오.
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in false })
 
-        let deleted = NotificationPinItem(
-            pinId: 99, placeName: "삭제됨", address: nil,
-            latitude: nil, longitude: nil, deleted: true,
-            instagramUrl: nil, memo: nil, tag: nil
-        )
-        vm.flyToPin(deleted)
+        await vm.selectItem(makeItem(id: 1, groupId: 50))
 
-        XCTAssertNil(router.pending, "soft delete 핀은 flyTo 비활성(pending 미세팅).")
+        XCTAssertEqual(vm.infoMessage, "더 이상 함께하지 않는 그룹이에요")
+        XCTAssertNil(router.pending, "접근 불가 그룹은 딥링크 미발화.")
+        XCTAssertEqual(api.detailCount, 0, "접근 가드에서 막혀 detail 미호출.")
     }
 
-    func test_flyToPin_livePin_setsPendingPin() {
+    /// groupId 부재(구서버) → 접근 가드에서 안내.
+    func test_selectItem_nilGroupId_setsInfoMessage() async {
         let router = DeepLinkRouter()
         let api = MockNotificationAPI(unreadCount: 0)
-        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router)
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in true })
 
-        let live = NotificationPinItem(
-            pinId: 7, placeName: "성수 카페", address: "서울",
-            latitude: 37.5, longitude: 127.0, deleted: false,
-            instagramUrl: nil, memo: nil, tag: "WISH"
+        await vm.selectItem(makeItem(id: 1, groupId: nil))
+
+        XCTAssertEqual(vm.infoMessage, "더 이상 함께하지 않는 그룹이에요")
+        XCTAssertNil(router.pending)
+    }
+
+    /// 유효 핀 0개(전부 삭제/좌표 없음) → "삭제된 장소예요" 안내, 딥링크 미발화.
+    func test_selectItem_allDeletedPins_setsInfoMessage_noPending() async {
+        let router = DeepLinkRouter()
+        let api = MockNotificationAPI(unreadCount: 0, detailPins: [
+            pin(1, deleted: true, lat: nil, lng: nil),
+            pin(2, deleted: false, lat: nil, lng: nil)   // 좌표 없음 → 무효
+        ])
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in true })
+
+        await vm.selectItem(makeItem(id: 9, groupId: 3))
+
+        XCTAssertEqual(vm.infoMessage, "삭제된 장소예요")
+        XCTAssertNil(router.pending)
+    }
+
+    /// 유효 핀 1개 → .pinFocus(pinIds 1개), 말풍선 경로.
+    func test_selectItem_oneLivePin_setsPinFocusWithOnePin() async {
+        let router = DeepLinkRouter()
+        let api = MockNotificationAPI(unreadCount: 0, detailPins: [
+            pin(7, deleted: false, lat: 37.5, lng: 127.0),
+            pin(8, deleted: true, lat: 37.6, lng: 127.1)   // 삭제 → 제외
+        ])
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in true })
+
+        await vm.selectItem(makeItem(id: 9, groupId: 3))
+
+        XCTAssertEqual(router.pending, .pinFocus(groupId: 3, pinIds: [7]))
+        XCTAssertNil(vm.infoMessage)
+    }
+
+    /// 유효 핀 N개 → .pinFocus(pinIds N개), fitBounds 경로.
+    func test_selectItem_multipleLivePins_setsPinFocusWithAll() async {
+        let router = DeepLinkRouter()
+        let api = MockNotificationAPI(unreadCount: 0, detailPins: [
+            pin(11, deleted: false, lat: 37.5, lng: 127.0),
+            pin(12, deleted: false, lat: 37.6, lng: 127.1),
+            pin(13, deleted: true, lat: 37.7, lng: 127.2)   // 삭제 → 제외
+        ])
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in true })
+
+        await vm.selectItem(makeItem(id: 9, groupId: 3))
+
+        XCTAssertEqual(router.pending, .pinFocus(groupId: 3, pinIds: [11, 12]))
+    }
+
+    /// detail 조회 실패 → 재시도 안내, 딥링크 미발화.
+    func test_selectItem_detailFailure_setsInfoMessage_noPending() async {
+        let router = DeepLinkRouter()
+        let api = MockNotificationAPI(
+            unreadCount: 0,
+            detailError: APIError(code: "FAIL", status: 500, message: "down")
         )
-        vm.flyToPin(live)
+        let vm = NotificationInboxViewModel(api: api, deepLinkRouter: router, isGroupAccessible: { _ in true })
 
-        XCTAssertEqual(router.pending, .pin(pinId: 7))
+        await vm.selectItem(makeItem(id: 9, groupId: 3))
+
+        XCTAssertEqual(vm.infoMessage, "알림을 여는 데 실패했어요. 다시 시도해 주세요")
+        XCTAssertNil(router.pending)
+    }
+
+    // MARK: - sectionKey(오늘/이번 주/이전)
+
+    func test_sectionKey_today_thisWeek_earlier() {
+        let now = ISO8601DateFormatter().date(from: "2026-06-12T12:00:00Z")!
+        let iso = { (date: Date) -> String in
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime]
+            return f.string(from: date)
+        }
+        // 같은 달력일 → today.
+        XCTAssertEqual(NotificationInboxViewModel.sectionKey(iso(now.addingTimeInterval(-3600)), now: now), .today)
+        // 3일 전(7일 이내, 다른 날) → thisWeek.
+        XCTAssertEqual(NotificationInboxViewModel.sectionKey(iso(now.addingTimeInterval(-3 * 86400)), now: now), .thisWeek)
+        // 10일 전 → earlier.
+        XCTAssertEqual(NotificationInboxViewModel.sectionKey(iso(now.addingTimeInterval(-10 * 86400)), now: now), .earlier)
+        // 파싱 실패 → earlier(맨 아래 폴백).
+        XCTAssertEqual(NotificationInboxViewModel.sectionKey("not-a-date", now: now), .earlier)
+    }
+
+    // MARK: - 헬퍼
+
+    private func makeItem(id: Int, groupId: Int?) -> NotificationItem {
+        NotificationItem(
+            id: id, type: .MANUAL_PIN, registeredBy: 1, registeredByNickname: "지수",
+            firstPlaceName: "성수 카페", totalPinCount: 1, wishCount: nil, reelCount: nil,
+            createdAt: "2026-06-12T12:00:00Z", readAt: nil, groupName: "여행팟",
+            registeredByProfileImageUrl: nil, groupId: groupId, thumbnailUrl: nil
+        )
+    }
+
+    private func pin(_ id: Int, deleted: Bool, lat: Double?, lng: Double?) -> NotificationPinItem {
+        NotificationPinItem(
+            pinId: id, placeName: "장소\(id)", address: nil,
+            latitude: lat, longitude: lng, deleted: deleted,
+            instagramUrl: nil, memo: nil, tag: nil
+        )
     }
 }
 
@@ -156,12 +250,25 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
     private let readAllError: Error?
     /// list() 응답 지연(ns). 동시 load in-flight 가드 검증용(첫 호출 진행 중 두 번째 진입 차단 확인).
     private let listDelayNanos: UInt64
+    /// detail() 응답 핀 목록(selectItem 라우팅 검증용). 기본 빈 배열.
+    private let detailPins: [NotificationPinItem]
+    /// detail() 강제 실패(selectItem 조회 실패 검증용).
+    private let detailError: Error?
 
-    init(unreadCount: Int, listError: Error? = nil, readAllError: Error? = nil, listDelayNanos: UInt64 = 0) {
+    init(
+        unreadCount: Int,
+        listError: Error? = nil,
+        readAllError: Error? = nil,
+        listDelayNanos: UInt64 = 0,
+        detailPins: [NotificationPinItem] = [],
+        detailError: Error? = nil
+    ) {
         self.unreadCount = unreadCount
         self.listError = listError
         self.readAllError = readAllError
         self.listDelayNanos = listDelayNanos
+        self.detailPins = detailPins
+        self.detailError = detailError
     }
 
     var listCount: Int { lock.lock(); defer { lock.unlock() }; return _listCount }
@@ -183,6 +290,7 @@ private final class MockNotificationAPI: NotificationAPIProtocol, @unchecked Sen
 
     func detail(id: Int) async throws -> NotificationDetail {
         lock.withLock { _detailCount += 1 }
-        return NotificationDetail(id: id, type: .MANUAL_PIN, registeredByNickname: nil, createdAt: "", pins: [], groupName: nil)
+        if let detailError { throw detailError }
+        return NotificationDetail(id: id, type: .MANUAL_PIN, registeredByNickname: nil, createdAt: "", pins: detailPins, groupName: nil)
     }
 }

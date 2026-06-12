@@ -57,6 +57,12 @@ public interface PinRepository {
     long countActiveByGroupIdAndTag(Long groupId, PinTag tag);
 
     /**
+     * 특정 사용자가 등록한 활성 핀(soft-delete 제외) 전 그룹 합산 개수를 반환한다.
+     * GET /users/me 응답의 pinCount 산출용 (IG-2 FR-5).
+     */
+    long countActiveByCreatedBy(Long createdBy);
+
+    /**
      * PATCH/DELETE 단일 행 잠금 조회. {@code PESSIMISTIC_WRITE} 로 동시성을 직렬화한다 (Q4).
      */
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId);

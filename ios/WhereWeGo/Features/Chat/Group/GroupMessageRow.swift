@@ -45,13 +45,13 @@ struct GroupMessageRow: View {
 
     private var textBubble: some View {
         // 인스타 DM식: 타인 = 아바타 + 닉네임(위) + 버블 + 오른쪽 하단 시간 / 내 메시지 = 왼쪽 하단 시간 + 버블.
-        // 카톡식 그루핑: 닉네임/아바타는 묶음 첫 메시지(showsSender), 시간은 묶음 마지막(showsTime)에만.
+        // 카톡식 그루핑: 닉네임은 묶음 첫 메시지(showsSender), 아바타·시간은 묶음 마지막(showsTime)에만.
         HStack(alignment: .bottom, spacing: 6) {
             if isOutgoing {
                 Spacer(minLength: 48)
                 if showsTime { timeLabel }
             } else {
-                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
+                if showsTime { senderAvatar } else { Color.clear.frame(width: 28, height: 1) }
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing, showsSender {
@@ -67,11 +67,8 @@ struct GroupMessageRow: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(isOutgoing ? WGColor.cta : WGColor.panel)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1)
-                    )
+                    .clipShape(textBubbleShape)
+                    .overlay(textBubbleShape.stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1))
             }
             if !isOutgoing {
                 if showsTime { timeLabel }
@@ -80,15 +77,27 @@ struct GroupMessageRow: View {
         }
     }
 
+    /// TEXT 버블 모양: 발신=라운드 20 균일, 수신=좌하단 꼬리(6r) 나머지 20r.
+    private var textBubbleShape: AnyShape {
+        if isOutgoing {
+            return AnyShape(RoundedRectangle(cornerRadius: 20))
+        }
+        return AnyShape(UnevenRoundedRectangle(
+            topLeadingRadius: 20, bottomLeadingRadius: 6,
+            bottomTrailingRadius: 20, topTrailingRadius: 20))
+    }
+
     // MARK: - REEL_LINK(FR-GC2-3)
 
     private var reelBubble: some View {
-        HStack(alignment: .bottom, spacing: 6) {
+        // 인스타 게시물 공유 카드: 썸네일 풀블리드(상단 모서리 맞물림) + 라벨/버튼 영역만 패딩 12.
+        let cardShape = RoundedRectangle(cornerRadius: 20)
+        return HStack(alignment: .bottom, spacing: 6) {
             if isOutgoing {
                 Spacer(minLength: 32)
                 if showsTime { timeLabel }
             } else {
-                if showsSender { senderAvatar } else { Color.clear.frame(width: 32, height: 1) }
+                if showsTime { senderAvatar } else { Color.clear.frame(width: 28, height: 1) }
             }
             VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
                 if !isOutgoing, showsSender {
@@ -97,31 +106,33 @@ struct GroupMessageRow: View {
                         .foregroundStyle(WGColor.inkSoft)
                         .padding(.leading, 4)
                 }
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
                     reelThumbnail
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.rectangle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(WGColor.cta)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Instagram 릴스")
-                                .font(WGFont.sans(13))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(WGColor.ink)
-                            Text(reelHost)
-                                .font(WGFont.mono(11))
-                                .foregroundStyle(WGColor.inkSoft)
-                                .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.rectangle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(WGColor.cta)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Instagram 릴스")
+                                    .font(WGFont.sans(13))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(WGColor.ink)
+                                Text(reelHost)
+                                    .font(WGFont.mono(11))
+                                    .foregroundStyle(WGColor.inkSoft)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
                         }
-                        Spacer(minLength: 0)
+                        reelButton
                     }
-                    reelButton
+                    .padding(12)
                 }
-                .padding(12)
                 .frame(maxWidth: 300, alignment: .leading)
                 .background(WGColor.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
+                .clipShape(cardShape)
+                .overlay(cardShape.stroke(WGColor.hairline, lineWidth: 1))
             }
             if !isOutgoing {
                 if showsTime { timeLabel }
@@ -132,10 +143,9 @@ struct GroupMessageRow: View {
 
     // MARK: - REEL_LINK 썸네일(FR-GC3-2)
 
-    /// 릴스 커버 썸네일 — 카드 폭 정사각 + radius(둥글둥글). thumbnailUrl 없거나 만료(로드 실패) 시 기본 회색 타일 폴백.
+    /// 릴스 커버 썸네일 — 카드 상단 풀블리드 정사각(카드 clipShape 가 모서리 처리). thumbnailUrl 없거나 만료(로드 실패) 시 기본 회색 타일 폴백.
     private var reelThumbnail: some View {
-        let shape = RoundedRectangle(cornerRadius: 12)
-        return Color.clear
+        Color.clear
             .aspectRatio(1, contentMode: .fit)          // 정사각 사이저(카드 폭에 1:1)
             .overlay {
                 if let raw = frame.thumbnailUrl, let url = URL(string: raw) {
@@ -153,9 +163,8 @@ struct GroupMessageRow: View {
                     thumbnailPlaceholder                // 아직 스크래핑 전/flag off → 회색
                 }
             }
-            .clipShape(shape)
-            .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
-            .contentShape(shape)
+            .clipped()
+            .contentShape(Rectangle())
             // 썸네일 탭 → 해당 릴스 원본으로 이동(인스타 앱/브라우저).
             .onTapGesture {
                 if let raw = frame.reelUrl, let url = URL(string: raw) {
@@ -225,9 +234,9 @@ struct GroupMessageRow: View {
     // MARK: - 아바타(인스타 DM식)
 
     /// 타인 메시지 좌측 아바타 — 발신자 프사(GP-1 FR-6) 원형, 없으면 닉네임 이니셜 틴트 원 폴백(AvatarView 일반화).
-    /// 발신자 NULL(탈퇴) 이면 senderName="(알 수 없음)" → "(" 이니셜. 32pt 는 기존 자리 크기 유지(레이아웃 무변경).
+    /// 발신자 NULL(탈퇴) 이면 senderName="(알 수 없음)" → "(" 이니셜. 인스타 문법: 묶음 마지막 버블 옆 하단 정렬(28pt).
     private var senderAvatar: some View {
-        AvatarView(imageUrl: frame.senderProfileImageUrl, name: senderName, size: 32)
+        AvatarView(imageUrl: frame.senderProfileImageUrl, name: senderName, size: 28)
     }
 
     // MARK: - 시각 라벨(카톡식)
