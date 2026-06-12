@@ -59,6 +59,23 @@ public interface PinV1ApiSpec {
     );
 
     @Operation(
+            summary = "방문 선언 (체크인 / 추억 전환)",
+            description = "정책 v2: 도착 감지 후 방문을 선언합니다 (FR-B2/B3). " +
+                    "companionUserIds 가 비어 있으면 혼자(다인 그룹=체크인·태그 불변, 1인 그룹=추억 전환), " +
+                    "비어 있지 않으면 동행 선언으로 WISH/REEL → MEMORY 전환(1회·멱등)합니다. " +
+                    "본인은 SELF, 동행은 TAGGED 로 pin_visits 에 union upsert 되며, 이미 MEMORY 면 태그 불변 + visits union " +
+                    "+ alreadyConverted=true (카드 미적재). 체크인 카드는 무푸시, 추억 카드는 푸시됩니다. " +
+                    "비활성/타그룹 핀은 PIN_NOT_FOUND(404), 동행 명단에 비멤버가 있으면 PIN_VISIT_COMPANION_INVALID(400), " +
+                    "비멤버 호출은 GROUP_NOT_MEMBER(403)."
+    )
+    ApiResponse<PinV1Dto.DeclareVisitResponse> declareVisit(
+            @Parameter(hidden = true) Long userId,
+            Long groupId,
+            Long pinId,
+            PinV1Dto.DeclareVisitRequest request
+    );
+
+    @Operation(
             summary = "핀 소프트 삭제",
             description = "활성 그룹원이 핀을 소프트 삭제합니다 (FR-3, BR-2). " +
                     "이미 삭제된 핀은 PIN_NOT_FOUND 로 거부됩니다 (BR-6). " +

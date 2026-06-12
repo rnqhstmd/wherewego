@@ -329,8 +329,8 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
         payload = "{\"text\":\"\(text ?? "msg")\"}"
-    case .PROCESSING, .REEL_LINK, .PIN_REPLY:
-        // REEL_LINK/PIN_REPLY 는 봇 ChatFrame 경로에서 미사용 — 빈 payload 로 방어 처리.
+    case .PROCESSING, .REEL_LINK, .PIN_REPLY, .PIN_VISIT, .PIN_MEMORY:
+        // REEL_LINK/PIN_REPLY/PIN_VISIT/PIN_MEMORY 는 봇 ChatFrame 경로에서 미사용 — 빈 payload 로 방어 처리.
         payload = "{}"
     }
     let senderType = kind == .TEXT ? "USER" : "BOT"

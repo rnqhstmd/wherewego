@@ -66,6 +66,9 @@ public enum ErrorType {
     PIN_PAGE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "PIN_PAGE_SIZE_EXCEEDED", "한 번에 조회할 수 있는 핀은 100개까지입니다."),
     PIN_PAGE_PARAM_INVALID(HttpStatus.BAD_REQUEST, "PIN_PAGE_PARAM_INVALID", "페이지 파라미터가 유효하지 않습니다."),
 
+    /** 방문 체크인·추억 전환 (정책 v2) — 동행 명단에 비활성 멤버가 섞인 경우. */
+    PIN_VISIT_COMPANION_INVALID(HttpStatus.BAD_REQUEST, "PIN_VISIT_COMPANION_INVALID", "동행 명단은 이 그룹의 멤버만 포함할 수 있어요."),
+
     /** 핀 (Phase 12) */
     PIN_CLEANUP_FORBIDDEN(HttpStatus.FORBIDDEN, "PIN_CLEANUP_FORBIDDEN", "정리 권한이 없어요."),
     BOT_REEL_PARSE_FORMAT(HttpStatus.BAD_REQUEST, "BOT_REEL_PARSE_FORMAT", "릴스 장소 선택 형식이 올바르지 않아요."),

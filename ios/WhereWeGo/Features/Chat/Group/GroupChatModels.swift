@@ -31,12 +31,14 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
     let thumbnailUrl: String?
     /// TEXT/SYSTEM/PIN_REPLY 의 payload.text(그 외 nil).
     let text: String?
-    /// PIN_REPLY 만 — 답장 대상 핀의 스냅샷(백엔드 top-level 계약 필드, 그 외 kind 는 null).
+    /// PIN_REPLY/PIN_VISIT/PIN_MEMORY — 답장/방문 대상 핀의 스냅샷(백엔드 top-level 계약 필드, 그 외 kind 는 null).
     /// 핀 삭제 시 deleted=true(placeName 유지), row 미존재 시 placeName 도 null.
     let pinSnapshot: PinChatSnapshot?
+    /// PIN_MEMORY 만 — 동행 참여자 명단(백엔드 top-level 계약 필드, payload.userIds 를 프사 resolver 로 합성). 그 외 kind 는 null.
+    let visitParticipants: [ChatVisitParticipant]?
 
     private enum CodingKeys: String, CodingKey {
-        case messageId, roomId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, pinSnapshot, createdAt
+        case messageId, roomId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, pinSnapshot, visitParticipants, createdAt
     }
     private enum TextKeys: String, CodingKey { case text }
     private enum ReelKeys: String, CodingKey { case url }
@@ -54,8 +56,10 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.registered = try c.decodeIfPresent(Bool.self, forKey: .registered)
         // thumbnailUrl 은 백엔드 프레임 top-level(payload 밖) — registered 와 동형으로 kind 무관하게 디코드(비-REEL_LINK 는 서버가 null).
         self.thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
-        // pinSnapshot 도 top-level(payload 밖) — registered/thumbnailUrl 와 동형으로 kind 무관 디코드(PIN_REPLY 만 non-null, 그 외 서버가 null).
+        // pinSnapshot 도 top-level(payload 밖) — registered/thumbnailUrl 와 동형으로 kind 무관 디코드(PIN_REPLY/PIN_VISIT/PIN_MEMORY 만 non-null, 그 외 서버가 null).
         self.pinSnapshot = try c.decodeIfPresent(PinChatSnapshot.self, forKey: .pinSnapshot)
+        // visitParticipants 도 top-level(payload 밖) — pinSnapshot 동형으로 kind 무관 디코드(PIN_MEMORY 만 non-null, 그 외 서버가 null).
+        self.visitParticipants = try c.decodeIfPresent([ChatVisitParticipant].self, forKey: .visitParticipants)
 
         // payload 는 kind 로 분기. 누락/형식 불일치는 방어적으로 nil 처리.
         switch kind {
@@ -67,6 +71,11 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
             // PIN_REPLY payload 도 {text} 형식 — TEXT 와 동일하게 평탄화(핀 정보는 top-level pinSnapshot).
             let p = try? c.nestedContainer(keyedBy: TextKeys.self, forKey: .payload)
             self.text = try? p?.decodeIfPresent(String.self, forKey: .text)
+            self.reelUrl = nil
+        case .PIN_VISIT, .PIN_MEMORY:
+            // 방문 카드 — payload 는 {pinId}(+PIN_MEMORY userIds). 핀 정보는 top-level pinSnapshot, 동행은 visitParticipants 사용.
+            // 문구는 GroupMessageRow 가 kind 로 결정하므로 text/reelUrl 은 nil(payload 평탄화 불필요).
+            self.text = nil
             self.reelUrl = nil
         case .PLACE_CARDS, .PROCESSING:
             // 그룹 방에서 생성되지 않는 봇 kind — 안전 폴백(렌더는 GroupMessageRow 가 무시).
@@ -88,7 +97,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         registered: Bool? = nil,
         thumbnailUrl: String? = nil,
         text: String? = nil,
-        pinSnapshot: PinChatSnapshot? = nil
+        pinSnapshot: PinChatSnapshot? = nil,
+        visitParticipants: [ChatVisitParticipant]? = nil
     ) {
         self.messageId = messageId
         self.roomId = roomId
@@ -102,6 +112,7 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.thumbnailUrl = thumbnailUrl
         self.text = text
         self.pinSnapshot = pinSnapshot
+        self.visitParticipants = visitParticipants
     }
 }
 
@@ -120,6 +131,21 @@ struct PinChatSnapshot: Decodable, Equatable {
     let photoThumbnailUrl: String?
     let photoUrl: String?
     let deleted: Bool
+}
+
+// MARK: - ChatVisitParticipant
+
+/// PIN_MEMORY 동행 참여자 1명(정책 v2). 백엔드 GroupChatMessageFrame.ChatVisitParticipant 와 1:1.
+/// 프레임 top-level 계약 필드(visitParticipants[*], PIN_MEMORY 만 non-null). payload.userIds 를 프사 resolver 로 합성한 명단.
+///  - userId: Long → Int(PinChatSnapshot/GroupChatFrame 선례).
+///  - nickname/profileImageUrl: 탈퇴/없음/구서버 → nil → AvatarView 이니셜 폴백.
+struct ChatVisitParticipant: Decodable, Equatable, Identifiable {
+    let userId: Int
+    let nickname: String?
+    let profileImageUrl: String?
+
+    /// Identifiable(아바타 스택 ForEach) — userId 식별.
+    var id: Int { userId }
 }
 
 // MARK: - GroupMessagesResponse

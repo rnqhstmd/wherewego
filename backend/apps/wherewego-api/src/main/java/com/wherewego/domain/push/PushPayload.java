@@ -34,6 +34,8 @@ public record PushPayload(String title, String body, String type, Long roomId) {
         String body = switch (kind) {
             case REEL_LINK -> "멤버가 릴스를 공유했어요.";
             case PIN_REPLY -> "멤버가 장소에 답장했어요.";
+            // 정책 v2: 추억 카드(PIN_MEMORY)만 푸시한다(체크인 PIN_VISIT 은 호출자가 푸시를 생략).
+            case PIN_MEMORY -> "멤버가 추억을 남겼어요.";
             default -> "멤버가 메시지를 보냈어요.";
         };
         return new PushPayload("새 메시지", body, TYPE_GROUP_MESSAGE, roomId);

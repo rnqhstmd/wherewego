@@ -138,7 +138,7 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - 방문감지 게시 상태(FR-27~31, AC-15)
 
-    /// 방문 감지 토스트 대상 핀 id(VisitToastView 트리거). nil 이면 토스트 미표시.
+    /// 방문 감지 대상 핀 id(VisitCompanionSheet 트리거). nil 이면 시트 미표시.
     @Published private(set) var visitToastPinId: Int?
     /// confetti(하트 fan-out) 1회 발사 트리거. MapView 가 변화에 반응해 애니메이션 후 자연 소멸.
     /// 값은 발사 식별용으로 매번 새 UUID — 동일 핀 재전환도 구분.
@@ -198,7 +198,7 @@ final class MapViewModel: ObservableObject {
         return pins.first { $0.id == id }
     }
 
-    /// 방문 토스트 대상 핀(visitToastPinId 기준). VisitToastView 가 소비. 핀이 사라지면 nil.
+    /// 방문 대상 핀(visitToastPinId 기준). VisitCompanionSheet 가 소비. 핀이 사라지면 nil.
     var visitToastPin: PinSummary? {
         guard let id = visitToastPinId else { return nil }
         return pins.first { $0.id == id }
@@ -564,7 +564,7 @@ final class MapViewModel: ObservableObject {
                 url: nil,
                 pinId: pinId
             )
-            // visitInfoMessage 는 명명은 visit 이지만 지도 하단 안내 토스트의 공용 렌더 출구다(VisitToastView/공용 배너 공유).
+            // visitInfoMessage 는 명명은 visit 이지만 지도 하단 안내 토스트의 공용 렌더 출구다(방문/공용 배너 공유).
             visitInfoMessage = "채팅방에 답장을 보냈어요 💬"
             return true
         } catch {
@@ -934,37 +934,44 @@ final class MapViewModel: ObservableObject {
         visitToastPinId = nil
     }
 
-    /// "네, 다녀왔어요" → 태그 MEMORY 전환 PATCH(AC-15).
-    /// - transitionedToMemoryNow == true: 로컬 replacePin + confetti + visitMemo 시트.
-    /// - false: 로컬 replacePin + 안내 토스트만(confetti/시트 없음).
-    /// - PATCH 실패: 인라인 에러 토스트, 태그 미변경. 세션 Set/firstEnterAt 은 유지해
-    ///   재진입 즉시 재토스트되는 무한 루프를 차단한다(수동 재시도는 PinDetail 에서 MEMORY 전환).
-    func confirmVisit(pinId: Int) async {
+    /// 방문 선언(정책 v2 FR-B2/B3, AC-15) — 동행 선택 시트(VisitCompanionSheet)에서 호출.
+    /// companionIds 빈 배열 = 혼자(체크인 또는 1인 그룹 전환), 비어있지 않음 = 동행(전환).
+    /// 단일 엔드포인트(POST .../visits) 응답으로 분기한다:
+    ///  - converted == true: 로컬 replacePin(MEMORY) + confetti + visitMemo 시트(추억 전환).
+    ///  - alreadyConverted == true: 이미 MEMORY 였음 — confetti/시트 없이 합산 안내 토스트.
+    ///  - 둘 다 false: 체크인(태그 불변) — "다녀간 기록을 남겼어요" 토스트.
+    /// 응답 visitors 로 해당 핀 patchLocal(아바타 스택 즉시 반영). converted 케이스는 서버 summary 대신
+    /// 로컬 태그 전환 + visitors patch 로 일관 처리한다(declareVisit 응답엔 summary 가 없으므로 로컬 with(tag:)).
+    /// 실패 시 현행 에러 규칙 그대로(세션 Set/firstEnterAt 유지해 재진입 즉시 재토스트되는 무한 루프 차단 — 수동 재시도는 PinDetail).
+    func submitVisit(pinId: Int, companionIds: [Int]) async {
         guard let groupId else {
             visitInfoMessage = MapError.noActiveGroup.errorDescription
             return
         }
-        // 토스트는 즉시 닫는다(중복 탭 방지). detected 상태는 confirmVisit 진행으로 대체.
+        // 시트는 호출 전 이미 닫혔다(VisitCompanionSheet 가 onSubmit 직전 dismiss). detected 상태는 진행으로 대체.
         visitToastPinId = nil
 
-        var request = UpdatePinRequest()
-        request.tag = .set(.MEMORY)
         do {
-            let response = try await pinAPI.update(groupId: groupId, pinId: pinId, request: request)
-            replacePin(response.summary)
+            let response = try await pinAPI.declareVisit(groupId: groupId, pinId: pinId, companionUserIds: companionIds)
             visitEngine.clearFirstEnterAt(pinId: pinId)
-            if response.transitionedToMemoryNow {
-                // 본 디바이스에서 전환 발생 — confetti + 메모 시트(AC-15).
+            // 응답 visitors 로 아바타 스택 즉시 반영(전환/체크인/이미전환 공통).
+            patchLocal(pinId: pinId) { $0.with(visitors: response.visitors) }
+            if response.converted {
+                // 본 선언으로 WISH/REEL → MEMORY 전환 발생 — 로컬 태그 전환 + confetti + 메모 시트(AC-15).
+                patchLocal(pinId: pinId) { $0.with(tag: .MEMORY) }
                 confettiTrigger = UUID()
                 activeSheet = .visitMemo(pinId: pinId)
+            } else if response.alreadyConverted {
+                // 이미 MEMORY 였던 핀 — confetti/시트 스킵 + 합산 안내 토스트(Q3).
+                visitInfoMessage = "이미 추억으로 남긴 곳이에요 🎉 회원님의 방문도 기록했어요"
             } else {
-                // 짝꿍이 먼저 전환한 핀 — confetti/시트 스킵 + 안내 토스트(AC-15).
-                visitInfoMessage = "이미 추억으로 기록된 곳이에요."
+                // 체크인(태그 불변) — 다녀간 기록만 남김.
+                visitInfoMessage = "다녀간 기록을 남겼어요 📍"
             }
         } catch {
-            // 시스템 에러(FR-VD-21) — 태그 미변경. 세션 Set/firstEnterAt 은 유지한다.
+            // 시스템 에러 — 태그 미변경. 세션 Set/firstEnterAt 은 유지한다.
             // (제거하면 재진입 즉시 재토스트되어 무한 루프 — 수동 재시도는 PinDetail 에서 MEMORY 전환.)
-            visitInfoMessage = "장소를 추억으로 옮기지 못했어요. 다시 시도해 주세요."
+            visitInfoMessage = "방문을 기록하지 못했어요. 다시 시도해 주세요."
         }
     }
 
@@ -1024,11 +1031,18 @@ private extension PinSummary {
         copy(placeName: placeName)
     }
 
+    /// 방문자만 바꾼 복제본(정책 v2 FR-B4 — declareVisit 응답 반영).
+    func with(visitors: [PinVisitor]) -> PinSummary {
+        copy(visitors: visitors)
+    }
+
     /// PinSummary 는 let 프로퍼티 struct 라 부분 갱신을 위해 전체 필드 복제 생성자를 제공한다.
+    /// visitors 기본값은 sentinel 로 self.visitors 를 보존한다(부분 갱신 시 기존 방문자 소실 방지).
     func copy(
         tag: PinTag? = nil,
         memo: String? = nil,
-        placeName: String? = nil
+        placeName: String? = nil,
+        visitors: [PinVisitor]?? = nil
     ) -> PinSummary {
         PinSummary(
             id: id,
@@ -1048,7 +1062,9 @@ private extension PinSummary {
             memoUpdatedBy: memoUpdatedBy,
             memoUpdatedByNickname: memoUpdatedByNickname,
             photoUrl: photoUrl,
-            photoThumbnailUrl: photoThumbnailUrl
+            photoThumbnailUrl: photoThumbnailUrl,
+            // 이중 옵셔널 sentinel: 인자 미전달(nil)이면 기존 self.visitors 보존, 전달(.some)이면 그 값으로 교체.
+            visitors: visitors ?? self.visitors
         )
     }
 }

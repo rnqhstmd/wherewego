@@ -102,7 +102,7 @@ struct PinShareCardInput {
 
     /// 카드 날짜 — 웹 PinShareSheet 와 동일하게 createdAt 사용(YYYY.MM.DD). 파싱 실패 시 빈 문자열.
     static func formattedDate(for pin: PinSummary) -> String {
-        VisitToastView.formatDate(pin.createdAt)
+        VisitDateFormatter.formatDate(pin.createdAt)
     }
 }
 

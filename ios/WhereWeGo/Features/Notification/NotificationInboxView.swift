@@ -287,8 +287,6 @@ private struct NotificationRow: View {
             return "님이 새 장소를 등록했어요 · \(item.firstPlaceName)"
         case .CHATBOT_PINS:
             return "님이 릴스에서 장소 \(item.totalPinCount)개를 저장했어요"
-        case .VISIT_DETECTED:
-            return "님의 방문이 감지됐어요 · \(item.firstPlaceName)"
         }
     }
 

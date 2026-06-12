@@ -478,6 +478,37 @@ class GroupChatServiceIT {
                 .pushGroupMessage(eq(userA), anyLong(), eq(MessageKind.TEXT));
     }
 
+    // ────── 정책 v2: 방문 카드 프레임 조립(PIN_VISIT/PIN_MEMORY) ──────
+
+    @DisplayName("appendVisitCard - PIN_VISIT/PIN_MEMORY 프레임에 pinSnapshot 이, PIN_MEMORY 에 visitParticipants 가 합성된다.")
+    @Test
+    void visitCard_framesCarrySnapshotAndParticipants() {
+        Long groupId = createSharedGroup();
+        Long pinId = savePin(groupId, userA, REEL_URL); // placeName="성수 어니언", tag=WISH
+
+        // PIN_VISIT(체크인 카드): pinSnapshot 합성 + visitParticipants 는 null.
+        groupChatService.appendVisitCard(groupId, userA, MessageKind.PIN_VISIT, pinId, List.of());
+        // PIN_MEMORY(추억 카드): pinSnapshot + payload.userIds → visitParticipants 합성.
+        groupChatService.appendVisitCard(groupId, userA, MessageKind.PIN_MEMORY, pinId, List.of(userA, userB));
+
+        List<GroupChatMessageFrame> frames = groupChatService.getMessages(userA, groupId, null, 20).frames();
+
+        GroupChatMessageFrame visit = frames.stream()
+                .filter(f -> f.kind() == MessageKind.PIN_VISIT).findFirst().orElseThrow();
+        assertThat(visit.senderUserId()).isEqualTo(userA);
+        assertThat(visit.pinSnapshot()).isNotNull();
+        assertThat(visit.pinSnapshot().placeName()).isEqualTo("성수 어니언");
+        assertThat(visit.visitParticipants()).isNull();
+
+        GroupChatMessageFrame memory = frames.stream()
+                .filter(f -> f.kind() == MessageKind.PIN_MEMORY).findFirst().orElseThrow();
+        assertThat(memory.pinSnapshot()).isNotNull();
+        assertThat(memory.pinSnapshot().placeName()).isEqualTo("성수 어니언");
+        assertThat(memory.visitParticipants())
+                .extracting(GroupChatMessageFrame.ChatVisitParticipant::userId)
+                .containsExactly(userA, userB);
+    }
+
     // ────── 헬퍼 ──────
 
     /** userA 생성 + 초대 링크로 userB 합류한 2인 그룹. */

@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * GC-1: 그룹 채팅 메시지 프레임(FR-GC1-4, 설계 D4). 그룹 메시지 페이지 응답 전용 표현으로,
@@ -27,8 +28,10 @@ import java.time.format.DateTimeFormatter;
  * @param thumbnailUrl          REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 스크래핑 전/실패/
  *                              flag off 또는 그 외 kind 는 {@code null}. payload.thumbnailUrl 을 top-level 로 파생한 계약 필드라
  *                              추후 S3 전환 시 파생 로직만 교체하면 iOS 계약은 무변경이다.
- * @param pinSnapshot           PIN_REPLY 만 — payload.pinId 를 배치 조회하여 합성한 핀 카드 스냅샷(registered 파생과 동형,
- *                              자기치유). 그 외 kind 는 {@code null}. additive 계약(iOS decodeIfPresent 하위호환).
+ * @param pinSnapshot           PIN_REPLY/PIN_VISIT/PIN_MEMORY — payload.pinId 를 배치 조회하여 합성한 핀 카드 스냅샷
+ *                              (registered 파생과 동형, 자기치유). 그 외 kind 는 {@code null}. additive 계약(iOS decodeIfPresent 하위호환).
+ * @param visitParticipants     PIN_MEMORY 만 — payload.userIds 를 프사 resolver 로 합성한 동행 명단(registered 동형).
+ *                              그 외 kind 는 {@code null}. additive 계약(iOS decodeIfPresent 하위호환).
  * @param createdAt             ISO8601(offset) 생성 시각 문자열
  */
 public record GroupChatMessageFrame(
@@ -42,6 +45,7 @@ public record GroupChatMessageFrame(
         Boolean registered,
         String thumbnailUrl,
         PinSnapshot pinSnapshot,
+        List<ChatVisitParticipant> visitParticipants,
         String createdAt
 ) {
 
@@ -69,17 +73,32 @@ public record GroupChatMessageFrame(
             boolean deleted
     ) { }
 
+    /**
+     * PIN_MEMORY 동행 참여자 1명(정책 v2 — payload.userIds 를 프사 resolver 로 합성, registered 동형).
+     *
+     * @param userId          참여자 user id(payload 보존 명단)
+     * @param nickname        닉네임. 탈퇴/없음이면 {@code null}.
+     * @param profileImageUrl 유효 프사 URL(GP-1 resolver). 없으면 {@code null} — 클라 이니셜 폴백.
+     */
+    public record ChatVisitParticipant(
+            Long userId,
+            String nickname,
+            String profileImageUrl
+    ) { }
+
     private static final Logger log = LoggerFactory.getLogger(GroupChatMessageFrame.class);
 
     /**
      * {@link ChatMessage} 엔티티를 그룹 프레임으로 변환한다({@link ChatMessageFrame#from} 동형 + 발신자/registered/
-     * thumbnailUrl/pinSnapshot). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만, {@code pinSnapshot} 은
-     * PIN_REPLY 에서만 채워지고 그 외 kind 는 {@code null}이다.
+     * thumbnailUrl/pinSnapshot/visitParticipants). {@code registered}/{@code thumbnailUrl} 은 REEL_LINK 에서만,
+     * {@code pinSnapshot} 은 PIN_REPLY/PIN_VISIT/PIN_MEMORY 에서, {@code visitParticipants} 는 PIN_MEMORY 에서만
+     * 채워지고 그 외 kind 는 {@code null}이다.
      * {@code senderNickname}/{@code senderProfileImageUrl} 은 서버 배치 조회값으로, 발신자 NULL 이면 둘 다 {@code null}이다(GP-1).
      */
     public static GroupChatMessageFrame from(ChatMessage message, ObjectMapper objectMapper,
                                              String senderNickname, String senderProfileImageUrl,
-                                             Boolean registered, String thumbnailUrl, PinSnapshot pinSnapshot) {
+                                             Boolean registered, String thumbnailUrl, PinSnapshot pinSnapshot,
+                                             List<ChatVisitParticipant> visitParticipants) {
         return new GroupChatMessageFrame(
                 message.getId(),
                 message.getRoomId(),
@@ -91,6 +110,7 @@ public record GroupChatMessageFrame(
                 registered,
                 thumbnailUrl,
                 pinSnapshot,
+                visitParticipants,
                 formatCreatedAt(message.getCreatedAt())
         );
     }

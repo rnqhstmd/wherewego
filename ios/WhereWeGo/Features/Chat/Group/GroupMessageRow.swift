@@ -27,6 +27,10 @@ struct GroupMessageRow: View {
     /// PIN_REPLY 핀 사진 썸네일 제자리 펼침 상태(메모 사진 펼침과 동일 문법, PinDetailContent 선례).
     @State private var isPinPhotoExpanded = false
     @Namespace private var pinPhotoNS
+    /// PIN_VISIT/PIN_MEMORY 방문 카드 핀 사진 제자리 펼침 상태(pinReplyBubble 변형). pinPhotoNS 와 별도 네임스페이스로
+    ///  matchedGeometry id("visitCardPhoto") 충돌을 피한다(동일 행 안에서 두 카드가 동시에 안 그려지지만 방어).
+    @State private var isVisitPhotoExpanded = false
+    @Namespace private var visitPhotoNS
 
     private var isOutgoing: Bool {
         guard let me = currentUserId, let sender = frame.senderUserId else { return false }
@@ -42,6 +46,8 @@ struct GroupMessageRow: View {
             reelBubble
         case .PIN_REPLY:
             pinReplyBubble
+        case .PIN_VISIT, .PIN_MEMORY:
+            visitCardBubble
         case .SYSTEM:
             systemCaption
         case .MEMO_PROMPT, .PLACE_CARDS, .PROCESSING:
@@ -297,6 +303,147 @@ struct GroupMessageRow: View {
             .background(isOutgoing ? WGColor.cta : WGColor.panel)
             .clipShape(textBubbleShape)
             .overlay(textBubbleShape.stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1))
+    }
+
+    // MARK: - PIN_VISIT / PIN_MEMORY(정책 v2 방문 카드)
+
+    /// 방문 카드 버블(pinReplyBubble 변형) — 정렬/닉네임/아바타/시각은 TEXT 와 동일 규칙.
+    /// 내용: 안내 문구("다녀갔어요 📍"/"함께 다녀왔어요 🎉") + 핀 카드(visitPinCard) + (PIN_MEMORY) 동행 아바타 스택.
+    private var visitCardBubble: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 48)
+                if showsTime { timeLabel }
+            } else {
+                if showsTime { senderAvatar } else { Color.clear.frame(width: 28, height: 1) }
+            }
+            VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
+                if !isOutgoing, showsSender {
+                    Text(senderName)
+                        .font(WGFont.sans(11))
+                        .foregroundStyle(WGColor.inkSoft)
+                        .padding(.leading, 4)
+                }
+                VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 6) {
+                    Text(visitCaption)
+                        .font(WGFont.sans(13))
+                        .foregroundStyle(WGColor.inkSoft)
+                    visitPinCard
+                    // PIN_MEMORY 만 — 동행 참여자 아바타 스택(18pt·-5, Q4: 아바타만·텍스트 명단 없음).
+                    if frame.kind == .PIN_MEMORY, let participants = frame.visitParticipants, !participants.isEmpty {
+                        visitParticipantsStack(participants)
+                    }
+                }
+                .frame(maxWidth: 240, alignment: isOutgoing ? .trailing : .leading)
+            }
+            if !isOutgoing {
+                if showsTime { timeLabel }
+                Spacer(minLength: 48)
+            }
+        }
+    }
+
+    /// 방문 카드 안내 문구 — kind 로 결정(payload/text 무관). PIN_VISIT="다녀갔어요 📍"·PIN_MEMORY="함께 다녀왔어요 🎉".
+    private var visitCaption: String {
+        frame.kind == .PIN_MEMORY ? "함께 다녀왔어요 🎉" : "다녀갔어요 📍"
+    }
+
+    /// 방문 대상 핀 카드 — pinCard(PIN_REPLY) 변형. hairline 스트로크 + panel + radius 14. 글리프 + 장소명/메모 + 36pt 썸네일.
+    /// 카드 탭 → onOpenPin(.pinFocus). 썸네일 탭 → 카드 아래 제자리 1:1 펼침(visitPhotoNS — pinPhotoNS 와 별도 id).
+    @ViewBuilder
+    private var visitPinCard: some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        let snapshot = frame.pinSnapshot
+        let isDeleted = (snapshot?.deleted ?? true) || (snapshot?.placeName == nil)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                pinCardGlyph(snapshot: snapshot, isDeleted: isDeleted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pinCardTitle(snapshot: snapshot, isDeleted: isDeleted))
+                        .font(WGFont.sansSemiBold(13))
+                        .foregroundStyle(isDeleted ? WGColor.inkFaint : WGColor.ink)
+                        .lineLimit(1)
+                    if !isDeleted, let memo = snapshot?.memo, !memo.isEmpty {
+                        Text(memo)
+                            .font(WGFont.sans(11.5))
+                            .foregroundStyle(WGColor.inkSoft)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                // 펼침 중에는 우측 미니 썸네일을 숨긴다(matchedGeometry id 단일 인스턴스 유지).
+                if !isDeleted, !isVisitPhotoExpanded,
+                   let thumb = snapshot?.photoThumbnailUrl, let url = URL(string: thumb) {
+                    visitCardThumbnail(thumbURL: url)
+                }
+            }
+            .padding(10)
+            // 핀 사진 제자리 펼침(썸네일 탭 시 카드 아래로 1:1 펼침, pinReplyBubble 문법). 썸네일과 상호 배타 렌더.
+            if isVisitPhotoExpanded, !isDeleted,
+               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
+               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
+                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
+                    .matchedGeometryEffect(id: "visitCardPhoto", in: visitPhotoNS)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) { isVisitPhotoExpanded = false }
+                    }
+            }
+        }
+        .background(WGColor.panel)
+        .clipShape(shape)
+        .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // 카드 탭 → 지도 핀 포커스(삭제 핀은 비활성). 썸네일 탭은 자체 onTapGesture 가 가로채 펼침으로 분기.
+            guard !isDeleted, let pinId = snapshot?.pinId else { return }
+            onOpenPin?(pinId)
+        }
+    }
+
+    /// 방문 카드 우측 썸네일(36pt, radius 9) — 탭 시 카드 아래 제자리 1:1 펼침(visitPhotoNS).
+    private func visitCardThumbnail(thumbURL: URL) -> some View {
+        AsyncImage(url: thumbURL) { phase in
+            if case let .success(image) = phase {
+                image.resizable().scaledToFill()
+            } else {
+                WGColor.mapBlock
+            }
+        }
+        .frame(width: 36, height: 36)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .matchedGeometryEffect(id: "visitCardPhoto", in: visitPhotoNS)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.3)) { isVisitPhotoExpanded = true }
+        }
+    }
+
+    /// PIN_MEMORY 동행 아바타 스택(18pt·-5 오버랩, PinDetailContent.visitorsRow 동치). 텍스트 명단 없음(Q4).
+    private func visitParticipantsStack(_ participants: [ChatVisitParticipant]) -> some View {
+        let shown = Array(participants.prefix(5))
+        let overflow = participants.count - shown.count
+        return HStack(spacing: -5) {
+            ForEach(shown) { participant in
+                AvatarView(
+                    imageUrl: participant.profileImageUrl,
+                    name: participant.nickname ?? "?",
+                    size: 18
+                )
+                .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+            }
+            if overflow > 0 {
+                Text("+\(overflow)")
+                    .font(WGFont.sansSemiBold(9))
+                    .foregroundStyle(WGColor.inkSoft)
+                    .frame(width: 18, height: 18)
+                    .background(WGColor.bg)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+            }
+        }
+        .padding(.leading, 2)
     }
 
     // MARK: - REEL_LINK 썸네일(FR-GC3-2)

@@ -41,6 +41,35 @@ final class GroupChatModelsTests: XCTestCase {
         XCTAssertEqual(f.registered, true)
     }
 
+    func test_PIN_VISIT_프레임() throws {
+        // 정책 v2 — PIN_VISIT: top-level pinSnapshot(payload 밖), visitParticipants 없음. payload {pinId}.
+        let json = #"{"messageId":6,"roomId":10,"senderUserId":5,"senderNickname":"민수","kind":"PIN_VISIT","payload":{"pinId":42},"pinSnapshot":{"pinId":42,"placeName":"성수 카페","tag":"WISH","memo":null,"photoThumbnailUrl":null,"photoUrl":null,"deleted":false},"createdAt":"2026-06-12T10:00:00+09:00"}"#
+        let f = try decodeFrame(json)
+        XCTAssertEqual(f.kind, .PIN_VISIT)
+        XCTAssertEqual(f.pinSnapshot?.pinId, 42)
+        XCTAssertEqual(f.pinSnapshot?.placeName, "성수 카페")
+        XCTAssertEqual(f.pinSnapshot?.tag, "WISH")
+        XCTAssertNil(f.visitParticipants)   // PIN_VISIT 은 동행 명단 없음
+        XCTAssertNil(f.text)
+        XCTAssertNil(f.reelUrl)
+    }
+
+    func test_PIN_MEMORY_프레임() throws {
+        // 정책 v2 — PIN_MEMORY: top-level pinSnapshot + visitParticipants(동행 명단). payload {pinId, userIds}.
+        let json = #"{"messageId":7,"roomId":10,"senderUserId":5,"senderNickname":"민수","kind":"PIN_MEMORY","payload":{"pinId":42,"userIds":[5,7]},"pinSnapshot":{"pinId":42,"placeName":"성수 카페","tag":"MEMORY","memo":"좋았다","photoThumbnailUrl":"https://cdn/t.jpg","photoUrl":"https://cdn/p.jpg","deleted":false},"visitParticipants":[{"userId":5,"nickname":"민수","profileImageUrl":"https://cdn/u5.jpg"},{"userId":7,"nickname":"영희","profileImageUrl":null}],"createdAt":"2026-06-12T10:01:00+09:00"}"#
+        let f = try decodeFrame(json)
+        XCTAssertEqual(f.kind, .PIN_MEMORY)
+        XCTAssertEqual(f.pinSnapshot?.pinId, 42)
+        XCTAssertEqual(f.pinSnapshot?.tag, "MEMORY")
+        XCTAssertEqual(f.visitParticipants?.count, 2)
+        XCTAssertEqual(f.visitParticipants?.first?.userId, 5)
+        XCTAssertEqual(f.visitParticipants?.first?.nickname, "민수")
+        XCTAssertEqual(f.visitParticipants?.first?.profileImageUrl, "https://cdn/u5.jpg")
+        XCTAssertNil(f.visitParticipants?.last?.profileImageUrl)   // 프사 없음 → nil(이니셜 폴백)
+        XCTAssertNil(f.text)
+        XCTAssertNil(f.reelUrl)
+    }
+
     func test_탈퇴_발신자는_nil() throws {
         let f = try decodeFrame(#"{"messageId":4,"roomId":10,"senderUserId":null,"senderNickname":null,"kind":"TEXT","payload":{"text":"이전 메시지"},"createdAt":"2026-06-10T12:03:00+09:00"}"#)
         XCTAssertNil(f.senderUserId)

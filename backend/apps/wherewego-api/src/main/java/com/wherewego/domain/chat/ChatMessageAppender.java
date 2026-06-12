@@ -99,6 +99,30 @@ public class ChatMessageAppender {
     }
 
     /**
+     * 방문 체크인 카드(정책 v2 — 서버가 방문자 명의로 자동 적재). kind=PIN_VISIT, senderType=USER.
+     *
+     * <p>payload {@code {"pinId": ...}} 로 직렬화된다(PIN_REPLY 와 동형 — 핀 카드는 조회 시 pinId 배치 조회로 합성).</p>
+     *
+     * @param pinId 방문 대상 핀 ID(전송 전 서비스가 그룹 활성 핀으로 검증함)
+     */
+    public ChatMessage appendGroupPinVisit(Long roomId, Long userId, Long pinId) {
+        return save(roomId, SenderType.USER, userId, MessageKind.PIN_VISIT, new PinVisitPayload(pinId));
+    }
+
+    /**
+     * 추억 전환 카드(정책 v2 — 서버가 방문자 명의로 자동 적재). kind=PIN_MEMORY, senderType=USER.
+     *
+     * <p>payload {@code {"pinId": ..., "userIds": [...]}} 로 직렬화된다. {@code userIds} 는 그때 참여 명단
+     * 스냅샷이며(현재 pin_visits 상태가 아니라 payload 사용), 조회 시 top-level visitParticipants 합성에 쓰인다.</p>
+     *
+     * @param pinId   방문 대상 핀 ID(전송 전 서비스가 검증함)
+     * @param userIds 참여 명단 스냅샷(본인 + 동행)
+     */
+    public ChatMessage appendGroupPinMemory(Long roomId, Long userId, Long pinId, java.util.List<Long> userIds) {
+        return save(roomId, SenderType.USER, userId, MessageKind.PIN_MEMORY, new PinMemoryPayload(pinId, userIds));
+    }
+
+    /**
      * REEL_LINK payload 를 썸네일 URL 포함하여 JSON 문자열로 직렬화한다(GC-3, FR-GC3-2). 저장은 하지 않으며
      * {@link ReelThumbnailWriter}가 비동기 스크래핑 결과를 {@link ChatMessage#replacePayloadJson}로 반영할 때 쓴다.
      * thumbnailKey 는 S3 전환용 예약 슬롯이라 계속 {@code null} 로 둔다.
@@ -158,4 +182,22 @@ public class ChatMessageAppender {
      * @param text  답장 본문
      */
     private record PinReplyPayload(Long pinId, String text) { }
+
+    /**
+     * 체크인 카드 payload 루트(정책 v2). {@code {"pinId": ...}} JSON 객체로 직렬화된다.
+     * 핀 카드 메타는 PIN_REPLY 와 동일하게 조회 시 pinId 배치 조회로 합성한다(식별자만 보존).
+     *
+     * @param pinId 방문 대상 핀 ID
+     */
+    private record PinVisitPayload(Long pinId) { }
+
+    /**
+     * 추억 카드 payload 루트(정책 v2). {@code {"pinId": ..., "userIds": [...]}} JSON 객체로 직렬화된다.
+     * {@code userIds} 는 그때 참여 명단 스냅샷이며 조회 시 top-level visitParticipants 합성에 쓰인다
+     * (현재 pin_visits 상태가 아니라 payload 보존값 사용 — "그때 누구와의 추억" 고정).
+     *
+     * @param pinId   방문 대상 핀 ID
+     * @param userIds 참여 명단 스냅샷(본인 + 동행)
+     */
+    private record PinMemoryPayload(Long pinId, java.util.List<Long> userIds) { }
 }

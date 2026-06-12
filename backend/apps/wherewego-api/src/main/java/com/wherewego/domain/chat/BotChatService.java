@@ -233,8 +233,8 @@ public class BotChatService {
     /**
      * 미리보기 규칙(FR-7, 설계 §5): TEXT/SYSTEM/MEMO_PROMPT → payload text 앞 40자,
      * PLACE_CARDS → "장소 N곳", PROCESSING → "답장을 준비하고 있어요",
-     * REEL_LINK → "릴스 링크", PIN_REPLY → "핀 답장"(둘 다 그룹 방 전용 kind — 봇 방엔
-     * 등장하지 않으나 exhaustive 커버).
+     * REEL_LINK → "릴스 링크", PIN_REPLY → "핀 답장", PIN_VISIT → "다녀갔어요", PIN_MEMORY → "추억"
+     * (그룹 방 전용 kind — 봇 방엔 등장하지 않으나 exhaustive 커버).
      */
     private String previewOf(ChatMessage message) {
         return switch (message.getKind()) {
@@ -243,6 +243,8 @@ public class BotChatService {
             case PROCESSING -> PREVIEW_PROCESSING;
             case REEL_LINK -> "릴스 링크";
             case PIN_REPLY -> "핀 답장";
+            case PIN_VISIT -> "다녀갔어요";
+            case PIN_MEMORY -> "추억";
         };
     }
 

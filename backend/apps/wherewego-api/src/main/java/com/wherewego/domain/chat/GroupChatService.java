@@ -60,6 +60,8 @@ public class GroupChatService {
     private static final String PREVIEW_PROCESSING = "답장을 준비하고 있어요";
     private static final String PREVIEW_REEL_LINK = "릴스 링크를 공유했어요";
     private static final String PREVIEW_PIN_REPLY = "장소에 답장했어요";
+    private static final String PREVIEW_PIN_VISIT = "장소에 다녀갔어요";
+    private static final String PREVIEW_PIN_MEMORY = "추억을 남겼어요";
     private static final int PREVIEW_MAX_LENGTH = 40;
     private static final int TEXT_MAX_LENGTH = 2000;
     /** REEL_LINK URL 상한 — TEXT 가드와 대칭. INSTAGRAM_URL 패턴이 임의 suffix 를 허용하므로 payload 비대 차단. */
@@ -191,6 +193,42 @@ public class GroupChatService {
         return payloadBuilder.build(hits, url);
     }
 
+    /**
+     * 방문 체크인/추억 카드 적재(정책 v2 — 내부 전용). {@link com.wherewego.domain.pin.PinVisitService} 가
+     * 핀 트랜잭션 안에서 호출하며, 발신자 = 방문자 명의로 자동 적재한다.
+     *
+     * <p>공개 {@link #postMessage} 는 PIN_VISIT/PIN_MEMORY 를 계속 CHAT_KIND_INVALID 로 거부한다(사용자 입력 경로 차단).
+     * 본 메서드는 호출자(PinVisitService)가 멤버십·핀 활성을 이미 검증했으므로 재검증하지 않고, 활성 그룹 방을 확보한 뒤
+     * kind 별로 append 한다. 푸시는 PIN_MEMORY 만 발송하고(추억 카드), PIN_VISIT(체크인)은 무푸시다(FR-B5/Q2).</p>
+     *
+     * <p>카드 적재는 호출자 트랜잭션에 합류하므로(자체 @Transactional 없음) 핀 전환과 동일 트랜잭션이며,
+     * 실패 시 전체 롤백된다(S3 같은 외부 부수효과 없음 — 설계 §1-4).</p>
+     *
+     * @param groupId         대상 그룹 ID
+     * @param visitorUserId   방문자(발신자 명의) user ID
+     * @param kind            PIN_VISIT(체크인) 또는 PIN_MEMORY(추억)
+     * @param pinId           방문 대상 핀 ID
+     * @param participantUserIds PIN_MEMORY payload 참여 명단 스냅샷(PIN_VISIT 이면 무시)
+     * @return 적재된 {@link ChatMessage}
+     */
+    public ChatMessage appendVisitCard(Long groupId, Long visitorUserId, MessageKind kind,
+                                       Long pinId, List<Long> participantUserIds) {
+        ChatRoom room = ensureGroupRoom(groupId);
+        ChatMessage saved;
+        if (kind == MessageKind.PIN_VISIT) {
+            saved = chatMessageAppender.appendGroupPinVisit(room.getId(), visitorUserId, pinId);
+        } else if (kind == MessageKind.PIN_MEMORY) {
+            saved = chatMessageAppender.appendGroupPinMemory(
+                    room.getId(), visitorUserId, pinId,
+                    participantUserIds == null ? List.of() : participantUserIds);
+            // 추억 카드만 푸시(체크인 카드는 무푸시 — FR-B5/Q2).
+            broadcastToOthersAfterCommit(groupId, visitorUserId, saved);
+        } else {
+            throw new CoreException(ErrorType.CHAT_KIND_INVALID);
+        }
+        return saved;
+    }
+
     // ────── 전송 내부 ──────
 
     /**
@@ -290,21 +328,33 @@ public class GroupChatService {
     /**
      * 발신자 제외 활성 멤버가 존재할 때만 커밋 후 APNs 푸시를 등록한다(FR-GC1-8).
      * 1인 그룹(상대 없음)이면 생략한다. kind 별 문구 분기는 {@code PushPayload.groupMessage}가 담당한다.
+     *
+     * <p>활성 트랜잭션이 없으면(테스트의 단위 직접 호출 등) 즉시 푸시로 폴백한다
+     * ({@code GroupMemberService.deleteAvatarAfterCommit} 선례 — 운영 경로 postMessage/appendVisitCard 는
+     * 항상 @Transactional 안이라 afterCommit 으로 동작하며 분기 동작이 동일).</p>
      */
     private void broadcastToOthersAfterCommit(Long groupId, Long userId, ChatMessage saved) {
         List<Long> otherMemberIds = groupMemberRepository.findOtherActiveMemberIds(groupId, userId);
         if (otherMemberIds.isEmpty()) {
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                // 커밋 후 발신자 제외 멤버 각각에게 APNs 푸시(best-effort). 실패해도 전송 성공에 영향 없음.
-                for (Long memberUserId : otherMemberIds) {
-                    pushNotificationService.pushGroupMessage(memberUserId, saved.getRoomId(), saved.getKind());
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // 커밋 후 발신자 제외 멤버 각각에게 APNs 푸시(best-effort). 실패해도 전송 성공에 영향 없음.
+                    pushToOthers(otherMemberIds, saved);
                 }
-            }
-        });
+            });
+        } else {
+            pushToOthers(otherMemberIds, saved);
+        }
+    }
+
+    private void pushToOthers(List<Long> otherMemberIds, ChatMessage saved) {
+        for (Long memberUserId : otherMemberIds) {
+            pushNotificationService.pushGroupMessage(memberUserId, saved.getRoomId(), saved.getKind());
+        }
     }
 
     // ────── 조회 내부 ──────
@@ -318,19 +368,29 @@ public class GroupChatService {
         Set<String> registeredUrls = registeredUrlsOf(groupId, messages);
         Map<Long, Pin> pinsById = pinsByIdOf(messages);
         Map<Long, UserProfile> profiles = profilesOf(messages);
+        // PIN_MEMORY payload.userIds 의 프사 합성용 배치 조회(발신자 프로필과 별도 IN 1회 — registered 동형).
+        Map<Long, UserProfile> participantProfiles = participantProfilesOf(messages);
 
         List<GroupChatMessageFrame> frames = new ArrayList<>(messages.size());
         for (ChatMessage message : messages) {
             Boolean registered = null;
             String thumbnailUrl = null;
             PinSnapshot pinSnapshot = null;
+            List<GroupChatMessageFrame.ChatVisitParticipant> visitParticipants = null;
             if (message.getKind() == MessageKind.REEL_LINK) {
                 String url = readPayloadText(message.getPayloadJson(), "url");
                 registered = url != null && registeredUrls.contains(url);
                 // GC-3(FR-GC3-2): payload.thumbnailUrl 을 top-level 계약 필드로 파생(registered 와 동형).
                 thumbnailUrl = readPayloadText(message.getPayloadJson(), "thumbnailUrl");
-            } else if (message.getKind() == MessageKind.PIN_REPLY) {
+            } else if (message.getKind() == MessageKind.PIN_REPLY
+                    || message.getKind() == MessageKind.PIN_VISIT
+                    || message.getKind() == MessageKind.PIN_MEMORY) {
+                // 핀 카드(글리프+장소명+썸네일)는 세 kind 공통 — pinId 배치 조회로 합성(자기치유).
                 pinSnapshot = pinSnapshotOf(message, pinsById);
+                if (message.getKind() == MessageKind.PIN_MEMORY) {
+                    // 정책 v2: payload.userIds → 동행 아바타 스택(텍스트 명단 없음, registered 동형).
+                    visitParticipants = visitParticipantsOf(message, participantProfiles);
+                }
             }
             // GP-1 FR-6: 발신자 프로필(닉네임+유효 프사 URL). 발신자 NULL 이면 둘 다 null(BR-6).
             UserProfile profile = message.getSenderUserId() == null
@@ -339,19 +399,21 @@ public class GroupChatService {
             String nickname = profile == null ? null : profile.nickname();
             String profileImageUrl = profile == null ? null : profile.profileImageUrl();
             frames.add(GroupChatMessageFrame.from(
-                    message, objectMapper, nickname, profileImageUrl, registered, thumbnailUrl, pinSnapshot));
+                    message, objectMapper, nickname, profileImageUrl,
+                    registered, thumbnailUrl, pinSnapshot, visitParticipants));
         }
         return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor(), lastReadBefore);
     }
 
     /**
-     * 페이지 내 PIN_REPLY 의 pinId 를 모아 핀을 IN 쿼리 1회로 배치 조회한다(soft-delete 포함 — 삭제 핀도 메타 노출).
-     * registered 파생과 같은 위치/방식. 핀 row 가 미존재하면 Map 에서 빠져 합성 시 정합 깨짐으로 처리된다.
+     * 페이지 내 핀 카드 kind(PIN_REPLY/PIN_VISIT/PIN_MEMORY)의 pinId 를 모아 핀을 IN 쿼리 1회로 배치 조회한다
+     * (soft-delete 포함 — 삭제 핀도 메타 노출). registered 파생과 같은 위치/방식.
+     * 핀 row 가 미존재하면 Map 에서 빠져 합성 시 정합 깨짐으로 처리된다.
      */
     private Map<Long, Pin> pinsByIdOf(List<ChatMessage> messages) {
         LinkedHashSet<Long> pinIds = new LinkedHashSet<>();
         for (ChatMessage message : messages) {
-            if (message.getKind() == MessageKind.PIN_REPLY) {
+            if (isPinCardKind(message.getKind())) {
                 Long pinId = readPayloadLong(message.getPayloadJson(), "pinId");
                 if (pinId != null) {
                     pinIds.add(pinId);
@@ -366,6 +428,48 @@ public class GroupChatService {
             byId.put(pin.getId(), pin);
         }
         return byId;
+    }
+
+    /** 핀 카드(글리프+장소명+썸네일)를 가지는 kind 인지 — pinSnapshot 합성 대상. */
+    private static boolean isPinCardKind(MessageKind kind) {
+        return kind == MessageKind.PIN_REPLY
+                || kind == MessageKind.PIN_VISIT
+                || kind == MessageKind.PIN_MEMORY;
+    }
+
+    /**
+     * 페이지 내 PIN_MEMORY payload.userIds 를 모아 프로필을 IN 쿼리 1회로 배치 조회한다(visitParticipants 합성용).
+     * 발신자 프로필 조회와 별개의 IN 1회 — registered/pinSnapshot 파생과 동형(자기치유).
+     */
+    private Map<Long, UserProfile> participantProfilesOf(List<ChatMessage> messages) {
+        LinkedHashSet<Long> userIds = new LinkedHashSet<>();
+        for (ChatMessage message : messages) {
+            if (message.getKind() == MessageKind.PIN_MEMORY) {
+                userIds.addAll(readPayloadLongArray(message.getPayloadJson(), "userIds"));
+            }
+        }
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findProfilesByIds(userIds);
+    }
+
+    /**
+     * PIN_MEMORY 의 동행 참여자 명단을 합성한다(payload.userIds 보존 순서 — "그때 누구와의 추억" 고정).
+     * 프로필 미존재(탈퇴 등)도 행을 유지하되 닉네임/프사를 null 로 둔다(클라 이니셜 폴백).
+     */
+    private List<GroupChatMessageFrame.ChatVisitParticipant> visitParticipantsOf(
+            ChatMessage message, Map<Long, UserProfile> participantProfiles) {
+        List<Long> userIds = readPayloadLongArray(message.getPayloadJson(), "userIds");
+        List<GroupChatMessageFrame.ChatVisitParticipant> participants = new ArrayList<>(userIds.size());
+        for (Long userId : userIds) {
+            UserProfile profile = participantProfiles.get(userId);
+            participants.add(new GroupChatMessageFrame.ChatVisitParticipant(
+                    userId,
+                    profile == null ? null : profile.nickname(),
+                    profile == null ? null : profile.profileImageUrl()));
+        }
+        return participants;
     }
 
     /**
@@ -510,14 +614,16 @@ public class GroupChatService {
 
     /**
      * 미리보기 규칙(FR-GC1-7): TEXT/SYSTEM/MEMO_PROMPT → payload text 앞 40자, REEL_LINK → "릴스 링크",
-     * PIN_REPLY → "장소에 답장했어요", PLACE_CARDS/PROCESSING → 봇 규칙 재사용(그룹 방엔 등장하지 않으나
-     * exhaustive 커버).
+     * PIN_REPLY → "장소에 답장했어요", PIN_VISIT → "장소에 다녀갔어요", PIN_MEMORY → "추억을 남겼어요"(정책 v2),
+     * PLACE_CARDS/PROCESSING → 봇 규칙 재사용(그룹 방엔 등장하지 않으나 exhaustive 커버).
      */
     private String previewOf(ChatMessage message) {
         return switch (message.getKind()) {
             case TEXT, SYSTEM, MEMO_PROMPT -> truncate(readPayloadTextOrEmpty(message.getPayloadJson(), "text"));
             case REEL_LINK -> PREVIEW_REEL_LINK;
             case PIN_REPLY -> PREVIEW_PIN_REPLY;
+            case PIN_VISIT -> PREVIEW_PIN_VISIT;
+            case PIN_MEMORY -> PREVIEW_PIN_MEMORY;
             case PLACE_CARDS -> "장소 " + placeCardCount(message.getPayloadJson()) + "곳";
             case PROCESSING -> PREVIEW_PROCESSING;
         };
@@ -548,6 +654,24 @@ public class GroupChatService {
     private Long readPayloadLong(String payloadJson, String field) {
         JsonNode node = readField(payloadJson, field);
         return node == null || node.isNull() || !node.canConvertToLong() ? null : node.asLong();
+    }
+
+    /**
+     * PIN_MEMORY payload 의 userIds(Long 배열)를 순서 보존하여 읽는다(중복 제거하지 않음 — payload 보존값 신뢰).
+     * 누락/배열 아님/원소가 숫자 아님은 모두 빈 리스트 또는 해당 원소 스킵으로 처리한다.
+     */
+    private List<Long> readPayloadLongArray(String payloadJson, String field) {
+        JsonNode node = readField(payloadJson, field);
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<Long> values = new ArrayList<>(node.size());
+        for (JsonNode element : node) {
+            if (element != null && !element.isNull() && element.canConvertToLong()) {
+                values.add(element.asLong());
+            }
+        }
+        return values;
     }
 
     /**

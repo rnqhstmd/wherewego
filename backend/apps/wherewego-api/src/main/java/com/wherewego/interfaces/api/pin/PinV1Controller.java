@@ -2,11 +2,13 @@ package com.wherewego.interfaces.api.pin;
 
 import com.wherewego.config.security.AuthUser;
 import com.wherewego.domain.notification.NotificationService;
+import com.wherewego.domain.pin.DeclareVisitResult;
 import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinService;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateResult;
+import com.wherewego.domain.pin.PinVisitService;
 import com.wherewego.domain.push.PushNotificationService;
 import com.wherewego.interfaces.api.ApiResponse;
 import com.wherewego.interfaces.api.support.ImageUploadGuard;
@@ -41,6 +43,7 @@ public class PinV1Controller implements PinV1ApiSpec {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PinService pinService;
+    private final PinVisitService pinVisitService;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
 
@@ -136,19 +139,28 @@ public class PinV1Controller implements PinV1ApiSpec {
             @RequestBody PinV1Dto.UpdatePinRequest request
     ) {
         PinUpdateResult result = pinService.updatePin(userId, groupId, pinId, request.toCommand());
-        // Phase 10: WISH/REEL → MEMORY 전환 1회에 한해 VISIT_DETECTED 알림 fan-out.
-        // 알림 실패는 PATCH 응답을 막지 않도록 호출자 격리 (BR-VD-6).
-        if (result.wasWishOrReelToMemory()) {
-            try {
-                notificationService.createForVisitDetected(groupId, userId, pinId);
-            } catch (RuntimeException e) {
-                log.warn("notification (visit) failed groupId={} pinId={}", groupId, pinId, e);
-            }
-        }
+        // 정책 v2: 수동 PATCH 전환은 알림 fan-out 을 하지 않는다(VISIT_DETECTED 완전 폐기 — FR-B6).
+        //   그룹 공유는 방문 선언 API 의 채팅 카드가 담당하고, 수동 태그 편집은 visits 미적재(정책 규칙 9).
         // Phase 10 보강 (2026-05-24): 동시 수정 분기를 위해 응답을 UpdatePinResponse 로 감싸 반환.
-        // transitionedToMemoryNow 는 두 번째 PATCH 에서 false 로 내려가 클라이언트가 confetti/메모 시트 발사를 건너뛴다.
+        //   transitionedToMemoryNow 는 두 번째 PATCH 에서 false 로 내려가 클라이언트가 confetti/메모 시트 발사를
+        //   건너뛴다 — iOS 수동 전환 confetti 분기에서 계속 사용하므로 시그널은 유지한다.
         return ApiResponse.success(
                 PinV1Dto.UpdatePinResponse.from(result.summary(), result.wasWishOrReelToMemory()));
+    }
+
+    @PostMapping("/{groupId}/pins/{pinId}/visits")
+    @Override
+    public ApiResponse<PinV1Dto.DeclareVisitResponse> declareVisit(
+            @AuthUser Long userId,
+            @PathVariable Long groupId,
+            @PathVariable Long pinId,
+            @RequestBody(required = false) PinV1Dto.DeclareVisitRequest request
+    ) {
+        // 정책 v2: 단일 방문 선언 API. companions 빈=체크인(다인 그룹)/1인 그룹 혼자 또는 동행=추억 전환.
+        //   채팅 카드 적재는 PinVisitService 가 핀 트랜잭션과 동일 트랜잭션 내에서 처리한다.
+        List<Long> companions = request == null ? List.of() : request.normalized();
+        DeclareVisitResult result = pinVisitService.declareVisit(userId, groupId, pinId, companions);
+        return ApiResponse.success(PinV1Dto.DeclareVisitResponse.from(result));
     }
 
     @DeleteMapping("/{groupId}/pins/{pinId}")

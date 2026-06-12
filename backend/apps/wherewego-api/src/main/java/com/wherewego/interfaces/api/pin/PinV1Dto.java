@@ -7,6 +7,8 @@ import com.wherewego.domain.pin.PinListResult;
 import com.wherewego.domain.pin.PinSummary;
 import com.wherewego.domain.pin.PinTag;
 import com.wherewego.domain.pin.PinUpdateCommand;
+import com.wherewego.domain.pin.PinVisitorResult;
+import com.wherewego.domain.pin.VisitSource;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 
@@ -15,6 +17,20 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 public final class PinV1Dto {
+
+    /**
+     * 정책 v2 FR-B4: 핀 방문자 1명 응답. 추가형 계약(구 클라이언트는 무시, iOS decodeIfPresent).
+     */
+    public record VisitorResponse(
+            Long userId,
+            String nickname,
+            String profileImageUrl,
+            VisitSource source
+    ) {
+        public static VisitorResponse from(PinVisitorResult v) {
+            return new VisitorResponse(v.userId(), v.nickname(), v.profileImageUrl(), v.source());
+        }
+    }
 
     public record PinSummaryResponse(
             Long id,
@@ -34,7 +50,9 @@ public final class PinV1Dto {
             Long memoUpdatedBy,
             String memoUpdatedByNickname,
             String photoUrl,
-            String photoThumbnailUrl
+            String photoThumbnailUrl,
+            /** 정책 v2 FR-B4: 방문자 목록(0명이면 빈 배열). */
+            List<VisitorResponse> visitors
     ) {
         public static PinSummaryResponse from(PinSummary s) {
             return new PinSummaryResponse(
@@ -55,7 +73,9 @@ public final class PinV1Dto {
                     s.memoUpdatedBy(),
                     s.memoUpdatedByNickname(),
                     s.photoUrl(),
-                    s.photoThumbnailUrl()
+                    s.photoThumbnailUrl(),
+                    s.visitors() == null ? List.of()
+                            : s.visitors().stream().map(VisitorResponse::from).toList()
             );
         }
     }
@@ -165,6 +185,33 @@ public final class PinV1Dto {
             }
             String trimmed = value.trim();
             return trimmed.isEmpty() ? null : trimmed;
+        }
+    }
+
+    /**
+     * 정책 v2 방문 선언 요청(FR-B2/B3). {@code companionUserIds} 는 본인 제외 동행 명단이며
+     * null/빈 배열/생략 = 혼자(체크인 또는 1인 그룹 전환). 서버가 본인 자동 제거·그룹 멤버 검증을 한다.
+     */
+    public record DeclareVisitRequest(List<Long> companionUserIds) {
+        public List<Long> normalized() {
+            return companionUserIds == null ? List.of() : companionUserIds;
+        }
+    }
+
+    /**
+     * 정책 v2 방문 선언 응답(FR-B2/B3). converted/alreadyConverted 로 클라이언트가 confetti/합산 토스트를 분기한다.
+     */
+    public record DeclareVisitResponse(
+            boolean converted,
+            boolean alreadyConverted,
+            List<VisitorResponse> visitors
+    ) {
+        public static DeclareVisitResponse from(com.wherewego.domain.pin.DeclareVisitResult r) {
+            return new DeclareVisitResponse(
+                    r.converted(),
+                    r.alreadyConverted(),
+                    r.visitors() == null ? List.of()
+                            : r.visitors().stream().map(VisitorResponse::from).toList());
         }
     }
 

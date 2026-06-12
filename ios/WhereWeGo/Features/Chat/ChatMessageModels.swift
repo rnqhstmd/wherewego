@@ -24,6 +24,10 @@ enum MessageKind: String, Codable {
     case REEL_LINK
     /// 핀 답장. payload {pinId, text}(백엔드 PIN_REPLY). 그룹 방 메시지에서만 사용 — 핀 카드 + 답장 텍스트 버블.
     case PIN_REPLY
+    /// 정책 v2 방문 체크인 카드. payload {pinId}(백엔드 PIN_VISIT, "다녀갔어요 📍"). 그룹 방 전용 — 핀 카드 버블.
+    case PIN_VISIT
+    /// 정책 v2 추억 전환 카드. payload {pinId, userIds}(백엔드 PIN_MEMORY, "함께 다녀왔어요 🎉"). 그룹 방 전용 — 핀 카드 + 동행 아바타 스택.
+    case PIN_MEMORY
 }
 
 /// 백엔드 SenderType 와 1:1. USER 사람, BOT 앱 봇, SYSTEM 시스템 안내/오류.
@@ -103,8 +107,8 @@ struct ChatFrame: Decodable, Identifiable, Equatable {
             self.sourceInstagramUrl = nil
             let payload = try? container.nestedContainer(keyedBy: PayloadKeys.self, forKey: .payload)
             self.text = try? payload?.decodeIfPresent(String.self, forKey: .text)
-        case .PROCESSING, .REEL_LINK, .PIN_REPLY:
-            // REEL_LINK/PIN_REPLY 는 그룹 방 전용(GroupChatFrame). 봇 ChatFrame 에선 수신되지 않으므로 방어적 nil.
+        case .PROCESSING, .REEL_LINK, .PIN_REPLY, .PIN_VISIT, .PIN_MEMORY:
+            // REEL_LINK/PIN_REPLY/PIN_VISIT/PIN_MEMORY 는 그룹 방 전용(GroupChatFrame). 봇 ChatFrame 에선 수신되지 않으므로 방어적 nil.
             self.placeCards = nil
             self.sourceInstagramUrl = nil
             self.text = nil

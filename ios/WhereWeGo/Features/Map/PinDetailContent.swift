@@ -144,6 +144,7 @@ struct PinDetailContent: View {
         VStack(alignment: .leading, spacing: 12) {
             memoOrPhotoRow(live)
             placeRow(live)
+            visitorsRow(live)
             if let address = live.address, !address.isEmpty {
                 addressRow(address)
             }
@@ -176,12 +177,47 @@ struct PinDetailContent: View {
         }
     }
 
+    /// 방문자 행(정책 v2 FR-B4, AC-5) — placeRow 아래. 아바타 18pt·-5 오버랩 스택(최대 5명 + 초과 +N) + "N명이 다녀감".
+    /// visitors 가 nil/빈이면 행 자체를 생략한다(AC-5). 아바타는 가입 순(서버 순서) 그대로 노출한다.
+    @ViewBuilder
+    private func visitorsRow(_ live: PinSummary) -> some View {
+        if let visitors = live.visitors, !visitors.isEmpty {
+            let shown = Array(visitors.prefix(5))
+            let overflow = visitors.count - shown.count
+            HStack(spacing: 8) {
+                HStack(spacing: -5) {
+                    ForEach(shown) { visitor in
+                        AvatarView(
+                            imageUrl: visitor.profileImageUrl,
+                            name: visitor.nickname ?? "?",
+                            size: 18
+                        )
+                        .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+                    }
+                    if overflow > 0 {
+                        Text("+\(overflow)")
+                            .font(WGFont.sansSemiBold(9))
+                            .foregroundStyle(WGColor.inkSoft)
+                            .frame(width: 18, height: 18)
+                            .background(WGColor.bg)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+                    }
+                }
+                Text("\(visitors.count)명이 다녀감")
+                    .font(WGFont.sans(12))
+                    .foregroundStyle(WGColor.inkSoft)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
     /// 하단 행(웹 Bottom row 동치) — hairline 윗줄 + 날짜·written by 작성자(좌) / 공유·⋯ 메뉴(우).
     private func bottomRow(_ live: PinSummary) -> some View {
         VStack(spacing: 8) {
             Divider().overlay(WGColor.hairline)
             HStack(alignment: .center, spacing: 4) {
-                Text(VisitToastView.formatDate(live.createdAt))
+                Text(VisitDateFormatter.formatDate(live.createdAt))
                     .font(WGFont.mono(11))
                     .italic()
                     .foregroundStyle(WGColor.inkSoft)

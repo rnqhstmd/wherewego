@@ -11,10 +11,10 @@ import Foundation
 // MARK: - 알림 종류
 
 /// 백엔드 NotificationType 과 1:1. 행 아이콘/문구 분기에 사용.
+/// 정책 v2: VISIT_DETECTED 제거(방문 알림 → 채팅 카드 PIN_VISIT/PIN_MEMORY 로 대체, V023 이 구 행 삭제).
 enum NotificationType: String, Decodable {
     case MANUAL_PIN
     case CHATBOT_PINS
-    case VISIT_DETECTED
 }
 
 // MARK: - 응답 DTO
