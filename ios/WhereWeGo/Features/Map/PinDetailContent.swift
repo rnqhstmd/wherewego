@@ -144,7 +144,6 @@ struct PinDetailContent: View {
         VStack(alignment: .leading, spacing: 12) {
             memoOrPhotoRow(live)
             placeRow(live)
-            visitorsRow(live)
             if let address = live.address, !address.isEmpty {
                 addressRow(address)
             }
@@ -177,38 +176,31 @@ struct PinDetailContent: View {
         }
     }
 
-    /// 방문자 행(정책 v2 FR-B4, AC-5) — placeRow 아래. 아바타 18pt·-5 오버랩 스택(최대 5명 + 초과 +N) + "N명이 다녀감".
-    /// visitors 가 nil/빈이면 행 자체를 생략한다(AC-5). 아바타는 가입 순(서버 순서) 그대로 노출한다.
+    /// 방문자 아바타 스택(정책 v2 FR-B4, AC-5) — 하단 행 "written by {작성자}" 우측에 아이콘만 편입(별도 행·텍스트 없음).
+    /// 아바타 16pt·-5 오버랩, 한 줄 최대 4개 × 2줄(그룹 정원 8명이라 +N 불필요). visitors 가 nil/빈이면 생략한다(AC-5).
+    /// 가입 순(서버 순서) 그대로 노출.
     @ViewBuilder
-    private func visitorsRow(_ live: PinSummary) -> some View {
+    private func visitorsStack(_ live: PinSummary) -> some View {
         if let visitors = live.visitors, !visitors.isEmpty {
-            let shown = Array(visitors.prefix(5))
-            let overflow = visitors.count - shown.count
-            HStack(spacing: 8) {
-                HStack(spacing: -5) {
-                    ForEach(shown) { visitor in
-                        AvatarView(
-                            imageUrl: visitor.profileImageUrl,
-                            name: visitor.nickname ?? "?",
-                            size: 18
-                        )
-                        .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
-                    }
-                    if overflow > 0 {
-                        Text("+\(overflow)")
-                            .font(WGFont.sansSemiBold(9))
-                            .foregroundStyle(WGColor.inkSoft)
-                            .frame(width: 18, height: 18)
-                            .background(WGColor.bg)
-                            .clipShape(Circle())
+            let rows = stride(from: 0, to: min(visitors.count, 8), by: 4).map {
+                Array(visitors[$0..<min($0 + 4, min(visitors.count, 8))])
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: -5) {
+                        ForEach(row) { visitor in
+                            AvatarView(
+                                imageUrl: visitor.profileImageUrl,
+                                name: visitor.nickname ?? "?",
+                                size: 16
+                            )
                             .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+                        }
                     }
                 }
-                Text("\(visitors.count)명이 다녀감")
-                    .font(WGFont.sans(12))
-                    .foregroundStyle(WGColor.inkSoft)
-                Spacer(minLength: 0)
             }
+            .padding(.leading, 6)
+            .accessibilityLabel("\(visitors.count)명이 다녀감")
         }
     }
 
@@ -232,6 +224,7 @@ struct PinDetailContent: View {
                         .foregroundStyle(WGColor.ink)
                         .lineLimit(1)
                 }
+                visitorsStack(live)
                 Spacer(minLength: 8)
                 replyButton
                 shareButton

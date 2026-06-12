@@ -964,9 +964,12 @@ final class MapViewModel: ObservableObject {
             } else if response.alreadyConverted {
                 // 이미 MEMORY 였던 핀 — confetti/시트 스킵 + 합산 안내 토스트(Q3).
                 visitInfoMessage = "이미 추억으로 남긴 곳이에요 🎉 회원님의 방문도 기록했어요"
+                // 완료 후 핀 상세(말풍선) 오픈 — 방문 반영 결과(아바타)를 바로 확인(converted 는 흔적 시트 dismiss 가 담당).
+                selectedPinId = pinId
             } else {
                 // 체크인(태그 불변) — 다녀간 기록만 남김.
                 visitInfoMessage = "다녀간 기록을 남겼어요 📍"
+                selectedPinId = pinId
             }
         } catch {
             // 시스템 에러 — 태그 미변경. 세션 Set/firstEnterAt 은 유지한다.
