@@ -106,6 +106,9 @@ struct PinBubbleView: View {
         .onPreferenceChange(BubbleHeightKey.self) { height in
             if height > 0 { bubbleHeight = height }
         }
+        // 메모↔사진 펼침으로 본체 높이가 바뀔 때 `.position` y 가 점프하지 않고 자연 애니메이트되도록
+        // bubbleHeight 변화에 easeOut 0.3s 를 건다(웹 SpeechBubblePopup 의 height FLIP 동치). 측정 보정도 부드럽게 따라간다.
+        .animation(.easeOut(duration: 0.3), value: bubbleHeight)
     }
 
     // MARK: - 닫기
