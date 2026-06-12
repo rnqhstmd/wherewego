@@ -1,7 +1,7 @@
 # 방문 체크인·추억 전환 정책 v2 (확정)
 
 - 확정일: 2026-06-12 (사용자 합의)
-- 상태: 📋 정책 확정 — 구현 미착수 (차기 Phase 후보, #125·#126 머지 후 `/gx-dev` 착수)
+- 상태: ✅ 구현됨 (2026-06-12, PR [#127](https://github.com/rnqhstmd/wherewego/pull/127) — gx-dev 전체 파이프라인). 구현 편차: 카드 kind 2종 신설(PIN_VISIT/PIN_MEMORY, 서버·앱 동시 배포 전제) · 늦은 제출 카드 미적재 · 추억 카드 동행 표시는 아바타 스택만
 - 대체 대상: [phase-10](phase-10-visit-detection.md)의 "방문자 1인 확인 → 즉시 MEMORY 전환" 정책
 - 의존: PR [#125](https://github.com/rnqhstmd/wherewego/pull/125)(핀 패리티·.pinFocus), [#126](https://github.com/rnqhstmd/wherewego/pull/126)(채팅 핀 카드 PIN_REPLY)
 
