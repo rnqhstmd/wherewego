@@ -84,6 +84,11 @@ public class PinRepositoryImpl implements PinRepository {
     }
 
     @Override
+    public long countActiveByCreatedBy(Long createdBy) {
+        return jpaRepository.countByCreatedByAndDeletedAtIsNull(createdBy);
+    }
+
+    @Override
     public Optional<Pin> findActiveByIdAndGroupIdForUpdate(Long pinId, Long groupId) {
         return jpaRepository.findActiveByIdAndGroupIdForUpdate(pinId, groupId);
     }
@@ -142,5 +147,13 @@ public class PinRepositoryImpl implements PinRepository {
             return List.of();
         }
         return jpaRepository.findActiveInstagramUrlsIn(groupId, urls);
+    }
+
+    @Override
+    public List<Pin> findByIdIn(Collection<Long> pinIds) {
+        if (pinIds == null || pinIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByIdIn(pinIds);
     }
 }

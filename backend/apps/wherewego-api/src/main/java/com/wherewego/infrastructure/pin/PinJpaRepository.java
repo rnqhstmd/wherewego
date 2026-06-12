@@ -43,6 +43,9 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
 
     long countByGroupIdAndTagAndDeletedAtIsNull(Long groupId, PinTag tag);
 
+    // 내가 등록한 활성 핀(soft-delete 제외) 전 그룹 합산 — GET /users/me pinCount (IG-2 FR-5).
+    long countByCreatedByAndDeletedAtIsNull(Long createdBy);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Pin p WHERE p.id = :pinId AND p.groupId = :groupId AND p.deletedAt IS NULL")
     Optional<Pin> findActiveByIdAndGroupIdForUpdate(@Param("pinId") Long pinId, @Param("groupId") Long groupId);
@@ -105,4 +108,7 @@ public interface PinJpaRepository extends JpaRepository<Pin, Long> {
             + "AND p.deletedAt IS NULL")
     List<String> findActiveInstagramUrlsIn(@Param("groupId") Long groupId,
                                            @Param("urls") Collection<String> urls);
+
+    // PIN_REPLY 프레임 pinSnapshot 합성용 batch 조회 — soft-delete 포함(삭제 핀도 메타 노출).
+    List<Pin> findByIdIn(Collection<Long> pinIds);
 }

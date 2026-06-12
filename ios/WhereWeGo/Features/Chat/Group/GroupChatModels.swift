@@ -29,11 +29,14 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
     /// REEL_LINK 만 — 비동기 스크래핑한 og:image 썸네일 URL(GC-3, FR-GC3-2). 백엔드 프레임의 top-level 계약 필드.
     /// 스크래핑 전/실패/만료/flag off, 그 외 kind 는 nil → 버블에서 기본 회색 타일로 폴백.
     let thumbnailUrl: String?
-    /// TEXT/SYSTEM 의 payload.text(그 외 nil).
+    /// TEXT/SYSTEM/PIN_REPLY 의 payload.text(그 외 nil).
     let text: String?
+    /// PIN_REPLY 만 — 답장 대상 핀의 스냅샷(백엔드 top-level 계약 필드, 그 외 kind 는 null).
+    /// 핀 삭제 시 deleted=true(placeName 유지), row 미존재 시 placeName 도 null.
+    let pinSnapshot: PinChatSnapshot?
 
     private enum CodingKeys: String, CodingKey {
-        case messageId, roomId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, createdAt
+        case messageId, roomId, senderUserId, senderNickname, senderProfileImageUrl, kind, payload, registered, thumbnailUrl, pinSnapshot, createdAt
     }
     private enum TextKeys: String, CodingKey { case text }
     private enum ReelKeys: String, CodingKey { case url }
@@ -51,6 +54,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.registered = try c.decodeIfPresent(Bool.self, forKey: .registered)
         // thumbnailUrl 은 백엔드 프레임 top-level(payload 밖) — registered 와 동형으로 kind 무관하게 디코드(비-REEL_LINK 는 서버가 null).
         self.thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
+        // pinSnapshot 도 top-level(payload 밖) — registered/thumbnailUrl 와 동형으로 kind 무관 디코드(PIN_REPLY 만 non-null, 그 외 서버가 null).
+        self.pinSnapshot = try c.decodeIfPresent(PinChatSnapshot.self, forKey: .pinSnapshot)
 
         // payload 는 kind 로 분기. 누락/형식 불일치는 방어적으로 nil 처리.
         switch kind {
@@ -58,7 +63,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
             let p = try? c.nestedContainer(keyedBy: ReelKeys.self, forKey: .payload)
             self.reelUrl = try? p?.decodeIfPresent(String.self, forKey: .url)
             self.text = nil
-        case .TEXT, .SYSTEM, .MEMO_PROMPT:
+        case .TEXT, .SYSTEM, .MEMO_PROMPT, .PIN_REPLY:
+            // PIN_REPLY payload 도 {text} 형식 — TEXT 와 동일하게 평탄화(핀 정보는 top-level pinSnapshot).
             let p = try? c.nestedContainer(keyedBy: TextKeys.self, forKey: .payload)
             self.text = try? p?.decodeIfPresent(String.self, forKey: .text)
             self.reelUrl = nil
@@ -81,7 +87,8 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         reelUrl: String? = nil,
         registered: Bool? = nil,
         thumbnailUrl: String? = nil,
-        text: String? = nil
+        text: String? = nil,
+        pinSnapshot: PinChatSnapshot? = nil
     ) {
         self.messageId = messageId
         self.roomId = roomId
@@ -94,7 +101,25 @@ struct GroupChatFrame: Decodable, Identifiable, Equatable {
         self.registered = registered
         self.thumbnailUrl = thumbnailUrl
         self.text = text
+        self.pinSnapshot = pinSnapshot
     }
+}
+
+// MARK: - PinChatSnapshot
+
+/// PIN_REPLY 답장 대상 핀의 스냅샷(백엔드 ChatV1Dto.PinSnapshot 와 1:1). 프레임 top-level 계약 필드(PIN_REPLY 만 non-null).
+/// tag 는 String 으로 받고 표시 시 `PinTag(rawValue:)` 로 변환한다(미지값 안전 — 회색 폴백).
+///  - 핀 삭제: deleted=true + placeName 유지(이름은 보여주되 카드 탭/사진 비활성).
+///  - row 미존재(완전 삭제 등): placeName 도 nil → "삭제된 장소" 표기.
+/// pinId: Long → Int (PinSummary/GroupChatFrame 선례, iOS17 64bit 안전 수용 리스크).
+struct PinChatSnapshot: Decodable, Equatable {
+    let pinId: Int
+    let placeName: String?
+    let tag: String?
+    let memo: String?
+    let photoThumbnailUrl: String?
+    let photoUrl: String?
+    let deleted: Bool
 }
 
 // MARK: - GroupMessagesResponse

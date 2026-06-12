@@ -511,18 +511,52 @@ final class MapViewModelTests: XCTestCase {
         if case .error = vm.loadState {} else { XCTFail("load(groupId:) 실패 시 loadState 는 .error 여야 함") }
     }
 
+    // MARK: - 핀 답장(PIN_REPLY → 그룹 채팅방)
+
+    /// 성공: chatAPI 에 kind=.PIN_REPLY/text/pinId 전달 + 안내 토스트 세팅 + true 반환.
+    func test_sendPinReply_success_sendsPinReplyAndShowsToast() async {
+        let chat = StubChatAPI()
+        chat.sendGroupResult = .success(SendMessageResponse(messageId: 200, kind: .PIN_REPLY))
+        let vm = makeViewModel(chatAPI: chat)
+        await vm.load()   // groupId=1 확보
+
+        let ok = await vm.sendPinReply(pinId: 42, text: "여기 좋아요")
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(chat.lastSentKind, .PIN_REPLY)
+        XCTAssertEqual(chat.lastSentText, "여기 좋아요")
+        XCTAssertEqual(chat.lastSentPinId, 42)
+        XCTAssertNil(chat.lastSentURL)
+        XCTAssertEqual(vm.visitInfoMessage, "채팅방에 답장을 보냈어요 💬")
+    }
+
+    /// 실패(전송 에러): false 반환 + 토스트 미세팅(시트가 인라인 에러 표기).
+    func test_sendPinReply_failure_returnsFalseWithoutToast() async {
+        let chat = StubChatAPI()
+        chat.sendGroupResult = .failure(APIError(code: "X", status: 500, message: "x"))
+        let vm = makeViewModel(chatAPI: chat)
+        await vm.load()
+
+        let ok = await vm.sendPinReply(pinId: 42, text: "여기 좋아요")
+
+        XCTAssertFalse(ok)
+        XCTAssertNil(vm.visitInfoMessage)
+    }
+
     // MARK: - 헬퍼
 
     private func makeViewModel(
         pinAPI: PinAPIProtocol? = nil,
         placeAPI: PlaceAPIProtocol? = nil,
         groupAPI: GroupAPIProtocol? = nil,
+        chatAPI: ChatAPIProtocol? = nil,
         location: LocationServiceProtocol? = nil
     ) -> MapViewModel {
         MapViewModel(
             pinAPI: pinAPI ?? StubPinAPI(listResult: .success([])),
             placeAPI: placeAPI ?? StubPlaceAPI(),
             groupAPI: groupAPI ?? StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: chatAPI ?? StubChatAPI(),
             locationService: location ?? StubLocationService(status: .denied)
         )
     }

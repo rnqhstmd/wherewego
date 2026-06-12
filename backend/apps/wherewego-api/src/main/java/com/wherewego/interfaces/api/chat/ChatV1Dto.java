@@ -67,10 +67,13 @@ public final class ChatV1Dto {
 
     /**
      * GC-1: 그룹 메시지 전송 요청(FR-GC1-3). kind 분기 — TEXT 는 {@code text}(1~2000자),
-     * REEL_LINK 는 {@code url}(https + 인스타 패턴)만 사용한다. kind 조건부 검증은 서비스가 수행한다
-     * (CHAT_KIND_INVALID / CHAT_TEXT_INVALID / CHAT_REEL_URL_INVALID 400).
+     * REEL_LINK 는 {@code url}(https + 인스타 패턴), PIN_REPLY 는 {@code text}(1~2000자) + {@code pinId}
+     * (그룹 활성 핀)만 사용한다. kind 조건부 검증은 서비스가 수행한다
+     * (CHAT_KIND_INVALID / CHAT_TEXT_INVALID / CHAT_REEL_URL_INVALID / CHAT_PIN_INVALID 400).
+     *
+     * <p>{@code pinId} 는 PIN_REPLY 외 kind 에서는 무시된다(nullable additive 필드).</p>
      */
-    public record GroupMessageRequest(MessageKind kind, String text, String url) {
+    public record GroupMessageRequest(MessageKind kind, String text, String url, Long pinId) {
     }
 
     /**

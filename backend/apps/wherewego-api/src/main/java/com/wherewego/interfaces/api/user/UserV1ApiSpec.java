@@ -11,7 +11,7 @@ public interface UserV1ApiSpec {
 
     @Operation(
             summary = "내 정보 조회",
-            description = "현재 로그인 사용자의 프로필 정보를 반환합니다."
+            description = "현재 로그인 사용자의 프로필 정보를 반환합니다. pinCount 는 내가 등록한 활성 핀(soft-delete 제외) 전 그룹 합산 개수입니다."
     )
     ApiResponse<UserV1Dto.UserResponse> getCurrentUser(
             @Parameter(hidden = true) Long userId

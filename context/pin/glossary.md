@@ -34,3 +34,6 @@
 | S3 키 스킴 (Phase 13) | 원본 `pins/{groupId}/{pinId}/{uuid}.jpg`, 썸네일 `pins/{groupId}/{pinId}/{uuid}_thumb.webp`(동일 uuid 공유). 공개(public-read)+UUID(추측 불가), `Cache-Control: public, max-age=31536000, immutable`. LIST 미사용(키 DB 보관) |
 | 업로드 검증 4단계 (Phase 13) | ① MEMORY 태그(서비스, `PIN_PHOTO_NOT_MEMORY`) ② Content-Type 화이트리스트+매직바이트(컨트롤러, `PIN_PHOTO_TYPE_INVALID`) ③ 크기 ≤2MB(`PIN_PHOTO_SIZE_EXCEEDED`) ④ 픽셀 장변 ≤4096(어댑터, `PIN_PHOTO_DIMENSION_EXCEEDED`). 원본 성공+썸네일 실패 시 원본 정리(원자성) |
 | 태그 이탈 시 사진 보존 (Phase 13) | MEMORY→다른 태그 변경 시 사진 레코드/S3 보존, UI만 tag로 게이트. 단 핀 소프트 삭제 시에는 S3 best-effort 정리(공개 URL 영구 노출 방지) |
+| 체크인 (visit-checkin v2, 미구현) | 도착 감지에서 "혼자예요" 선택 시의 개인 방문 기록. 핀 태그 불변(위시 보존) + `pin_visits` upsert + 채팅 핀 카드 공유. [visit-checkin-policy.md](visit-checkin-policy.md) |
+| 동행 선언 (visit-checkin v2, 미구현) | 도착 감지에서 멤버 2명 이상 선택 → MEMORY 전환(1회·멱등)의 트리거. 기계 판정(동시 GPS 매칭) 없이 방문자가 선언, union 합산으로 동시 제출 충돌 해소 |
+| SELF / TAGGED (visit-checkin v2, 미구현) | `pin_visits.source` — 본인 폰 체크인(검증) / 타인의 동행 선언(주장). TAGGED는 본인 체크인 시 SELF 승격. 오입력 정정 기능은 **베타 수용으로 미구현 확정**(채팅 카드 공개·수동 편집이 수렴 장치) |

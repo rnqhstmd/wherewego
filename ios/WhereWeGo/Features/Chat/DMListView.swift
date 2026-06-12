@@ -37,6 +37,8 @@ struct DMListView: View {
         .navigationDestination(item: $openedRoom) { room in
             GroupChatRoomView(
                 room: room,
+                // room.groupId 로 그룹 목록 조인(GP-1 FR-5) — 헤더 아바타/멤버 수 입력. 미로딩 시 nil → 이니셜 폴백.
+                group: groupContext.groups.first { $0.groupId == room.groupId },
                 pushSignal: pushSignal,
                 makeViewModel: makeRoomViewModel
             )
@@ -148,17 +150,20 @@ struct DMListView: View {
 /// 방 화면 래퍼 — 방별 GroupChatViewModel 을 @StateObject 로 소유(push 수명, pop 시 해제, 재진입 시 재생성).
 struct GroupChatRoomView: View {
     private let groupName: String
+    /// room.groupId 조인 그룹(GP-1 FR-5). 헤더 아바타/멤버 수 입력. nil = 미로딩 → 이니셜 폴백.
+    private let group: GroupSummary?
     private let pushSignal: ChatPushSignal
     @StateObject private var viewModel: GroupChatViewModel
 
-    init(room: GroupRoomSummary, pushSignal: ChatPushSignal, makeViewModel: @escaping (GroupRoomSummary) -> GroupChatViewModel) {
+    init(room: GroupRoomSummary, group: GroupSummary?, pushSignal: ChatPushSignal, makeViewModel: @escaping (GroupRoomSummary) -> GroupChatViewModel) {
         self.groupName = room.groupName
+        self.group = group
         self.pushSignal = pushSignal
         _viewModel = StateObject(wrappedValue: makeViewModel(room))
     }
 
     var body: some View {
-        GroupChatView(viewModel: viewModel, pushSignal: pushSignal, groupName: groupName)
+        GroupChatView(viewModel: viewModel, pushSignal: pushSignal, groupName: groupName, group: group)
     }
 }
 

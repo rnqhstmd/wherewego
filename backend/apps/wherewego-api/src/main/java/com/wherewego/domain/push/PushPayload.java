@@ -28,12 +28,14 @@ public record PushPayload(String title, String body, String type, Long roomId) {
     }
 
     /**
-     * FR-GC1-8: 그룹 채팅 새 메시지 알림. kind 별 문구 분기(TEXT/REEL_LINK).
+     * FR-GC1-8: 그룹 채팅 새 메시지 알림. kind 별 문구 분기(REEL_LINK/PIN_REPLY/그 외).
      */
     public static PushPayload groupMessage(Long roomId, MessageKind kind) {
-        String body = kind == MessageKind.REEL_LINK
-                ? "멤버가 릴스를 공유했어요."
-                : "멤버가 메시지를 보냈어요.";
+        String body = switch (kind) {
+            case REEL_LINK -> "멤버가 릴스를 공유했어요.";
+            case PIN_REPLY -> "멤버가 장소에 답장했어요.";
+            default -> "멤버가 메시지를 보냈어요.";
+        };
         return new PushPayload("새 메시지", body, TYPE_GROUP_MESSAGE, roomId);
     }
 

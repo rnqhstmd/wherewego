@@ -34,6 +34,12 @@ struct NotificationItem: Decodable, Identifiable, Equatable {
     let readAt: String?
     /// 알림이 속한 그룹명(D단계). 백엔드 groupName(nullable) 과 1:1. 미존재/삭제 그룹은 null → 표시 생략.
     let groupName: String?
+    /// 행위자 유효 프사 URL(IG-2 FR-4, GP-1 resolver). 미존재/구서버 → null → AvatarView 이니셜 폴백.
+    let registeredByProfileImageUrl: String?
+    /// 알림이 속한 그룹 id(IG-2 FR-4). 행 탭 시 .pinFocus 딥링크 그룹 전환용. 구서버 → null → 접근 불가 처리.
+    let groupId: Int?
+    /// 첫 핀 사진 썸네일 public URL(IG-2 FR-4). 없으면 null → 회색 타일 폴백.
+    let thumbnailUrl: String?
 }
 
 /// 백엔드 NotificationV1Dto.NotificationListResponse.

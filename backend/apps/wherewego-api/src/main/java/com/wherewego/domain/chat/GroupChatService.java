@@ -3,10 +3,13 @@ package com.wherewego.domain.chat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wherewego.config.env.PlaceProperties;
+import com.wherewego.config.env.S3Properties;
 import com.wherewego.domain.chat.BotPlaceCardsPayloadBuilder.PlaceCardsPayload;
+import com.wherewego.domain.chat.GroupChatMessageFrame.PinSnapshot;
 import com.wherewego.domain.group.GroupMemberRepository;
 import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.group.GroupSummary;
+import com.wherewego.domain.pin.Pin;
 import com.wherewego.domain.pin.PinRepository;
 import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.place.ReelPlaceExtractor;
@@ -26,6 +29,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +59,7 @@ public class GroupChatService {
 
     private static final String PREVIEW_PROCESSING = "답장을 준비하고 있어요";
     private static final String PREVIEW_REEL_LINK = "릴스 링크를 공유했어요";
+    private static final String PREVIEW_PIN_REPLY = "장소에 답장했어요";
     private static final int PREVIEW_MAX_LENGTH = 40;
     private static final int TEXT_MAX_LENGTH = 2000;
     /** REEL_LINK URL 상한 — TEXT 가드와 대칭. INSTAGRAM_URL 패턴이 임의 suffix 를 허용하므로 payload 비대 차단. */
@@ -73,6 +78,7 @@ public class GroupChatService {
     private final BotPlaceCardsPayloadBuilder payloadBuilder;
     private final PlaceProperties placeProperties;
     private final ReelThumbnailService reelThumbnailService;
+    private final S3Properties s3Properties;
     private final ObjectMapper objectMapper;
 
     /**
@@ -80,18 +86,19 @@ public class GroupChatService {
      *
      * @param userId  발신 사용자 ID
      * @param groupId 대상 그룹 ID
-     * @param kind    TEXT 또는 REEL_LINK (그 외 → CHAT_KIND_INVALID 400)
-     * @param text    TEXT 본문(1~2000자 — 위반 시 CHAT_TEXT_INVALID 400). REEL_LINK 면 무시.
-     * @param url     REEL_LINK 인스타 URL(https + 인스타 패턴 — 위반 시 CHAT_REEL_URL_INVALID 400). TEXT 면 무시.
+     * @param kind    TEXT / REEL_LINK / PIN_REPLY (그 외 → CHAT_KIND_INVALID 400)
+     * @param text    TEXT/PIN_REPLY 본문(1~2000자 — 위반 시 CHAT_TEXT_INVALID 400). REEL_LINK 면 무시.
+     * @param url     REEL_LINK 인스타 URL(https + 인스타 패턴 — 위반 시 CHAT_REEL_URL_INVALID 400). TEXT/PIN_REPLY 면 무시.
+     * @param pinId   PIN_REPLY 답장 대상 핀 ID(그룹 활성 핀 필수 — 위반 시 CHAT_PIN_INVALID 400). 그 외 kind 면 무시.
      * @return 저장된 {@link ChatMessage}(컨트롤러가 응답으로 매핑)
      * @throws CoreException 비활성 멤버이면 GROUP_NOT_MEMBER(403)
      */
     @Transactional
-    public ChatMessage postMessage(Long userId, Long groupId, MessageKind kind, String text, String url) {
+    public ChatMessage postMessage(Long userId, Long groupId, MessageKind kind, String text, String url, Long pinId) {
         groupMemberService.requireActiveMembership(userId, groupId);
 
         ChatRoom room = ensureGroupRoom(groupId);
-        ChatMessage saved = appendByKind(room.getId(), userId, kind, text, url);
+        ChatMessage saved = appendByKind(room.getId(), groupId, userId, kind, text, url, pinId);
 
         captureThumbnailAfterCommit(saved);
         broadcastToOthersAfterCommit(groupId, userId, saved);
@@ -187,20 +194,47 @@ public class GroupChatService {
     // ────── 전송 내부 ──────
 
     /**
-     * kind 분기 검증 + append(FR-GC1-3). TEXT 는 1~2000자, REEL_LINK 는 https + 인스타 패턴을 강제한다.
+     * kind 분기 검증 + append(FR-GC1-3). TEXT/PIN_REPLY 는 1~2000자, REEL_LINK 는 https + 인스타 패턴을 강제하고,
+     * PIN_REPLY 는 pinId 가 해당 그룹의 활성 핀인지 추가로 검증한다.
      */
-    private ChatMessage appendByKind(Long roomId, Long userId, MessageKind kind, String text, String url) {
+    private ChatMessage appendByKind(Long roomId, Long groupId, Long userId,
+                                     MessageKind kind, String text, String url, Long pinId) {
         if (kind == MessageKind.TEXT) {
-            String body = text == null ? "" : text.trim();
-            if (body.isEmpty() || body.length() > TEXT_MAX_LENGTH) {
-                throw new CoreException(ErrorType.CHAT_TEXT_INVALID);
-            }
-            return chatMessageAppender.appendGroupText(roomId, userId, body);
+            return chatMessageAppender.appendGroupText(roomId, userId, validateText(text));
         }
         if (kind == MessageKind.REEL_LINK) {
             return chatMessageAppender.appendReelLink(roomId, userId, validateReelUrl(url));
         }
+        if (kind == MessageKind.PIN_REPLY) {
+            String body = validateText(text);
+            Long validatedPinId = validateGroupActivePin(groupId, pinId);
+            return chatMessageAppender.appendGroupPinReply(roomId, userId, validatedPinId, body);
+        }
         throw new CoreException(ErrorType.CHAT_KIND_INVALID);
+    }
+
+    /**
+     * TEXT/PIN_REPLY 본문 검증: trim 후 1~2000자(TEXT 와 동일 규칙 재사용). 위반 시 CHAT_TEXT_INVALID(400).
+     */
+    private static String validateText(String text) {
+        String body = text == null ? "" : text.trim();
+        if (body.isEmpty() || body.length() > TEXT_MAX_LENGTH) {
+            throw new CoreException(ErrorType.CHAT_TEXT_INVALID);
+        }
+        return body;
+    }
+
+    /**
+     * PIN_REPLY 핀 검증: pinId 필수 + 해당 그룹의 활성 핀(groupId 일치 + soft-delete 아님)인지 확인한다.
+     * 위반(null / 타 그룹 / 삭제 / 미존재) 시 CHAT_PIN_INVALID(400).
+     */
+    private Long validateGroupActivePin(Long groupId, Long pinId) {
+        if (pinId == null) {
+            throw new CoreException(ErrorType.CHAT_PIN_INVALID);
+        }
+        pinRepository.findActiveByIdAndGroupId(pinId, groupId)
+                .orElseThrow(() -> new CoreException(ErrorType.CHAT_PIN_INVALID));
+        return pinId;
     }
 
     /**
@@ -276,22 +310,27 @@ public class GroupChatService {
     // ────── 조회 내부 ──────
 
     /**
-     * 페이지를 프레임으로 조립한다 — registered(REEL_LINK 배치 IN 쿼리 1회) + 발신자 프로필(닉네임+유효 프사 URL, 배치 1회).
+     * 페이지를 프레임으로 조립한다 — registered(REEL_LINK 배치 IN 쿼리 1회) + pinSnapshot(PIN_REPLY 배치 IN 쿼리 1회)
+     * + 발신자 프로필(닉네임+유효 프사 URL, 배치 1회).
      */
     private GroupMessagesPage assemblePage(Long groupId, ChatMessagePageResult page, Long lastReadBefore) {
         List<ChatMessage> messages = page.messages();
         Set<String> registeredUrls = registeredUrlsOf(groupId, messages);
+        Map<Long, Pin> pinsById = pinsByIdOf(messages);
         Map<Long, UserProfile> profiles = profilesOf(messages);
 
         List<GroupChatMessageFrame> frames = new ArrayList<>(messages.size());
         for (ChatMessage message : messages) {
             Boolean registered = null;
             String thumbnailUrl = null;
+            PinSnapshot pinSnapshot = null;
             if (message.getKind() == MessageKind.REEL_LINK) {
                 String url = readPayloadText(message.getPayloadJson(), "url");
                 registered = url != null && registeredUrls.contains(url);
                 // GC-3(FR-GC3-2): payload.thumbnailUrl 을 top-level 계약 필드로 파생(registered 와 동형).
                 thumbnailUrl = readPayloadText(message.getPayloadJson(), "thumbnailUrl");
+            } else if (message.getKind() == MessageKind.PIN_REPLY) {
+                pinSnapshot = pinSnapshotOf(message, pinsById);
             }
             // GP-1 FR-6: 발신자 프로필(닉네임+유효 프사 URL). 발신자 NULL 이면 둘 다 null(BR-6).
             UserProfile profile = message.getSenderUserId() == null
@@ -300,9 +339,63 @@ public class GroupChatService {
             String nickname = profile == null ? null : profile.nickname();
             String profileImageUrl = profile == null ? null : profile.profileImageUrl();
             frames.add(GroupChatMessageFrame.from(
-                    message, objectMapper, nickname, profileImageUrl, registered, thumbnailUrl));
+                    message, objectMapper, nickname, profileImageUrl, registered, thumbnailUrl, pinSnapshot));
         }
         return new GroupMessagesPage(frames, page.hasMore(), page.nextCursor(), lastReadBefore);
+    }
+
+    /**
+     * 페이지 내 PIN_REPLY 의 pinId 를 모아 핀을 IN 쿼리 1회로 배치 조회한다(soft-delete 포함 — 삭제 핀도 메타 노출).
+     * registered 파생과 같은 위치/방식. 핀 row 가 미존재하면 Map 에서 빠져 합성 시 정합 깨짐으로 처리된다.
+     */
+    private Map<Long, Pin> pinsByIdOf(List<ChatMessage> messages) {
+        LinkedHashSet<Long> pinIds = new LinkedHashSet<>();
+        for (ChatMessage message : messages) {
+            if (message.getKind() == MessageKind.PIN_REPLY) {
+                Long pinId = readPayloadLong(message.getPayloadJson(), "pinId");
+                if (pinId != null) {
+                    pinIds.add(pinId);
+                }
+            }
+        }
+        if (pinIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Pin> byId = new LinkedHashMap<>(pinIds.size());
+        for (Pin pin : pinRepository.findByIdIn(pinIds)) {
+            byId.put(pin.getId(), pin);
+        }
+        return byId;
+    }
+
+    /**
+     * PIN_REPLY 메시지의 pinSnapshot 을 합성한다(registered 파생 선례와 동형 — 어떤 재조회로도 자기치유).
+     * <ul>
+     *     <li>정상 핀: deleted=false + placeName/tag/memo/사진 URL 전체.</li>
+     *     <li>soft-delete 핀: deleted=true + placeName 유지 + 사진/메모 null.</li>
+     *     <li>핀 row 미존재(정합 깨짐): deleted=true + placeName null.</li>
+     * </ul>
+     * payload.pinId 누락(이론상 없음)도 정합 깨짐과 동일하게 처리한다.
+     */
+    private PinSnapshot pinSnapshotOf(ChatMessage message, Map<Long, Pin> pinsById) {
+        Long pinId = readPayloadLong(message.getPayloadJson(), "pinId");
+        Pin pin = pinId == null ? null : pinsById.get(pinId);
+        if (pin == null) {
+            // 핀 row 미존재(또는 payload.pinId 누락) — 정합 깨짐. placeName 도 null.
+            return new PinSnapshot(pinId, null, null, null, null, null, true);
+        }
+        if (pin.isDeleted()) {
+            // soft-delete — placeName 유지, 사진/메모/태그는 마스킹.
+            return new PinSnapshot(pin.getId(), pin.getPlaceName(), null, null, null, null, true);
+        }
+        return new PinSnapshot(
+                pin.getId(),
+                pin.getPlaceName(),
+                pin.getTag() == null ? null : pin.getTag().name(),
+                pin.getMemo(),
+                toPublicUrl(pin.getPhotoThumbnailKey()),
+                toPublicUrl(pin.getPhotoKey()),
+                false);
     }
 
     /**
@@ -417,12 +510,14 @@ public class GroupChatService {
 
     /**
      * 미리보기 규칙(FR-GC1-7): TEXT/SYSTEM/MEMO_PROMPT → payload text 앞 40자, REEL_LINK → "릴스 링크",
-     * PLACE_CARDS/PROCESSING → 봇 규칙 재사용(그룹 방엔 등장하지 않으나 exhaustive 커버).
+     * PIN_REPLY → "장소에 답장했어요", PLACE_CARDS/PROCESSING → 봇 규칙 재사용(그룹 방엔 등장하지 않으나
+     * exhaustive 커버).
      */
     private String previewOf(ChatMessage message) {
         return switch (message.getKind()) {
             case TEXT, SYSTEM, MEMO_PROMPT -> truncate(readPayloadTextOrEmpty(message.getPayloadJson(), "text"));
             case REEL_LINK -> PREVIEW_REEL_LINK;
+            case PIN_REPLY -> PREVIEW_PIN_REPLY;
             case PLACE_CARDS -> "장소 " + placeCardCount(message.getPayloadJson()) + "곳";
             case PROCESSING -> PREVIEW_PROCESSING;
         };
@@ -447,6 +542,24 @@ public class GroupChatService {
     private String readPayloadText(String payloadJson, String field) {
         JsonNode node = readField(payloadJson, field);
         return node == null || node.isNull() ? null : node.asText();
+    }
+
+    /** PIN_REPLY payload 의 pinId(Long) 를 읽는다. 숫자가 아니거나 누락이면 null. */
+    private Long readPayloadLong(String payloadJson, String field) {
+        JsonNode node = readField(payloadJson, field);
+        return node == null || node.isNull() || !node.canConvertToLong() ? null : node.asLong();
+    }
+
+    /**
+     * S3 객체 키 → 공개 URL 조합(IG-2 선례 — {@code NotificationService.toPublicUrl} 와 동일 규칙).
+     * 키가 없으면 null, publicBaseUrl 끝 슬래시 제거로 "//" 이중 슬래시를 방지한다.
+     */
+    private String toPublicUrl(String key) {
+        if (key == null) {
+            return null;
+        }
+        String base = s3Properties.publicBaseUrl().replaceAll("/+$", "");
+        return base + "/" + key;
     }
 
     private int placeCardCount(String payloadJson) {

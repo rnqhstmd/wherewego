@@ -1,13 +1,9 @@
 import SwiftUI
 
-// 알림함 화면(설계 §7, FR-17~22, BR-4/BR-6).
-// frontend/src/app/map/_components/notifications/NotificationPanel.tsx + NotificationItem.tsx + NotificationPinList.tsx 이식.
-//
-//  - 상태별: 로딩 ProgressView / 빈 "아직 알림이 없어요" / 에러 메시지+재시도(BR-6) / 목록.
-//  - 목록 행: 종류 아이콘(MANUAL_PIN=mappin.circle / CHATBOT_PINS=bubble.left / VISIT_DETECTED=location)
-//    + 문구(FR-18) + 시간(웹 formatTime 이식) + 미읽음 강조(readAt==nil → 옅은 cta 배경).
-//  - 행 탭 → selectItem(detail 로드) → 핀 목록(activeDetail) 표시. "← 목록" 으로 복귀.
-//  - 핀 탭 → flyToPin(딥링크 pending). soft delete 핀은 "삭제된 장소: {이름}" + flyTo 비활성.
+// 알림함 화면(IG-2 FR-4 인스타 피드화). 상세 화면 폐기 — 행 탭 = 지도 탭 직행(.pinFocus 딥링크).
+//  - 상태별: 로딩 ProgressView / 빈 "아직 알림이 없어요" / 에러 메시지+재시도(BR-6) / 피드.
+//  - 피드: 섹션(오늘/이번 주/이전) + 플랫 행(아바타 + 인라인 굵은 문구 + 그룹명·시각 + 썸네일 + 미읽음 점).
+//  - 행 탭 → selectItem(detail 로 유효 핀 추출 → .pinFocus 딥링크). 접근 불가/삭제된 장소/실패는 토스트 안내.
 //
 // NavigationStack 안의 콘텐츠(navigationTitle 만 지정, 스택은 MainTabView 가 제공).
 struct NotificationInboxView: View {
@@ -22,16 +18,17 @@ struct NotificationInboxView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 경량 상단바(IG-1). 상세(핀 목록)에는 자체 "← 목록" 헤더가 있어 제외.
-            if viewModel.activeDetail == nil {
-                InstaNavBar(title: "알림")
-            }
+            // 경량 상단바(IG-1). 상세 화면 폐기로 항상 표시.
+            InstaNavBar(title: "알림")
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(WGColor.bg)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // 행 탭 안내 토스트(IG-2 FR-4): 하단 캡슐. 2.5초 자동 사라짐 + 탭 시 닫기.
+        .overlay(alignment: .bottom) { infoToast }
+        .animation(.easeOut(duration: 0.2), value: viewModel.infoMessage)
             // 탭 진입 시 load(list + readAll 1회, 설계 §14). MainTabView 의 onForeground 가 먼저 loadState 를
             // .loaded 로 바꿔도 읽음 처리(readAll)가 누락되지 않도록 .idle 가드 없이 호출한다.
             // readAll 1회 보장은 VM 내부 didReadAll 플래그가 담당한다.
@@ -44,21 +41,17 @@ struct NotificationInboxView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let detail = viewModel.activeDetail {
-            detailView(detail)
-        } else {
-            switch viewModel.loadState {
-            case .idle, .loading:
-                loadingView
-            case let .loaded(items):
-                if items.isEmpty {
-                    emptyView
-                } else {
-                    listView(items)
-                }
-            case let .error(message):
-                errorView(message)
+        switch viewModel.loadState {
+        case .idle, .loading:
+            loadingView
+        case let .loaded(items):
+            if items.isEmpty {
+                emptyView
+            } else {
+                feedView(items)
             }
+        case let .error(message):
+            errorView(message)
         }
     }
 
@@ -119,217 +112,192 @@ struct NotificationInboxView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - 목록
+    // MARK: - 피드(섹션 + 플랫 행)
 
-    private func listView(_ items: [NotificationItem]) -> some View {
-        // 카드 목록(그룹 목록/채팅 목록 디자인 언어 정합) — hairline 구분선 평면 리스트의 밋밋함 해소.
+    /// 섹션(오늘/이번 주/이전)별 그룹핑 후 헤더 + 플랫 행. 빈 섹션은 헤더 생략.
+    private func feedView(_ items: [NotificationItem]) -> some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
-                ForEach(items) { item in
-                    Button {
-                        Task { await viewModel.selectItem(item) }
-                    } label: {
-                        NotificationRow(item: item)
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Self.sections, id: \.self) { section in
+                    let sectionItems = items.filter {
+                        NotificationInboxViewModel.sectionKey($0.createdAt) == section
                     }
-                    .buttonStyle(.plain)
+                    if !sectionItems.isEmpty {
+                        Text(section.title)
+                            .font(WGFont.sansBold(15))
+                            .foregroundStyle(WGColor.ink)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                            .padding(.bottom, 6)
+
+                        ForEach(sectionItems) { item in
+                            Button {
+                                Task { await viewModel.selectItem(item) }
+                            } label: {
+                                NotificationRow(item: item)
+                            }
+                            .buttonStyle(.plain)
+                            // 라우팅 중(detail 조회) 중복 탭 방지.
+                            .disabled(viewModel.isRouting)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
             .padding(.bottom, 16)
         }
     }
 
-    // MARK: - 상세(핀 목록)
+    /// 섹션 표시 순서(오늘 → 이번 주 → 이전).
+    private static let sections: [NotificationInboxViewModel.Section] = [.today, .thisWeek, .earlier]
 
-    private func detailView(_ detail: NotificationDetail) -> some View {
-        VStack(spacing: 0) {
-            // 상단 "← 목록" 헤더(웹 NotificationPanel 헤더 이식).
-            HStack {
-                Button {
-                    viewModel.clearDetail()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("목록")
-                            .font(WGFont.sans(14))
-                    }
-                    .foregroundStyle(WGColor.inkSoft)
-                }
-                Spacer()
-                // 상세 헤더 그룹명(D단계). nil 이면 생략(방어, Should-10).
-                if let groupName = detail.groupName, !groupName.isEmpty {
-                    Text(groupName)
-                        .font(WGFont.sans(13))
-                        .foregroundStyle(WGColor.inkSoft)
-                }
+    // MARK: - 행 탭 안내 토스트(IG-2 FR-4)
+
+    @ViewBuilder
+    private var infoToast: some View {
+        if let message = viewModel.infoMessage {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(WGColor.cta)
+                Text(message)
+                    .font(WGFont.sans(13))
+                    .foregroundStyle(WGColor.ink)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(WGColor.hairline).frame(height: 1)
-            }
-
-            if viewModel.isDetailLoading {
-                loadingView
-            } else if detail.pins.isEmpty {
-                VStack {
-                    Spacer()
-                    Text("연결된 장소가 없어요")
-                        .font(WGFont.sans(14))
-                        .foregroundStyle(WGColor.inkSoft)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(detail.pins, id: \.pinId) { pin in
-                            Button {
-                                viewModel.flyToPin(pin)
-                            } label: {
-                                NotificationPinRow(pin: pin)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(pin.deleted)
-
-                            Rectangle()
-                                .fill(WGColor.hairline)
-                                .frame(height: 1)
-                        }
-                    }
+            .padding(.vertical, 11)
+            .background(WGColor.panel)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(WGColor.hairline, lineWidth: 1))
+            .shadow(color: WGColor.shadowMd, radius: 10, y: 3)
+            .padding(.bottom, 24)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            // 탭 시 즉시 닫기.
+            .onTapGesture { viewModel.infoMessage = nil }
+            // 2.5초 자동 사라짐(문구 변경마다 재시작 — id 부여로 Task 재생성).
+            .task(id: message) {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                if viewModel.infoMessage == message {
+                    viewModel.infoMessage = nil
                 }
             }
         }
     }
 }
 
-// MARK: - 알림 행
+// MARK: - 알림 행(IG-2 FR-4 피드 행)
 
-/// 알림 1건 행. 종류 아이콘 + 문구(FR-18) + 시간 + 미읽음 강조(readAt==nil → 옅은 cta 배경).
+/// 알림 1건 플랫 행. 아바타 + 인라인 굵은 문구 + 그룹명·시각 + 썸네일 + 미읽음 점.
 private struct NotificationRow: View {
     let item: NotificationItem
 
     private var isUnread: Bool { item.readAt == nil }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // 종류 아이콘을 틴트 원 안에(채팅 목록 아바타와 동일 패턴) — 평면 글리프의 밋밋함 해소.
-            Image(systemName: Self.icon(for: item.type))
-                .font(.system(size: 17))
-                .foregroundStyle(WGColor.cta)
-                .frame(width: 40, height: 40)
-                .background(WGColor.cta.opacity(0.10))
-                .clipShape(Circle())
+        HStack(spacing: 12) {
+            // 행위자 아바타(GP-1 AvatarView — 유효 프사 없으면 이니셜 폴백).
+            AvatarView(
+                imageUrl: item.registeredByProfileImageUrl,
+                name: item.registeredByNickname ?? "?",
+                size: 40
+            )
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Self.message(for: item))
-                    .font(WGFont.sans(14))
-                    .foregroundStyle(WGColor.ink)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 3) {
+                // 인라인 굵은 문구: 닉네임(SemiBold) + 행위 문구(Regular).
+                (
+                    Text(item.registeredByNickname ?? "누군가")
+                        .font(WGFont.sansSemiBold(14))
+                        + Text(Self.actionText(for: item))
+                        .font(WGFont.sans(14))
+                )
+                .foregroundStyle(WGColor.ink)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
 
-                // 그룹명(D단계) + 시간. groupName nil 이면 그룹 칩 생략(방어, Should-10).
-                HStack(spacing: 6) {
-                    if let groupName = item.groupName, !groupName.isEmpty {
-                        Text(groupName)
-                            .font(WGFont.sans(11))
-                            .foregroundStyle(WGColor.cta)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(WGColor.cta.opacity(0.1))
-                            .clipShape(Capsule())
-                    }
-                    Text(NotificationInboxViewModel.formatTime(item.createdAt))
-                        .font(WGFont.mono(11))
-                        .foregroundStyle(WGColor.inkSoft)
-                }
+                // 둘째 줄: 그룹명(있으면) · 상대시각. 한 줄.
+                Text(Self.subtitle(for: item))
+                    .font(WGFont.sans(12))
+                    .foregroundStyle(WGColor.inkSoft)
+                    .lineLimit(1)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
 
+            // 썸네일(첫 핀 사진) — 없으면 회색 타일 폴백.
+            thumbnail
+        }
+        // 미읽음 점은 행 우측 상단(썸네일과 겹치지 않게 overlay 로 배치).
+        .overlay(alignment: .topTrailing) {
             if isUnread {
                 Circle()
                     .fill(WGColor.pinNew)
                     .frame(width: 7, height: 7)
-                    .padding(.top, 5)
+                    .padding(.top, 8)
+                    .padding(.trailing, 2)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 카드 스타일(채팅 목록 정합): 미읽음 = 옅은 cta 채움 + cta 테두리.
-        .background(isUnread ? WGColor.cta.opacity(0.07) : WGColor.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isUnread ? WGColor.cta.opacity(0.35) : WGColor.hairline, lineWidth: 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    /// 종류별 SF Symbol(설계 §7).
-    static func icon(for type: NotificationType) -> String {
-        switch type {
-        case .MANUAL_PIN: return "mappin.circle"
-        case .CHATBOT_PINS: return "bubble.left"
-        case .VISIT_DETECTED: return "location"
-        }
-    }
-
-    /// 종류별 문구(FR-18).
-    static func message(for item: NotificationItem) -> String {
-        switch item.type {
-        case .MANUAL_PIN:
-            return "파트너가 새 장소를 등록했어요"
-        case .CHATBOT_PINS:
-            return "릴스에서 \(item.totalPinCount)개 장소가 저장됐어요"
-        case .VISIT_DETECTED:
-            return "방문 장소가 감지됐어요"
-        }
-    }
-}
-
-// MARK: - 알림 상세 핀 행
-
-/// 상세 핀 1건. soft delete 핀은 "삭제된 장소: {이름}" + 비활성(취소선/흐림).
-/// frontend NotificationPinList.tsx 핀 행 이식.
-private struct NotificationPinRow: View {
-    let pin: NotificationPinItem
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "mappin")
-                .font(.system(size: 16))
-                .foregroundStyle(pin.deleted ? WGColor.inkFaint : WGColor.cta)
-                .frame(width: 20, alignment: .center)
-                .padding(.top, 1)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if pin.deleted {
-                    Text("삭제된 장소: \(pin.placeName)")
-                        .font(WGFont.sans(14))
-                        .foregroundStyle(WGColor.inkSoft)
-                        .strikethrough()
-                } else {
-                    Text(pin.placeName)
-                        .font(WGFont.sans(14))
-                        .foregroundStyle(WGColor.ink)
-                    if let address = pin.address, !address.isEmpty {
-                        Text(address)
-                            .font(WGFont.mono(12))
-                            .foregroundStyle(WGColor.inkSoft)
-                    }
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(pin.deleted ? 0.55 : 1)
+        // 미읽음만 옅은 cta 풀폭 배경(카드 제거).
+        .background(isUnread ? WGColor.cta.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
+    }
+
+    // MARK: - 썸네일
+
+    /// 첫 핀 사진 36pt. 사진이 없으면(thumbnailUrl nil) 썸네일 자체를 생략한다(Q3 확정 — 인스타 문법).
+    /// URL 은 있으나 로딩/실패 중에는 회색 타일(레이아웃 점프 방지).
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let urlString = item.thumbnailUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                case .empty, .failure:
+                    thumbnailPlaceholder
+                @unknown default:
+                    thumbnailPlaceholder
+                }
+            }
+            .frame(width: 36, height: 36)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8).stroke(WGColor.hairline, lineWidth: 1)
+            )
+        }
+    }
+
+    /// 썸네일 폴백 타일(hairline 배경 + photo 글리프).
+    private var thumbnailPlaceholder: some View {
+        WGColor.hairline.opacity(0.5)
+            .overlay(
+                Image(systemName: "photo")
+                    .font(.system(size: 14))
+                    .foregroundStyle(WGColor.inkFaint)
+            )
+    }
+
+    // MARK: - 문구(IG-2 FR-4 — 닉네임 주어 분리)
+
+    /// 닉네임 뒤에 붙는 행위 문구(FR-4). 닉네임은 NotificationRow 가 별도 Text 로 굵게 렌더.
+    static func actionText(for item: NotificationItem) -> String {
+        switch item.type {
+        case .MANUAL_PIN:
+            return "님이 새 장소를 등록했어요 · \(item.firstPlaceName)"
+        case .CHATBOT_PINS:
+            return "님이 릴스에서 장소 \(item.totalPinCount)개를 저장했어요"
+        case .VISIT_DETECTED:
+            return "님의 방문이 감지됐어요 · \(item.firstPlaceName)"
+        }
+    }
+
+    /// 둘째 줄: 그룹명(있으면) · 상대시각. 그룹명 nil 이면 시각만.
+    static func subtitle(for item: NotificationItem) -> String {
+        let time = NotificationInboxViewModel.formatTime(item.createdAt)
+        if let groupName = item.groupName, !groupName.isEmpty {
+            return "\(groupName) · \(time)"
+        }
+        return time
     }
 }

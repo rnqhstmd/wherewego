@@ -91,7 +91,8 @@ public enum ErrorType {
     CHAT_REEL_URL_INVALID(HttpStatus.BAD_REQUEST, "CHAT_REEL_URL_INVALID", "인스타그램 릴스 링크(https)만 보낼 수 있어요."),
     CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MESSAGE_NOT_FOUND", "존재하지 않는 메시지예요."),
     CHAT_NOT_REEL_LINK(HttpStatus.BAD_REQUEST, "CHAT_NOT_REEL_LINK", "릴스 링크 메시지가 아니에요."),
-    CHAT_EXTRACT_FORBIDDEN(HttpStatus.FORBIDDEN, "CHAT_EXTRACT_FORBIDDEN", "발신자만 장소를 등록할 수 있어요.");
+    CHAT_EXTRACT_FORBIDDEN(HttpStatus.FORBIDDEN, "CHAT_EXTRACT_FORBIDDEN", "발신자만 장소를 등록할 수 있어요."),
+    CHAT_PIN_INVALID(HttpStatus.BAD_REQUEST, "CHAT_PIN_INVALID", "이 그룹의 장소만 답장할 수 있어요.");
 
     private final HttpStatus status;
     private final String code;

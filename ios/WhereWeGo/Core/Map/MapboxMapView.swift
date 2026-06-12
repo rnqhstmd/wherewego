@@ -176,7 +176,8 @@ struct MapboxMapView: UIViewRepresentable {
         private let sourceId = "wwg-pins"
         private let clusterCircleLayerId = "wwg-cluster-circle"
         private let clusterCountLayerId = "wwg-cluster-count"
-        private let pinCircleLayerId = "wwg-pin-circle"
+        // 개별 핀 SymbolLayer(글리프 이미지) id. (CircleLayer "wwg-pin-circle" 에서 전환 — A영역.)
+        private let pinSymbolLayerId = "wwg-pin-symbol"
 
         init(onEvent: @escaping (MapEvent) -> Void) {
             self.onEvent = onEvent
@@ -212,14 +213,35 @@ struct MapboxMapView: UIViewRepresentable {
                 clusterCount.textColor = .constant(StyleColor(.white))
                 try map.addLayer(clusterCount)
 
-                // 개별 핀 원(태그별 색) — point_count 없는 feature.
-                var pinCircle = CircleLayer(id: pinCircleLayerId, source: sourceId)
-                pinCircle.filter = Exp(.not) { Exp(.has) { "point_count" } }
-                pinCircle.circleColor = .expression(tagColorExpression())
-                pinCircle.circleRadius = .constant(9)
-                pinCircle.circleStrokeColor = .constant(StyleColor(.white))
-                pinCircle.circleStrokeWidth = .constant(2)
-                try map.addLayer(pinCircle)
+                // 개별 핀 글리프 이미지 3종 등록(REEL 원/WISH 별/MEMORY 하트). sdf 아님(원본 색 유지).
+                // frontend markers.tsx 의 SVG 글리프 동치(PinMarkerGlyphs).
+                try map.addImage(PinMarkerGlyphs.reel, id: "wwg-pin-glyph-reel")
+                try map.addImage(PinMarkerGlyphs.wish, id: "wwg-pin-glyph-wish")
+                try map.addImage(PinMarkerGlyphs.memory, id: "wwg-pin-glyph-memory")
+
+                // 개별 핀 심볼(태그별 글리프 이미지) — point_count 없는 feature.
+                var pinSymbol = SymbolLayer(id: pinSymbolLayerId, source: sourceId)
+                pinSymbol.filter = Exp(.not) { Exp(.has) { "point_count" } }
+                pinSymbol.iconImage = .expression(Exp(.match) {
+                    Exp(.get) { "tag" }
+                    PinTag.REEL.rawValue
+                    "wwg-pin-glyph-reel"
+                    PinTag.WISH.rawValue
+                    "wwg-pin-glyph-wish"
+                    PinTag.MEMORY.rawValue
+                    "wwg-pin-glyph-memory"
+                    "wwg-pin-glyph-reel"
+                })
+                // 웹 getMarkerVariant: WISH 1.2배(이미지 자체가 20pt 라 기본 1.0, WISH 만 1.2).
+                pinSymbol.iconSize = .expression(Exp(.match) {
+                    Exp(.get) { "tag" }
+                    PinTag.WISH.rawValue
+                    1.2
+                    1.0
+                })
+                pinSymbol.iconAllowOverlap = .constant(true)
+                pinSymbol.iconIgnorePlacement = .constant(true)
+                try map.addLayer(pinSymbol)
 
                 clusterInstalled = true
             } catch {
@@ -278,7 +300,7 @@ struct MapboxMapView: UIViewRepresentable {
             guard let mapView else { return }
             let point = recognizer.location(in: mapView)
             let options = RenderedQueryOptions(
-                layerIds: [clusterCircleLayerId, clusterCountLayerId, pinCircleLayerId],
+                layerIds: [clusterCircleLayerId, clusterCountLayerId, pinSymbolLayerId],
                 filter: nil
             )
             mapView.mapboxMap.queryRenderedFeatures(with: point, options: options) { [weak self] result in
@@ -331,20 +353,6 @@ struct MapboxMapView: UIViewRepresentable {
         func gestureManager(_ gestureManager: GestureManager, didBegin gestureType: GestureType) {}
         func gestureManager(_ gestureManager: GestureManager, didEnd gestureType: GestureType, willAnimate: Bool) {}
         func gestureManager(_ gestureManager: GestureManager, didEndAnimatingFor gestureType: GestureType) {}
-
-        /// 태그별 개별 핀 색 표현식(REEL/WISH/MEMORY). frontend MapboxView.tsx 마커 색 대응.
-        private func tagColorExpression() -> Exp {
-            Exp(.match) {
-                Exp(.get) { "tag" }
-                PinTag.REEL.rawValue
-                StyleColor(UIColor(WGColor.pinReel)).rawValue
-                PinTag.WISH.rawValue
-                StyleColor(UIColor(WGColor.pinWish)).rawValue
-                PinTag.MEMORY.rawValue
-                StyleColor(UIColor(WGColor.pinMemory)).rawValue
-                StyleColor(UIColor(WGColor.cta)).rawValue
-            }
-        }
     }
 }
 

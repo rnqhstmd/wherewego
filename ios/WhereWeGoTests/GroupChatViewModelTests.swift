@@ -283,6 +283,58 @@ final class GroupChatViewModelTests: XCTestCase {
         XCTAssertEqual(router.pending, .reelFocus(groupId: 7, instagramUrl: "https://instagram.com/reel/abc"))
     }
 
+    /// PIN_REPLY 핀 카드 탭 → 그 그룹/핀으로 .pinFocus 딥링크 세팅(openReel 미러).
+    func test_openPin_setsPinFocusPending() {
+        let router = DeepLinkRouter()
+        let vm = makeVM(chatAPI: StubChatAPI(), router: router, groupId: 7)
+        vm.openPin(pinId: 42)
+        XCTAssertEqual(router.pending, .pinFocus(groupId: 7, pinIds: [42]))
+    }
+
+    // MARK: - PIN_REPLY pinSnapshot 디코딩(설계 §1)
+
+    /// PIN_REPLY 프레임이 top-level pinSnapshot + payload.text 를 평탄화 디코딩하는지 검증.
+    func test_decode_pinReplyFrame_parsesSnapshotAndText() throws {
+        let json = """
+        {"messageId":7,"roomId":10,"senderUserId":1,"senderNickname":"u1","kind":"PIN_REPLY",
+         "payload":{"text":"여기 좋아요"},"createdAt":"2026-06-10T12:00:00+09:00",
+         "pinSnapshot":{"pinId":42,"placeName":"성수 카페","tag":"WISH","memo":"분위기 굿",
+                        "photoThumbnailUrl":"https://t","photoUrl":"https://f","deleted":false}}
+        """
+        let frame = try JSONDecoder().decode(GroupChatFrame.self, from: Data(json.utf8))
+        XCTAssertEqual(frame.kind, .PIN_REPLY)
+        XCTAssertEqual(frame.text, "여기 좋아요")
+        XCTAssertEqual(frame.pinSnapshot?.pinId, 42)
+        XCTAssertEqual(frame.pinSnapshot?.placeName, "성수 카페")
+        XCTAssertEqual(frame.pinSnapshot?.tag, "WISH")
+        XCTAssertEqual(frame.pinSnapshot?.deleted, false)
+    }
+
+    /// 핀 삭제 프레임: deleted=true + placeName 유지, 사진 nil.
+    func test_decode_pinReplyFrame_deletedSnapshot() throws {
+        let json = """
+        {"messageId":8,"roomId":10,"senderUserId":1,"senderNickname":"u1","kind":"PIN_REPLY",
+         "payload":{"text":"hi"},"createdAt":"2026-06-10T12:00:00+09:00",
+         "pinSnapshot":{"pinId":43,"placeName":"옛 장소","tag":null,"memo":null,
+                        "photoThumbnailUrl":null,"photoUrl":null,"deleted":true}}
+        """
+        let frame = try JSONDecoder().decode(GroupChatFrame.self, from: Data(json.utf8))
+        XCTAssertEqual(frame.pinSnapshot?.deleted, true)
+        XCTAssertEqual(frame.pinSnapshot?.placeName, "옛 장소")
+        XCTAssertNil(frame.pinSnapshot?.photoThumbnailUrl)
+    }
+
+    /// 비-PIN_REPLY(TEXT) 프레임은 pinSnapshot 이 nil(top-level 키 부재 → decodeIfPresent).
+    func test_decode_textFrame_pinSnapshotNil() throws {
+        let json = """
+        {"messageId":9,"roomId":10,"senderUserId":1,"senderNickname":"u1","kind":"TEXT",
+         "payload":{"text":"안녕"},"createdAt":"2026-06-10T12:00:00+09:00"}
+        """
+        let frame = try JSONDecoder().decode(GroupChatFrame.self, from: Data(json.utf8))
+        XCTAssertNil(frame.pinSnapshot)
+        XCTAssertEqual(frame.text, "안녕")
+    }
+
     // MARK: - willPresent 신호(FR-GC2-6)
 
     func test_pushSignal_currentRoomMatching() async {

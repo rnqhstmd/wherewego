@@ -217,6 +217,8 @@ final class MapViewModel: ObservableObject {
     /// 장소 검색 API. AddPlaceViewModel 이 검색에 사용(읽기 전용 공개).
     let placeAPI: PlaceAPIProtocol
     private let groupAPI: GroupAPIProtocol
+    /// 채팅 API. 핀 답장(PIN_REPLY) → 이 그룹 채팅방 전송에 사용(PinReplySheet 가 sendPinReply 경유 호출).
+    private let chatAPI: ChatAPIProtocol
     /// 위치 서비스. RouletteViewModel(one-shot)·방문감지 구독에 사용(읽기 전용 공개).
     let locationService: LocationServiceProtocol
 
@@ -246,6 +248,7 @@ final class MapViewModel: ObservableObject {
         pinAPI: PinAPIProtocol,
         placeAPI: PlaceAPIProtocol,
         groupAPI: GroupAPIProtocol,
+        chatAPI: ChatAPIProtocol,
         locationService: LocationServiceProtocol,
         pollInterval: TimeInterval = 30,
         now: @escaping () -> Date = { Date() }
@@ -253,6 +256,7 @@ final class MapViewModel: ObservableObject {
         self.pinAPI = pinAPI
         self.placeAPI = placeAPI
         self.groupAPI = groupAPI
+        self.chatAPI = chatAPI
         self.locationService = locationService
         self.pollInterval = pollInterval
         self.now = now
@@ -515,9 +519,57 @@ final class MapViewModel: ObservableObject {
         fitBounds(markers: targets)
     }
 
+    /// 알림 핀 포커스(IG-2 FR-4). focusReel 미러 — 그룹 전환/재로드 후 대상 핀으로 카메라.
+    /// 1개 = flyTo(pinFocusZoom) + selectedPinId(말풍선 자동 오픈) / N개 = fitBounds(말풍선 없음) / 0개 = no-op.
+    /// focusedInstagramUrl 은 건드리지 않는다(릴스 배너 미발화).
+    func focusPins(groupId targetGroupId: Int, pinIds: [Int]) async {
+        if groupId != targetGroupId {
+            await switchTo(groupId: targetGroupId)
+        } else {
+            await reloadPinsAppendOnly()
+        }
+        // switchTo 가 selectedPinId 를 nil 로 정리한 뒤에 세팅되도록 전환/재로드 이후에 타깃을 구한다(순서 보장).
+        let targets = pins.filter { pinIds.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        if targets.count == 1, let pin = targets.first {
+            // 단일 핀: 카메라 이동 + 말풍선 자동 오픈(selectedPinId). 기존 flyTo 경로 재사용(MUST-1 규약 포함).
+            flyTo(lat: pin.latitude, lng: pin.longitude)
+            selectedPinId = pin.id
+        } else {
+            // N개: fitBounds(말풍선 없음, focusReel 라인 패턴 동치).
+            let markers = targets.map {
+                MapMarker(id: $0.id, latitude: $0.latitude, longitude: $0.longitude, tag: $0.tag)
+            }
+            fitBounds(markers: markers)
+        }
+    }
+
     /// 릴스 포커스 해제(FR-I13/BR-4). 지도 배너 ✕로만 호출된다(탭 전환·재진입으로는 해제 안 함).
     func clearReelFocus() {
         focusedInstagramUrl = nil
+    }
+
+    // MARK: - 핀 답장(PIN_REPLY → 그룹 채팅방)
+
+    /// 핀 답장(PIN_REPLY) → 이 그룹 채팅방 전송. 성공 시 안내 토스트(공용 하단 안내 렌더 재사용).
+    /// chatAPI.sendGroupMessage(kind:.PIN_REPLY, text:, pinId:) 호출 — 성공 true + 안내 토스트, 실패 false.
+    /// 활성 그룹 미확보면 토스트 없이 false(시트가 인라인 에러 표기). PinReplySheet 가 await 호출.
+    func sendPinReply(pinId: Int, text: String) async -> Bool {
+        guard let groupId else { return false }
+        do {
+            _ = try await chatAPI.sendGroupMessage(
+                groupId: groupId,
+                kind: .PIN_REPLY,
+                text: text,
+                url: nil,
+                pinId: pinId
+            )
+            // visitInfoMessage 는 명명은 visit 이지만 지도 하단 안내 토스트의 공용 렌더 출구다(VisitToastView/공용 배너 공유).
+            visitInfoMessage = "채팅방에 답장을 보냈어요 💬"
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - 캐시·폴링(FR-24/BR-7)

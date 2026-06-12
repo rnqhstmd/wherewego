@@ -94,6 +94,7 @@ final class PinDetailViewModelTests: XCTestCase {
             pinAPI: pinAPI,
             placeAPI: StubPlaceAPI(),
             groupAPI: StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: StubLocationService(status: .denied)
         )
     }

@@ -134,7 +134,7 @@ class GroupChatServiceIT {
         jdbcTemplate.update(
                 "UPDATE chat_room SET deleted_at = now() WHERE group_id = ? AND type = 'GROUP'", groupId);
 
-        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "재생성", null);
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "재생성", null, null);
 
         assertThat(activeGroupRoomCount(groupId)).isEqualTo(1);
         assertThat(groupChatService.getMessages(userA, groupId, null, 20).frames()).hasSize(1);
@@ -145,7 +145,7 @@ class GroupChatServiceIT {
     void postMessage_text_visibleToOtherMember() {
         Long groupId = createSharedGroup();
 
-        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "주말에 성수?", null);
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "주말에 성수?", null, null);
 
         GroupMessagesPage page = groupChatService.getMessages(userB, groupId, null, 20);
         assertThat(page.frames()).hasSize(1);
@@ -160,7 +160,7 @@ class GroupChatServiceIT {
     @Test
     void postMessage_frameCarriesSenderProfileImageUrl() {
         Long groupId = createSharedGroup();
-        Long messageId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "안녕", null).getId();
+        Long messageId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "안녕", null, null).getId();
 
         // userA 는 프사 키/카카오 URL 모두 없음(create(..., null)) → senderProfileImageUrl null, 닉네임은 존재.
         GroupChatMessageFrame frame = frameOf(groupId, messageId);
@@ -181,7 +181,7 @@ class GroupChatServiceIT {
     void nonMember_forbidden() {
         Long groupId = groupMemberService.createGroup(userA, "그룹1").groupId();
 
-        assertThatThrownBy(() -> groupChatService.postMessage(userB, groupId, MessageKind.TEXT, "hi", null))
+        assertThatThrownBy(() -> groupChatService.postMessage(userB, groupId, MessageKind.TEXT, "hi", null, null))
                 .isInstanceOf(CoreException.class)
                 .extracting(e -> ((CoreException) e).getErrorType())
                 .isEqualTo(ErrorType.GROUP_NOT_MEMBER);
@@ -198,9 +198,9 @@ class GroupChatServiceIT {
     void postMessage_textValidation() {
         Long groupId = groupMemberService.createGroup(userA, "그룹1").groupId();
 
-        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "  ", null),
+        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "  ", null, null),
                 ErrorType.CHAT_TEXT_INVALID);
-        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "a".repeat(2001), null),
+        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "a".repeat(2001), null, null),
                 ErrorType.CHAT_TEXT_INVALID);
     }
 
@@ -210,16 +210,16 @@ class GroupChatServiceIT {
         Long groupId = groupMemberService.createGroup(userA, "그룹1").groupId();
 
         assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null,
-                        "http://instagram.com/reel/aaa"),
+                        "http://instagram.com/reel/aaa", null),
                 ErrorType.CHAT_REEL_URL_INVALID);
         assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null,
-                        "https://example.com/reel/aaa"),
+                        "https://example.com/reel/aaa", null),
                 ErrorType.CHAT_REEL_URL_INVALID);
-        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, null),
+        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, null, null),
                 ErrorType.CHAT_REEL_URL_INVALID);
         // 2000자 상한(payload 비대 차단) — 패턴은 통과하지만 길이로 거부되는 케이스.
         assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null,
-                        "https://instagram.com/reel/aaa?" + "x".repeat(2000)),
+                        "https://instagram.com/reel/aaa?" + "x".repeat(2000), null),
                 ErrorType.CHAT_REEL_URL_INVALID);
     }
 
@@ -228,9 +228,9 @@ class GroupChatServiceIT {
     void postMessage_kindValidation() {
         Long groupId = groupMemberService.createGroup(userA, "그룹1").groupId();
 
-        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.PROCESSING, "x", null),
+        assertErrorType(() -> groupChatService.postMessage(userA, groupId, MessageKind.PROCESSING, "x", null, null),
                 ErrorType.CHAT_KIND_INVALID);
-        assertErrorType(() -> groupChatService.postMessage(userA, groupId, null, "x", null),
+        assertErrorType(() -> groupChatService.postMessage(userA, groupId, null, "x", null, null),
                 ErrorType.CHAT_KIND_INVALID);
     }
 
@@ -240,8 +240,8 @@ class GroupChatServiceIT {
     @Test
     void registered_derivesFromPins() {
         Long groupId = createSharedGroup();
-        groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL);
-        groupChatService.postMessage(userB, groupId, MessageKind.REEL_LINK, null, REEL_URL);
+        groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL, null);
+        groupChatService.postMessage(userB, groupId, MessageKind.REEL_LINK, null, REEL_URL, null);
 
         // 전송 직후: 핀 없음 → 두 메시지 모두 registered=false.
         assertThat(registeredFlags(groupId)).containsExactly(false, false);
@@ -255,14 +255,90 @@ class GroupChatServiceIT {
         assertThat(registeredFlags(groupId)).containsExactly(false, false);
     }
 
+    // ────── PIN_REPLY: 핀 답장 전송 + pinSnapshot 파생 ──────
+
+    @DisplayName("PIN_REPLY - 전송 성공 후 조회 시 pinSnapshot(placeName·tag·deleted=false)이 합성된다.")
+    @Test
+    void pinReply_sendAndSnapshot() {
+        Long groupId = createSharedGroup();
+        Long pinId = savePin(groupId, userA, REEL_URL); // placeName="성수 어니언", tag=WISH
+
+        Long messageId = groupChatService.postMessage(
+                userA, groupId, MessageKind.PIN_REPLY, "여기 가보고 싶어!", null, pinId).getId();
+
+        GroupChatMessageFrame frame = frameOf(groupId, messageId);
+        assertThat(frame.kind()).isEqualTo(MessageKind.PIN_REPLY);
+        assertThat(frame.senderUserId()).isEqualTo(userA);
+        // PIN_REPLY 아닌 파생 필드는 null.
+        assertThat(frame.registered()).isNull();
+        assertThat(frame.thumbnailUrl()).isNull();
+
+        GroupChatMessageFrame.PinSnapshot snapshot = frame.pinSnapshot();
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.pinId()).isEqualTo(pinId);
+        assertThat(snapshot.placeName()).isEqualTo("성수 어니언");
+        assertThat(snapshot.tag()).isEqualTo("WISH");
+        assertThat(snapshot.deleted()).isFalse();
+    }
+
+    @DisplayName("PIN_REPLY - 타 그룹 핀/없는 핀/null pinId 는 CHAT_PIN_INVALID(400).")
+    @Test
+    void pinReply_pinValidation() {
+        Long groupId = createSharedGroup();
+        Long otherGroup = groupMemberService.createGroup(userA, "타그룹").groupId();
+        Long otherGroupPin = savePin(otherGroup, userA, REEL_URL); // 다른 그룹의 핀
+
+        // 타 그룹 핀 → 400.
+        assertErrorType(() -> groupChatService.postMessage(
+                        userA, groupId, MessageKind.PIN_REPLY, "hi", null, otherGroupPin),
+                ErrorType.CHAT_PIN_INVALID);
+        // 없는 핀 → 400.
+        assertErrorType(() -> groupChatService.postMessage(
+                        userA, groupId, MessageKind.PIN_REPLY, "hi", null, 999_999L),
+                ErrorType.CHAT_PIN_INVALID);
+        // pinId 누락 → 400.
+        assertErrorType(() -> groupChatService.postMessage(
+                        userA, groupId, MessageKind.PIN_REPLY, "hi", null, null),
+                ErrorType.CHAT_PIN_INVALID);
+
+        // 삭제된 핀 → 400(소속 그룹이어도 비활성).
+        Long pinId = savePin(groupId, userA, REEL_URL_2);
+        jdbcTemplate.update("UPDATE pins SET deleted_at = now() WHERE id = ?", pinId);
+        assertErrorType(() -> groupChatService.postMessage(
+                        userA, groupId, MessageKind.PIN_REPLY, "hi", null, pinId),
+                ErrorType.CHAT_PIN_INVALID);
+    }
+
+    @DisplayName("PIN_REPLY - 전송 후 핀 soft-delete → 재조회 시 pinSnapshot.deleted=true(placeName 유지·자기치유).")
+    @Test
+    void pinReply_snapshotSelfHealsOnDelete() {
+        Long groupId = createSharedGroup();
+        Long pinId = savePin(groupId, userA, REEL_URL);
+        Long messageId = groupChatService.postMessage(
+                userA, groupId, MessageKind.PIN_REPLY, "여기 좋아", null, pinId).getId();
+
+        // 전송 직후: deleted=false.
+        assertThat(frameOf(groupId, messageId).pinSnapshot().deleted()).isFalse();
+
+        // 핀 soft-delete → 재조회 시 deleted=true + placeName 유지 + 사진/메모 null(자기치유).
+        jdbcTemplate.update("UPDATE pins SET deleted_at = now() WHERE id = ?", pinId);
+        GroupChatMessageFrame.PinSnapshot healed = frameOf(groupId, messageId).pinSnapshot();
+        assertThat(healed.deleted()).isTrue();
+        assertThat(healed.placeName()).isEqualTo("성수 어니언");
+        assertThat(healed.tag()).isNull();
+        assertThat(healed.memo()).isNull();
+        assertThat(healed.photoThumbnailUrl()).isNull();
+        assertThat(healed.photoUrl()).isNull();
+    }
+
     // ────── FR-GC3-2: 릴스 썸네일 파생/노출 ──────
 
     @DisplayName("thumbnailUrl - payload 에 thumbnailUrl 이 있으면 REEL_LINK 프레임 top-level thumbnailUrl 로 노출되고, 비-REEL_LINK 는 null(AC1/AC5).")
     @Test
     void thumbnailUrl_derivedForReelLink_nullOtherwise() {
         Long groupId = createSharedGroup();
-        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
-        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null);
+        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL, null).getId();
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null, null);
 
         // 전송 직후: 비동기 스크래핑(mock) 미반영 → thumbnailUrl null.
         assertThat(thumbnailOf(groupId, reelId)).isNull();
@@ -285,7 +361,7 @@ class GroupChatServiceIT {
     @Test
     void attach_noOpForNonReelOrMissing() {
         Long groupId = createSharedGroup();
-        Long textId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null).getId();
+        Long textId = groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "hi", null, null).getId();
 
         // 비-REEL_LINK → no-op(예외 없음).
         reelThumbnailWriter.attach(textId, "https://x/thumb.jpg");
@@ -293,7 +369,7 @@ class GroupChatServiceIT {
         reelThumbnailWriter.attach(999_999L, "https://x/thumb.jpg");
 
         // REEL_LINK attach 는 url 을 보존한 채 thumbnailUrl 만 채운다.
-        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
+        Long reelId = groupChatService.postMessage(userA, groupId, MessageKind.REEL_LINK, null, REEL_URL, null).getId();
         reelThumbnailWriter.attach(reelId, "https://x/thumb.jpg");
 
         ChatMessage reload = chatMessageRepository.findActiveById(reelId).orElseThrow();
@@ -308,7 +384,7 @@ class GroupChatServiceIT {
     void extractPlaces_senderGetsCards() {
         Long groupId = createSharedGroup();
         Long messageId = groupChatService.postMessage(
-                userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
+                userA, groupId, MessageKind.REEL_LINK, null, REEL_URL, null).getId();
         when(reelPlaceExtractor.extract(eq(REEL_URL), anyLong())).thenReturn(List.of(
                 new PlaceSearchHit("11111111", "성수 어니언", "서울 성동구", 37.5443, 127.0557)));
 
@@ -326,9 +402,9 @@ class GroupChatServiceIT {
     void extractPlaces_validationChain() {
         Long groupId = createSharedGroup();
         Long reelId = groupChatService.postMessage(
-                userA, groupId, MessageKind.REEL_LINK, null, REEL_URL).getId();
+                userA, groupId, MessageKind.REEL_LINK, null, REEL_URL, null).getId();
         Long textId = groupChatService.postMessage(
-                userA, groupId, MessageKind.TEXT, "hi", null).getId();
+                userA, groupId, MessageKind.TEXT, "hi", null, null).getId();
 
         // 타 멤버 호출 → 403.
         assertErrorType(() -> groupChatService.extractPlaces(userB, groupId, reelId),
@@ -351,7 +427,7 @@ class GroupChatServiceIT {
     @Test
     void unread_isPerMember() {
         Long groupId = createSharedGroup();
-        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "안녕", null);
+        groupChatService.postMessage(userA, groupId, MessageKind.TEXT, "안녕", null, null);
 
         assertThat(unreadOf(userA, groupId)).isFalse(); // 내가 보낸 마지막 → false
         assertThat(unreadOf(userB, groupId)).isTrue();
@@ -360,7 +436,7 @@ class GroupChatServiceIT {
         assertThat(unreadOf(userB, groupId)).isFalse();
         assertThat(unreadOf(userA, groupId)).isFalse(); // A 포인터는 독립 — 영향 없음
 
-        groupChatService.postMessage(userB, groupId, MessageKind.TEXT, "ㅎㅇ", null);
+        groupChatService.postMessage(userB, groupId, MessageKind.TEXT, "ㅎㅇ", null, null);
         assertThat(unreadOf(userA, groupId)).isTrue(); // 이제 A 가 미읽음
         assertThat(unreadOf(userB, groupId)).isFalse();
     }
@@ -370,8 +446,8 @@ class GroupChatServiceIT {
     void getRooms_previewRules() {
         Long group1 = groupMemberService.createGroup(userA, "그룹1").groupId();
         Long group2 = groupMemberService.createGroup(userA, "그룹2").groupId();
-        groupChatService.postMessage(userA, group1, MessageKind.TEXT, "주말에 성수?", null);
-        groupChatService.postMessage(userA, group2, MessageKind.REEL_LINK, null, REEL_URL);
+        groupChatService.postMessage(userA, group1, MessageKind.TEXT, "주말에 성수?", null, null);
+        groupChatService.postMessage(userA, group2, MessageKind.REEL_LINK, null, REEL_URL, null);
 
         List<GroupRoomSummary> rooms = groupChatService.getRooms(userA);
         assertThat(rooms).hasSize(2);
@@ -392,12 +468,12 @@ class GroupChatServiceIT {
         Long shared = createSharedGroup();
         Long solo = groupMemberService.createGroup(userA, "솔로").groupId();
 
-        groupChatService.postMessage(userA, shared, MessageKind.REEL_LINK, null, REEL_URL_2);
+        groupChatService.postMessage(userA, shared, MessageKind.REEL_LINK, null, REEL_URL_2, null);
         // afterCommit 비동기 아님(동기 콜백)이지만 커밋 직후 실행 — timeout 으로 안전 대기.
         verify(pushNotificationService, timeout(2000))
                 .pushGroupMessage(eq(userB), anyLong(), eq(MessageKind.REEL_LINK));
 
-        groupChatService.postMessage(userA, solo, MessageKind.TEXT, "혼자", null);
+        groupChatService.postMessage(userA, solo, MessageKind.TEXT, "혼자", null, null);
         verify(pushNotificationService, never())
                 .pushGroupMessage(eq(userA), anyLong(), eq(MessageKind.TEXT));
     }

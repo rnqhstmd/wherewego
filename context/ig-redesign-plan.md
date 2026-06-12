@@ -30,7 +30,14 @@
 - 대상: MainTabView·MapView(플로팅)·GroupListView·DMListView(+VM 미리보기 규칙)·DesignSystem(상단바)·기존 ScreenHeader 사용처 일괄
 - 백엔드 무변경
 
-### IG-2: 콘텐츠 화면 + 신규 기능 — "채팅방·프로필·알림" (ios + backend 소규모)
+### IG-2: 콘텐츠 화면 + 신규 기능 — "채팅방·프로필·알림" (ios + backend 소규모) — ✅ PR [#125](https://github.com/rnqhstmd/wherewego/pull/125)
+
+> 2026-06-12 구현 완료(base develop). Mac DoD-B 시각 QA 잔여. 구현 중 확정된 편차:
+> - **프로필 공유 기각** — 내정보 버튼은 "프로필 편집" 단일(프사+닉네임 통합 `ProfileEditView` 신설, 온보딩 NicknameView 무변경)
+> - **내정보 설정 = 3행**(알림 설정·로그아웃·계정 삭제) — '내 그룹 관리'는 지도 탭 ⋯ 담당으로 제외, '약관'은 URL 부재로 제출 시점에 추가
+> - **알림 상세(연결 핀 목록) 화면 폐기** — 행 탭 = detail API 로 유효 핀 추출 → `.pinFocus(groupId, pinIds)` 딥링크(1개=카메라+말풍선/N개=fitBounds). 떠난 그룹·삭제 장소는 토스트
+> - **알림 썸네일 = 첫 핀 사진**(없으면 생략) — 백엔드 목록 응답에 registeredByProfileImageUrl·groupId·thumbnailUrl 추가형 확장, `/users/me`에 pinCount
+> - **진입 단순화 부수효과** — `disappear()`가 폴링 태스크 종료를 await(reconcileLatest 테스트 플래키 근원 제거)
 
 1. **채팅방 인스타 DM화**: 버블 스타일(수신 흰 필/발신 cta 필·라운드 20·꼬리), 입력바 필+원형 전송, 헤더(아바타+멤버 수), REEL_LINK 공유 카드 스타일
 2. **진입 단순화**: `initialUnreadAnchorId`·`serverLastReadId` 앵커 용도·`didInitialScroll` 앵커 분기·진입 필 제거 → 항상 scrollToBottom. 도착 배너 유지. 관련 단위 테스트 정리(reconcileLatest 플래키 포함 재점검 기회)

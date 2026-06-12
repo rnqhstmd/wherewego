@@ -329,8 +329,8 @@ func makeFrame(messageId: Int, kind: MessageKind, cards: [PlaceCard]? = nil, tex
         payload = "{\"cards\":[\(cardsJSON)]}"
     case .TEXT, .SYSTEM, .MEMO_PROMPT:
         payload = "{\"text\":\"\(text ?? "msg")\"}"
-    case .PROCESSING, .REEL_LINK:
-        // REEL_LINK 는 봇 ChatFrame 경로에서 미사용 — 빈 payload 로 방어 처리.
+    case .PROCESSING, .REEL_LINK, .PIN_REPLY:
+        // REEL_LINK/PIN_REPLY 는 봇 ChatFrame 경로에서 미사용 — 빈 payload 로 방어 처리.
         payload = "{}"
     }
     let senderType = kind == .TEXT ? "USER" : "BOT"
@@ -358,6 +358,8 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
     private(set) var sendGroupCallCount = 0
     private(set) var lastSentKind: MessageKind?
     private(set) var lastSentURL: String?
+    /// 마지막 그룹 전송에 사용된 pinId(PIN_REPLY 검증용 — TEXT/REEL_LINK 는 nil).
+    private(set) var lastSentPinId: Int?
     private(set) var extractedMessageId: Int?
     /// groupMessages(reconcile/load 포함) 호출 횟수(send-poll 조기 종료 검증용, AC-5/6).
     private(set) var groupMessagesCallCount = 0
@@ -399,12 +401,13 @@ final class StubChatAPI: ChatAPIProtocol, @unchecked Sendable {
         return try groupMessagesResult.get()
     }
 
-    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?) async throws -> SendMessageResponse {
+    func sendGroupMessage(groupId: Int, kind: MessageKind, text: String?, url: String?, pinId: Int?) async throws -> SendMessageResponse {
         lastGroupId = groupId
         sendGroupCallCount += 1
         lastSentKind = kind
         lastSentText = text
         lastSentURL = url
+        lastSentPinId = pinId
         return try sendGroupResult.get()
     }
 

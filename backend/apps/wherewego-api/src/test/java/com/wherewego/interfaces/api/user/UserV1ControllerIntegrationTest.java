@@ -177,6 +177,41 @@ class UserV1ControllerIntegrationTest {
         assertThat(data.get("nickname").asText()).isEqualTo("기존닉");
         // 업로드 키 없음 → 카카오 URL 폴백(유효 프사 URL 규칙).
         assertThat(data.get("profileImageUrl").asText()).isEqualTo("http://img.example/p.png");
+        // IG-2 FR-5: 핀이 없으면 pinCount 는 0.
+        assertThat(data.get("pinCount").asLong()).isEqualTo(0);
+    }
+
+    @DisplayName("GET /api/v1/users/me - IG-2 FR-5: pinCount 는 내가 등록한 활성 핀(soft-delete 제외) 전 그룹 합산이다.")
+    @Test
+    void getCurrentUser_pinCount_countsMyActivePinsAcrossGroups() {
+        // arrange : 내가 등록한 활성 핀 2개 + soft-delete 핀 1개 + 타인 핀 1개.
+        Long groupId = jdbcTemplate.queryForObject(
+                "INSERT INTO groups (name) VALUES (?) RETURNING id", Long.class, "여행팀");
+        jdbcTemplate.update("INSERT INTO group_members (group_id, user_id) VALUES (?, ?)", groupId, userId);
+        UserModel other = userJpaRepository.save(UserModel.create(30000009L, "타인", null));
+
+        insertPin(groupId, userId, "성수", false);
+        insertPin(groupId, userId, "한남", false);
+        insertPin(groupId, userId, "삭제됨", true);          // soft-delete → 제외
+        insertPin(groupId, other.getId(), "타인장소", false);  // 타인 핀 → 제외
+
+        // act
+        ResponseEntity<JsonNode> response = getCurrentUser(accessToken);
+
+        // assert : 활성 + 본인 등록만 합산 → 2.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().get("data").get("pinCount").asLong()).isEqualTo(2);
+    }
+
+    /** 핀 직접 INSERT (V001 스키마). {@code deleted} 면 deleted_at 을 채워 soft-delete 핀으로 만든다. */
+    private void insertPin(Long groupId, Long createdBy, String placeName, boolean deleted) {
+        jdbcTemplate.update(
+                "INSERT INTO pins (group_id, created_by, place_name, address, latitude, longitude, "
+                        + "instagram_url, memo, memo_source, tag, deleted_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                groupId, createdBy, placeName, "서울 강남구",
+                new java.math.BigDecimal("37.5000000"), new java.math.BigDecimal("127.0000000"),
+                null, null, null, "MEMORY", deleted ? java.sql.Timestamp.from(java.time.Instant.now()) : null);
     }
 
     @DisplayName("PUT /api/v1/users/me - access_token 쿠키가 없으면 401 을 반환한다.")

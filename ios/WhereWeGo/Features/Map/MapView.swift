@@ -357,7 +357,7 @@ struct MapView: View {
 
             // 우하단 플로팅 컨트롤 세로 스택: 내 위치(위, 보조) + 장소 추가 ＋ speed-dial(아래, 주 액션).
             //  룰렛(우상단)과 분리(ZStack alignment). ＋ FAB 는 탭바에서 분리되어 이리로 이동(탭=이동 / FAB=지도 행동).
-            //  주 액션(＋, 56 주황)을 thumb-reach 코너 최하단에 두고, 보조(내위치, 48 흰)를 그 위에 둔다.
+            //  주 액션(＋, 56 주황)을 thumb-reach 코너 최하단에 두고, 보조(내위치, 44 흰)를 그 위에 둔다.
             //  ＋ 탭 → speed-dial 펼침(✋ 지도에서 찍기 / 🔍 검색해서 찾기). 인라인 추가 모드(isAddingPin) 중엔
             //  하단 InlineAddPlaceCard 가 떠 있으므로 speed-dial 전체를 숨긴다(중복 방지).
             VStack {
@@ -411,6 +411,9 @@ struct MapView: View {
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(WGColor.panel))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                    // 시각 36 유지 + 히트 영역 44(HIG 최소 터치 타깃 — IG-1 ＋버튼 선례).
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("그룹 목록으로")
 
@@ -432,6 +435,9 @@ struct MapView: View {
                 .padding(.vertical, 9)
                 .background(Capsule().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                // 시각 높이(~36) 유지 + 히트 영역 44(HIG 최소 터치 타깃).
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .accessibilityLabel("그룹 전환")
 
@@ -454,6 +460,9 @@ struct MapView: View {
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(WGColor.panel))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                    // 시각 36 유지 + 히트 영역 44(HIG 최소 터치 타깃).
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("그룹 관리")
         }
@@ -539,18 +548,18 @@ struct MapView: View {
     // MARK: - 플로팅 버튼(어디가지 좌하단 / 내 위치·＋ 추가 우하단, IA 재설계 §5 + P8 영역4 후속)
 
     /// 어디가지(룰렛) FAB(IA 재설계 §5). 좌하단. 탭 → 룰렛 시트(자동 추첨). 룰렛 탭 제거 후 접근 경로 보존.
-    /// 주사위 아이콘 단독 48pt 원형 — 우하단 컨트롤(내위치/＋ 48pt)과 크기·기준선 통일.
+    /// 보조 액션 — 흰 배경 + 주황 다이스 44pt(내위치와 동형). 주황 원형은 ＋(주 액션) 단독.
     private var rouletteFAB: some View {
         Button {
             showRoulette = true
             Task { await rouletteViewModel.spin() }   // 진입 즉시 자동 추첨(구 어디갈까 탭 onChange 동치)
         } label: {
             Image(systemName: "dice.fill")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(WGColor.panel)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(WGColor.cta))
-                .shadow(color: WGColor.shadowMd, radius: 8, y: 3)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(WGColor.cta)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(WGColor.panel))
+                .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
         .accessibilityLabel("어디가지 추천")
     }
@@ -569,9 +578,9 @@ struct MapView: View {
             }
         } label: {
             Image(systemName: "location.fill")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(WGColor.cta)
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .background(Circle().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
         }
@@ -582,48 +591,53 @@ struct MapView: View {
     ///  닫힘=＋ 원형 FAB(56 주황). ＋ 탭 → 위로 2선택지 펼침(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색).
     ///  각 선택지가 enterAddPin(mode:)로 해당 모드 진입. isAddingPin 중엔 상위 스택에서 숨겨 중복을 막는다.
     private var addPinSpeedDial: some View {
-        // ZStack 고정 배치: ＋ 버튼 위치를 불변으로 두고 선택지만 위로 펼친다.
-        //  (이전 VStack 삽입 방식은 펼침 시 레이아웃이 출렁여 ＋가 대각선으로 움직이는 모션이 생겼다 —
-        //   ＋는 제자리에서 45° 회전(✕)만 하도록 고정.)
-        ZStack(alignment: .bottomTrailing) {
-            if viewModel.isAddMenuExpanded {
-                VStack(alignment: .trailing, spacing: 12) {
-                    speedDialItem(
-                        icon: "hand.draw.fill",
-                        label: "지도에서 찍기",
-                        accessibility: "지도에서 찍어 추가"
-                    ) { viewModel.enterAddPin(mode: .pinpoint) }
-                    speedDialItem(
-                        icon: "magnifyingglass",
-                        label: "검색해서 찾기",
-                        accessibility: "검색해서 추가"
-                    ) { viewModel.enterAddPin(mode: .search) }
+        // ＋ 완전 고정 보장: 펼침 항목을 overlay(레이아웃 비참여)로 ＋ 프레임 밖에 절대 배치한다.
+        //  이전 ZStack 방식은 항목(라벨 캡슐 포함, ＋보다 넓음)이 레이아웃에 참여해 컨테이너 프레임이
+        //  커지는 변화가 애니메이트되며 ＋가 대각선으로 끌려갔다 돌아왔다 — overlay 는 부모 크기에
+        //  영향이 없어 ＋는 1px 도 움직이지 않고 제자리 45° 회전(✕)만 한다.
+        mainPlusButton
+            .overlay(alignment: .bottomTrailing) {
+                if viewModel.isAddMenuExpanded {
+                    VStack(alignment: .trailing, spacing: 12) {
+                        speedDialItem(
+                            icon: "hand.draw.fill",
+                            label: "지도에서 찍기",
+                            accessibility: "지도에서 찍어 추가"
+                        ) { viewModel.enterAddPin(mode: .pinpoint) }
+                        speedDialItem(
+                            icon: "magnifyingglass",
+                            label: "검색해서 찾기",
+                            accessibility: "검색해서 추가"
+                        ) { viewModel.enterAddPin(mode: .search) }
+                    }
+                    .fixedSize()
+                    // ＋(56) 위로 12 간격을 두고 펼침. trailing 은 ＋ 우측 모서리와 정렬.
+                    .alignmentGuide(.bottom) { $0[.bottom] + 56 + 12 }
+                    // ＋에서 피어나듯 등장(머티리얼 speed-dial 문법) — 사선 move 제거.
+                    .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
                 }
-                .padding(.bottom, 48 + 12)   // ＋ 버튼 높이 + 간격 — 버튼 위로만 펼침
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            mainPlusButton
-        }
-        .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
+            .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
     }
 
-    /// speed-dial 메인 ＋ 버튼(48 주황 — 내위치/어디가지와 크기 통일). 펼침 시 제자리 45° 회전(✕).
+    /// speed-dial 메인 ＋ 버튼(56 주황 — 화면 유일 cta 원형, 주 액션). 펼침 시 제자리 45° 회전(✕).
     private var mainPlusButton: some View {
         Button {
             viewModel.isAddMenuExpanded.toggle()
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(WGColor.panel)
                 .rotationEffect(.degrees(viewModel.isAddMenuExpanded ? 45 : 0))
-                .frame(width: 48, height: 48)
+                .frame(width: 56, height: 56)
                 .background(Circle().fill(WGColor.cta))
                 .shadow(color: WGColor.shadowMd, radius: 10, y: 4)
         }
         .accessibilityLabel(viewModel.isAddMenuExpanded ? "추가 메뉴 닫기" : "장소 추가")
     }
 
-    /// speed-dial 펼침 항목: 좌측 라벨 캡슐 + 우측 원형 아이콘 버튼(48 주황). 픽셀 정렬 보정 DoD-B.
+    /// speed-dial 펼침 항목: 좌측 라벨 캡슐 + 우측 원형 아이콘 버튼(48 흰+주황 글리프 — 펼침 중 주황 원형은 ✕뿐).
+    /// transition 은 컨테이너(addPinSpeedDial overlay)에서 일괄 적용 — 항목 개별 transition 금지(사선 모션 원인).
     private func speedDialItem(
         icon: String,
         label: String,
@@ -642,14 +656,13 @@ struct MapView: View {
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(WGColor.panel)
+                    .foregroundStyle(WGColor.cta)
                     .frame(width: 48, height: 48)
-                    .background(Circle().fill(WGColor.cta))
+                    .background(Circle().fill(WGColor.panel))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
             }
         }
         .accessibilityLabel(accessibility)
-        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 }
 

@@ -11,6 +11,8 @@ final class MyInfoViewModel: ObservableObject {
     @Published var nickname: String?
     /// 내 유효 프사 URL(GP-1 FR-3). CurrentUser/me 응답 미러(닉네임과 동일 패턴). nil = 이니셜 폴백(AvatarView).
     @Published var profileImageUrl: String?
+    /// 내가 등록한 핀 수(FR-3 프로필 통계). me() 응답 반영. 구서버는 nil → 화면에서 0 폴백.
+    @Published private(set) var pinCount: Int?
     @Published var isBusy = false
     @Published var errorMessage: String?
     /// 프사 업로드/제거 진행 중(중복 호출 가드 + 아바타 로딩 오버레이). isBusy(로그아웃/계정삭제)와 분리해 상호 비간섭.
@@ -56,16 +58,18 @@ final class MyInfoViewModel: ObservableObject {
         if let user = try? await authAPI.me() {
             nickname = user.nickname
             profileImageUrl = user.profileImageUrl
+            pinCount = user.pinCount
         } else {
             nickname = currentUser.nickname
             profileImageUrl = currentUser.profileImageUrl
         }
     }
 
-    /// 닉네임 수정 완료 후 표시 갱신(NicknameView onDone 콜백에서 호출).
+    /// 닉네임 수정 완료 후 표시 갱신(프로필 편집 onDone 콜백에서 호출). 핀 수도 함께 최신화.
     func refreshNickname() async {
         if let user = try? await authAPI.me() {
             nickname = user.nickname
+            pinCount = user.pinCount
         }
     }
 

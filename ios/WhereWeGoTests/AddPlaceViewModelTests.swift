@@ -113,6 +113,7 @@ final class AddPlaceViewModelTests: XCTestCase {
             pinAPI: StubPinAPI(),
             placeAPI: StubPlaceAPI(),
             groupAPI: StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: StubLocationService()
         )
     }

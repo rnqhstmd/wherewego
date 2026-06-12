@@ -2,12 +2,12 @@ import SwiftUI
 
 // 핀 상세 공통 콘텐츠(설계 §6, D-5). 풀 모달 시트(PinDetailSheet)에서 콘텐츠만 분리·이관한 뷰.
 // NavigationStack/ScrollView 풀모달 래퍼·툴바·dismiss 는 제거하고, 말풍선(PinBubbleView)이 래핑·앵커·닫기를 담당한다.
-// frontend/src/app/map/_components/MemoTagPanelContent.tsx 의 표시/편집/삭제 흐름 이식.
+// frontend/src/app/map/_components/PinPopup.tsx + SpeechBubblePopup.tsx 의 보기/편집/삭제 흐름 이식.
 //
-// 표시: 장소명·주소(있을 때)·메모(있을 때)·Instagram 바로가기(https 가드 AC-17)·태그 배지·등록자.
-// 편집: 태그 변경(REEL/WISH/MEMORY, 낙관 PATCH), 메모(≤500), 장소명(≤200 빈값 불가, Should).
-// 삭제: confirmationDialog → 낙관 DELETE → onRequestClose().
-// 사진: MEMORY 태그일 때만 영역 노출(AC-9). 썸네일/추가·변경/삭제 + 업로드 로딩(QE-3).
+// 보기 모드(기본, 웹 SpeechBubblePopup 보기 동치):
+//  - 헤더: 태그 배지 + 장소명 + 공유 버튼 + ⋯ 메뉴(수정/삭제).
+//  - 주소(있을 때) · 메모↔추억사진 제자리 펼침(C영역) · Instagram 바로가기(https 가드 AC-17).
+// 편집 모드(⋯→수정 시에만): 태그 변경(낙관 PATCH)·장소명(≤200)·메모(≤500)·사진 관리(MEMORY)·삭제 + 완료 행.
 //
 // 태그/메모/장소명/삭제는 MapViewModel 의 낙관적 메서드에 위임(pins 단일 출처).
 // 사진은 PinDetailViewModel(detailVM, PinBubbleView 가 @StateObject 로 소유·주입)이 직접 호출 후 replacePin 으로 반영.
@@ -18,6 +18,12 @@ struct PinDetailContent: View {
     @ObservedObject var detailVM: PinDetailViewModel
     /// 닫기 요청(삭제 완료/다른 사용자 삭제). PinBubbleView 가 selectedPinId·화면좌표 해제로 연결.
     var onRequestClose: () -> Void
+
+    // 보기/편집 모드 분기(B영역, 웹 PinPopup mode 동치). 진입 시 항상 보기 모드(말풍선은 핀마다 재생성).
+    @State private var isEditing = false
+    // 추억 사진 제자리 펼침 상태·전환 네임스페이스(C영역, 웹 PinPhotoInline + FLIP 동치).
+    @State private var isPhotoExpanded = false
+    @Namespace private var photoNS
 
     // 편집 입력 버퍼.
     @State private var memoText: String
@@ -36,6 +42,8 @@ struct PinDetailContent: View {
     @State private var pickedImage: PickedImage?
     /// 공유 카드 시트 표시 여부(웹 PinPopup shareOpen 동치).
     @State private var showShareCard = false
+    /// 핀 답장 시트(PIN_REPLY → 그룹 채팅방) 표시 여부. 답장 버튼이 true 로 트리거.
+    @State private var showReplySheet = false
 
     private let memoLimit = 500
     private let placeNameLimit = 200
@@ -61,25 +69,12 @@ struct PinDetailContent: View {
 
     var body: some View {
         let live = currentPin ?? pin
-        VStack(alignment: .leading, spacing: 18) {
-            header(live)
-            if let address = live.address, !address.isEmpty {
-                addressRow(address)
+        Group {
+            if isEditing {
+                editContent(live)
+            } else {
+                viewContent(live)
             }
-            Divider().overlay(WGColor.hairline)
-            tagSection(live)
-            placeNameSection(live)
-            memoSection(live)
-            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
-                photoSection(live)
-            }
-            if let url = instagramLink(live) {
-                instagramRow(url)
-            }
-            if let error = inlineError ?? detailVM.photoError {
-                errorBanner(error)
-            }
-            deleteButton
         }
         .padding(20)
         .confirmationDialog("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -120,6 +115,14 @@ struct PinDetailContent: View {
                 onClose: { showShareCard = false }
             )
         }
+        // 핀 답장 시트(PIN_REPLY → 그룹 채팅방). 경량 시트(220pt) — 미니 핀 카드 + 한마디 입력 + 전송.
+        .sheet(isPresented: $showReplySheet) {
+            PinReplySheet(
+                pin: live,
+                mapViewModel: mapViewModel,
+                onClose: { showReplySheet = false }
+            )
+        }
         // 다른 사용자/낙관 삭제로 pins 에서 사라지면 말풍선 닫기.
         .onChange(of: currentPin == nil) { _, gone in
             if gone { onRequestClose() }
@@ -130,23 +133,161 @@ struct PinDetailContent: View {
         }
     }
 
-    // MARK: - 헤더(장소명 + 태그 배지 + 등록자)
+    // MARK: - 보기 모드(웹 SpeechBubblePopup/PinPopup 보기 동치, B영역)
 
-    private func header(_ live: PinSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(live.placeName)
-                    .font(WGFont.serif(22))
-                    .foregroundStyle(WGColor.ink)
-                Spacer(minLength: 0)
-                shareButton
-                tagBadge(live.tag)
+    /// 기본 표시 화면 — 웹과 동일한 세로 순서:
+    /// ① 메모↔사진 펼침(맨 위 — 사진이 장소 "위로" 열린다) ② 글리프+장소명 ③ 주소 ④ 인스타
+    /// ⑤ 하단 행(hairline 구분: 날짜·written by 작성자 | 공유·⋯ 메뉴).
+    /// 편집용 입력 버퍼/상태(isEditingMemo 등)는 보기 모드에서 사용하지 않는다.
+    @ViewBuilder
+    private func viewContent(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            memoOrPhotoRow(live)
+            placeRow(live)
+            if let address = live.address, !address.isEmpty {
+                addressRow(address)
             }
-            if let nickname = live.createdByNickname, !nickname.isEmpty {
-                Text("\(nickname) 님이 추가")
-                    .font(WGFont.sans(12))
+            if let url = instagramLink(live) {
+                instagramRow(url)
+            }
+            if let error = inlineError ?? detailVM.photoError {
+                errorBanner(error)
+            }
+            bottomRow(live)
+        }
+    }
+
+    /// 장소 행(웹 Place row 동치) — 마커 미니 글리프(원/별/하트, PinMarkerGlyphs 재사용) + 장소명.
+    /// 글리프 이미지는 그림자 여백(shadowPad)을 포함하므로 프레임을 약간 키워 실모양 크기를 웹(8/11px)에 맞춘다.
+    private func placeRow(_ live: PinSummary) -> some View {
+        HStack(alignment: .center, spacing: 7) {
+            Image(uiImage: PinMarkerGlyphs.image(for: live.tag))
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    width: live.tag == .MEMORY ? 16 : 12,
+                    height: live.tag == .MEMORY ? 16 : 12
+                )
+            Text(live.placeName)
+                .font(WGFont.emo(16))
+                .foregroundStyle(WGColor.ink)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// 하단 행(웹 Bottom row 동치) — hairline 윗줄 + 날짜·written by 작성자(좌) / 공유·⋯ 메뉴(우).
+    private func bottomRow(_ live: PinSummary) -> some View {
+        VStack(spacing: 8) {
+            Divider().overlay(WGColor.hairline)
+            HStack(alignment: .center, spacing: 4) {
+                Text(VisitToastView.formatDate(live.createdAt))
+                    .font(WGFont.mono(11))
+                    .italic()
                     .foregroundStyle(WGColor.inkSoft)
+                if let nickname = live.createdByNickname, !nickname.isEmpty {
+                    Text("written by")
+                        .font(WGFont.sans(10))
+                        .italic()
+                        .foregroundStyle(WGColor.inkSoft)
+                        .padding(.leading, 4)
+                    Text(nickname)
+                        .font(WGFont.sansSemiBold(11))
+                        .foregroundStyle(WGColor.ink)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                replyButton
+                shareButton
+                Menu {
+                    Button("수정") { withAnimation(.easeOut(duration: 0.25)) { isEditing = true } }
+                    Button("삭제", role: .destructive) { showDeleteConfirm = true }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(WGColor.inkSoft)
+                        .frame(width: 28, height: 28)
+                }
+                .accessibilityLabel("더 보기")
             }
+        }
+    }
+
+    // MARK: - 메모 ↔ 추억 사진 제자리 펼침(웹 PinPhotoInline + FLIP 동치, C영역)
+
+    /// 보기 모드의 메모 행. MEMORY + 사진이 있으면 우측 36pt 썸네일 → 탭 시 풀폭 1:1 사진으로 제자리 펼침.
+    /// 펼침/접힘은 withAnimation(easeOut 0.3)으로 말풍선 높이가 자연 애니메이트되게 한다(웹 height FLIP 동치).
+    @ViewBuilder
+    private func memoOrPhotoRow(_ live: PinSummary) -> some View {
+        let hasPhoto = live.tag == .MEMORY && live.photoThumbnailUrl != nil && live.photoUrl != nil
+        if isPhotoExpanded && hasPhoto,
+           let thumb = live.photoThumbnailUrl, let full = live.photoUrl,
+           let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
+            // 확대 사진 노드(풀폭 1:1, blur-up 크로스페이드). 탭 → 메모로 복귀.
+            ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
+                .matchedGeometryEffect(id: "pinPhoto", in: photoNS)
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.3)) { isPhotoExpanded = false }
+                }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                if let memo = live.memo, !memo.isEmpty {
+                    Text(memo)
+                        .font(WGFont.sans(14))
+                        .foregroundStyle(WGColor.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("메모가 없어요")
+                        .font(WGFont.sans(13))
+                        .foregroundStyle(WGColor.inkFaint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if hasPhoto, let thumb = live.photoThumbnailUrl, let thumbURL = URL(string: thumb) {
+                    AsyncImage(url: thumbURL) { phase in
+                        if case let .success(image) = phase {
+                            image.resizable().scaledToFill()
+                        } else {
+                            WGColor.mapBlock
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .matchedGeometryEffect(id: "pinPhoto", in: photoNS)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) { isPhotoExpanded = true }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - 편집 모드(⋯→수정 시에만, 기존 폼 + 완료 행)
+
+    /// 편집 화면: 완료 행 + 기존 편집 폼(태그/장소명/메모/사진/인스타/에러/삭제). 기존 로직 무변경.
+    private func editContent(_ live: PinSummary) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("편집")
+                    .font(WGFont.sansBold(15))
+                    .foregroundStyle(WGColor.ink)
+                Spacer()
+                Button("완료") { withAnimation(.easeOut(duration: 0.25)) { isEditing = false } }
+                    .font(WGFont.sansSemiBold(15))
+                    .foregroundStyle(WGColor.cta)
+            }
+            tagSection(live)
+            placeNameSection(live)
+            memoSection(live)
+            if PinDetailViewModel.shouldShowPhotoSection(tag: live.tag) {
+                photoSection(live)
+            }
+            if let url = instagramLink(live) {
+                instagramRow(url)
+            }
+            if let error = inlineError ?? detailVM.photoError {
+                errorBanner(error)
+            }
+            deleteButton
         }
     }
 
@@ -160,6 +301,18 @@ struct PinDetailContent: View {
                 .foregroundStyle(WGColor.inkSoft)
         }
         .accessibilityLabel("공유")
+    }
+
+    /// 핀 답장 버튼(PIN_REPLY → 그룹 채팅방). 공유 버튼 왼쪽. 탭 시 답장 시트를 띄운다.
+    private var replyButton: some View {
+        Button {
+            showReplySheet = true
+        } label: {
+            Image(systemName: "arrowshape.turn.up.left")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+        }
+        .accessibilityLabel("채팅방에 답장")
     }
 
     private func addressRow(_ address: String) -> some View {
@@ -393,19 +546,6 @@ struct PinDetailContent: View {
             .foregroundStyle(WGColor.inkSoft)
     }
 
-    private func tagBadge(_ tag: PinTag) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(tagColor(tag)).frame(width: 7, height: 7)
-            Text(tagLabel(tag))
-                .font(WGFont.sans(12))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(tagColor(tag).opacity(0.16))
-        .foregroundStyle(WGColor.ink)
-        .clipShape(Capsule())
-    }
-
     private func editToggle(isEditing: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(isEditing ? "저장" : "편집")
@@ -502,6 +642,42 @@ struct PinDetailContent: View {
         case .WISH: return "위시"
         case .MEMORY: return "추억"
         }
+    }
+}
+
+// MARK: - 확대 추억 사진(제자리 펼침, 웹 PinPhotoInline 동치)
+
+/// 말풍선 메모 영역을 대체해 펼쳐지는 풀폭 1:1 사진. 캐시 썸네일을 blur-up placeholder 로 즉시 깔고
+/// 원본 로드 성공 시 0→1 페이드로 드러낸다(스피너 없음). 탭→복귀는 호출처가 onTapGesture 로 처리한다.
+/// internal(파일 외 GroupMessageRow 의 PIN_REPLY 썸네일 펼침에서도 재사용 — 설계 §3 승격).
+struct ExpandedPinPhoto: View {
+    let thumbnailURL: URL
+    let photoURL: URL
+
+    var body: some View {
+        ZStack {
+            // 아래: 썸네일 blur-up placeholder(즉시). 웹 filter blur(12px) scale(1.08) 동치.
+            AsyncImage(url: thumbnailURL) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFill()
+                        .blur(radius: 12)
+                        .scaleEffect(1.08)
+                } else {
+                    WGColor.mapBlock
+                }
+            }
+            // 위: 원본. 성공 시 0→1 크로스페이드(0.4s). 스피너 없음(웹 onLoad opacity 전환 동치).
+            AsyncImage(url: photoURL) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFill()
+                        .transition(.opacity.animation(.easeIn(duration: 0.4)))
+                }
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
     }
 }
 

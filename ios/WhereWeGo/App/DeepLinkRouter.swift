@@ -20,6 +20,9 @@ enum DeepLinkDestination: Equatable {
     case map
     /// 「구경하실래요?」(GC-2 FR-GC2-5) / 봇 저장 "보러가기". 지도 탭 + 해당 그룹 전환 + 릴스 instagramUrl 핀 포커스(focusReel).
     case reelFocus(groupId: Int, instagramUrl: String)
+    /// 알림 탭 → 지도 탭 + 그룹 전환 + 핀 포커스(IG-2 FR-4). 1개=말풍선 자동 오픈 / N개=fitBounds.
+    /// 내부 라우팅 전용 — 푸시 type/Universal Link 매핑에는 추가하지 않는다(알림 행 탭에서만 세팅).
+    case pinFocus(groupId: Int, pinIds: [Int])
 }
 
 @MainActor

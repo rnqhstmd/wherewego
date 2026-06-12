@@ -12,13 +12,13 @@ struct GroupChatView: View {
     @ObservedObject var pushSignal: ChatPushSignal
     /// 방의 그룹명(네비게이션 타이틀).
     let groupName: String
+    /// 방의 그룹(헤더 아바타·멤버 수). nil 이면 이니셜 폴백 + "멤버 N명" 생략.
+    let group: GroupSummary?
 
     @FocusState private var inputFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     private let bottomAnchor = "group-chat-bottom"
-    /// 첫 진입 앵커 스크롤 1회 가드(미읽음 위치부터 진입).
-    @State private var didInitialScroll = false
     /// 하단 근접 여부(하단 센티널 가시성) — 신규 도착 시 자동 스크롤 vs 배너 분기.
     @State private var isNearBottom = true
     /// 위로 스크롤 중 신규 메시지 도착 배너("새 메시지가 있어요").
@@ -32,8 +32,11 @@ struct GroupChatView: View {
         }
         .background(WGColor.bg)
         .animation(.easeOut(duration: 0.2), value: viewModel.saveInfoMessage)
-        .navigationTitle(groupName)
         .navigationBarTitleDisplayMode(.inline)
+        // 인스타 DM 헤더: 그룹 아바타 + 그룹명/멤버 수(시스템 back 버튼 유지).
+        .toolbar {
+            ToolbarItem(placement: .principal) { headerTitle }
+        }
         .task { await viewModel.appear() }
         .onDisappear { Task { await viewModel.disappear() } }
         // scenePhase 복귀 재조회(FR-GC2-6).
@@ -53,6 +56,30 @@ struct GroupChatView: View {
                 },
                 onClose: { viewModel.dismissRegister() }
             )
+        }
+    }
+
+    // MARK: - 헤더(인스타 DM)
+
+    /// 네비게이션 principal 타이틀 — 그룹 아바타 28 + 그룹명/멤버 수.
+    private var headerTitle: some View {
+        HStack(spacing: 8) {
+            GroupAvatarView(
+                imageUrl: group?.imageThumbUrl ?? group?.imageUrl,
+                members: group?.members ?? [],
+                size: 28
+            )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(groupName)
+                    .font(WGFont.sansBold(16))
+                    .foregroundStyle(WGColor.ink)
+                    .lineLimit(1)
+                if let group {
+                    Text("멤버 \(group.memberCount)명")
+                        .font(WGFont.sans(11))
+                        .foregroundStyle(WGColor.inkSoft)
+                }
+            }
         }
     }
 
@@ -81,7 +108,8 @@ struct GroupChatView: View {
                                 showsSender: !chainedWithPrev,
                                 showsTime: !viewModel.isChainedWithNext(at: index),
                                 onRegister: { messageId, url in viewModel.register(messageId: messageId, url: url) },
-                                onOpenReel: { url in viewModel.openReel(url: url) }
+                                onOpenReel: { url in viewModel.openReel(url: url) },
+                                onOpenPin: { pinId in viewModel.openPin(pinId: pinId) }
                             )
                             .id(frame.id)
                             .padding(.top, index == 0 ? 0 : (chainedWithPrev ? 2 : 12))
@@ -101,19 +129,9 @@ struct GroupChatView: View {
                     .padding(.vertical, 14)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                // 첫 진입: 미읽음이 있으면 첫 미읽음 메시지부터(앵커 상단), 없으면 맨 아래로.
-                // 앵커 진입 시 아래에 미읽음이 남으므로 "새 메시지" 필을 즉시 노출(하단 도달 시 자동 해제).
+                // 진입 시 무조건 맨 아래로(인스타 DM 문법).
                 .onAppear {
-                    if !didInitialScroll, let anchor = viewModel.initialUnreadAnchorId {
-                        proxy.scrollTo(anchor, anchor: .top)
-                        if anchor != viewModel.messages.last?.messageId {
-                            isNearBottom = false
-                            showNewMessagePill = true
-                        }
-                    } else {
-                        scrollToBottom(proxy, animated: false)
-                    }
-                    didInitialScroll = true
+                    scrollToBottom(proxy, animated: false)
                 }
                 // 키보드 등장/해제 시 하단 재고정 — 해제 후 콘텐츠가 위로 밀린 채 떠 있는 잔상(오프셋 미복원) 해소.
                 //  하단에 있던 경우에만(위로 읽는 중엔 위치 보존). 키보드 애니메이션(~0.25s) 후 재정렬.

@@ -17,6 +17,9 @@ struct UserResponse: Decodable {
     let id: Int
     let nickname: String
     let profileImageUrl: String?
+    /// 내가 등록한 핀 수(FR-3 내정보 프로필 통계). 구서버 호환 — 키 부재 시 nil.
+    /// 자동 합성 Decodable 의 옵셔널 프로퍼티는 키가 없어도 디코딩 실패하지 않는다(decodeIfPresent 동치).
+    let pinCount: Int?
 }
 
 // MARK: - 요청 DTO

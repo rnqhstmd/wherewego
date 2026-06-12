@@ -153,7 +153,52 @@ class NotificationV1ControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
                 .andExpect(jsonPath("$.data.items.length()").value(3))
-                .andExpect(jsonPath("$.data.unreadCount").value(2));
+                .andExpect(jsonPath("$.data.unreadCount").value(2))
+                // IG-2 FR-5: groupId 는 알림이 속한 그룹 id 그대로 노출.
+                .andExpect(jsonPath("$.data.items[0].groupId").value(groupId))
+                // 첫 핀에 썸네일 키가 없으면 thumbnailUrl 은 null.
+                .andExpect(jsonPath("$.data.items[0].thumbnailUrl").doesNotExist())
+                // 등록자 프사 키/카카오 URL 둘 다 없으면 registeredByProfileImageUrl 은 null.
+                .andExpect(jsonPath("$.data.items[0].registeredByProfileImageUrl").doesNotExist());
+    }
+
+    @DisplayName("GET /api/v1/notifications - IG-2 FR-5: 첫 핀 썸네일 키가 있으면 thumbnailUrl 이 public URL 로, "
+            + "등록자 카카오 프사가 있으면 registeredByProfileImageUrl 이 채워진다.")
+    @Test
+    void listNotifications_populatesThumbnailUrlAndProfileImageUrl() throws Exception {
+        // arrange : 카카오 프사를 가진 등록자(userD) + 썸네일 키가 있는 핀.
+        UserModel userD = userJpaRepository.save(
+                UserModel.create(80000004L, "userD", "http://img.example/d.png"));
+        Long userDId = userD.getId();
+        jdbcTemplate.update("INSERT INTO group_members (group_id, user_id) VALUES (?, ?)", groupId, userDId);
+
+        Long pinId = insertPinWithThumbnail(groupId, userDId, "성수", "groups/1/pins/1/thumb.webp");
+        saveNotification(userBId, userDId, NotificationType.MANUAL_PIN, List.of(pinId));
+
+        // act & assert
+        mockMvc.perform(get("/api/v1/notifications").cookie(authCookieB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].groupId").value(groupId))
+                // 썸네일 키 → public URL 조합(끝부분 키로 검증).
+                .andExpect(jsonPath("$.data.items[0].thumbnailUrl",
+                        org.hamcrest.Matchers.endsWith("/groups/1/pins/1/thumb.webp")))
+                // 업로드 키 없음 → 카카오 URL 폴백.
+                .andExpect(jsonPath("$.data.items[0].registeredByProfileImageUrl")
+                        .value("http://img.example/d.png"));
+    }
+
+    /** 썸네일 키가 채워진 핀 INSERT (V001 스키마 + photo_thumbnail_key). */
+    private Long insertPinWithThumbnail(Long groupId, Long createdBy, String placeName, String thumbnailKey) {
+        return jdbcTemplate.queryForObject(
+                "INSERT INTO pins (group_id, created_by, place_name, address, latitude, longitude, "
+                        + "instagram_url, memo, memo_source, tag, photo_thumbnail_key) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+                Long.class,
+                groupId, createdBy, placeName, "서울 강남구",
+                new BigDecimal("37.5000000"), new BigDecimal("127.0000000"),
+                null, null, null, "MEMORY", thumbnailKey);
     }
 
     // ============================================================
