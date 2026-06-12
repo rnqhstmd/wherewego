@@ -76,12 +76,15 @@ struct TagFilterButton: View {
                     }
                 }
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
+                // 시각 36 유지 + 히트 영역 44(HIG 최소 터치 타깃 — 상단 행 공통).
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("핀 필터")
-        // 팝업은 버튼 아래로(top +44) + trailing 앵커로 좌측 펼침(248 화면 내 유지).
+        // 팝업은 버튼(히트 44) 아래로 + trailing 앵커로 좌측 펼침(248 화면 내 유지). 시각 원(36) 하단 기준 ~8 간격.
         .overlay(alignment: .topTrailing) {
             if isOpen {
-                popup.offset(y: 36 + 8)
+                popup.offset(y: 44 + 4)
             }
         }
     }
