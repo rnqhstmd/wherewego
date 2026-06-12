@@ -122,6 +122,7 @@ final class MapCacheAndPollingTests: XCTestCase {
             pinAPI: pinAPI ?? StubListPinAPI(sequence: [[]]),
             placeAPI: StubCachePlaceAPI(),
             groupAPI: StubCacheGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: StubCacheLocationService(),
             pollInterval: 30,
             now: now

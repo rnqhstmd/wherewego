@@ -108,7 +108,8 @@ struct GroupChatView: View {
                                 showsSender: !chainedWithPrev,
                                 showsTime: !viewModel.isChainedWithNext(at: index),
                                 onRegister: { messageId, url in viewModel.register(messageId: messageId, url: url) },
-                                onOpenReel: { url in viewModel.openReel(url: url) }
+                                onOpenReel: { url in viewModel.openReel(url: url) },
+                                onOpenPin: { pinId in viewModel.openPin(pinId: pinId) }
                             )
                             .id(frame.id)
                             .padding(.top, index == 0 ? 0 : (chainedWithPrev ? 2 : 12))

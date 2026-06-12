@@ -51,6 +51,7 @@ struct MainTabView: View {
             pinAPI: dependencies.pinAPI,
             placeAPI: dependencies.placeAPI,
             groupAPI: dependencies.groupAPI,
+            chatAPI: dependencies.chatAPI,
             locationService: dependencies.locationService
         )
         _mapViewModel = StateObject(wrappedValue: map)

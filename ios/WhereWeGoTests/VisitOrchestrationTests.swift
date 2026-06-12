@@ -90,6 +90,7 @@ final class VisitOrchestrationTests: XCTestCase {
             pinAPI: pinAPI,
             placeAPI: StubVisitPlaceAPI(),
             groupAPI: StubVisitGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: StubVisitLocationService(status: .denied)
         )
         await vm.load()

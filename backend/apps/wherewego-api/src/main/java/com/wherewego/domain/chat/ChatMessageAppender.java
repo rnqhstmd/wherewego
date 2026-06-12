@@ -86,6 +86,19 @@ public class ChatMessageAppender {
     }
 
     /**
+     * 그룹 방 핀 답장 메시지(지도 핀 말풍선 "답장"). kind=PIN_REPLY, senderType=USER.
+     *
+     * <p>payload {@code {"pinId": ..., "text": ...}} 로 직렬화된다. 핀 카드는 조회 시 {@code pinId} 로
+     * 배치 조회하여 프레임에 합성(자기치유)하므로 payload 에는 식별자만 보존한다 — REEL_LINK 의 url 보존과 동형.</p>
+     *
+     * @param pinId 답장 대상 핀 ID(전송 시 그룹 활성 핀으로 검증됨)
+     * @param text  답장 본문(1~2000자 — 호출 전 서비스에서 검증)
+     */
+    public ChatMessage appendGroupPinReply(Long roomId, Long userId, Long pinId, String text) {
+        return save(roomId, SenderType.USER, userId, MessageKind.PIN_REPLY, new PinReplyPayload(pinId, text));
+    }
+
+    /**
      * REEL_LINK payload 를 썸네일 URL 포함하여 JSON 문자열로 직렬화한다(GC-3, FR-GC3-2). 저장은 하지 않으며
      * {@link ReelThumbnailWriter}가 비동기 스크래핑 결과를 {@link ChatMessage#replacePayloadJson}로 반영할 때 쓴다.
      * thumbnailKey 는 S3 전환용 예약 슬롯이라 계속 {@code null} 로 둔다.
@@ -135,4 +148,14 @@ public class ChatMessageAppender {
      * @param thumbnailUrl og:image 직참조 썸네일 URL(GC-3, FR-GC3-2 — 전송 시 {@code null}, 비동기 스크래핑 성공 시 채움)
      */
     private record ReelLinkPayload(String url, String thumbnailKey, String thumbnailUrl) { }
+
+    /**
+     * 핀 답장 payload 루트. {@code {"pinId": ..., "text": ...}} JSON 객체로 직렬화된다.
+     * 핀 카드 메타(장소명/태그/사진)는 조회 시 {@code pinId} 로 배치 조회하여 합성하므로
+     * 여기에는 식별자와 본문만 보존한다(REEL_LINK 의 url 보존과 동형 — 핀 변경/삭제에 자기치유).
+     *
+     * @param pinId 답장 대상 핀 ID
+     * @param text  답장 본문
+     */
+    private record PinReplyPayload(Long pinId, String text) { }
 }

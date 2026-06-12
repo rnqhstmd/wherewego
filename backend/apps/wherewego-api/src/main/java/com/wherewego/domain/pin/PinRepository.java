@@ -110,4 +110,13 @@ public interface PinRepository {
      * @param urls 비어 있으면 빈 리스트를 반환한다(쿼리 생략은 호출자 책임).
      */
     List<String> findActiveInstagramUrlsIn(Long groupId, Collection<String> urls);
+
+    /**
+     * PIN_REPLY 프레임 enrich(pinSnapshot)용 — id 집합으로 핀을 IN 1회 조회한다(soft-delete 포함).
+     * <p>삭제된 핀도 placeName 등 메타를 노출(deleted=true)해야 하므로 활성 필터를 두지 않는다.
+     * 핀 row 자체가 미존재하면 결과에서 빠져 호출부가 정합 깨짐(deleted=true + placeName null)으로 처리한다.</p>
+     *
+     * @param pinIds 비어 있으면 빈 리스트를 반환한다(쿼리 생략은 호출자 책임).
+     */
+    List<Pin> findByIdIn(Collection<Long> pinIds);
 }

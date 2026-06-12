@@ -27,9 +27,10 @@ public interface ChatV1ApiSpec {
 
     @Operation(
             summary = "그룹 방 메시지 전송 (GC-1)",
-            description = "그룹 채팅방에 메시지를 전송합니다 (FR-GC1-1/3/8). kind=TEXT(text 1~2000자) 또는 "
-                    + "kind=REEL_LINK(url — https + 인스타 릴스 패턴). 검증 위반은 CHAT_TEXT_INVALID / "
-                    + "CHAT_REEL_URL_INVALID / CHAT_KIND_INVALID (400). 활성 멤버가 아니면 GROUP_NOT_MEMBER (403). "
+            description = "그룹 채팅방에 메시지를 전송합니다 (FR-GC1-1/3/8). kind=TEXT(text 1~2000자), "
+                    + "kind=REEL_LINK(url — https + 인스타 릴스 패턴), kind=PIN_REPLY(text 1~2000자 + pinId — 그룹 활성 핀). "
+                    + "검증 위반은 CHAT_TEXT_INVALID / CHAT_REEL_URL_INVALID / CHAT_PIN_INVALID / CHAT_KIND_INVALID (400). "
+                    + "활성 멤버가 아니면 GROUP_NOT_MEMBER (403). "
                     + "커밋 후 발신자 제외 전 활성 멤버에게 APNs 푸시(best-effort, 1인 그룹 생략). "
                     + "{messageId, kind} 를 반환합니다."
     )

@@ -21,6 +21,12 @@ struct GroupMessageRow: View {
     var onRegister: ((_ messageId: Int, _ url: String) -> Void)?
     /// 「구경하실래요?」(등록됨 REEL_LINK) → 지도 딥링크.
     var onOpenReel: ((_ url: String) -> Void)?
+    /// PIN_REPLY 핀 카드 탭(삭제 핀 아님) → 지도 딥링크(그 핀 포커스).
+    var onOpenPin: ((_ pinId: Int) -> Void)?
+
+    /// PIN_REPLY 핀 사진 썸네일 제자리 펼침 상태(메모 사진 펼침과 동일 문법, PinDetailContent 선례).
+    @State private var isPinPhotoExpanded = false
+    @Namespace private var pinPhotoNS
 
     private var isOutgoing: Bool {
         guard let me = currentUserId, let sender = frame.senderUserId else { return false }
@@ -34,6 +40,8 @@ struct GroupMessageRow: View {
             textBubble
         case .REEL_LINK:
             reelBubble
+        case .PIN_REPLY:
+            pinReplyBubble
         case .SYSTEM:
             systemCaption
         case .MEMO_PROMPT, .PLACE_CARDS, .PROCESSING:
@@ -139,6 +147,156 @@ struct GroupMessageRow: View {
                 Spacer(minLength: 32)
             }
         }
+    }
+
+    // MARK: - PIN_REPLY(핀 답장)
+
+    /// 핀 답장 버블 — 정렬/닉네임/아바타/시각은 TEXT 와 동일 규칙. 내용은 핀 카드 + 답장 텍스트 버블(VStack spacing 8, maxWidth 240).
+    private var pinReplyBubble: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            if isOutgoing {
+                Spacer(minLength: 48)
+                if showsTime { timeLabel }
+            } else {
+                if showsTime { senderAvatar } else { Color.clear.frame(width: 28, height: 1) }
+            }
+            VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 2) {
+                if !isOutgoing, showsSender {
+                    Text(senderName)
+                        .font(WGFont.sans(11))
+                        .foregroundStyle(WGColor.inkSoft)
+                        .padding(.leading, 4)
+                }
+                VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 8) {
+                    pinCard
+                    pinReplyText
+                }
+                .frame(maxWidth: 240, alignment: isOutgoing ? .trailing : .leading)
+            }
+            if !isOutgoing {
+                if showsTime { timeLabel }
+                Spacer(minLength: 48)
+            }
+        }
+    }
+
+    /// 답장 대상 핀 카드 — hairline 스트로크 + panel 배경 + radius 14. 미니 글리프 + 장소명/메모 + (사진 썸네일).
+    /// 삭제 핀(deleted/placeName nil)은 mappin.slash + 안내 문구(사진/탭 비활성). 정상 핀 탭 → onOpenPin.
+    @ViewBuilder
+    private var pinCard: some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        let snapshot = frame.pinSnapshot
+        let isDeleted = (snapshot?.deleted ?? true) || (snapshot?.placeName == nil)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                pinCardGlyph(snapshot: snapshot, isDeleted: isDeleted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pinCardTitle(snapshot: snapshot, isDeleted: isDeleted))
+                        .font(WGFont.sansSemiBold(13))
+                        .foregroundStyle(isDeleted ? WGColor.inkFaint : WGColor.ink)
+                        .lineLimit(1)
+                    if !isDeleted, let memo = snapshot?.memo, !memo.isEmpty {
+                        Text(memo)
+                            .font(WGFont.sans(11.5))
+                            .foregroundStyle(WGColor.inkSoft)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                // 펼침 중에는 우측 미니 썸네일을 숨긴다(matchedGeometry id 단일 인스턴스 유지 — 중복 경고/전환 깨짐 방지).
+                if !isDeleted, !isPinPhotoExpanded,
+                   let thumb = snapshot?.photoThumbnailUrl, let url = URL(string: thumb) {
+                    pinCardThumbnail(thumbURL: url)
+                }
+            }
+            .padding(10)
+            // PIN_REPLY 사진 제자리 펼침(썸네일 탭 시 카드 아래로 1:1 펼침, PinDetailContent.memoOrPhotoRow 문법).
+            //  썸네일과 상호 배타로 렌더해 동일 matchedGeometry id 가 동시에 두 인스턴스에 붙지 않게 한다.
+            if isPinPhotoExpanded, !isDeleted,
+               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
+               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
+                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
+                    .matchedGeometryEffect(id: "pinReplyPhoto", in: pinPhotoNS)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) { isPinPhotoExpanded = false }
+                    }
+            }
+        }
+        .background(WGColor.panel)
+        .clipShape(shape)
+        .overlay(shape.stroke(WGColor.hairline, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // 카드 탭 → 지도 핀 포커스(삭제 핀은 비활성). 썸네일 탭은 자체 onTapGesture 가 가로채 펼침으로 분기.
+            guard !isDeleted, let pinId = snapshot?.pinId else { return }
+            onOpenPin?(pinId)
+        }
+    }
+
+    /// 핀 카드 좌측 글리프 — 정상: 태그 미니 글리프(REEL/WISH 12pt·MEMORY 16pt). 삭제: mappin.slash.
+    @ViewBuilder
+    private func pinCardGlyph(snapshot: PinChatSnapshot?, isDeleted: Bool) -> some View {
+        if isDeleted {
+            Image(systemName: "mappin.slash")
+                .font(.system(size: 14))
+                .foregroundStyle(WGColor.inkFaint)
+                .frame(width: 16, height: 16)
+        } else if let tag = snapshot?.tag.flatMap({ PinTag(rawValue: $0) }) {
+            Image(uiImage: PinMarkerGlyphs.image(for: tag))
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    width: tag == .MEMORY ? 16 : 12,
+                    height: tag == .MEMORY ? 16 : 12
+                )
+        } else {
+            // 미지 태그(서버 신규값) — 회색 점 폴백(글리프 미해석 안전).
+            Circle()
+                .fill(WGColor.inkFaint)
+                .frame(width: 12, height: 12)
+        }
+    }
+
+    /// 핀 카드 제목 — 정상: 장소명. 삭제: "삭제된 장소"(이름 있으면 ": 이름" 병기, deleted=true+placeName 유지 케이스).
+    private func pinCardTitle(snapshot: PinChatSnapshot?, isDeleted: Bool) -> String {
+        guard isDeleted else { return snapshot?.placeName ?? "" }
+        if let name = snapshot?.placeName, !name.isEmpty {
+            return "삭제된 장소: \(name)"
+        }
+        return "삭제된 장소"
+    }
+
+    /// 핀 카드 우측 썸네일(36pt, radius 9) — 탭 시 카드 아래 제자리 1:1 펼침(카드 탭과 별도 onTapGesture 로 우선).
+    private func pinCardThumbnail(thumbURL: URL) -> some View {
+        AsyncImage(url: thumbURL) { phase in
+            if case let .success(image) = phase {
+                image.resizable().scaledToFill()
+            } else {
+                WGColor.mapBlock
+            }
+        }
+        .frame(width: 36, height: 36)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .matchedGeometryEffect(id: "pinReplyPhoto", in: pinPhotoNS)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.3)) { isPinPhotoExpanded = true }
+        }
+    }
+
+    /// 답장 텍스트 버블 — 기존 TEXT 버블 스타일 재사용(수신=panel+꼬리/발신=cta20). 텍스트는 payload(frame.text).
+    private var pinReplyText: some View {
+        Text(frame.text ?? "")
+            .font(WGFont.sans(15))
+            .foregroundStyle(isOutgoing ? WGColor.panel : WGColor.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(isOutgoing ? WGColor.cta : WGColor.panel)
+            .clipShape(textBubbleShape)
+            .overlay(textBubbleShape.stroke(isOutgoing ? Color.clear : WGColor.hairline, lineWidth: 1))
     }
 
     // MARK: - REEL_LINK 썸네일(FR-GC3-2)

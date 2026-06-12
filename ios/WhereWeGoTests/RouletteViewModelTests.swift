@@ -162,6 +162,7 @@ final class RouletteViewModelTests: XCTestCase {
             pinAPI: StubPinAPI(listResult: pins),
             placeAPI: StubPlaceAPI(),
             groupAPI: StubGroupAPI(group: ActiveGroup(groupId: 1, name: "팀", memberCount: 2)),
+            chatAPI: StubChatAPI(),
             locationService: StubLocationService(status: .denied)
         )
         await vm.load()
