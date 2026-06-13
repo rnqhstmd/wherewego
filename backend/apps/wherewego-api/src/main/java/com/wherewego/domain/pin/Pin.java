@@ -207,7 +207,7 @@ public class Pin extends BaseEntity {
     }
 
     /**
-     * 수동 메모 적용. memo 는 non-null, 길이 ≤ 500 자 (호출 전 서비스에서 검증).
+     * 수동 메모 적용. memo 는 non-null, 길이 ≤ 100 자 (호출 전 서비스에서 검증, 2026-06-12 500→100 축소).
      * memoSource 를 MANUAL 로 마킹하여 이후 AUTO 메모 갱신을 차단한다 (BR-3, FR-4).
      */
     public void applyManualMemo(String memo, Long updatedBy) {

@@ -260,11 +260,11 @@ class UserV1ControllerIntegrationTest {
         assertThat(body.get("meta").get("result").asText()).isEqualTo("FAIL");
     }
 
-    @DisplayName("PUT /api/v1/users/me - 닉네임이 13자면 400 을 반환한다.")
+    @DisplayName("PUT /api/v1/users/me - 닉네임이 6자면 400 을 반환한다.")
     @Test
     void updateNickname_tooLong_returns400() {
         // arrange
-        String tooLong = "a".repeat(13);
+        String tooLong = "a".repeat(6);
 
         // act
         ResponseEntity<JsonNode> response = updateNickname(accessToken, tooLong);

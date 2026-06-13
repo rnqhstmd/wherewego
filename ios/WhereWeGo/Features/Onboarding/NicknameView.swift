@@ -44,7 +44,7 @@ struct NicknameView: View {
                 }
                 .padding(.top, 40)
 
-                Text("한글, 영문, 숫자 2~12자")
+                Text("한글, 영문, 숫자 2~5자")
                     .font(WGFont.sans(12))
                     .foregroundStyle(WGColor.inkSoft)
                     .padding(.top, 8)

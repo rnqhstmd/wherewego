@@ -164,7 +164,7 @@ public final class PinV1Dto {
             String normalizedInstagramUrl = blankToNull(instagramUrl);
 
             String normalizedMemo = blankToNull(memo);
-            if (normalizedMemo != null && normalizedMemo.length() > 500) {
+            if (normalizedMemo != null && normalizedMemo.length() > 100) {
                 throw new CoreException(ErrorType.PIN_MEMO_TOO_LONG);
             }
 

@@ -54,7 +54,7 @@ public record PinUpdateCommand(
         if (tagProvided && tag == null) {
             throw new CoreException(ErrorType.PIN_TAG_INVALID);
         }
-        if (memoProvided && memo != null && memo.length() > 500) {
+        if (memoProvided && memo != null && memo.length() > 100) {
             throw new CoreException(ErrorType.PIN_MEMO_TOO_LONG);
         }
         if (placeNameProvided) {
