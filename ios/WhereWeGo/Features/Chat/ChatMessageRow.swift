@@ -35,8 +35,8 @@ struct ChatMessageRow: View {
             memoPromptBubble
         case .SYSTEM:
             systemCaption
-        case .REEL_LINK, .PIN_REPLY:
-            // REEL_LINK/PIN_REPLY 는 그룹 방 전용(GroupMessageRow). 봇 채팅 행에선 렌더링하지 않음.
+        case .REEL_LINK, .PIN_REPLY, .PIN_VISIT, .PIN_MEMORY:
+            // REEL_LINK/PIN_REPLY/PIN_VISIT/PIN_MEMORY 는 그룹 방 전용(GroupMessageRow). 봇 채팅 행에선 렌더링하지 않음.
             EmptyView()
         }
     }

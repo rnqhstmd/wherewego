@@ -5,6 +5,7 @@ import com.wherewego.domain.group.GroupMemberService;
 import com.wherewego.domain.pin.PinPhotoStorage.StoredPhoto;
 import com.wherewego.domain.place.PlaceSearchHit;
 import com.wherewego.domain.user.UserRepository;
+import com.wherewego.domain.user.UserRepository.UserProfile;
 import com.wherewego.support.error.CoreException;
 import com.wherewego.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,12 +28,13 @@ import java.util.stream.Collectors;
 public class PinService {
 
     private final PinRepository pinRepository;
+    private final PinVisitRepository pinVisitRepository;
     private final GroupMemberService groupMemberService;
     private final UserRepository userRepository;
     private final PinPhotoStorage pinPhotoStorage;
     private final S3Properties s3Properties;
 
-    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 + 사진 URL 조합 포함). */
+    /** 단건 Pin → PinSummary 변환 (작성자 닉네임 매핑 + 사진 URL 조합 + 방문자 합성). */
     private PinSummary toSummary(Pin pin) {
         String createdByNickname = userRepository.findById(pin.getCreatedBy())
                 .map(u -> u.getNickname())
@@ -37,8 +42,10 @@ public class PinService {
         String memoUpdatedByNickname = pin.getMemoUpdatedBy() != null
                 ? userRepository.findById(pin.getMemoUpdatedBy()).map(u -> u.getNickname()).orElse(null)
                 : null;
-        return PinSummary.from(pin, createdByNickname, memoUpdatedByNickname,
+        PinSummary summary = PinSummary.from(pin, createdByNickname, memoUpdatedByNickname,
                 toPublicUrl(pin.getPhotoKey()), toPublicUrl(pin.getPhotoThumbnailKey()));
+        // 정책 v2 FR-B4: 방문자 합성. 단건이므로 핀 1개 IN(=findByPinIdAndUserId 대신 findByPinIdIn 재사용).
+        return summary.withVisitors(visitorsByPin(List.of(pin.getId())).getOrDefault(pin.getId(), List.of()));
     }
 
     /**
@@ -54,6 +61,7 @@ public class PinService {
 
     /**
      * 다건 Pin → PinSummary 변환. N+1 회피를 위해 관련 user ids 를 배치 조회하여 닉네임만 주입한다.
+     * 정책 v2 FR-B4: 페이지 핀 IN 1회({@code findByPinIdIn})로 방문자를 모아 visitors 를 합성한다(registered 동형).
      */
     private List<PinSummary> toSummaries(List<Pin> pins) {
         if (pins.isEmpty()) return List.of();
@@ -66,15 +74,49 @@ public class PinService {
                 })
                 .collect(Collectors.toSet());
         Map<Long, String> nicknames = userRepository.findNicknamesByIds(userIds);
+        Map<Long, List<PinVisitorResult>> visitorsByPin =
+                visitorsByPin(pins.stream().map(Pin::getId).toList());
 
         return pins.stream()
                 .map(p -> PinSummary.from(
-                        p,
-                        nicknames.get(p.getCreatedBy()),
-                        p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null,
-                        toPublicUrl(p.getPhotoKey()),
-                        toPublicUrl(p.getPhotoThumbnailKey())))
+                                p,
+                                nicknames.get(p.getCreatedBy()),
+                                p.getMemoUpdatedBy() != null ? nicknames.get(p.getMemoUpdatedBy()) : null,
+                                toPublicUrl(p.getPhotoKey()),
+                                toPublicUrl(p.getPhotoThumbnailKey()))
+                        .withVisitors(visitorsByPin.getOrDefault(p.getId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * 핀 id 집합의 방문자를 pinId → visitors 맵으로 합성한다(정책 v2 FR-B4).
+     * <p>pin_visits IN 1회 + 등장 user 프로필 IN 1회(GP-1 resolver) — 페이지 규모와 무관하게 쿼리 2회.
+     * 빈 입력/방문 없음이면 빈 맵.</p>
+     */
+    private Map<Long, List<PinVisitorResult>> visitorsByPin(List<Long> pinIds) {
+        if (pinIds == null || pinIds.isEmpty()) {
+            return Map.of();
+        }
+        List<PinVisit> visits = pinVisitRepository.findByPinIdIn(pinIds);
+        if (visits.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashSet<Long> visitorUserIds = new LinkedHashSet<>();
+        for (PinVisit visit : visits) {
+            visitorUserIds.add(visit.getUserId());
+        }
+        Map<Long, UserProfile> profiles = userRepository.findProfilesByIds(visitorUserIds);
+        Map<Long, List<PinVisitorResult>> byPin = new LinkedHashMap<>();
+        for (PinVisit visit : visits) {
+            UserProfile profile = profiles.get(visit.getUserId());
+            byPin.computeIfAbsent(visit.getPinId(), k -> new ArrayList<>())
+                    .add(new PinVisitorResult(
+                            visit.getUserId(),
+                            profile == null ? null : profile.nickname(),
+                            profile == null ? null : profile.profileImageUrl(),
+                            visit.getSource()));
+        }
+        return byPin;
     }
 
     /**
@@ -259,7 +301,7 @@ public class PinService {
      * Phase 2.8: placeName/address 도 동일 트랜잭션에서 독립 갱신 가능.
      *
      * <p>Phase 10: 반환 타입을 {@link PinUpdateResult} 로 변경. tag 변경 시 이전 태그를 기억해
-     * WISH/REEL → MEMORY 전환 1회를 Controller에 시그널로 전달한다 (VISIT_DETECTED 알림 트리거 판정).</p>
+     * WISH/REEL → MEMORY 전환 1회를 Controller에 시그널로 전달한다(정책 v2: confetti 분기 — 알림 fan-out 폐기).</p>
      */
     @Transactional
     public PinUpdateResult updatePin(Long userId, Long groupId, Long pinId, PinUpdateCommand cmd) {

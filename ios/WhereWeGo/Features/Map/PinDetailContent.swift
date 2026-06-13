@@ -176,12 +176,40 @@ struct PinDetailContent: View {
         }
     }
 
+    /// 방문자 아바타 스택(정책 v2 FR-B4, AC-5) — 하단 행 "written by {작성자}" 우측에 아이콘만 편입(별도 행·텍스트 없음).
+    /// 아바타 16pt·-5 오버랩, 한 줄 최대 4개 × 2줄(그룹 정원 8명이라 +N 불필요). visitors 가 nil/빈이면 생략한다(AC-5).
+    /// 가입 순(서버 순서) 그대로 노출.
+    @ViewBuilder
+    private func visitorsStack(_ live: PinSummary) -> some View {
+        if let visitors = live.visitors, !visitors.isEmpty {
+            let rows = stride(from: 0, to: min(visitors.count, 8), by: 4).map {
+                Array(visitors[$0..<min($0 + 4, min(visitors.count, 8))])
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: -5) {
+                        ForEach(row) { visitor in
+                            AvatarView(
+                                imageUrl: visitor.profileImageUrl,
+                                name: visitor.nickname ?? "?",
+                                size: 16
+                            )
+                            .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
+                        }
+                    }
+                }
+            }
+            .padding(.leading, 6)
+            .accessibilityLabel("\(visitors.count)명이 다녀감")
+        }
+    }
+
     /// 하단 행(웹 Bottom row 동치) — hairline 윗줄 + 날짜·written by 작성자(좌) / 공유·⋯ 메뉴(우).
     private func bottomRow(_ live: PinSummary) -> some View {
         VStack(spacing: 8) {
             Divider().overlay(WGColor.hairline)
             HStack(alignment: .center, spacing: 4) {
-                Text(VisitToastView.formatDate(live.createdAt))
+                Text(VisitDateFormatter.formatDate(live.createdAt))
                     .font(WGFont.mono(11))
                     .italic()
                     .foregroundStyle(WGColor.inkSoft)
@@ -196,6 +224,7 @@ struct PinDetailContent: View {
                         .foregroundStyle(WGColor.ink)
                         .lineLimit(1)
                 }
+                visitorsStack(live)
                 Spacer(minLength: 8)
                 replyButton
                 shareButton

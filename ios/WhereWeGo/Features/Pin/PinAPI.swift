@@ -8,6 +8,19 @@ import Foundation
 
 // MARK: - 응답 DTO
 
+/// 백엔드 PinV1Dto.VisitorResponse 와 1:1(정책 v2 FR-B4). 핀 방문자 1명.
+/// source(SELF|TAGGED)는 표시에 쓰지 않으나 백엔드 계약 보존을 위해 String? 으로 받는다(미지값 안전).
+/// - userId: Long → Int(PinSummary 선례). profileImageUrl 없으면 nil → AvatarView 이니셜 폴백.
+struct PinVisitor: Decodable, Equatable, Identifiable {
+    let userId: Int
+    let nickname: String?
+    let profileImageUrl: String?
+    let source: String?
+
+    /// Identifiable(아바타 스택 ForEach) — userId 식별.
+    var id: Int { userId }
+}
+
 /// 백엔드 PinV1Dto.PinSummaryResponse 와 필드명·옵셔널 1:1(AC-3).
 struct PinSummary: Decodable, Identifiable, Equatable {
     let id: Int
@@ -28,6 +41,91 @@ struct PinSummary: Decodable, Identifiable, Equatable {
     let memoUpdatedByNickname: String?
     let photoUrl: String?
     let photoThumbnailUrl: String?
+    /// 정책 v2 FR-B4: 방문자 목록(추가형 계약). 구서버는 키 부재 → nil(decodeIfPresent). 0명이면 빈 배열.
+    let visitors: [PinVisitor]?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, groupId, createdBy, createdByNickname, placeName, address
+        case latitude, longitude, instagramUrl, memo, memoSource, tag
+        case createdAt, visitedAt, memoUpdatedBy, memoUpdatedByNickname
+        case photoUrl, photoThumbnailUrl, visitors
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(Int.self, forKey: .id)
+        self.groupId = try c.decode(Int.self, forKey: .groupId)
+        self.createdBy = try c.decode(Int.self, forKey: .createdBy)
+        self.createdByNickname = try c.decodeIfPresent(String.self, forKey: .createdByNickname)
+        self.placeName = try c.decode(String.self, forKey: .placeName)
+        self.address = try c.decodeIfPresent(String.self, forKey: .address)
+        self.latitude = try c.decode(Double.self, forKey: .latitude)
+        self.longitude = try c.decode(Double.self, forKey: .longitude)
+        self.instagramUrl = try c.decodeIfPresent(String.self, forKey: .instagramUrl)
+        self.memo = try c.decodeIfPresent(String.self, forKey: .memo)
+        self.memoSource = try c.decodeIfPresent(MemoSource.self, forKey: .memoSource)
+        self.tag = try c.decode(PinTag.self, forKey: .tag)
+        self.createdAt = try c.decode(String.self, forKey: .createdAt)
+        self.visitedAt = try c.decodeIfPresent(String.self, forKey: .visitedAt)
+        self.memoUpdatedBy = try c.decodeIfPresent(Int.self, forKey: .memoUpdatedBy)
+        self.memoUpdatedByNickname = try c.decodeIfPresent(String.self, forKey: .memoUpdatedByNickname)
+        self.photoUrl = try c.decodeIfPresent(String.self, forKey: .photoUrl)
+        self.photoThumbnailUrl = try c.decodeIfPresent(String.self, forKey: .photoThumbnailUrl)
+        // 추가형 계약(FR-B4) — 구서버는 키 부재 → nil.
+        self.visitors = try c.decodeIfPresent([PinVisitor].self, forKey: .visitors)
+    }
+
+    /// 메모리 직접 생성(테스트/낙관 프레임용). custom init(from:) 도입으로 사라진 멤버와이즈 init 을
+    /// 명시 제공하되, visitors 는 기본값(nil)을 주어 기존 호출을 무수정 유지한다.
+    init(
+        id: Int,
+        groupId: Int,
+        createdBy: Int,
+        createdByNickname: String?,
+        placeName: String,
+        address: String?,
+        latitude: Double,
+        longitude: Double,
+        instagramUrl: String?,
+        memo: String?,
+        memoSource: MemoSource?,
+        tag: PinTag,
+        createdAt: String,
+        visitedAt: String?,
+        memoUpdatedBy: Int?,
+        memoUpdatedByNickname: String?,
+        photoUrl: String?,
+        photoThumbnailUrl: String?,
+        visitors: [PinVisitor]? = nil
+    ) {
+        self.id = id
+        self.groupId = groupId
+        self.createdBy = createdBy
+        self.createdByNickname = createdByNickname
+        self.placeName = placeName
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
+        self.instagramUrl = instagramUrl
+        self.memo = memo
+        self.memoSource = memoSource
+        self.tag = tag
+        self.createdAt = createdAt
+        self.visitedAt = visitedAt
+        self.memoUpdatedBy = memoUpdatedBy
+        self.memoUpdatedByNickname = memoUpdatedByNickname
+        self.photoUrl = photoUrl
+        self.photoThumbnailUrl = photoThumbnailUrl
+        self.visitors = visitors
+    }
+}
+
+/// 백엔드 PinV1Dto.DeclareVisitResponse 와 1:1(정책 v2 FR-B2/B3). 방문 선언 응답.
+/// converted/alreadyConverted 로 클라이언트가 confetti/합산 토스트를 분기한다. visitors 는 갱신 후 명단.
+struct DeclareVisitResponse: Decodable {
+    let converted: Bool
+    let alreadyConverted: Bool
+    let visitors: [PinVisitor]
 }
 
 /// 백엔드 PinV1Dto.PinListResponse. legacy 모드는 items 만(totalCount/hasNext null).
@@ -56,6 +154,13 @@ struct CreatePinRequest: Encodable {
     let instagramUrl: String?
     let memo: String?
     let tag: PinTag
+}
+
+/// 방문 선언 요청(정책 v2 FR-B2/B3). 백엔드 DeclareVisitRequest({"companionUserIds":[...]}) 대칭.
+/// companionUserIds 는 본인 제외 동행 명단. 빈 배열/생략 = 혼자(체크인 또는 1인 그룹 전환).
+/// 서버가 본인 자동 제거·그룹 멤버 검증을 하므로 클라는 선택 명단을 그대로 전달한다.
+struct DeclareVisitRequest: Encodable {
+    let companionUserIds: [Int]
 }
 
 /// 부분 수정 요청(MUST-2). 백엔드 UpdatePinRequest 는 JsonNode 로 "키 없음 vs null vs 빈문자열" 을 구분한다.
@@ -107,6 +212,17 @@ protocol PinAPIProtocol: Sendable {
     func uploadPhoto(groupId: Int, pinId: Int, imageData: Data) async throws -> PinSummary
     /// DELETE /groups/{groupId}/pins/{pinId}/photo.
     func deletePhoto(groupId: Int, pinId: Int) async throws -> PinSummary
+    /// POST /groups/{groupId}/pins/{pinId}/visits (정책 v2 FR-B2/B3). 방문 선언(혼자=체크인/동행=전환).
+    func declareVisit(groupId: Int, pinId: Int, companionUserIds: [Int]) async throws -> DeclareVisitResponse
+}
+
+/// declareVisit 기본 구현(정책 v2) — 기존 테스트 스텁(미구현)의 프로토콜 정합을 유지한다.
+/// GroupAPIProtocol.previewBySlug 패턴 동치(스텁 무수정). 실제 호출 경로(MapViewModel.submitVisit)는 PinAPI 구현이 override 한다.
+/// 방문 분기를 검증하는 스텁(StubVisitPinAPI)은 본 메서드를 명시 override 한다.
+extension PinAPIProtocol {
+    func declareVisit(groupId: Int, pinId: Int, companionUserIds: [Int]) async throws -> DeclareVisitResponse {
+        throw APIError(code: "UNSUPPORTED", status: 0, message: "declareVisit 미지원")
+    }
 }
 
 // MARK: - PinAPI
@@ -180,6 +296,16 @@ final class PinAPI: PinAPIProtocol {
             "/groups/\(groupId)/pins/\(pinId)/photo",
             method: "DELETE",
             type: PinSummary.self
+        )
+    }
+
+    func declareVisit(groupId: Int, pinId: Int, companionUserIds: [Int]) async throws -> DeclareVisitResponse {
+        let body = try JSONEncoder().encode(DeclareVisitRequest(companionUserIds: companionUserIds))
+        return try await client.request(
+            "/groups/\(groupId)/pins/\(pinId)/visits",
+            method: "POST",
+            body: body,
+            type: DeclareVisitResponse.self
         )
     }
 }

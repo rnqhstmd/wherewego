@@ -98,6 +98,78 @@ final class PinDTODecodingTests: XCTestCase {
         XCTAssertNil(pin.photoThumbnailUrl)
     }
 
+    // MARK: - visitors[] 추가형 계약(정책 v2 FR-B4)
+
+    func test_decode_pinSummary_visitorsPresent() throws {
+        // Given visitors[] 포함 응답(방문자 2명). 정책 v2 추가형 필드.
+        let json = """
+        {
+          "id": 9, "groupId": 2, "createdBy": 3, "createdByNickname": null, "placeName": "추억",
+          "address": null, "latitude": 37.0, "longitude": 127.0, "instagramUrl": null, "memo": null,
+          "memoSource": null, "tag": "MEMORY", "createdAt": "2026-01-01T00:00:00+09:00",
+          "visitedAt": null, "memoUpdatedBy": null, "memoUpdatedByNickname": null,
+          "photoUrl": null, "photoThumbnailUrl": null,
+          "visitors": [
+            {"userId": 3, "nickname": "보승", "profileImageUrl": "https://cdn/u3.jpg", "source": "SELF"},
+            {"userId": 4, "nickname": "지은", "profileImageUrl": null, "source": "TAGGED"}
+          ]
+        }
+        """
+
+        // When
+        let pin = try JSONDecoder().decode(PinSummary.self, from: Data(json.utf8))
+
+        // Then visitors 정확 디코딩(프사 없음은 nil → 이니셜 폴백)
+        XCTAssertEqual(pin.visitors?.count, 2)
+        XCTAssertEqual(pin.visitors?.first?.userId, 3)
+        XCTAssertEqual(pin.visitors?.first?.nickname, "보승")
+        XCTAssertEqual(pin.visitors?.first?.profileImageUrl, "https://cdn/u3.jpg")
+        XCTAssertNil(pin.visitors?.last?.profileImageUrl)
+    }
+
+    func test_decode_pinSummary_visitorsAbsentAsNil() throws {
+        // Given visitors 키 부재(구서버 호환). decodeIfPresent → nil.
+        let json = """
+        {
+          "id": 1, "groupId": 2, "createdBy": 3, "createdByNickname": null, "placeName": "장소",
+          "address": null, "latitude": 37.0, "longitude": 127.0, "instagramUrl": null, "memo": null,
+          "memoSource": null, "tag": "REEL", "createdAt": "2026-01-01T00:00:00+09:00",
+          "visitedAt": null, "memoUpdatedBy": null, "memoUpdatedByNickname": null,
+          "photoUrl": null, "photoThumbnailUrl": null
+        }
+        """
+
+        // When
+        let pin = try JSONDecoder().decode(PinSummary.self, from: Data(json.utf8))
+
+        // Then 키 부재 → visitors nil(구 클라/구서버 무시 가능)
+        XCTAssertNil(pin.visitors)
+    }
+
+    // MARK: - DeclareVisitResponse(정책 v2 FR-B2/B3)
+
+    func test_decode_declareVisitResponse() throws {
+        // Given 방문 선언 응답(converted=true + visitors 2명).
+        let json = """
+        {
+          "converted": true, "alreadyConverted": false,
+          "visitors": [
+            {"userId": 3, "nickname": "보승", "profileImageUrl": null, "source": "SELF"},
+            {"userId": 4, "nickname": "지은", "profileImageUrl": "https://cdn/u4.jpg", "source": "TAGGED"}
+          ]
+        }
+        """
+
+        // When
+        let response = try JSONDecoder().decode(DeclareVisitResponse.self, from: Data(json.utf8))
+
+        // Then 분기 플래그 + visitors 디코딩
+        XCTAssertTrue(response.converted)
+        XCTAssertFalse(response.alreadyConverted)
+        XCTAssertEqual(response.visitors.count, 2)
+        XCTAssertEqual(response.visitors.last?.source, "TAGGED")
+    }
+
     // MARK: - PinListResponse (legacy {items} vs paged)
 
     func test_decode_pinListResponse_legacy_itemsOnly() throws {

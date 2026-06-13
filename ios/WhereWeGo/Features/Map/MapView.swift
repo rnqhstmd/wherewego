@@ -117,20 +117,9 @@ struct MapView: View {
                 .transition(.move(edge: .bottom))   // QE-1
             }
 
-            // 방문 토스트(설계 §4, FR-27). 화면 정중앙 오버레이. PinDetail 시트와 별개.
-            if let pin = viewModel.visitToastPin {
-                Color.black.opacity(0.12)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                VisitToastView(
-                    pin: pin,
-                    onConfirm: { Task { await viewModel.confirmVisit(pinId: pin.id) } },
-                    onSkip: { viewModel.dismissVisitToast() }
-                )
-                .transition(.scale(scale: 0.92).combined(with: .opacity))
-            }
+            // 방문 동행 선택은 시트로 전환됨(정책 v2 §2-1) — 아래 .sheet(item: visitCompanionSheetBinding).
 
-            // confetti(하트 fan-out, 600ms). transitionedToMemoryNow==true 시 1회 발사(AC-15).
+            // confetti(하트 fan-out, 600ms). 추억 전환(converted) 시 1회 발사(AC-15).
             if let trigger = viewModel.confettiTrigger {
                 ConfettiHeartsView()
                     .id(trigger)
@@ -211,6 +200,23 @@ struct MapView: View {
         }) { pin in
             VisitMemoSheet(pin: pin, mapViewModel: viewModel)
         }
+        // 방문 동행 선택 시트(정책 v2 §2-1). visitToastPinId → 핀 투영 바인딩. 제출 = submitVisit, 닫기 = dismissVisitToast.
+        //  "혼자예요"/"함께 다녀왔어요" 는 시트가 먼저 닫힌 뒤(바인딩 nil) onSubmit 으로 submitVisit 을 호출한다.
+        .sheet(item: visitCompanionSheetBinding) { pin in
+            VisitCompanionSheet(
+                pin: pin,
+                groupId: viewModel.groupId,
+                currentUserId: currentUser.id,
+                groupAPI: groupAPI,
+                onSubmit: { companionIds in
+                    // 시트를 먼저 닫고(바인딩 nil) 제출 — 이중 시트 전환 경쟁(.visitMemo) 회피.
+                    viewModel.dismissVisitToast()
+                    Task { await viewModel.submitVisit(pinId: pin.id, companionIds: companionIds) }
+                },
+                onSkip: { viewModel.dismissVisitToast() }
+            )
+            .presentationDetents([.medium, .large])
+        }
         // 어디가지(룰렛) 컴팩트 팝업(IA 재설계 §5). 시스템 시트 대신 하단 오버레이로 표시 — 하단 탭바를
         //  가리지 않도록 탭바 footprint 위에 띄운다(어떤 화면이든 탭바는 보인다). FAB 가 진입 즉시 자동 추첨.
         .overlay(alignment: .bottom) {
@@ -254,6 +260,17 @@ struct MapView: View {
             get: { viewModel.visitMemoPin },
             set: { newValue in
                 if newValue == nil, case .visitMemo = viewModel.activeSheet { viewModel.activeSheet = .none }
+            }
+        )
+    }
+
+    /// 방문 동행 선택 시트 바인딩(정책 v2 §2-1). visitToastPinId → 핀 투영. 스와이프 닫힘(set nil) = dismissVisitToast.
+    /// 시스템 스와이프 다운/배경 탭으로 닫혀도 세션 Set 가 유지되도록 dismissVisitToast 를 경유한다("나중에요" 동치).
+    private var visitCompanionSheetBinding: Binding<PinSummary?> {
+        Binding(
+            get: { viewModel.visitToastPin },
+            set: { newValue in
+                if newValue == nil { viewModel.dismissVisitToast() }
             }
         )
     }

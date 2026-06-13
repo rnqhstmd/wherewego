@@ -278,7 +278,7 @@ final class BotChatViewModel: ObservableObject {
             switch frame.kind {
             case .PLACE_CARDS, .SYSTEM, .MEMO_PROMPT:
                 removeOldestProcessing()
-            case .TEXT, .PROCESSING, .REEL_LINK, .PIN_REPLY:
+            case .TEXT, .PROCESSING, .REEL_LINK, .PIN_REPLY, .PIN_VISIT, .PIN_MEMORY:
                 break
             }
             appendFrame(frame)
