@@ -54,8 +54,8 @@ final class NicknameTests: XCTestCase {
         // Given 허용외 문자 혼합
         // When
         let result = Nickname.sanitize("길동!@# Hong")
-        // Then 허용 문자만 남음(공백/특수문자 제거)
-        XCTAssertEqual(result, "길동Hong")
+        // Then 허용 문자만 남고(공백/특수문자 제거) 5자로 절단된다("길동Hong" 6자 → 5자)
+        XCTAssertEqual(result, "길동Hon")
     }
 
     func test_sanitize_removesEmoji() {
