@@ -56,14 +56,14 @@ struct GroupListView: View {
 
     private var groupList: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 // 섹션 라벨(목업 ① "내 그룹"). 큰 제목/부제는 제거(IG-1 — 경량 상단바가 타이틀 담당).
                 Text("내 그룹")
                     .font(WGFont.sansSemiBold(12))
                     .foregroundStyle(WGColor.inkSoft)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 4)
                     .padding(.top, 14)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 2)
 
                 ForEach(groupContext.groups) { group in
                     Button {
@@ -74,19 +74,26 @@ struct GroupListView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
     }
 
-    /// 그룹 행(IG-1 플랫화) — 카드/테두리/clip 제거. 아바타 54 + 그룹명 + 멤버 일렬 + chevron. 여백이 행을 구분.
+    /// 그룹 행(카드형 + 그룹별 accent 색). 흰 카드(라운드16+옅은 그림자) + 아바타 accent 링 + 그룹명 + 멤버 일렬 + chevron.
+    ///  - accent: groupId 기반 안정 색(WGColor.groupAccent) → 단색 핑크 일색 탈피·시선 앵커.
     private func groupRow(_ group: GroupSummary) -> some View {
-        HStack(spacing: 12) {
+        let accent = WGColor.groupAccent(group.groupId)
+        return HStack(spacing: 13) {
             GroupAvatarView(
                 imageUrl: group.imageThumbUrl ?? group.imageUrl,
                 members: group.members,
-                size: 54
+                size: 50
             )
-            VStack(alignment: .leading, spacing: 4) {
+            // 그룹별 accent 링(3pt 간격 두고 바깥에).
+            .padding(3)
+            .overlay(Circle().stroke(accent, lineWidth: 2.5))
+
+            VStack(alignment: .leading, spacing: 5) {
                 // Pretendard 고정 웨이트라 .fontWeight() 미적용 → 강조는 실제 SemiBold 페이스 사용.
                 Text(group.name)
                     .font(WGFont.sansSemiBold(15))
@@ -100,9 +107,13 @@ struct GroupListView: View {
                 .foregroundStyle(WGColor.inkFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
+        .shadow(color: WGColor.shadow, radius: 6, y: 2)
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// 활성 멤버 전원 프사 가입순 일렬(FR-4). -5pt 겹침 HStack. 각 셀 18pt AvatarView(프사/이니셜 폴백).
@@ -112,8 +123,8 @@ struct GroupListView: View {
         HStack(spacing: -5) {
             ForEach(members) { member in
                 AvatarView(imageUrl: member.profileImageUrl, name: member.nickname, size: 18)
-                    // 겹침 경계 식별을 위해 bg 색 테두리 링(플랫 행 정합).
-                    .overlay(Circle().stroke(WGColor.bg, lineWidth: 1.5))
+                    // 겹침 경계 식별을 위해 카드 배경(panel) 색 테두리 링.
+                    .overlay(Circle().stroke(WGColor.panel, lineWidth: 1.5))
             }
         }
         .frame(height: 18, alignment: .leading)

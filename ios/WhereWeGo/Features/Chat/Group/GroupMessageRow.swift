@@ -194,6 +194,19 @@ struct GroupMessageRow: View {
         let snapshot = frame.pinSnapshot
         let isDeleted = (snapshot?.deleted ?? true) || (snapshot?.placeName == nil)
         VStack(alignment: .leading, spacing: 0) {
+            // 사진 펼침은 카드 콘텐츠 "위"로(아래가 아니라) — 이름·메모 행은 아래 고정, 사진이 위로 펼쳐진다.
+            //  썸네일과 상호 배타로 렌더해 동일 matchedGeometry id 가 동시에 두 인스턴스에 붙지 않게 한다.
+            if isPinPhotoExpanded, !isDeleted,
+               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
+               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
+                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
+                    .matchedGeometryEffect(id: "pinReplyPhoto", in: pinPhotoNS)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 10)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) { isPinPhotoExpanded = false }
+                    }
+            }
             HStack(alignment: .center, spacing: 8) {
                 pinCardGlyph(snapshot: snapshot, isDeleted: isDeleted)
                 VStack(alignment: .leading, spacing: 2) {
@@ -216,19 +229,6 @@ struct GroupMessageRow: View {
                 }
             }
             .padding(10)
-            // PIN_REPLY 사진 제자리 펼침(썸네일 탭 시 카드 아래로 1:1 펼침, PinDetailContent.memoOrPhotoRow 문법).
-            //  썸네일과 상호 배타로 렌더해 동일 matchedGeometry id 가 동시에 두 인스턴스에 붙지 않게 한다.
-            if isPinPhotoExpanded, !isDeleted,
-               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
-               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
-                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
-                    .matchedGeometryEffect(id: "pinReplyPhoto", in: pinPhotoNS)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-                    .onTapGesture {
-                        withAnimation(.easeOut(duration: 0.3)) { isPinPhotoExpanded = false }
-                    }
-            }
         }
         .background(WGColor.panel)
         .clipShape(shape)
@@ -356,6 +356,18 @@ struct GroupMessageRow: View {
         let snapshot = frame.pinSnapshot
         let isDeleted = (snapshot?.deleted ?? true) || (snapshot?.placeName == nil)
         VStack(alignment: .leading, spacing: 0) {
+            // 사진 펼침은 카드 콘텐츠 "위"로 — 이름·메모 행은 아래 고정, 사진이 위로 펼쳐진다. 썸네일과 상호 배타 렌더.
+            if isVisitPhotoExpanded, !isDeleted,
+               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
+               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
+                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
+                    .matchedGeometryEffect(id: "visitCardPhoto", in: visitPhotoNS)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 10)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) { isVisitPhotoExpanded = false }
+                    }
+            }
             HStack(alignment: .center, spacing: 8) {
                 pinCardGlyph(snapshot: snapshot, isDeleted: isDeleted)
                 VStack(alignment: .leading, spacing: 2) {
@@ -378,18 +390,6 @@ struct GroupMessageRow: View {
                 }
             }
             .padding(10)
-            // 핀 사진 제자리 펼침(썸네일 탭 시 카드 아래로 1:1 펼침, pinReplyBubble 문법). 썸네일과 상호 배타 렌더.
-            if isVisitPhotoExpanded, !isDeleted,
-               let thumb = snapshot?.photoThumbnailUrl, let full = snapshot?.photoUrl,
-               let thumbURL = URL(string: thumb), let fullURL = URL(string: full) {
-                ExpandedPinPhoto(thumbnailURL: thumbURL, photoURL: fullURL)
-                    .matchedGeometryEffect(id: "visitCardPhoto", in: visitPhotoNS)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-                    .onTapGesture {
-                        withAnimation(.easeOut(duration: 0.3)) { isVisitPhotoExpanded = false }
-                    }
-            }
         }
         .background(WGColor.panel)
         .clipShape(shape)

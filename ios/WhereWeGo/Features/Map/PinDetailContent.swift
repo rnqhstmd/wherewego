@@ -77,7 +77,8 @@ struct PinDetailContent: View {
             }
         }
         .padding(20)
-        .confirmationDialog("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+        // 삭제 확인은 화면 가운데 표준 alert(말풍선 아래 팝업이 아니라 중앙 모달).
+        .alert("이 핀을 삭제할까요?", isPresented: $showDeleteConfirm) {
             Button("삭제", role: .destructive) { Task { await deletePin() } }
             Button("취소", role: .cancel) {}
         } message: {
@@ -228,16 +229,8 @@ struct PinDetailContent: View {
                 Spacer(minLength: 8)
                 replyButton
                 shareButton
-                Menu {
-                    Button("수정") { withAnimation(.easeOut(duration: 0.25)) { isEditing = true } }
-                    Button("삭제", role: .destructive) { showDeleteConfirm = true }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(WGColor.inkSoft)
-                        .frame(width: 28, height: 28)
-                }
-                .accessibilityLabel("더 보기")
+                editButton
+                deleteButtonIcon
             }
         }
     }
@@ -342,6 +335,32 @@ struct PinDetailContent: View {
                 .foregroundStyle(WGColor.inkSoft)
         }
         .accessibilityLabel("채팅방에 답장")
+    }
+
+    /// 수정 버튼(직접 — 말풍선 오버레이 안 Menu 가 불안정해 ⋯ 메뉴를 대체). 탭 시 편집 모드 진입.
+    private var editButton: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.25)) { isEditing = true }
+        } label: {
+            Image(systemName: "pencil")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+                .frame(width: 28, height: 28)
+        }
+        .accessibilityLabel("수정")
+    }
+
+    /// 삭제 버튼(직접). 탭 시 중앙 alert 확인.
+    private var deleteButtonIcon: some View {
+        Button {
+            showDeleteConfirm = true
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(WGColor.inkSoft)
+                .frame(width: 28, height: 28)
+        }
+        .accessibilityLabel("삭제")
     }
 
     private func addressRow(_ address: String) -> some View {

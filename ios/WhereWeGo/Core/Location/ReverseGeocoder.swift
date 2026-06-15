@@ -13,10 +13,16 @@ final class ReverseGeocoder {
 
     private let geocoder = CLGeocoder()
 
-    /// 좌표 → 사람이 읽는 주소 문자열. 실패/무결과 시 nil.
+    /// 좌표 → 사람이 읽는 주소 문자열. 실패/무결과/타임아웃 시 nil(호출부가 coordinateFallback 으로 대체).
+    /// 시뮬레이터 등에서 CLGeocoder 가 무응답으로 멈추면 "주소를 찾는 중..." 이 고착되므로 5초 후 cancelGeocode 로 푼다.
     func reverseGeocode(_ c: Coordinate) async -> String? {
         let location = CLLocation(latitude: c.latitude, longitude: c.longitude)
+        let timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            self?.geocoder.cancelGeocode()   // 취소 → reverseGeocodeLocation 가 throw → try? nil → 좌표 폴백.
+        }
         let placemarks = try? await geocoder.reverseGeocodeLocation(location)
+        timeoutTask.cancel()
         guard let placemark = placemarks?.first else {
             return nil
         }

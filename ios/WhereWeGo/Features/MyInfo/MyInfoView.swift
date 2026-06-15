@@ -17,12 +17,6 @@ struct MyInfoView: View {
     /// 프로필 편집 시트 트리거(닉네임/프사). 기존 닉네임 수정 시트 대체.
     @State private var showProfileEdit = false
     @State private var showDeleteConfirm = false
-    /// 프사 액션시트(앨범에서 선택 / 사진 제거) 트리거(GP-1 FR-3).
-    @State private var showPhotoOptions = false
-    /// 사진 피커 시트 트리거.
-    @State private var showPhotoPicker = false
-    /// 피커에서 고른 원본(크롭 fullScreenCover 트리거). nil = 크롭 미진행.
-    @State private var pickedImage: PickedProfileImage?
 
     init(authAPI: AuthAPI, viewModel: MyInfoViewModel, groupContext: GroupContext) {
         self.authAPI = authAPI
@@ -96,39 +90,6 @@ struct MyInfoView: View {
         } message: {
             Text("내 핀과 그룹 정보가 모두 사라지고 되돌릴 수 없어요.")
         }
-        // 프사 액션시트(GP-1 FR-3): 앨범에서 선택 / (사진 있으면) 사진 제거.
-        .confirmationDialog(
-            "프로필 사진",
-            isPresented: $showPhotoOptions,
-            titleVisibility: .visible
-        ) {
-            Button("앨범에서 선택") { showPhotoPicker = true }
-            if viewModel.profileImageUrl != nil {
-                Button("사진 제거", role: .destructive) {
-                    Task { await viewModel.removeProfileImage() }
-                }
-            }
-            Button("취소", role: .cancel) {}
-        }
-        // 사진 피커 → 원형 크롭(PinDetailContent 선례). 크롭 완료 시 업로드.
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPickerView(
-                onPicked: { pickedImage = PickedProfileImage(image: $0) },
-                onDismiss: { showPhotoPicker = false }
-            )
-            .ignoresSafeArea()
-        }
-        .fullScreenCover(item: $pickedImage) { picked in
-            SquareCropView(
-                image: picked.image,
-                maskShape: .circle,   // 프사·그룹 이미지는 원형 가이드(BR-1, 결과물은 1:1 정사각).
-                onCropped: { cropped in
-                    pickedImage = nil
-                    Task { await viewModel.uploadProfileImage(cropped) }
-                },
-                onCancel: { pickedImage = nil }
-            )
-        }
     }
 
     // MARK: - 프로필 헤더(중앙 정렬)
@@ -136,27 +97,12 @@ struct MyInfoView: View {
     /// 아바타(우하단 카메라 배지) + 닉네임 + 통계 2종(그룹·핀).
     private var profileHeader: some View {
         VStack(spacing: 14) {
-            // 아바타 + 카메라 배지(우하단). 배지/아바타 탭 = 프사 액션시트. 업로드 중 로딩 오버레이.
-            Button {
-                showPhotoOptions = true
-            } label: {
-                AvatarView(
-                    imageUrl: viewModel.profileImageUrl,
-                    name: viewModel.nickname ?? "",
-                    size: 84
-                )
-                .overlay {
-                    if viewModel.isUploadingPhoto {
-                        Circle().fill(.black.opacity(0.35))
-                            .overlay(ProgressView().tint(.white))
-                    }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    cameraBadge
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isUploadingPhoto)
+            // 아바타(표시 전용). 프사 변경은 "프로필 편집" 화면에서 한다(내 정보 헤더엔 카메라 배지 없음).
+            AvatarView(
+                imageUrl: viewModel.profileImageUrl,
+                name: viewModel.nickname ?? "",
+                size: 84
+            )
 
             Text(viewModel.nickname ?? "사용자")
                 .font(WGFont.emo(20))
@@ -171,18 +117,6 @@ struct MyInfoView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
-    }
-
-    /// 우하단 카메라 배지(26pt Circle, panel 배경 + hairline 스트로크 + 그림자).
-    private var cameraBadge: some View {
-        Image(systemName: "camera.fill")
-            .font(.system(size: 12))
-            .foregroundStyle(WGColor.ink)
-            .frame(width: 26, height: 26)
-            .background(WGColor.panel)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(WGColor.hairline, lineWidth: 1))
-            .shadow(color: WGColor.shadow, radius: 3, y: 1)
     }
 
     /// 통계 1개(숫자 + 라벨, 세로 중앙). value 는 표시 문자열 — 미응답(nil)은 호출부가 "–" 로 전달.
@@ -255,10 +189,4 @@ struct MyInfoView: View {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }
-}
-
-/// .fullScreenCover(item:) 용 Identifiable 래퍼(UIImage 자체는 Identifiable 아님). PinDetailContent.PickedImage 동치.
-private struct PickedProfileImage: Identifiable {
-    let id = UUID()
-    let image: UIImage
 }

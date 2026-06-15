@@ -200,16 +200,25 @@ struct MapboxMapView: UIViewRepresentable {
                 var clusterCircle = CircleLayer(id: clusterCircleLayerId, source: sourceId)
                 clusterCircle.filter = Exp(.has) { "point_count" }
                 clusterCircle.circleColor = .constant(StyleColor(UIColor(WGColor.cta)))
-                clusterCircle.circleRadius = .constant(32)   // PRD FR-5 rust 32px
+                // 개수에 따라 단계적으로 커지는 컴팩트 배지(기존 32 고정은 너무 큼): 2~9=18, 10+=22, 100+=26.
+                clusterCircle.circleRadius = .expression(Exp(.step) {
+                    Exp(.get) { "point_count" }
+                    18
+                    10
+                    22
+                    100
+                    26
+                })
                 clusterCircle.circleStrokeColor = .constant(StyleColor(.white))
                 clusterCircle.circleStrokeWidth = .constant(2)
                 try map.addLayer(clusterCircle)
 
-                // 클러스터 숫자(point_count).
+                // 클러스터 숫자(point_count) — 작은 배지에서도 잘 보이게 키우고 볼드 폰트로.
                 var clusterCount = SymbolLayer(id: clusterCountLayerId, source: sourceId)
                 clusterCount.filter = Exp(.has) { "point_count" }
                 clusterCount.textField = .expression(Exp(.get) { "point_count_abbreviated" })
-                clusterCount.textSize = .constant(13)
+                clusterCount.textSize = .constant(16)
+                clusterCount.textFont = .constant(["DIN Offc Pro Bold", "Arial Unicode MS Bold"])
                 clusterCount.textColor = .constant(StyleColor(.white))
                 try map.addLayer(clusterCount)
 

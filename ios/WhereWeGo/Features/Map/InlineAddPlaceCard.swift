@@ -12,18 +12,18 @@ struct InlineAddPlaceCard: View {
     let onSelectResult: (PlaceItem) -> Void
     /// 취소 → MapView 에서 MapViewModel.exitAddPin().
     let onCancel: () -> Void
-
-    /// 확정 카드에서 선택한 태그(설계 §4 — 태그 3종 + "여기 등록"). 기본 위시.
-    @State private var selectedTag: PinTag = .WISH
+    /// 등록 → MapView 에서 등록 폼(PinRegisterForm) 표시. 종류·메모·인스타·장소명은 폼에서 한 번에 입력, 폼 제출 시 생성.
+    let onRegister: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // 검색 모드일 때만 검색바 노출(P8 영역4 후속 모드 분리). 콕찍기 모드는 지도 십자선으로 위치를 지정하므로
-            //  검색바를 숨겨 화면을 단순화한다. 검색 중 지도를 드래그하면 콕찍기로 전환되며 검색바가 사라진다(inputMode 추종).
-            if viewModel.inputMode == .search {
+            // 검색 중(미선택): 검색바+결과만 노출. 결과를 선택(selectedPlace)하거나 콕찍기면 취소/등록 카드만 노출.
+            //  (웹 검색 패널 → 선택 시 MemoTag 단계 전이 정합 — 검색 결과와 확정 카드가 동시에 뜨지 않는다.)
+            if viewModel.inputMode == .search && viewModel.selectedPlace == nil {
                 searchBar
+            } else {
+                confirmCard
             }
-            confirmCard
         }
     }
 
@@ -31,22 +31,32 @@ struct InlineAddPlaceCard: View {
 
     private var searchBar: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(WGColor.inkSoft)
-                TextField("장소를 검색해 보세요", text: $viewModel.query)
-                    .font(WGFont.sans(15))
-                    .submitLabel(.search)
-                    .onSubmit { Task { await viewModel.search() } }
-                if viewModel.isSearching {
-                    ProgressView().tint(WGColor.cta)
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(WGColor.inkSoft)
+                    TextField("장소를 검색해 보세요", text: $viewModel.query)
+                        .font(WGFont.sans(15))
+                        .submitLabel(.search)
+                        .onSubmit { Task { await viewModel.search() } }
+                    if viewModel.isSearching {
+                        ProgressView().tint(WGColor.cta)
+                    }
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(WGColor.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.hairline, lineWidth: 1))
+                // 필드 박스가 남는 너비만 채우고 취소 자리를 확보(취소가 화면 밖으로 밀려나는 것 방지).
+                .frame(maxWidth: .infinity)
+
+                // 검색 중 취소(추가 모드 종료) — 인라인 오버레이엔 시트 헤더가 없어 검색바에 취소를 둔다.
+                Button("취소") { onCancel() }
+                    .font(WGFont.sans(14))
+                    .foregroundStyle(WGColor.inkSoft)
+                    .fixedSize()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(WGColor.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.hairline, lineWidth: 1))
             .padding(.horizontal, 12)
             .padding(.bottom, viewModel.results.isEmpty ? 0 : 8)
 
@@ -113,28 +123,8 @@ struct InlineAddPlaceCard: View {
         VStack(alignment: .leading, spacing: 14) {
             placeSummary
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("어떤 핀으로 저장할까요?")
-                    .font(WGFont.sans(13))
-                    .foregroundStyle(WGColor.inkSoft)
-                HStack(spacing: 10) {
-                    ForEach(PinTag.allCases, id: \.self) { tag in
-                        tagToggle(tag, isOn: selectedTag == tag)
-                    }
-                }
-            }
-
             if let error = viewModel.errorMessage {
                 errorBanner(error)
-            }
-
-            if viewModel.isCreating {
-                HStack(spacing: 8) {
-                    ProgressView().tint(WGColor.cta)
-                    Text("추가하는 중...")
-                        .font(WGFont.sans(13))
-                        .foregroundStyle(WGColor.inkSoft)
-                }
             }
 
             actionButtons
@@ -177,26 +167,7 @@ struct InlineAddPlaceCard: View {
         }
     }
 
-    private func tagToggle(_ tag: PinTag, isOn: Bool) -> some View {
-        Button {
-            selectedTag = tag
-        } label: {
-            HStack(spacing: 6) {
-                Circle().fill(tagColor(tag)).frame(width: 8, height: 8)
-                Text(tagLabel(tag))
-                    .font(WGFont.sans(14))
-                    .foregroundStyle(isOn ? WGColor.ink : WGColor.inkSoft)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(isOn ? WGColor.panel : WGColor.bg)
-            .overlay(Capsule().stroke(isOn ? tagColor(tag) : WGColor.hairline, lineWidth: 1))
-            .clipShape(Capsule())
-        }
-        .disabled(viewModel.isCreating)
-    }
-
-    // MARK: - 취소 + 여기 등록(FR-7/FR-8, AC-7)
+    // MARK: - 취소 + 등록(FR-7/FR-8, AC-7)
 
     private var actionButtons: some View {
         HStack(spacing: 10) {
@@ -210,13 +181,10 @@ struct InlineAddPlaceCard: View {
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(WGColor.hairline, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            // MUST-3/AC-19 — 생성 진행 중에는 취소 비활성(생성 Task 취소 경쟁 방지, BR-3 일관).
-            .disabled(viewModel.isCreating)
-
             Button {
-                viewModel.createPin(tag: selectedTag)
+                onRegister()   // 등록 폼 표시(종류·메모·인스타·장소명 입력 → 폼 제출 시 생성).
             } label: {
-                Text("여기 등록")
+                Text("등록")
                     .font(WGFont.sans(14))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
@@ -239,22 +207,6 @@ struct InlineAddPlaceCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(WGColor.pinNew.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func tagColor(_ tag: PinTag) -> Color {
-        switch tag {
-        case .REEL: return WGColor.pinReel
-        case .WISH: return WGColor.pinWish
-        case .MEMORY: return WGColor.pinMemory
-        }
-    }
-
-    private func tagLabel(_ tag: PinTag) -> String {
-        switch tag {
-        case .REEL: return "릴스"
-        case .WISH: return "위시"
-        case .MEMORY: return "추억"
-        }
     }
 
     private func hideKeyboard() {

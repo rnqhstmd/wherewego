@@ -171,6 +171,9 @@ final class MapViewModel: ObservableObject {
     private var seedOnNextProgrammaticIdle = false
     /// 진입 후 사용자가 드래그(진짜 사용자 idle)했는지(MUST-2, AC-18). true 면 늦게 도착한 줌인 flyTo 를 스킵한다.
     private var userDraggedSinceEntry = false
+    /// 검색 모드 진입 시점의 지도 중심. 진입 직후 정착 cameraIdle(중심 불변)이 콕찍기로 전환되는 것을 막는다.
+    /// 실제 사용자 드래그(중심 이동)면 콕찍기로 전환한다("검색 중 드래그 → 콕찍기" 동작 보존, AC-17).
+    private var searchModeEntryCenter: Coordinate?
     /// 진입 줌인 one-shot 위치 요청 Task. 모드 종료 시 취소해 위치 서비스 낭비를 막는다(review Warning).
     private var entryZoomTask: Task<Void, Never>?
 
@@ -672,6 +675,8 @@ final class MapViewModel: ObservableObject {
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
+        // 검색 진입은 현재 중심을 기록 — 진입 직후 정착 idle(중심 불변)을 콕찍기 전환에서 제외(검색바 유지).
+        searchModeEntryCenter = (mode == .search) ? mapCenter : nil
         addPlaceVM = AddPlaceViewModel(mapViewModel: self)
         isAddingPin = true
         // 콕찍기만 진입 줌인/초기 seed. 검색은 사용자가 검색→선택할 때까지 콕찍기 중심을 만들지 않는다(십자선 미표시).
@@ -692,6 +697,7 @@ final class MapViewModel: ObservableObject {
         pendingProgrammaticIdle = 0
         seedOnNextProgrammaticIdle = false
         userDraggedSinceEntry = false
+        searchModeEntryCenter = nil
     }
 
     /// 진입 직후 줌인 분기 + 초기 콕찍기 seed 를 배타적으로 수행(MUST-2/AC-18).
@@ -815,6 +821,13 @@ final class MapViewModel: ObservableObject {
                     seedOnNextProgrammaticIdle = false
                     addPlaceVM?.onMapMoved(center: Coordinate(latitude: lat, longitude: lng))
                 }
+                return
+            }
+            // 검색 모드 + 장소 미선택: 진입 직후 정착 idle(진입 중심과 동일)은 콕찍기로 전환하지 않는다(검색바 유지).
+            //  실제 사용자 드래그(중심이 진입 위치에서 벗어남)면 아래로 진행해 콕찍기로 전환한다(AC-17 "검색 중 드래그→콕찍기").
+            if addPlaceVM?.inputMode == .search, addPlaceVM?.selectedPlace == nil,
+               let entry = searchModeEntryCenter,
+               abs(lat - entry.latitude) < 1e-5, abs(lng - entry.longitude) < 1e-5 {
                 return
             }
             // 여기부터는 진짜 사용자 드래그 idle.
