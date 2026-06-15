@@ -37,6 +37,8 @@ struct MapView: View {
     @State private var showGroupSwitcher = false
     /// ⋯ 그룹관리 시트 표시(IA 재설계 §5, 진입점만 — 내용은 D단계).
     @State private var showGroupManage = false
+    /// 핀 등록 폼 시트 표시(인라인 위치 카드 '등록' → 종류·메모·인스타·장소명 입력 → 폼 제출 시 생성).
+    @State private var showPinForm = false
 
     // 범례([!])는 필터 팝업에 통합(마커 안내 행 + 하단 캡션) — 상단 버튼 2개의 혼잡 해소.
     private enum CornerPopup { case none, filter }
@@ -109,7 +111,12 @@ struct MapView: View {
                                 zoom: MapViewModel.pinFocusZoom
                             )
                         },
-                        onCancel: { viewModel.exitAddPin() }   // FR-8, AC-12
+                        onCancel: { viewModel.exitAddPin() },   // FR-8, AC-12
+                        onRegister: {
+                            // 등록 → 폼 초기값 채우고 등록 폼 시트 표시(종류·메모·인스타·장소명 입력 → 폼 제출 시 생성).
+                            addVM.prepareRegisterDraft()
+                            showPinForm = true
+                        }
                     )
                     // QE-2/AC-14 — FloatingTabBar 와 겹치지 않도록 탭바 높이 이상 bottom padding.
                     .padding(.bottom, Self.inlineCardBottomPadding)
@@ -140,6 +147,19 @@ struct MapView: View {
         .animation(.easeOut(duration: 0.2), value: viewModel.visitInfoMessage)
         // QE-1 — 십자선/하단 카드 등장·퇴장 전환(opacity + slide).
         .animation(.easeOut(duration: 0.2), value: viewModel.isAddingPin)
+        // 핀 등록 폼 시트(인라인 위치 카드 '등록'). 위치는 확정된 상태에서 종류·세부정보를 한 번에 입력한다.
+        .sheet(isPresented: $showPinForm) {
+            if let addVM = viewModel.addPlaceVM {
+                PinRegisterForm(
+                    viewModel: addVM,
+                    onClose: { showPinForm = false }   // 취소: 시트만 닫고 위치 카드로 복귀(추가 모드 유지).
+                )
+            }
+        }
+        // 생성 성공/취소 등으로 추가 모드가 끝나면 등록 폼 시트도 닫는다(폼 제출 → exitAddPin → 시트 닫힘).
+        .onChange(of: viewModel.isAddingPin) { _, adding in
+            if !adding { showPinForm = false }
+        }
         .navigationBarBackButtonHidden(true)
         .task {
             // 진입 시 현재 그룹(currentGroupId)의 핀을 로드한다(IA 재설계 §3). load()(myActiveGroup 단수 resolve)는
@@ -381,19 +401,44 @@ struct MapView: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 14) {
-                        myLocationButton
+                    // ＋는 코너에 완전 고정(별도 ZStack 레이어 — 펼침/접힘에도 위치 불변, 제자리 45° 회전만).
+                    //  내 위치 + 펼침 항목은 ＋ 위 레이어에서 위로 자란다 → ＋ 가 리플로우에 끌려 대각선으로 흔들리지 않음.
+                    ZStack(alignment: .bottomTrailing) {
+                        // 내 위치(항상) + 펼침 항목. bottom 을 ＋(56) 위 14 간격에 고정해 위로만 자란다.
+                        VStack(alignment: .trailing, spacing: 14) {
+                            myLocationButton
+                            if viewModel.isAddMenuExpanded && !viewModel.isAddingPin {
+                                VStack(alignment: .trailing, spacing: 14) {
+                                    speedDialItem(
+                                        icon: "hand.draw.fill",
+                                        label: "지도에서 찍기",
+                                        accessibility: "지도에서 찍어 추가"
+                                    ) { viewModel.enterAddPin(mode: .pinpoint) }
+                                    speedDialItem(
+                                        icon: "magnifyingglass",
+                                        label: "검색해서 찾기",
+                                        accessibility: "검색해서 추가"
+                                    ) { viewModel.enterAddPin(mode: .search) }
+                                }
+                                // ＋에서 피어나듯(스케일+페이드) — 위치는 위 레이어에 고정이라 사선 모션 없음.
+                                .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
+                            }
+                        }
+                        .padding(.bottom, viewModel.isAddingPin ? 0 : 56 + 14)
+
+                        // ＋ 버튼: 코너 완전 고정 레이어(인라인 추가 모드엔 하단 카드와 중복되어 숨김).
                         if !viewModel.isAddingPin {
-                            addPinSpeedDial
-                                .transition(.scale.combined(with: .opacity))   // QE-1 등장·퇴장
+                            mainPlusButton
                         }
                     }
+                    .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
                 }
                 // 맵은 full-bleed 라 TabView safe area 전파에 기대지 않고, 버튼 스택이 바를 직접 회피한다(PR리뷰).
                 //  바 footprint(contentFootprint = barHeight+bottomGap) 만큼 올리고 버튼-바 숨 여백(bottomGap)을 더한다(AC-2). 수치 보정 DoD-B.
                 .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
-            .padding(.horizontal, 16)
+            // 하단 탭바 펠릿(.padding(.horizontal, 24))과 좌우 가장자리를 정렬(기존 16 → 8pt 어긋남 해소).
+            .padding(.horizontal, 24)
 
             // 좌하단 어디가지(룰렛) FAB(IA 재설계 §5). C단계(D-1): 필터/범례는 상단(mapFilterRow)으로 이전 → 좌하단은 어디가지 FAB 단독.
             //  speed-dial(우하단)과 같은 bottom 라인에 좌측 배치(대칭).
@@ -405,7 +450,8 @@ struct MapView: View {
                 }
                 .padding(.bottom, FloatingTabBar.Metrics.contentFootprint + FloatingTabBar.Metrics.bottomGap)
             }
-            .padding(.horizontal, 16)
+            // 하단 탭바 펠릿과 좌측 가장자리 정렬(우측 컨트롤과 동일한 24).
+            .padding(.horizontal, 24)
             .zIndex(1)
         }
     }
@@ -600,44 +646,14 @@ struct MapView: View {
                 .frame(width: 44, height: 44)
                 .background(Circle().fill(WGColor.panel))
                 .shadow(color: WGColor.shadow, radius: 8, y: 3)
+                // ＋(56) 중심선에 맞춰 중앙 정렬(원 지름 44/48/56 달라도 센터 일치 — 우측 스택 정렬).
+                .frame(width: 56)
         }
         .accessibilityLabel("내 위치")
     }
 
-    /// 장소 추가 ＋ speed-dial(P8 영역4 후속 — 탭바 센터 ＋ 분리·이동). 우하단 코너 주 액션.
-    ///  닫힘=＋ 원형 FAB(56 주황). ＋ 탭 → 위로 2선택지 펼침(✋ 지도에서 찍기=콕찍기 / 🔍 검색해서 찾기=검색).
-    ///  각 선택지가 enterAddPin(mode:)로 해당 모드 진입. isAddingPin 중엔 상위 스택에서 숨겨 중복을 막는다.
-    private var addPinSpeedDial: some View {
-        // ＋ 완전 고정 보장: 펼침 항목을 overlay(레이아웃 비참여)로 ＋ 프레임 밖에 절대 배치한다.
-        //  이전 ZStack 방식은 항목(라벨 캡슐 포함, ＋보다 넓음)이 레이아웃에 참여해 컨테이너 프레임이
-        //  커지는 변화가 애니메이트되며 ＋가 대각선으로 끌려갔다 돌아왔다 — overlay 는 부모 크기에
-        //  영향이 없어 ＋는 1px 도 움직이지 않고 제자리 45° 회전(✕)만 한다.
-        mainPlusButton
-            .overlay(alignment: .bottomTrailing) {
-                if viewModel.isAddMenuExpanded {
-                    VStack(alignment: .trailing, spacing: 12) {
-                        speedDialItem(
-                            icon: "hand.draw.fill",
-                            label: "지도에서 찍기",
-                            accessibility: "지도에서 찍어 추가"
-                        ) { viewModel.enterAddPin(mode: .pinpoint) }
-                        speedDialItem(
-                            icon: "magnifyingglass",
-                            label: "검색해서 찾기",
-                            accessibility: "검색해서 추가"
-                        ) { viewModel.enterAddPin(mode: .search) }
-                    }
-                    .fixedSize()
-                    // ＋(56) 위로 12 간격을 두고 펼침. trailing 은 ＋ 우측 모서리와 정렬.
-                    .alignmentGuide(.bottom) { $0[.bottom] + 56 + 12 }
-                    // ＋에서 피어나듯 등장(머티리얼 speed-dial 문법) — 사선 move 제거.
-                    .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
-                }
-            }
-            .animation(.easeOut(duration: 0.2), value: viewModel.isAddMenuExpanded)
-    }
-
     /// speed-dial 메인 ＋ 버튼(56 주황 — 화면 유일 cta 원형, 주 액션). 펼침 시 제자리 45° 회전(✕).
+    ///  배치/펼침 항목은 상위 컨트롤 ZStack 에서 직접 조립한다(＋는 고정 레이어, 항목은 위 레이어).
     private var mainPlusButton: some View {
         Button {
             viewModel.isAddMenuExpanded.toggle()
@@ -654,7 +670,7 @@ struct MapView: View {
     }
 
     /// speed-dial 펼침 항목: 좌측 라벨 캡슐 + 우측 원형 아이콘 버튼(48 흰+주황 글리프 — 펼침 중 주황 원형은 ✕뿐).
-    /// transition 은 컨테이너(addPinSpeedDial overlay)에서 일괄 적용 — 항목 개별 transition 금지(사선 모션 원인).
+    /// transition 은 항목 묶음(상위 컨트롤 ZStack)에서 일괄 적용 — 항목 개별 transition 금지(사선 모션 원인).
     private func speedDialItem(
         icon: String,
         label: String,
@@ -677,6 +693,8 @@ struct MapView: View {
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(WGColor.panel))
                     .shadow(color: WGColor.shadow, radius: 6, y: 2)
+                    // ＋(56) 중심선에 맞춰 48원을 56폭 슬롯에 중앙 배치 — 내위치·＋와 센터 일치.
+                    .frame(width: 56)
             }
         }
         .accessibilityLabel(accessibility)
@@ -696,9 +714,27 @@ private struct AddPinCrosshairLayer: View {
             if viewModel.inputMode == .pinpoint {
                 CrosshairOverlay()
                     .transition(.opacity)   // QE-1
+            } else if viewModel.selectedPlace != nil {
+                // 검색 선택: 지도 중심(flyTo된 선택 장소)에 위치 핀 표시(콕찍기 십자선과 구분되는 정적 마커).
+                SelectedPlaceMarker()
+                    .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: viewModel.inputMode)
+        .animation(.easeOut(duration: 0.2), value: viewModel.selectedPlace?.placeName)
+    }
+}
+
+/// 검색 선택 시 지도 중심을 가리키는 정적 위치 핀(needle 끝이 화면 정중앙=선택 장소 좌표). 터치는 지도로 통과.
+private struct SelectedPlaceMarker: View {
+    var body: some View {
+        Image(systemName: "mappin")
+            .font(.system(size: 30, weight: .bold))
+            .foregroundStyle(WGColor.cta)
+            .shadow(color: WGColor.shadowMd, radius: 5, y: 2)
+            // mappin 의 needle 끝이 아래쪽이므로 위로 올려 끝점이 정중앙(지도 중심)에 오게 한다.
+            .offset(y: -15)
+            .allowsHitTesting(false)
     }
 }
 

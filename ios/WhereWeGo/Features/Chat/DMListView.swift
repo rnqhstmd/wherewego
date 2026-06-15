@@ -123,9 +123,9 @@ struct DMListView: View {
     }
 
     private func listView(_ rooms: [GroupRoomSummary]) -> some View {
-        // 플랫 행 목록(IG-1) — 카드/구분선 제거. 여백(.vertical 8)이 행을 구분.
+        // 카드형 행 목록 — 흰 카드(라운드16+옅은 그림자) + 그룹별 accent 색으로 분리감·시선 앵커 부여.
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 10) {
                 ForEach(rooms) { room in
                     Button {
                         openedRoom = room
@@ -139,7 +139,8 @@ struct DMListView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
             .padding(.bottom, 16)
         }
     }
@@ -179,8 +180,7 @@ private struct DMRoomRow: View {
     private var isUnread: Bool { room.hasUnread }
 
     var body: some View {
-        // 세로 중앙 정렬: 우측 점과 미리보기가 행 가운데로.
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 13) {
             roomAvatar
 
             VStack(alignment: .leading, spacing: 3) {
@@ -190,61 +190,74 @@ private struct DMRoomRow: View {
                     .foregroundStyle(WGColor.ink)
                     .lineLimit(1)
 
-                // 미리보기 한 줄에 시각 인라인(IG-1). 미읽음=ink Bold, 읽음=inkSoft/inkFaint.
-                Text(previewText)
+                // 미리보기(시각 분리 — 우측 컬럼으로 이동). 미읽음=ink Bold, 읽음=inkSoft/inkFaint.
+                Text(previewBody)
                     .font(isUnread ? WGFont.sansBold(13) : WGFont.sans(13))
                     .foregroundStyle(previewColor)
                     .lineLimit(1)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
 
-            // 인스타식 미읽음 점(빨간 카운트 캡슐 대신 cta 점 1개). 읽음이면 우측 비움.
-            if isUnread {
-                Circle()
-                    .fill(WGColor.cta)
-                    .frame(width: 8, height: 8)
+            // 우측 컬럼: 시각(상단, 미읽음이면 cta 강조) + 미읽음 점(하단).
+            VStack(alignment: .trailing, spacing: 6) {
+                if let timeText {
+                    Text(timeText)
+                        .font(WGFont.sans(11))
+                        .foregroundStyle(isUnread ? WGColor.cta : WGColor.inkFaint)
+                }
+                if isUnread {
+                    Circle()
+                        .fill(WGColor.cta)
+                        .frame(width: 8, height: 8)
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(WGColor.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WGColor.hairline, lineWidth: 1))
+        .shadow(color: WGColor.shadow, radius: 6, y: 2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// 방 썸네일(GP-1 FR-5) — 그룹 조인 성공 시 GroupAvatarView(대표 이미지/멤버 콜라주). 56pt(IG-1).
     /// 미로딩(목록 부트스트랩 전)엔 그룹명 이니셜 원형 — 아바타 외형을 유지해 로딩 전후 모양이 튀지 않는다.
-    @ViewBuilder
     private var roomAvatar: some View {
-        if let group {
-            GroupAvatarView(
-                imageUrl: group.imageThumbUrl ?? group.imageUrl,
-                members: group.members,
-                size: 56
-            )
-        } else {
-            AvatarView(imageUrl: nil, name: room.groupName, size: 56)
+        Group {
+            if let group {
+                GroupAvatarView(
+                    imageUrl: group.imageThumbUrl ?? group.imageUrl,
+                    members: group.members,
+                    size: 50
+                )
+            } else {
+                AvatarView(imageUrl: nil, name: room.groupName, size: 50)
+            }
         }
+        // 그룹별 accent 링(3pt 간격 두고 바깥에) — 채팅 목록 시선 앵커.
+        .padding(3)
+        .overlay(Circle().stroke(WGColor.groupAccent(room.groupId), lineWidth: 2.5))
     }
 
-    /// 미리보기 시각(인라인 병기) — lastAt 있으면 " · 상대시각", 없으면 빈 문자열(시각 생략).
-    private var timeSuffix: String {
-        guard let lastAt = room.lastAt else { return "" }
-        return " · \(DMListViewModel.formatTime(lastAt))"
+    /// 우측 컬럼 시각(상대시각). lastAt 없으면 nil → 시각 비표시.
+    private var timeText: String? {
+        guard let lastAt = room.lastAt else { return nil }
+        return DMListViewModel.formatTime(lastAt)
     }
 
-    /// 미리보기 텍스트(IG-1 규칙):
-    ///  - 미읽음 + count>0 → "새 메시지 N개 · 시각", count nil/0 인데 hasUnread → "새 메시지 · 시각".
-    ///  - 읽음 → "(마지막 메시지 or '아직 대화가 없어요') · 시각". lastAt nil 이면 " · 시각" 생략.
-    private var previewText: String {
+    /// 미리보기 본문(시각은 우측 컬럼으로 분리):
+    ///  - 미읽음 + count>0 → "새 메시지 N개", count nil/0 → "새 메시지". 읽음 → 마지막 메시지 or "아직 대화가 없어요".
+    private var previewBody: String {
         if isUnread {
             if let count = room.unreadCount, count > 0 {
-                return "새 메시지 \(count)개\(timeSuffix)"
+                return "새 메시지 \(count)개"
             }
-            return "새 메시지\(timeSuffix)"
+            return "새 메시지"
         }
-        let body = room.lastPreview ?? "아직 대화가 없어요"
-        return "\(body)\(timeSuffix)"
+        return room.lastPreview ?? "아직 대화가 없어요"
     }
 
     /// 미리보기 색: 미읽음=ink, 읽음=메시지 있으면 inkSoft / 없으면 inkFaint(IG-1).

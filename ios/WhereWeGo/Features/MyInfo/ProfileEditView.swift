@@ -77,6 +77,15 @@ struct ProfileEditView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(viewModel.isUploadingPhoto)
+
+                    // 프사 업로드/제거 실패 메시지 — 사진 버튼 바로 아래(에러를 관련 위치에 표시).
+                    if let photoError = viewModel.errorMessage {
+                        Text(photoError)
+                            .font(WGFont.sans(12))
+                            .foregroundStyle(WGColor.cta)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.top, 32)
 
@@ -115,6 +124,9 @@ struct ProfileEditView: View {
         }
         .navigationTitle("프로필 편집")
         .navigationBarTitleDisplayMode(.inline)
+        // 진입/이탈 시 공유 VM 의 프사 에러를 초기화 — 스테일 에러가 내 정보 화면으로 새지 않게.
+        .onAppear { viewModel.errorMessage = nil }
+        .onDisappear { viewModel.errorMessage = nil }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("닫기") { dismiss() }
